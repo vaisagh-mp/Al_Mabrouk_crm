@@ -9,34 +9,46 @@
 
     <!-- Attendance Table with Search and Action Controls -->
     <div class="widget-box table-wdgt">
-        <div class="add-new-emply">
-            <div class="table-searchbar">
-                <div class="sidebar-search">
-                    <form method="get" action="">
-                        <div class="input-group">
-                            <input type="text" name="search" class="form-control search-menu" 
-                                value="{{ search_query }}" placeholder="Search by Employee Name" />
-                            <button type="submit">
-                                <div class="input-group-append">
-                                    <span class="input-group-text">
-                                        <i class="fa fa-search" aria-hidden="true"></i>
-                                    </span>
-                                </div>
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <a class="badge bg-warning" href="add-employee.html">Add <i class="fas fa-plus"></i></a>
-            <div class="dwnld-dropdown">
-                <a href="#" title="Download"><i class="fas fa-download"></i></a>
-                <div class="dwnld-dropdown-content">
-                    <a href="#" title="Download XLSX">XLSX</a>
-                    <a href="#" title="Download CSV">CSV</a>
-                </div>
-            </div>
-        </div>
         <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                  <th></th>
+                  <th></th>
+                  <th></th>
+                  <th></th>
+                  <th></th>
+                  <th></th>
+                  <th>
+                    <div class="add-new-emply">
+                      <div class="table-searchbar">
+                        <div class="sidebar-search">
+                            <form method="get" action="">
+                                <div class="input-group">
+                                    <input type="text" name="search" class="form-control search-menu" 
+                                        value="{{ search_query }}" placeholder="Search by Employee Name" />
+                                    <button type="submit">
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">
+                                                <i class="fa fa-search" aria-hidden="true"></i>
+                                            </span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                      </div>
+                      <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
+                      <div class="dwnld-dropdown">
+                        <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                        <div class="dwnld-dropdown-content">
+                          <a href="#" title="Download XLSX">XLSX</a>
+                          <a href="#" title="Download CSV">CSV</a>
+                        </div>
+                      </div>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
             <thead>
                 <tr>
                     <th>Name</th>
