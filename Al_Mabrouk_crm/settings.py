@@ -26,7 +26,7 @@ SECRET_KEY = 'django-insecure-87q2lyd!m3k4_hdefb%6z0^#nhqlfakz@2j%4or_bf%j9cp$le
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -51,9 +51,16 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
 
 ROOT_URLCONF = 'Al_Mabrouk_crm.urls'
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost",
+]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 TEMPLATES = [
     {
