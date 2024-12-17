@@ -1,22 +1,47 @@
 from django.contrib import admin
-from .models import Project, Employee, Attendance
+from .models import Project, Employee, ProjectAssignment, Attendance
 
-class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rank', 'work_days', 'holidays', 'overseas_days', 'project', 'project_purchase_cost', 'project_invoice')
-    search_fields = ('user', 'rank', 'project__name')
-    ordering = ('user',)
-
-class AttendanceAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'login_time', 'log_out_time', 'total_hours_of_work', 'status')
-    list_filter = ('status', 'employee')
-    search_fields = ('employee__name',)
-    readonly_fields = ('total_hours_of_work',)
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code')
-    search_fields = ('name', 'code')
-    ordering = ('name',)
-    
-admin.site.register(Employee, EmployeeAdmin)
-admin.site.register(Attendance, AttendanceAdmin)
+    list_display = ('name', 'code', 'purchase_and_expenses', 'invoice_amount', 'currency_code', 'status')
+    search_fields = ('name', 'code', 'status')
+    list_filter = ('status',)
+    readonly_fields = ('calculate_expenses', 'calculate_profit')
+
+    def calculate_expenses(self, obj):
+        """
+        Display calculated total expenses in the admin interface.
+        """
+        return obj.calculate_expenses()
+    calculate_expenses.short_description = "Total Expenses"
+
+    def calculate_profit(self, obj):
+        """
+        Display calculated profit in the admin interface.
+        """
+        return obj.calculate_profit()
+    calculate_profit.short_description = "Profit"
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ('user', 'rank', 'salary', 'work_days', 'holidays', 'overseas_days')
+    search_fields = ('user__username', 'rank')
+    list_filter = ('rank',)
+    readonly_fields = ('work_days',)
+
+
+@admin.register(ProjectAssignment)
+class ProjectAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('project', 'employee', 'time_start', 'time_stop')
+    search_fields = ('project__name', 'employee__user__username')
+    list_filter = ('project__name', 'employee__rank')
+
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'login_time', 'log_out_time', 'total_hours_of_work', 'status')
+    search_fields = ('employee__user__username', 'status')
+    list_filter = ('status',)
+    readonly_fields = ('total_hours_of_work',)

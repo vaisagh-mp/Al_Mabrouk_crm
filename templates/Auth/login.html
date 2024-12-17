@@ -27,13 +27,7 @@
         <h1>Almabrouk</h1>
         <p>Connectez-vous pour accéder à vos outils et informations.</p>
          <!-- Display error message if login fails -->
-         {% if messages %}
-         <div class="alert alert-danger">
-             {% for message in messages %}
-                 <p>{{ message }}</p>
-             {% endfor %}
-         </div>
-     {% endif %}
+         
         <form id="loginForm" method="POST">
           {% csrf_token %}
             <input type="username" id="username" name="username" required=""

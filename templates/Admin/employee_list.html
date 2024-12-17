@@ -22,29 +22,29 @@
               </tr>
           </thead>
           <tbody>
-              {% for employee in page_obj %}
-              <tr>
-                  <td><a href="#">{{ employee.user.get_full_name }}</a></td>
-                  <td>{{ employee.employee_id }}</td>
-                  <td>{{ employee.rank }}</td>
-                  <td>
-                      <a href="mailto:{{ employee.email }}">
-                          <i class="far fa-envelope"></i> {{ employee.user.email }}
-                      </a>
-                  </td>
-                  <td>{{ employee.work_days }}</td>
-                  <td>{{ employee.project }}</td>
-                  <td class="list-action-col">
-                      <a href="{% url 'edit-employee' employee.id %}"><i class="far fa-edit"></i></a>
-                      <a href="{% url 'delete-employee' employee.id %}"><i class="far fa-trash-alt"></i></a>
-                  </td>
-              </tr>
-              {% empty %}
-              <tr>
-                  <td colspan="7">No employees found.</td>
-              </tr>
-              {% endfor %}
-          </tbody>
+            {% for assignment in page_obj %}
+            <tr>
+                <td><a href="#">{{ assignment.employee.user.get_full_name }}</a></td>
+                <td>{{ assignment.employee.id }}</td>
+                <td>{{ assignment.employee.rank }}</td>
+                <td>
+                    <a href="mailto:{{ assignment.employee.user.email }}">
+                        <i class="far fa-envelope"></i> {{ assignment.employee.user.email }}
+                    </a>
+                </td>
+                <td>{{ assignment.employee.work_days }}</td>
+                <td>{{ assignment.project.name }}</td>
+                <td class="list-action-col">
+                    <a href="{% url 'edit-employee' assignment.employee.id %}"><i class="far fa-edit"></i></a>
+                    <a href="{% url 'delete-employee' assignment.employee.id %}"><i class="far fa-trash-alt"></i></a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7">No employees found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>        
       </table>
 
       <!-- Pagination -->

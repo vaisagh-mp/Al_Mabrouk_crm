@@ -6,7 +6,7 @@ from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm  # Your custom form
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
-from .models import Attendance, Employee
+from .models import Attendance, Employee, ProjectAssignment
 
 
 
@@ -33,10 +33,13 @@ def create_employee(request):
 def employee_list(request):
     if not request.user.is_staff:  # Restrict to admin or staff users
         return redirect('login')
-    employees = Employee.objects.all()
-    paginator = Paginator(employees, 10)  # Paginate employees (10 per page)
+    
+    # Query employees with their assigned projects
+    project_assignments = ProjectAssignment.objects.select_related('employee', 'employee__user', 'project')
+    paginator = Paginator(project_assignments, 10)  # Paginate (10 per page)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+    
     return render(request, 'Admin/employee_list.html', {'page_obj': page_obj})
 
 
