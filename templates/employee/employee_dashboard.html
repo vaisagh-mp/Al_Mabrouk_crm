@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}"> <!-- Link to CSS file -->
+</head>
+<body>
+    <!-- Navigation Bar (optional) -->
+    <nav>
+        <ul>
+            <li><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
+            <li><a href="{% url 'logout' %}">Logout</a></li>
+        </ul>
+    </nav>
+
+    <header>
+        <h1>Welcome, {{ employee.user.first_name }} {{ employee.user.last_name }}</h1>
+        <p>Employee Dashboard</p>
+    </header>
+
+    <!-- Employee Details Section -->
+    <section>
+        <h2>Your Details</h2>
+        <div class="employee-details">
+            <ul>
+                <li><strong>Rank:</strong> {{ employee.rank }}</li>
+                <li><strong>Salary:</strong> ${{ employee.salary }}</li>
+                <li><strong>Work Days:</strong> {{ employee.work_days }}</li>
+                <li><strong>Holidays:</strong> {{ employee.holidays }}</li>
+            </ul>
+        </div>
+    </section>
+
+    <!-- Attendance Records Section -->
+    <section>
+        <h2>Attendance Records</h2>
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Login Time</th>
+                    <th>Logout Time</th>
+                    <th>Total Hours</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td>{{ record.login_time.date }}</td>
+                    <td>{{ record.login_time }}</td>
+                    <td>{{ record.log_out_time }}</td>
+                    <td>{{ record.total_hours_of_work }}</td>
+                    <td>{{ record.status }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">No attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Footer (optional) -->
+    <footer>
+        <p>&copy; {{ current_year }} Your Company Name. All rights reserved.</p>
+    </footer>
+
+</body>
+</html>

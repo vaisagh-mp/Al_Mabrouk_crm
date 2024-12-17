@@ -1,0 +1,80 @@
+{% extends 'admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<!-- Create Employee -->
+<div class="add-emply-wraper">
+    <div class="pg-title">
+        <h1>Add Employee</h1>
+    </div>
+    <div class="widget-box add-emply-pg">
+        <div class="create-emply-frm add-frm">
+            <form method="post" action="{% url 'create-employee' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.username }}
+                                <label>Username</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.first_name }}
+                                <label>First Name</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.last_name }}
+                                <label>Last Name</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.email }}
+                                <label>Email</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.password }}
+                                <label>Password</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="input-wrapper">
+                            <div class="ripple-input">
+                                {{ form.password2 }}
+                                <label>Confirm Password</label>
+                                <div class="ripple-effect"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-12">
+                        <div class="create-btn">
+                            <button class="prmry-btn" type="submit">Add</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
