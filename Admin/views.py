@@ -12,10 +12,12 @@ from .models import Attendance, Employee, ProjectAssignment, Project
 
 
 #Home
+@login_required
 def dashboard(request):
     return render(request, 'Admin/dashboard.html')
 
 #create employee
+@login_required
 def create_employee(request):
     if not request.user.is_staff:  # Restrict to admin or staff users
         return redirect('dashboard')  # Redirect to the admin homepage
@@ -34,6 +36,7 @@ def create_employee(request):
 
 
 #employee list
+@login_required
 def employee_list(request):
     if not request.user.is_staff:  # Restrict to admin or staff users
         return redirect('login')
@@ -83,6 +86,7 @@ def delete_employee(request, employee_id):
 
 
 # attendance list
+@login_required
 def attendance_list_view(request):
     search_query = request.GET.get('search', '')
     attendance_records = Attendance.objects.select_related('employee')
@@ -103,6 +107,7 @@ def attendance_list_view(request):
     return render(request, 'Admin/attendance_list.html', context)
 
 # project list view
+@login_required
 def project_list_view(request):
     # Query all projects
     projects = Project.objects.all()
@@ -127,6 +132,7 @@ def project_list_view(request):
 
 
 # project summary
+@login_required
 def project_summary_view(request, project_id):
     # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
@@ -189,6 +195,7 @@ def project_summary_view(request, project_id):
 
 
 # add project
+@login_required
 def add_project(request):
     if request.method == 'POST':
         form = ProjectForm(request.POST)
@@ -200,6 +207,7 @@ def add_project(request):
     return render(request, 'Admin/project_list.html', {'form': form})
 
 #project_assignment_list
+@login_required
 def project_assignment_list(request):
     assignments = ProjectAssignment.objects.all()
 
@@ -212,6 +220,7 @@ def project_assignment_list(request):
     return render(request, 'Admin/project_assignment_list.html', {'assignments': assignments})
 
 #project_assignment_create
+@login_required
 def project_assignment_create(request):
     if request.method == 'POST':
         form = ProjectAssignmentForm(request.POST)
@@ -223,6 +232,7 @@ def project_assignment_create(request):
     return render(request, 'project_assignment_form.html', {'form': form})
 
 #project_assignment_update
+@login_required
 def project_assignment_update(request, pk):
     assignment = get_object_or_404(ProjectAssignment, pk=pk)
     if request.method == 'POST':
@@ -235,6 +245,7 @@ def project_assignment_update(request, pk):
     return render(request, 'project_assignment_form.html', {'form': form})
 
 #project_assignment_delete
+@login_required
 def project_assignment_delete(request, pk):
     assignment = get_object_or_404(ProjectAssignment, pk=pk)
     assignment.delete()
