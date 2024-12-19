@@ -1,0 +1,164 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+  <div class="pg-title">
+    <h1>All Projects</h1>
+  </div>
+
+  <!-- Employs List -->
+  <div class="widget-box table-wdgt">
+    <!-- <div class="add-new-emply">
+<a class="badge bg-warning" href="add-employee.html">Add <i class="fas fa-plus"></i></a>
+<a href="#" title="Xlsx Download"><i class="fas fa-download"></i></a>
+</div> -->
+    <table id="employeeTable">
+      <thead>
+        <tr style="border-bottom: 1px solid #ccc">
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>
+            <div class="add-new-emply">
+              <div class="table-searchbar">
+                <div class="sidebar-search">
+                  <div>
+                    <div class="input-group">
+                      <input type="text" class="form-control search-menu" placeholder="Search..." />
+                      <a href="#">
+                        <div class="input-group-append">
+                          <span class="input-group-text">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                          </span>
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Button -->
+              <a class="badge bg-warning" href="{% url 'add_project' %}" data-bs-toggle="modal" data-bs-target="#formModal">
+                Add <i class="fas fa-plus"></i>
+              </a>
+
+              <!-- Modal -->
+              <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="formModalLabel">Add New Project</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <form id="projectForm" method="POST" action="/manager/add-project/">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                          <label for="name" class="form-label">Project Name</label>
+                          <input type="text" class="form-control" id="name" name="name" required />
+                        </div>
+                        <div class="mb-3">
+                          <label for="code" class="form-label">Project Code</label>
+                          <input type="text" class="form-control" id="code" name="code" required />
+                        </div>
+                        <div class="mb-3">
+                          <label for="purchase_and_expenses" class="form-label">Purchase and Expenses</label>
+                          <input type="number" class="form-control" id="purchase_and_expenses" name="purchase_and_expenses" step="0.01" required />
+                        </div>
+                        <div class="mb-3">
+                          <label for="invoice_amount" class="form-label">Invoice Amount</label>
+                          <input type="number" class="form-control" id="invoice_amount" name="invoice_amount" step="0.01" required />
+                        </div>
+                        <div class="mb-3">
+                          <label for="currency_code" class="form-label">Currency Code</label>
+                          <input type="text" class="form-control" id="currency_code" name="currency_code" maxlength="10" required />
+                        </div>
+                        <div class="mb-3">
+                          <label for="status" class="form-label">Status</label>
+                          <select class="form-select" id="status" name="status" required>
+                            <option value="ACTIVE">Active</option>
+                            <option value="INACTIVE">Inactive</option>
+                          </select>
+                        </div>
+                      </form>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <button type="submit" class="btn btn-primary" id="saveProjectBtn">Save</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+                            
+              <div class="dwnld-dropdown">
+                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                <div class="dwnld-dropdown-content">
+                  <a href="#" title="Download XLSX">XLSX</a>
+                  <a href="#" title="Download CSV">CSV</a>
+                </div>
+              </div>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <thead>
+        <tr>
+          <th>Project Name</th>
+          <th>Code</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+        <tr>
+          <td>
+            <a href="{% url 'project-summary' project.id %}">{{ project.name }}</a>
+          </td>
+          <td>{{ project.code }}</td>
+          <td>{{ project.status }}</td>
+          <td>
+            <a href="{% url 'project-summary' project.id %}">View Details</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination">
+      <button class="active">1</button>
+      <button>2</button>
+      <button>3</button>
+    </div>
+  </div>
+</div>
+
+<script>
+ document.getElementById('saveProjectBtn').addEventListener('click', function() {
+  const form = document.getElementById('projectForm');
+  
+  // Submit the form via POST using FormData
+  fetch(form.action, {
+    method: 'POST',
+    body: new FormData(form)  // Let the browser handle Content-Type
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('Project added successfully!');
+      // Optionally, close the modal after successful submission
+      $('#formModal').modal('hide');
+    } else {
+      // Show the error messages in an alert or display them on the page
+      alert('Error: ' + JSON.stringify(data.errors));
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('An error occurred while submitting the form.');
+  });
+});
+
+
+</script>
+
+{% endblock %}

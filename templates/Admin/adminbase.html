@@ -128,25 +128,17 @@
                         <li class="sidebar-dropdown">
                             <a href="#">
                                 <i class="far fa-gem"></i>
-                                <span>Components</span>
+                                <span>Projects</span>
                             </a>
                             <div class="sidebar-submenu">
                                 <ul>
                                     <li>
-                                        <a href="#">General</a>
+                                        <a href="{% url 'project-list' %}">All Projects</a>
                                     </li>
                                     <li>
-                                        <a href="#">Panels</a>
+                                        <a href="{% url 'project-assignment-list' %}">Project Assigns</a>
                                     </li>
-                                    <li>
-                                        <a href="#">Tables</a>
-                                    </li>
-                                    <li>
-                                        <a href="#">Icons</a>
-                                    </li>
-                                    <li>
-                                        <a href="#">Forms</a>
-                                    </li>
+                                    
                                 </ul>
                             </div>
                         </li>

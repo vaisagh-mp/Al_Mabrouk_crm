@@ -1,0 +1,100 @@
+{% extends 'Admin/adminbase.html' %} {% load static %} {% block content %}
+
+<div class="emply-list-wraper">
+  <div class="pg-title">
+    <h1>Project Assignments</h1>
+  </div>
+
+  <!-- Project Assignments List -->
+  <div class="widget-box table-wdgt">
+    <table id="employeeTable">
+      <thead>
+        <tr style="border-bottom: 1px solid #ccc">
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>
+            <div class="table-searchbar">
+              <div class="sidebar-search">
+                <div>
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      class="form-control search-menu"
+                      placeholder="Search..."
+                    />
+                    <a href="#">
+                      <div class="input-group-append">
+                        <span class="input-group-text">
+                          <i class="fa fa-search" aria-hidden="true"></i>
+                        </span>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </th>
+          <th>
+            <a
+              class="badge bg-warning"
+              href="#l"
+              data-bs-toggle="modal"
+              data-bs-target="#formModal"style="text-decoration: none;"
+            >
+              Add <i class="fas fa-plus"></i>
+            </a>
+          </th>
+        </tr>
+      </thead>
+      <thead>
+        <tr>
+          <th>Project Name</th>
+          <th>Employee</th>
+          <th>Date</th>
+          <!-- Added Date column -->
+          <th>Time Start</th>
+          <th>Time Stop</th>
+          <th>Total Working Hours</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for assignment in assignments %}
+        <tr>
+          <td><a href="#">{{ assignment.project.name }}</a></td>
+          <td>{{ assignment.employee.user.username }}</td>
+          <td>{{ assignment.time_start|date:"M d, Y" }}</td>
+          <!-- Format date to "Dec 16, 2024" -->
+          <td>{{ assignment.time_start|time:"h:i A" }}</td>
+          <!-- Format time only -->
+          <td>{{ assignment.time_stop|time:"h:i A" }}</td>
+          <!-- Format time only -->
+          <td>{{ assignment.total_time }}</td>
+          <td class="list-action-col">
+            <!-- <a href="{% url 'project-assignment-update' assignment.pk %}"
+              > -->
+              <i class="far fa-edit"></i
+            ></a>
+            <!-- <a href="{% url 'project-assignment-delete' assignment.pk %}"
+              > -->
+              <i class="far fa-trash-alt"></i
+            ></a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="pagination" id="pagination">
+      <button class="active">1</button>
+      <button>2</button>
+      <button>3</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

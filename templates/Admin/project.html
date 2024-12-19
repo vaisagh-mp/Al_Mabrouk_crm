@@ -1,0 +1,86 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<style>
+  .vertical-table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ccc;
+  }
+  .vertical-table th,
+  .vertical-table td {
+    padding: 10px;
+    border: 1px solid #ccc;
+    text-align: left;
+  }
+  .vertical-table tbody tr {
+    display: table-row;
+  }
+  .vertical-table tbody tr td:first-child {
+    font-weight: bold;
+    background-color: #f9f9f9;
+    width: 25%;
+  }
+  .vertical-table tbody tr td:last-child {
+    text-align: center;
+    width: 75%;
+  }
+  .vertical-table .table-title {
+    text-align: left;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+  }
+</style>
+
+<div class="emply-list-wraper">
+  <div class="pg-title">
+    <h1>Project Details</h1>
+  </div>
+
+  <div class="widget-box table-wdgt">
+    <table class="vertical-table">
+      <tbody>
+        <tr>
+          <td>Project Name</td>
+          <td>{{ project_data.project_name }}</td>
+        </tr>
+        <tr>
+          <td>Code</td>
+          <td>{{ project_data.code }}</td>
+        </tr>
+        <tr>
+          <td>Status</td>
+          <td>{{ project_data.status }}</td>
+        </tr>
+        <tr>
+          <td>Invoice Amount</td>
+          <td>{{ project_data.invoice_amount }}</td>
+        </tr>
+        <tr>
+          <td>Total Work Hours</td>
+          <td>{{ project_data.total_work_hours }}</td>
+        </tr>
+        <tr>
+          <td>Total Project Hours</td>
+          <td>{{ project_data.total_project_hours }}</td>
+        </tr>
+        <tr>
+          <td>Engineers</td>
+          <td>{{ project_data.engineers|join:", " }}</td>
+        </tr>
+        <tr>
+          <td>Total Expenses</td>
+          <td>{{ project_data.total_expenses|floatformat:2 }}</td>
+        </tr>
+        <tr>
+          <td>Profit</td>
+          <td>{{ project_data.profit|floatformat:2 }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

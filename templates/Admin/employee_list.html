@@ -12,39 +12,35 @@
       <table id="employeeTable">
           <thead>
               <tr style="border-bottom: 1px solid #ccc">
-                  <th>Name</th>
-                  <th>Employee ID</th>
-                  <th>Rank</th>
-                  <th>Email</th>
-                  <th>Total Work Days</th>
-                  <th>Project</th>
-                  <th>Action</th>
+                <th>Employee ID</th>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Email</th>
+                <th>Action</th>
               </tr>
           </thead>
           <tbody>
-            {% for assignment in page_obj %}
+            {% for employee in page_obj %}
             <tr>
-                <td><a href="#">{{ assignment.employee.user.get_full_name }}</a></td>
-                <td>{{ assignment.employee.id }}</td>
-                <td>{{ assignment.employee.rank }}</td>
-                <td>
-                    <a href="mailto:{{ assignment.employee.user.email }}">
-                        <i class="far fa-envelope"></i> {{ assignment.employee.user.email }}
+                <td>{{ employee.pk }}</td> <!-- Displaying Employee ID (primary key) -->
+                <td><a href="#">{{ employee.user.get_full_name }}</a></td>
+                <td>{{ employee.rank }}</td>
+                <td> 
+                    <a href="mailto:{{ employee.user.email }}">
+                        <i class="far fa-envelope"></i> {{ employee.user.email }}
                     </a>
                 </td>
-                <td>{{ assignment.employee.work_days }}</td>
-                <td>{{ assignment.project.name }}</td>
                 <td class="list-action-col">
-                    <a href="{% url 'edit-employee' assignment.employee.id %}"><i class="far fa-edit"></i></a>
-                    <a href="{% url 'delete-employee' assignment.employee.id %}"><i class="far fa-trash-alt"></i></a>
+                    <a href="#"><i class="far fa-edit"></i></a>
+                    <a href="#"><i class="far fa-trash-alt"></i></a>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7">No employees found.</td>
+                <td colspan="5">No employees found.</td>
             </tr>
             {% endfor %}
-        </tbody>        
+        </tbody>    
       </table>
 
       <!-- Pagination -->

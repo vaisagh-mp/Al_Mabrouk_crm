@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from .models import Employee
+from .models import Project, ProjectAssignment
 
 class EmployeeCreationForm(forms.ModelForm):
     email = forms.EmailField(required=True)
@@ -20,4 +20,22 @@ class EmployeeCreationForm(forms.ModelForm):
             self.add_error('password2', "Passwords do not match.")
         return cleaned_data
     
+
+# Define a form for the Project model
+class ProjectForm(forms.ModelForm):
+    class Meta:
+        model = Project
+        fields = '__all__'
+
+    def clean_status(self):
+        status = self.cleaned_data['status']
+        valid_choices = [choice[0] for choice in Project.STATUS_CHOICES]
+        if status.upper() in valid_choices:
+            return status.upper()
+        raise forms.ValidationError("Invalid status value")
     
+
+class ProjectAssignmentForm(forms.ModelForm):
+    class Meta:
+        model = ProjectAssignment
+        fields = ['project', 'employee', 'time_start', 'time_stop']

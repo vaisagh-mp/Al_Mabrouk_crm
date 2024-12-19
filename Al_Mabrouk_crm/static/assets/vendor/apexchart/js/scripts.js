@@ -145,7 +145,7 @@ var spark3 = {
     name: 'Profits',
     data: randomizeArray(sparklineData)
   }],
-  labels: [...Array(24).keys()].map(n => `2018-09-0${n+1}`),
+  labels: [...Array(24).keys()].map(n => `2024-09-0${n+1}`),
   xaxis: {
     type: 'datetime',
   },
