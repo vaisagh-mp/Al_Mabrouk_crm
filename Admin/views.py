@@ -128,12 +128,20 @@ def project_list_view(request):
 
 # project summary
 def project_summary_view(request, project_id):
-    # Get the specific project by ID (or you can use a different identifier like project_code)
+    # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
 
     # Engineers involved in the project
     assignments = ProjectAssignment.objects.filter(project=project)
-    engineers = [assignment.employee.user.username for assignment in assignments]
+    engineers = []
+    engineer_salaries = {}
+    total_engineer_salary = 0  # Initialize the total salary variable
+
+    for assignment in assignments:
+        engineer = assignment.employee
+        engineers.append(engineer.user.username)
+        engineer_salaries[engineer.user.username] = engineer.salary  # Assuming the salary is stored on the Employee model
+        total_engineer_salary += engineer.salary  # Add salary to the total
 
     # Calculate total work hours from ProjectAssignment
     total_work_hours = sum(
@@ -149,7 +157,7 @@ def project_summary_view(request, project_id):
     else:
         total_project_hours = 0
 
-    # Calculate total expenses
+    # Calculate total expenses (will call the method which includes hours worked)
     total_expenses = project.calculate_expenses()
 
     # Calculate profit
@@ -162,12 +170,14 @@ def project_summary_view(request, project_id):
         "purchase_and_expenses": project.purchase_and_expenses,
         "invoice_amount": project.invoice_amount,
         "engineers": engineers,
+        "engineer_salaries": engineer_salaries,  # Include engineer salaries
         "total_work_hours": round(total_work_hours, 2),  # Rounded to 2 decimal points
         "total_project_hours": round(total_project_hours, 2),  # Rounded to 2 decimal points
         "currency_code": project.currency_code,
-        "total_expenses": total_expenses,
+        "total_expenses": round(total_expenses, 2),  # Rounded total expenses
         "profit": profit,
         "status": project.status,
+        "total_engineer_salary": round(total_engineer_salary, 2),  # Total salary for all engineers
     }
 
     # Pass the data to the template

@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from datetime import timedelta
 from django.db.models import Q
+from decimal import Decimal
 
 
 class Project(models.Model):
@@ -27,20 +28,18 @@ class Project(models.Model):
         - Purchase and material expenses
         - Employee work costs (time spent * hourly salary)
         """
-        total_expenses = self.purchase_and_expenses
+        total_expenses = self.purchase_and_expenses  # Start with the purchase and material expenses
         project_assignments = self.projectassignment_set.all()
 
         for assignment in project_assignments:
-            # Total hours worked by the employee on this project
-            hours_worked = sum(
-                attendance.total_hours_of_work
-                for attendance in assignment.employee.attendance_set.filter(
-                    Q(login_time__gte=assignment.time_start) & Q(
-                        log_out_time__lte=assignment.time_stop)
-                )
-            )
-            # Add to total expenses
-            total_expenses += hours_worked * assignment.employee.salary
+            # Calculate the time worked for the assignment
+            time_worked = (assignment.time_stop - assignment.time_start).total_seconds() / 3600  # Time in hours
+
+            # Convert time_worked to Decimal to avoid type mismatch with salary
+            time_worked = Decimal(str(time_worked))  # Convert float to Decimal
+
+            # Add to total expenses (employee's work cost)
+            total_expenses += time_worked * assignment.employee.salary
 
         return total_expenses
 

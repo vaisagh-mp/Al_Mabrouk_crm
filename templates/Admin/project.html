@@ -59,6 +59,10 @@
           <td>{{ project_data.invoice_amount }}</td>
         </tr>
         <tr>
+          <td>Purchase and Expenses</td>
+          <td>{{ project_data.purchase_and_expenses }}</td>
+        </tr>
+        <tr>
           <td>Total Work Hours</td>
           <td>{{ project_data.total_work_hours }}</td>
         </tr>
@@ -69,6 +73,10 @@
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", " }}</td>
+        </tr>
+        <tr>
+          <td>Engineer's Salary</td>
+          <td>{{project_data.total_engineer_salary}}/hr</td>
         </tr>
         <tr>
           <td>Total Expenses</td>
