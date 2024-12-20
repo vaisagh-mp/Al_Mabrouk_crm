@@ -57,6 +57,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'Al_Mabrouk_crm.urls'
 
+LOGIN_URL = '/'
+LOGOUT_REDIRECT_URL = '/' 
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost",
 ]
