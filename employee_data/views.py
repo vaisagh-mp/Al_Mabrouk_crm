@@ -24,8 +24,12 @@ def employee_dashboard(request):
 
 @login_required
 def submit_attendance_request(request):
-    if not hasattr(request.user, 'employee_profile'):  # Ensure the user has an employee profile
+    # Ensure the user has an employee profile
+    if not hasattr(request.user, 'employee_profile'):
         return redirect('dashboard')
+
+    # Get the employee object for both GET and POST requests
+    employee = request.user.employee_profile
 
     if request.method == 'POST':
         location = request.POST.get('location')
@@ -33,8 +37,6 @@ def submit_attendance_request(request):
         login_time = request.POST.get('login_time')
         log_out_time = request.POST.get('log_out_time')
         project_id = request.POST.get('project')
-
-        employee = request.user.employee_profile
 
         # Calculate total hours if times are provided
         total_hours_of_work = 0
@@ -69,9 +71,9 @@ def submit_attendance_request(request):
         )
         messages.success(request, "Attendance request submitted successfully!")
         return redirect('employee_dashboard')
-        
-        # Fetch projects assigned to the current employee
-    assigned_projects = Project.objects.filter(employees=employee)  # Replace 'employees' with your actual field name
+    
+    # Fetch projects assigned to the current employee via projectassignment
+    assigned_projects = Project.objects.filter(projectassignment__employee=employee)
 
     # Add context for location, attendance status, and project choices
     context = {
@@ -81,6 +83,7 @@ def submit_attendance_request(request):
     }
 
     return render(request, 'employee/submit_attendance_request.html', context)
+
 
 
 def update_project_status(request, project_id):
