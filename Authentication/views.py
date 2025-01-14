@@ -5,10 +5,12 @@ from django.http import HttpResponse
 
 def custom_login(request):
     if request.user.is_authenticated:
-        if request.user.is_staff:
-            return redirect('dashboard')  # Admin redirection
+        if request.user.is_superuser:
+            return redirect('admin-dashboard')  # Admin redirection
+        elif request.user.is_staff:  # For staff/manager users
+            return render(request, 'Manager/dashboard.html')
         else:
-            return redirect('employee-dashboard')  # Ensure 'employee-dashboard' is correct
+            return redirect('employee_dashboard')  # Ensure 'employee-dashboard' is correct
 
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -18,10 +20,12 @@ def custom_login(request):
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
-                if user.is_staff:
-                    return redirect('dashboard')  # Admin redirection
+                if user.is_superuser:
+                    return redirect('admin-dashboard')  # Admin redirection
+                elif user.is_staff:  # For staff/manager users
+                    return render(request, 'Manager/dashboard.html')
                 else:
-                    return redirect('employee-dashboard')  # Ensure 'employee-dashboard' is correct
+                    return redirect('employee_dashboard')  # Ensure 'employee-dashboard' is correct
             else:
                 return HttpResponse('Invalid login credentials', status=401)
         else:

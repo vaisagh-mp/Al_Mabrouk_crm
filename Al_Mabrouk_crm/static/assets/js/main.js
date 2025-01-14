@@ -1,5 +1,5 @@
 
-// Side Bar
+// // Side Bar
 jQuery(function ($) {
   // Sidebar toggle logic
   $(".sidebar-dropdown > a").click(function () {
@@ -14,28 +14,14 @@ jQuery(function ($) {
     }
   });
 
-  $("#close-sidebar").click(function () {
-    $(".page-wrapper").removeClass("toggled");
-  });
 
-  $("#show-sidebar").click(function () {
-    $(".page-wrapper").addClass("toggled");
-  });
-
-  // Close sidebar on small screens
-  function handleSidebarState() {
-    if ($(window).width() <= 991) {
-      $(".page-wrapper").removeClass("toggled");
-    }
-  }
-
-  // Check on page load
-  handleSidebarState();
-
-  // Check on window resize
-  $(window).resize(function () {
-    handleSidebarState();
-  });
 });
 
 
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const content = document.getElementById('content');
+  sidebar.classList.toggle('collapsed');
+  content.classList.toggle('collapsed');
+}

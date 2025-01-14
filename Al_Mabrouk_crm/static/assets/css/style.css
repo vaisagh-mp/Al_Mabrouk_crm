@@ -12,6 +12,9 @@
   --bs-green:#4caf50;
   --bs-orange:#ff5200;
   --edit-icon:#6777ef;
+  --secondary-bg:#3d6999;
+  --dark-green:#155724;
+  --dark-red:#e2362f;
 }
 body {
   font-size: 0.9rem;
@@ -28,6 +31,7 @@ h4{font-size: 18px;font-weight: 600;color: var(--primary-font-color);}
 .widget-title{margin: 20px;}
 @media(max-width:991px){
   .create-btn{width: max-content;margin: auto;}
+  
 }
 .bg-warning{background-color: var(--bs-blue) !important;padding: 10px ;}
 @media(max-width:767px){
@@ -183,17 +187,17 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
   }
   /*----------------show sidebar button----------------*/
   #show-sidebar {
-    position: fixed;
-    left: 0;
+    position: absolute;
+   right: -35px;
     top: 10px;
     border-radius: 0 4px 4px 0px;
     width: 35px;
     transition-delay: 0.3s;
     z-index: 999;
   }
-  .page-wrapper.toggled #show-sidebar {
-    left: -40px;
-  }
+  /* .page-wrapper.toggled #show-sidebar {
+    left:288px;
+  } */
   /*----------------sidebar-wrapper----------------*/
   
   .sidebar-wrapper {
@@ -541,9 +545,23 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
     .page-wrapper{padding:85px 15px 30px 15px;}
   }
   @media(min-width:992px){
-    .page-wrapper {width: 80%; float: right;padding:127px 20px 50px 20px;}
-    .sidebar-wrapper{width: 20%;}
+    .page-wrapper { padding:127px 20px 50px 20px;}
+    
   }
+
+  @media(min-width:991px){
+  .sidebar-wrapper{width: 20%;}
+  .sidebar-wrapper.sidebar.collapsed{width: 70px;}
+  .sidebar-wrapper.sidebar.collapsed span{display: none;}
+  .sidebar-wrapper.sidebar.collapsed .sidebar-menu .sidebar-dropdown > a::after{display: none;}
+  .sidebar-wrapper.sidebar.collapsed .search-menu{display: none;}
+  .page-wrapper{margin-left: 20% ;transition: margin-left 0.3s;}
+  .page-wrapper.collapsed{margin-left: 70px ;}
+}
+@media(max-width:992px){
+.sidebar-wrapper.sidebar.collapsed{width: 0px;}
+}
+  #close-sidebar{display: none;}
    /* Page Wrapper */
 
    /* Page title */
@@ -618,27 +636,49 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
     color: #721c24;
   }
   
-  .prjtc-table .status {
+ .status {
     padding: 4px 10px;
     border-radius: 12px;
     color: #fff;
     font-size: 12px;
     font-weight: bold;
   }
+
   
-  .prjtc-table .status.pending {
+.status.pending{
     background-color: #cce5ff;
     color: #004085;
   }
   
-  .prjtc-table .status.in-progress {
+.status.in-progress {
     background-color: #d1ecf1;
-    color: #0c5460;
+    color: #0c5460; 
+  }
+
+.status.Assign {
+    background-color: #d1ecf1;
+    color: #23a4bb; 
   }
   
-  .prjtc-table .status.completed {
+ .status.completed{
     background-color: #d4edda;
     color: #155724;
+  }
+
+ .status.hold{
+    background-color: #fec600;
+    color:var(--primary-font-color);
+
+  }
+ .status.ongoing{
+    background-color: #ff8548;
+    color:var(--primary-font-color);
+
+  }
+  .status.cancelled{
+    background-color: #e2362f;
+    color:var(--primary-font-color);
+
   }
   
   .prjtc-table button {
@@ -682,7 +722,7 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
     overflow: auto;
 }
 .widget-box th,.widget-box td {
-    padding: 25px;
+    padding: 25px 10px;
     text-align: center;
 }
 .widget-box td a{text-decoration: none;color: var(--secondary-font-color);}
@@ -935,3 +975,97 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
   .login-container{width: 100%;}
 }
   /*================ End Loging Page ================*/
+
+  /*================ Empolyee Profile Page ================*/
+  .emp-info-wrapper{border-radius: 10px;box-shadow:0px 4px 40px 0px rgba(0, 0, 0, 0.07) ;padding: 50px 0;}
+  .emp-info-hdr {text-align: center;}
+  .emp-info-hdr span{padding: 4px 6px;background: rgba(33, 37, 41, 0.1);color: var(--primary-font-color);border-radius: 6px;margin:0 8px;font-size: 12px;}
+  .emp-prfl-img{width: 60px; height: 60px;margin: auto;margin-bottom: 20px;}
+  .emp-prfl-img img{width: 100%;}
+  .emp-info-hdr h5{margin-bottom: 20px;}
+
+  .emp-details{margin-top: 25px;font-size: 14px;padding: 15px;}
+  .emp-details span{color: var(--secondary-font-color);}
+  .emp-details i{padding-right: 5px;}
+  .emp-details .fa-trash-alt,   .emp-details .fa-edit{color: #fff !important;font-size: 14px;}
+  .prf-upld-container{margin-bottom:25px;background-color: #f8f9fa;}
+  .prf-upld-container img{width:80px; height: 80px; object-fit: cover; border: 2px solid #ddd;}
+  @media(max-width:767px){
+    .prf-upld-container img{width: 60px;height: 60px;}
+  }
+
+  @media (min-width:800px) {
+    .modal-dialog {max-width: 720px;}
+    }
+.emp-basic-info span{color: var(--secondary-font-color);font-size: 14px;}
+.emp-basic-info i{padding-right: 5px;}
+.emp-basic-info .fa-envelope{color: var(--secondary-font-color) !important;}
+.emp-status-col .status-wdgt h5,.emp-status-col .status-wdgt h6,.emp-status-col .status-wdgt p{color: var(--primary-font-color);}
+.emp-status-col .status-wdgt h5{font-size: 18px;}
+.emp-status-col .status-wdgt .wdgt-bg-icons{top: 10px;}
+
+@media(max-width:767px){
+  .emp-status-col .row{margin-top: 10px;}
+  .emp-status-col .col-lg-4{margin: 10px 0;}
+}
+@media(min-width:767px) and (max-width:991px){
+  .emp-status-col .row{margin-top: 20px;}
+}
+ 
+   /*================ End Empolyee Profile Page ================*/ 
+   /*================ Project Details Table ================*/ 
+   .vertical-table {
+    display: table;
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #ccc;
+  }
+  .vertical-table th,
+  .vertical-table td {
+    padding: 10px;
+    border: 1px solid #ccc;
+    text-align: left;
+  }
+  .vertical-table tbody tr {
+    display: table-row;
+  }
+  .vertical-table tbody tr td:first-child {
+    font-weight: bold;
+    background-color: #f9f9f9;
+    width: 25%;
+  }
+  .vertical-table tbody tr td:last-child {
+    text-align: center;
+    width: 75%;
+  }
+  .vertical-table .table-title {
+    text-align: left;
+    font-size: 1.5em;
+    margin-bottom: 20px;
+  }
+   /*================ End Project Details Table ================*/ 
+
+ /*================ Employee Profile page ================*/ 
+   table .fa-check{color: var(--dark-green);}
+   table .fa-times{color: var(--dark-red);}
+   .reject-resn-modal .modal-dialog{padding: 20px;}
+   .reject-resn-modal .modal-dialog input{width: 100%;height: 50px;}
+   .reject-resn-modal .modal-footer button{background-color: var(--secondary-bg);color:#fff;border: none;padding: 10px 25px;}
+   .reject-resn-modal .modal-dialog{pointer-events: auto;}
+   @media (min-width: 800px) {
+   .reject-resn-modal .modal-dialog{max-width: 500px !important;}
+   }
+  /*================ End Employee Profile page ================*/ 
+
+  /*================ All Projects Page ================*/ 
+  .prjct-list-wraper .nav-pills .nav-link{color: var(--primary-font-color) ;}
+  .prjct-list-wraper .nav-pills .nav-link.active{background-color: var(--secondary-bg) !important;color: #fff !important;}
+
+
+
+  .assgn-to-emp-frm select{color:var(--secondary-font-color); width: 100%;height: 50px;}
+  .assgn-to-emp-frm input{color:var(--secondary-font-color); width: 100%;height: 50px;outline: none !important;border-radius: 5px;border: none;border: 1px solid #ccc;background-color: #fff !important;}
+
+  .assgn-to-emp-frm{margin-top: 30px;}
+
+  /*================ End All Projects Page  ================*/ 

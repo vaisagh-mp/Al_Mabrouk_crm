@@ -1,38 +1,7 @@
 {% extends 'Admin/adminbase.html' %}
+{% load custom_filters %}
 {% load static %}
 {% block content %}
-
-<style>
-  .vertical-table {
-    display: table;
-    width: 100%;
-    border-collapse: collapse;
-    border: 1px solid #ccc;
-  }
-  .vertical-table th,
-  .vertical-table td {
-    padding: 10px;
-    border: 1px solid #ccc;
-    text-align: left;
-  }
-  .vertical-table tbody tr {
-    display: table-row;
-  }
-  .vertical-table tbody tr td:first-child {
-    font-weight: bold;
-    background-color: #f9f9f9;
-    width: 25%;
-  }
-  .vertical-table tbody tr td:last-child {
-    text-align: center;
-    width: 75%;
-  }
-  .vertical-table .table-title {
-    text-align: left;
-    font-size: 1.5em;
-    margin-bottom: 20px;
-  }
-</style>
 
 <div class="emply-list-wraper">
   <div class="pg-title">
@@ -63,19 +32,21 @@
           <td>{{ project_data.purchase_and_expenses }}</td>
         </tr>
         <tr>
-          <td>Total Work Hours</td>
-          <td>{{ project_data.total_work_hours }}</td>
+          <td>Total Work days</td>
+          <td>{{ project_data.total_work_days }}</td>
         </tr>
+        {% for engineer, hours in project_data.engineer_project_hours.items %}
         <tr>
           <td>Total Project Hours</td>
-          <td>{{ project_data.total_project_hours }}</td>
+          <td>{{ hours|format_hours }}</td>
         </tr>
+        {% endfor %}
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", " }}</td>
         </tr>
         <tr>
-          <td>Engineer's Salary</td>
+          <td>Mandays</td>
           <td>{{project_data.total_engineer_salary}}/hr</td>
         </tr>
         <tr>

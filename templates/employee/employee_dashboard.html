@@ -1,17 +1,19 @@
+{% load static %}
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Employee Dashboard</title>
-    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}"> <!-- Link to CSS file -->
+    <link rel="stylesheet" href="{% static 'assets/css/dashboard.css' %}"> <!--Link to CSS file-->
 </head>
 <body>
     <!-- Navigation Bar (optional) -->
     <nav>
         <ul>
             <li><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
-            <li><a href="{% url 'logout' %}">Logout</a></li>
+            <li><a href="{% url 'custom_logout' %}">Logout</a></li>
         </ul>
     </nav>
 
@@ -29,6 +31,7 @@
                 <li><strong>Salary:</strong> ${{ employee.salary }}</li>
                 <li><strong>Work Days:</strong> {{ employee.work_days }}</li>
                 <li><strong>Holidays:</strong> {{ employee.holidays }}</li>
+                <li><a href="{% url 'submit_attendance_request' %}">Add Attendance</a></li>
             </ul>
         </div>
     </section>
@@ -43,7 +46,8 @@
                     <th>Login Time</th>
                     <th>Logout Time</th>
                     <th>Total Hours</th>
-                    <th>Status</th>
+                    <th>Attendance</th>
+                    <th>Manager Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -53,21 +57,70 @@
                     <td>{{ record.login_time }}</td>
                     <td>{{ record.log_out_time }}</td>
                     <td>{{ record.total_hours_of_work }}</td>
+                    <td>{{ record.attendance_status }}</td>
                     <td>{{ record.status }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5">No attendance records found.</td>
+                    <td colspan="6">No attendance records found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </section>
 
+    <!-- Assigned Work Section -->
+    <section>
+        <h2>Assigned Work</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Project Name</th>
+                    <th>Project Code</th>
+                    <th>Status</th>
+                    <th>Start Date</th>
+                    <th>Stop Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assignment in assigned_work %}
+                <tr>
+                    <td>{{ assignment.project.name }}</td>
+                    <td>{{ assignment.project.code }}</td>
+                    <td>
+                        <form method="post" action="{% url 'update_project_status' assignment.project.id %}">
+                            {% csrf_token %}
+                            <select name="status">
+                                {% for key, value in assignment.project.STATUS_CHOICES %}
+                                <option value="{{ key }}" {% if key == assignment.project.status %}selected{% endif %}>
+                                    {{ value }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit">Update</button>
+                        </form>
+                    </td>
+                    <td>{{ assignment.time_start|date:"Y-m-d" }}</td>
+                    <td>{{ assignment.time_stop|date:"Y-m-d" }}</td>
+
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">No assigned work found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    
+    
+    
+
     <!-- Footer (optional) -->
-    <footer>
+    <!-- <footer>
         <p>&copy; {{ current_year }} Your Company Name. All rights reserved.</p>
-    </footer>
+    </footer> -->
 
 </body>
 </html>

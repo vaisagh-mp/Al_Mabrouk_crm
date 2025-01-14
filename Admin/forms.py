@@ -25,17 +25,23 @@ class EmployeeCreationForm(forms.ModelForm):
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = '__all__'
-
-    def clean_status(self):
-        status = self.cleaned_data['status']
-        valid_choices = [choice[0] for choice in Project.STATUS_CHOICES]
-        if status.upper() in valid_choices:
-            return status.upper()
-        raise forms.ValidationError("Invalid status value")
+        fields = ['name', 'code', 'purchase_and_expenses', 'invoice_amount', 'currency_code', 'status', 'category']
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'code': forms.TextInput(attrs={'class': 'form-control'}),
+            'purchase_and_expenses': forms.TextInput(attrs={'class': 'form-control'}),
+            'invoice_amount': forms.TextInput(attrs={'class': 'form-control'}),
+            'currency_code': forms.TextInput(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+        }
     
 
 class ProjectAssignmentForm(forms.ModelForm):
     class Meta:
         model = ProjectAssignment
         fields = ['project', 'employee', 'time_start', 'time_stop']
+        widgets = {
+            'time_start': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+            'time_stop': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        }

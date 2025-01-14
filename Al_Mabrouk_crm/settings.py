@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'employee_data',
     'Admin',
     'Authentication',
+    'manager',
 ]
 
 MIDDLEWARE = [

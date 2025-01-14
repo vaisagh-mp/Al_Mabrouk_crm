@@ -1,4 +1,5 @@
 {% extends 'Admin/adminbase.html' %}
+{% load custom_filters %}
 {% load static %}
 {% block content %}
 
@@ -68,7 +69,7 @@
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
                     <td>{{ record.log_out_time|time:"g:ia" }}</td>
-                    <td>{{ record.total_hours_of_work }}</td>
+                    <td>{{ record.total_hours_of_work|format_hours }}</td>
                     <td class="list-action-col">
                         <a href="#"><i class="far fa-edit"></i></a>
                         <a href="#"><i class="far fa-trash-alt"></i></a>

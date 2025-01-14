@@ -1,0 +1,62 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submit Attendance Request</title>
+    <link rel="stylesheet" href="{% static 'assets/css/submit_attendance_request.css' %}">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Submit Attendance Request</h1>
+
+        {% if messages %}
+        {% for message in messages %}
+        <p class="{{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+        {% endif %}
+
+        <form method="POST" action="{% url 'submit_attendance_request' %}">
+            {% csrf_token %}
+            <label for="login_time">Login Time:</label>
+            <input type="datetime-local" id="login_time" name="login_time" required>
+
+            <label for="log_out_time">Logout Time:</label>
+            <input type="datetime-local" id="log_out_time" name="log_out_time" required>
+
+            <label for="location">Location:</label>
+            <select id="location" name="location" required>
+                {% for value, label in location_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="status">Status:</label>
+            <select id="status" name="attendance_status" required>
+                {% for value, label in attendance_status_choices %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+
+            <div>
+                <label for="project">Project:</label>
+                <select name="project">
+                    <option value="">-- Select Project --</option>
+                    {% for project in projects %}
+                        <option value="{{ project.id }}">{{ project.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit">Submit Request</button>
+        </form>
+
+        <a href="{% url 'employee_dashboard' %}" class="back-link">Back to Dashboard</a>
+    </div>
+</body>
+
+</html>
