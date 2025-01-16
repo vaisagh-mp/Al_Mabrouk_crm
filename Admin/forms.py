@@ -97,5 +97,4 @@ class ProjectAssignmentForm(forms.ModelForm):
         widgets = {
             'time_start': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
             'time_stop': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
-            'employee': forms.CheckboxSelectMultiple(),
         }
