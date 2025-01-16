@@ -13,43 +13,44 @@
         <table id="employeeTable">
             <thead>
                 <tr style="border-bottom: 1px solid #ccc">
-                  <th></th>
-                  <th></th>
-                  <th></th>
-                  <th></th>
-                  <th></th>
-                  <th></th>
-                  <th>
-                    <div class="add-new-emply">
-                      <div class="table-searchbar">
-                        <div class="sidebar-search">
-                            <form method="get" action="">
-                                <div class="input-group">
-                                    <input type="text" name="search" class="form-control search-menu" 
-                                        value="{{ search_query }}" placeholder="Search by Employee Name" />
-                                    <button type="submit">
-                                        <div class="input-group-append">
-                                            <span class="input-group-text">
-                                                <i class="fa fa-search" aria-hidden="true"></i>
-                                            </span>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th>
+                        <div class="add-new-emply">
+                            <div class="table-searchbar">
+                                <div class="sidebar-search">
+                                    <form method="get" action="">
+                                        <div class="input-group">
+                                            <input type="text" name="search" class="form-control search-menu"
+                                                value="{{ search_query }}" placeholder="Search by Employee Name" />
+                                            <button type="submit">
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">
+                                                        <i class="fa fa-search" aria-hidden="true"></i>
+                                                    </span>
+                                                </div>
+                                            </button>
                                         </div>
-                                    </button>
+                                    </form>
                                 </div>
-                            </form>
+                            </div>
+                            <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
+                            <div class="dwnld-dropdown">
+                                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                                <div class="dwnld-dropdown-content">
+                                    <a href="#" title="Download XLSX">XLSX</a>
+                                    <a href="#" title="Download CSV">CSV</a>
+                                </div>
+                            </div>
                         </div>
-                      </div>
-                      <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
-                      <div class="dwnld-dropdown">
-                        <a href="#" title="Download"><i class="fas fa-download"></i></a>
-                        <div class="dwnld-dropdown-content">
-                          <a href="#" title="Download XLSX">XLSX</a>
-                          <a href="#" title="Download CSV">CSV</a>
-                        </div>
-                      </div>
-                    </div>
-                  </th>
+                    </th>
                 </tr>
-              </thead>
+                       
+            </thead>
             <thead>
                 <tr>
                     <th>Name</th>
@@ -64,7 +65,8 @@
             <tbody>
                 {% for record in attendance_records %}
                 <tr>
-                    <td><a href="#">{{ record.employee.user.get_full_name }}</a></td>
+                    <td><a href="{% url 'attendance_detail' record.pk %}">{{ record.employee.user.get_full_name }}</a>
+                    </td>
                     <td>{{ record.get_status_display }}</td>
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
@@ -81,13 +83,13 @@
         <!-- Pagination Controls -->
         <div class="pagination" id="pagination">
             {% if attendance_records.has_previous %}
-                <a href="?page=1">First</a>
-                <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
+            <a href="?page=1">First</a>
+            <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
             {% endif %}
             <span>Page {{ attendance_records.number }} of {{ attendance_records.paginator.num_pages }}</span>
             {% if attendance_records.has_next %}
-                <a href="?page={{ attendance_records.next_page_number }}">Next</a>
-                <a href="?page={{ attendance_records.paginator.num_pages }}">Last</a>
+            <a href="?page={{ attendance_records.next_page_number }}">Next</a>
+            <a href="?page={{ attendance_records.paginator.num_pages }}">Last</a>
             {% endif %}
         </div>
     </div>

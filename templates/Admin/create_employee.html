@@ -1,5 +1,5 @@
-{% extends 'Admin/adminbase.html' %} 
-{% load static %} 
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
 {% block content %}
 
 <!-- Create Employee -->
@@ -7,7 +7,7 @@
   <div class="pg-title">
     <h1>Add Employee</h1>
     {% if messages %}
-      <div class="alert alert.success">
+      <div class="alert alert-success">
         {% for message in messages %}
         <p>{{ message }}</p>
         {% endfor %}
@@ -46,6 +46,44 @@
               </div>
             </div>
           </div>
+          <!-- Additional Fields -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.rank }}
+                <label>Rank</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.salary }}
+                <label>Salary</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_employee }}
+                <label>Is Employee</label>
+                
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_manager }}
+                <label>Is Manager</label>
+                
+              </div>
+            </div>
+          </div>
+
           <div class="col-lg-12">
             <div class="input-wrapper">
               <div class="ripple-input">
@@ -73,6 +111,7 @@
               </div>
             </div>
           </div>
+
           <div class="col-lg-12">
             <div class="create-btn">
               <button class="prmry-btn" type="submit">Add</button>

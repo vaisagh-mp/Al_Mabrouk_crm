@@ -18,6 +18,7 @@
           <th></th>
           <th></th>
           <th></th>
+          <th></th>
           <th>
             <div class="add-new-emply">
               <div class="table-searchbar">
@@ -103,6 +104,7 @@
       <thead>
         <tr>
           <th>Project Name</th>
+          <th>category</th>
           <th>Code</th>
           <th>Purchase & Expenses</th>
           <th>Invoice Amount</th>
@@ -117,6 +119,7 @@
           <td>
             <a href="{% url 'project-summary' project.id %}">{{ project.name }}</a>
           </td>
+          <td>{{ project.category }}</td>
           <td>{{ project.code }}</td>
           <td>{{ project.purchase_and_expenses }}</td>
           <td>{{ project.invoice }}</td>

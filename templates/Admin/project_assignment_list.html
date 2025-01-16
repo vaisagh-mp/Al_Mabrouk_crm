@@ -61,6 +61,7 @@
                 <th></th>
                 <th></th>
                 <th></th>
+                <th></th>
 
                 <th>
                   <div class="add-new-emply">
@@ -105,6 +106,7 @@
             <thead>
               <tr>
                 <th>Project Name</th>
+                <th>category</th>
                 <th>Employee</th>
                 <th>Code</th>
                 <th>Start Date</th>
@@ -117,6 +119,7 @@
               {% for assignment in assignments %}
               <tr>
                 <td><a href="#">{{ assignment.project.name }}</a></td>
+                <td>{{ assignment.project.category }}</td>
                 <td>{{ assignment.employee.user.username }}</td>
                 <td>{{ assignment.project.code}}</td>
                 <td>{{ assignment.time_start|date:"M d, Y" }}</td>

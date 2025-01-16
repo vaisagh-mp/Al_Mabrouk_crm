@@ -34,8 +34,8 @@
       <div class="row status-card-row">
         <div class="col-lg-3 col-md-6">
           <div class="status-wdgt card-bg-green">
-            <h5>Total Clients</h5>
-            <h6>26</h6>
+            <h5>Total Projects</h5>
+            <h6>{{ total_projects }}</h6>
             <p>
               <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
               month
@@ -47,7 +47,7 @@
         <div class="col-lg-3 col-md-6">
           <div class="status-wdgt card-bg-blue">
             <h5>Active Employees</h5>
-            <h6>56</h6>
+            <h6>{{ active_employees }}</h6>
             <p>
               <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
             </p>
@@ -58,7 +58,7 @@
         <div class="col-lg-3 col-md-6">
           <div class="status-wdgt card-bg-violet">
             <h5>Total Revenue</h5>
-            <h6>₹ 3,02651</h6>
+            <h6>₹ {{ total_revenue }}</h6>
             <p>
               <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
               month
@@ -72,7 +72,7 @@
         <div class="col-lg-3 col-md-6 m-b-20">
           <div class="status-wdgt card-bg-orange">
             <h5>Pending Invoices</h5>
-            <h6>13</h6>
+            <h6>{{ pending_invoices }}</h6>
             <p>
               <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
             </p>

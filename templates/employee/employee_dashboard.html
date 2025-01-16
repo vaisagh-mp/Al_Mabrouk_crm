@@ -77,6 +77,7 @@
                 <tr>
                     <th>Project Name</th>
                     <th>Project Code</th>
+                    <th>Category</th>
                     <th>Status</th>
                     <th>Start Date</th>
                     <th>Stop Date</th>
@@ -88,6 +89,7 @@
                 <tr>
                     <td>{{ assignment.project.name }}</td>
                     <td>{{ assignment.project.code }}</td>
+                    <td>{{ assignment.project.category }}</td>
                     <td>
                         <form method="post" action="{% url 'update_project_status' assignment.project.id %}">
                             {% csrf_token %}

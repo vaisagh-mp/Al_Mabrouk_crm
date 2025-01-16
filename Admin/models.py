@@ -101,13 +101,12 @@ class Project(models.Model):
 
 
 class Employee(models.Model):
-    user = models.OneToOneField(
-        User, on_delete=models.CASCADE, related_name='employee_profile')
-    rank = models.CharField(max_length=255)
-    salary = models.DecimalField(
-        max_digits=10, decimal_places=2)  # Hourly salary
-    work_days = models.DecimalField(
-        max_digits=10, decimal_places=2, default=0, blank=True)  # Calculated field
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
+    is_employee = models.BooleanField(default=False)
+    is_manager = models.BooleanField(default=False)
+    rank = models.CharField(max_length=255, blank=True, null=True)
+    salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    work_days = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True)  # Calculated field
     holidays = models.IntegerField(null=True, blank=True)
     overseas_days = models.IntegerField(default=0)
 
@@ -129,7 +128,7 @@ class ProjectAssignment(models.Model):
     Intermediate model to manage Employee-to-Project assignments.
     """
     project = models.ForeignKey('Project', on_delete=models.CASCADE)
-    employee = models.ForeignKey('Employee', on_delete=models.CASCADE)
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, default=1)
     time_start = models.DateField() 
     time_stop = models.DateField()  
 

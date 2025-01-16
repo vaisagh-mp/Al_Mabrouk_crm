@@ -838,6 +838,11 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
     outline: none;
     color: var(--primary-font-color);
 }
+
+.add-frm-check label{
+  position: unset !important;
+}
+
 @media(max-width:991px){
   .create-emply-frm{width: 100%;}
 }

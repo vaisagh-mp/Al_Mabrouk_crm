@@ -1,6 +1,7 @@
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
+from django.db.models import Sum
 from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.http import JsonResponse
@@ -15,7 +16,25 @@ from .models import Attendance, Employee, ProjectAssignment, Project
 # Home
 def dashboard(request):
     if request.user.is_superuser:  # For admin users
-        return render(request, 'Admin/dashboard.html')
+
+        total_projects = Project.objects.count()
+
+        active_employees = Employee.objects.filter(user__is_active=True).count()
+
+        total_revenue = (
+            Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+        )
+
+        # Pending invoices (projects with invoice_amount == 0)
+        pending_invoices = Project.objects.filter(invoice_amount=0).count()
+        context = {
+        'total_projects': total_projects,
+        'active_employees': active_employees,
+        'total_revenue': total_revenue,
+        'pending_invoices': pending_invoices,
+    }
+
+        return render(request, 'Admin/dashboard.html', context)
     elif request.user.is_staff:  # For staff/manager users
         return render(request, 'Manager/dashboard.html')
     else:  # For other users (if applicable)
@@ -31,13 +50,50 @@ def create_employee(request):
     if request.method == 'POST':
         form = EmployeeCreationForm(request.POST)
         if form.is_valid():
-            user = form.save(commit=False)
-            user.set_password(form.cleaned_data['password'])
-            user.save()
-            messages.success(request, 'Employee created successfully!')
-            return redirect('create-employee')
+            try:
+                # Create the user
+                user = form.save(commit=False)
+                user.set_password(form.cleaned_data['password'])
+                user.save()
+                
+                # Get the form data for Employee
+                is_employee = form.cleaned_data.get('is_employee')
+                is_manager = form.cleaned_data.get('is_manager')
+                rank = form.cleaned_data.get('rank')
+                salary = form.cleaned_data.get('salary')
+
+                # Ensure either is_employee or is_manager is selected (not both)
+                if is_employee and not is_manager:
+                    user.is_employee = True
+                elif is_manager and not is_employee:
+                    user.is_manager = True
+                    user.is_staff = True  # Make manager a staff member
+                else:
+                    user.is_employee = False
+                    user.is_manager = False
+
+                user.save()  # Save user changes
+
+                # Create employee profile
+                employee = Employee.objects.create(
+                    user=user,
+                    rank=rank,
+                    salary=salary,
+                    is_employee=is_employee,
+                    is_manager=is_manager
+                )
+
+                messages.success(request, 'Employee created successfully!')
+                return redirect('create-employee')
+            except Exception as e:
+                messages.error(request, 'There was an error creating the employee.')
+        else:
+            # If the form is not valid, print errors
+            print(form.errors)
+
     else:
         form = EmployeeCreationForm()
+
     return render(request, 'Admin/create_employee.html', {'form': form})
 
 
@@ -126,6 +182,11 @@ def attendance_list_view(request):
     return render(request, 'Admin/attendance_list.html', context)
 
 
+def attendance_detail(request, pk):
+    attendance = get_object_or_404(Attendance, pk=pk)
+    return render(request, 'Admin/attendance_detail.html', {'attendance': attendance})
+
+
 def manage_attendance(request):
     # Ensure the user is a superuser (or manager)
     if not request.user.is_superuser:
@@ -180,6 +241,7 @@ def project_list_view(request):
         {
             "id": project.id,
             "name": project.name,
+            "category": project.category,
             "code": project.code,
             "status": project.status,
             "invoice": project.invoice_amount,
@@ -259,6 +321,7 @@ def project_summary_view(request, project_id):
     project_data = {
         "project_name": project.name,
         "code": project.code,
+        "category": project.category,
         "purchase_and_expenses": project.purchase_and_expenses,
         "invoice_amount": project.invoice_amount,
         "engineers": engineers,
@@ -308,8 +371,7 @@ def project_assignment_list(request):
     projects = Project.objects.filter(status='PENDING')
     employees = Employee.objects.all()
 
-    return render(request, 'Admin/project_assignment_list.html', {'assignments': assignments, 'projects': projects,
-                                                                  'employees': employees})
+    return render(request, 'Admin/project_assignment_list.html', {'assignments': assignments, 'projects': projects,'employees': employees})
 
 # project_assignment_create
 @login_required
