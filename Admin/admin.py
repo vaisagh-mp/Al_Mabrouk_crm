@@ -32,16 +32,11 @@ class EmployeeAdmin(admin.ModelAdmin):
     readonly_fields = ('work_days',)
 
 
+@admin.register(ProjectAssignment)
 class ProjectAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('project', 'employee_names', 'time_start', 'time_stop')
+    list_display = ('project', 'employee', 'time_start', 'time_stop')
     search_fields = ('project__name', 'employee__user__username')
     list_filter = ('project__name', 'employee__rank')
-
-    def employee_names(self, obj):
-        # Returns a comma-separated list of employee usernames
-        return ", ".join([employee.user.username for employee in obj.employee.all()])
-    employee_names.short_description = 'Employees'
-admin.site.register(ProjectAssignment, ProjectAssignmentAdmin)
 
 
 @admin.register(Attendance)
