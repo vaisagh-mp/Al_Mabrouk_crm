@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Assign Project</title>
+    <title>Update Project</title>
 </head>
 <body>
-    <h1>Assign Project to Employee</h1>
+    <h1>Update Project to Employee</h1>
     <form method="post">
         {% csrf_token %}
         {{ form.as_p }}
-        <button type="submit">Assign</button>
+        <button type="submit">Update</button>
     </form>
 </body>
 </html>

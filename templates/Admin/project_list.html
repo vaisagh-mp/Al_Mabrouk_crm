@@ -134,8 +134,8 @@
             {% else %}status-default{% endif %}
           ">{{ project.status }}</span></td>
           <td class="list-action-col">
-            <a href="#"><i class="far fa-edit" data-bs-toggle="modal" data-bs-target="#editModal"></i></a>
-            <a href="#"><i class="far fa-trash-alt"></i></a>
+            <a href="{% url 'edit_project' project.id %}"><i class="far fa-edit" data-bs-toggle="modal" data-bs-target="#editModal"></i></a>
+            <a href="{% url 'delete_project' project.id %}"><i class="far fa-trash-alt" onclick="return confirmDelete();"></i></a>
           </td>
         </tr>
         {% endfor %}
@@ -154,7 +154,7 @@
 </div>
 
 <!-- Edit-Form-Modal -->
-<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+<!-- <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
@@ -200,7 +200,7 @@
       </div>
     </div>
   </div>
-</div>
+</div> -->
 
 
 <script>
@@ -228,4 +228,9 @@
   });
 </script>
 
+<script>
+  function confirmDelete() {
+    return confirm("Are you sure you want to delete this assignment?");
+  }
+</script>
 {% endblock %}

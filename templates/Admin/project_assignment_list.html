@@ -134,12 +134,12 @@
                   {% else %}status-default{% endif %}
                 ">{{ assignment.project.status }}</span></td>
                 <td class="list-action-col">
-                  <!-- <a href="{% url 'project-assignment-update' assignment.pk %}"
-                    > -->
+                  <a href="{% url 'project-assignment-update' assignment.pk %}"
+                    >
                     <i class="far fa-edit"></i
                   ></a>
-                  <!-- <a href="{% url 'project-assignment-delete' assignment.pk %}"
-                    > -->
+                  <a href="{% url 'project-assignment-delete' assignment.pk %}" onclick="return confirmDelete();"
+                    >
                     <i class="far fa-trash-alt"></i
                   ></a>
                 </td>
@@ -205,5 +205,13 @@
     <!-- End Tab -->
   </div>
 </div>
+
+
+<script>
+  function confirmDelete() {
+    return confirm("Are you sure you want to delete this assignment?");
+  }
+</script>
+
 
 {% endblock %}

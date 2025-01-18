@@ -186,7 +186,7 @@ def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
     return render(request, 'Admin/attendance_detail.html', {'attendance': attendance})
 
-
+# Manage attendance
 def manage_attendance(request):
     # Ensure the user is a superuser (or manager)
     if not request.user.is_superuser:
@@ -229,6 +229,45 @@ def manage_attendance(request):
             messages.error(request, "Attendance record not found!")
 
     return render(request, 'Admin/manage_attendance.html', {'requests': pending_requests})
+
+# Edit attendance
+@login_required
+def edit_attendance(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+
+    if request.method == 'POST':
+        attendance.employee_id = request.POST.get('employee')
+        attendance.project_id = request.POST.get('project')
+        attendance.login_time = request.POST.get('login_time')
+        attendance.log_out_time = request.POST.get('log_out_time')
+        attendance.location = request.POST.get('location')
+        attendance.attendance_status = request.POST.get('attendance_status')
+        attendance.status = request.POST.get('status')
+        attendance.rejection_reason = request.POST.get('rejection_reason')
+        attendance.travel_in_time = request.POST.get('travel_in_time')
+        attendance.travel_out_time = request.POST.get('travel_out_time')
+        attendance.save()
+
+        messages.success(request, 'Attendance record has been Updated successfully.')
+        return redirect('attendance_list_view')
+
+    employees = Employee.objects.all()
+    projects = Project.objects.all()
+    return render(request, 'Admin/edit_attendance.html', {
+        'attendance': attendance,
+        'employees': employees,
+        'projects': projects,
+    })
+
+# Delete attendance
+@login_required
+def delete_attendance(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+    attendance.delete()
+    # Add a success message
+    messages.success(request, 'Attendance record has been deleted successfully.')
+    return redirect('attendance_list_view')
+
 
 # project list view
 @login_required
@@ -357,6 +396,28 @@ def add_project(request):
             return JsonResponse({'success': False, 'errors': form.errors}, status=400)
     return render(request, 'Admin/project_list.html', {'form': form})
 
+@login_required
+def edit_project(request, project_id):
+    project = get_object_or_404(Project, id=project_id)  # Fetch the project or return 404
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST, instance=project)  # Bind form with existing project
+        if form.is_valid():
+            form.save()
+            return redirect('project-list')
+        else:
+            form = ProjectForm(instance=project)
+
+    # For GET request, render the form pre-filled with the project's data
+    return render(request, 'Admin/project_edit.html', {'form': ProjectForm(instance=project)})
+
+@login_required
+def delete_project(request, project_id):
+    project = get_object_or_404(Project, id=project_id) 
+    project.delete() 
+    return redirect('project-list')
+
+
 # project_assignment_list
 @login_required
 def project_assignment_list(request):
@@ -399,7 +460,7 @@ def project_assignment_update(request, pk):
             return redirect('project-assignment-list')
     else:
         form = ProjectAssignmentForm(instance=assignment)
-    return render(request, 'project_assignment_form.html', {'form': form})
+    return render(request, 'Admin/project_assignment_form.html', {'form': form})
 
 # project_assignment_delete
 @login_required
