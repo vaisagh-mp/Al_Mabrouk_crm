@@ -29,7 +29,7 @@
                         </span>
                         <p class="text-dark">ALM-0{{ employee.pk }}</p>
                     </div>
-                    <div class="d-flex align-items-center justify-content-between mb-2">
+                    <!-- <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="d-inline-flex align-items-center">
                             <i class="fas fa-star"></i>
                             Team
@@ -37,7 +37,7 @@
                         {% for team in teams %}
                         <p class="text-dark">{{ team.name }}</p>
                         {% endfor %}
-                    </div>
+                    </div> -->
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="d-inline-flex align-items-center">
                             <i class="fas fa-calendar-check"></i>
@@ -285,7 +285,7 @@
                     <div class="col-lg-4 col-md-4">
                         <div class="status-wdgt">
                             <h5>Attendance</h5>
-                            <h6 style="color: #c554bc;">{{ attendance_percentage }}%</h6>
+                            <h6 style="color: #c554bc;">{{ attendance_percentage|floatformat:0 }}%</h6>
                             <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
                         </div>
                     </div>
