@@ -1,0 +1,23 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+
+    <h2>{{ team.name }} (Managed by: {{ team.manager.user.username }})</h2>
+    <p>Project: {{ team.project.name }}</p>
+    <h3>Employees</h3>
+    <ul>
+        {% for employee in team.employees.all %}
+            <li>{{ employee.user.username }}</li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'team-update' pk=team.pk %}">Edit Team</a>
+
+
+</body>
+</html>

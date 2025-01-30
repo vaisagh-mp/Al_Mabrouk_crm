@@ -1,0 +1,46 @@
+{% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="apply-leave-wraper">
+    <div class="pg-title">
+        <h1>Apply Leave</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>Add Leave Request</h4>
+        </div>
+        <form method="POST">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="leaveType">Leave Type</label>
+                {{ form.leave_type }}
+            </div>
+            <div class="form-group">
+                <label for="fromDate">From</label>
+                <input type="date" id="fromDate" name="from_date" required>
+            </div>
+            <div class="form-group">
+                <label for="toDate">To</label>
+                <input type="date" id="toDate" name="to_date" required>
+            </div>
+            <!-- <div class="form-group">
+                <label for="noOfDays">No of Days</label>
+                {{ form.no_of_days }}
+            </div> -->
+            <div class="form-group">
+                <label for="reason">Reason</label>
+                {{ form.reason }}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="submit-btn">Add Leave</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

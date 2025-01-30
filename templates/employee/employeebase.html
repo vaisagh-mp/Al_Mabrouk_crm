@@ -1,0 +1,263 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Almabrouk CRM</title>
+  <!-- Bootstrap -->
+  <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
+  <!-- Fontawesome -->
+  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
+  <!-- Apex Chart css -->
+  <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
+  <!-- Style.css -->
+  <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+</head>
+
+<body>
+  <!-- Header -->
+  <header>
+    <div class="hdr-user">
+      <div class="dropdown">
+        <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown"
+          aria-expanded="false">
+          <i class="fas fa-user"></i><span>{{request.user.first_name}}_{{request.user.last_name}}</span>
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+          <li><a class="dropdown-item" href="{% url 'profile_view' %}">Profile</a></li>
+          <li><a class="dropdown-item" href="#">Task</a></li>
+          <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+  <!-- End Header -->
+
+  <div class="page-wrapper chiller-theme toggled" id="content">
+    <!-- Side Bar -->
+    <nav id="sidebar" class="sidebar-wrapper sidebar">
+      <a id="show-sidebar" onclick="toggleSidebar()" class="btn btn-sm btn-dark" href="#">
+        <i class="fas fa-bars"></i>
+      </a>
+      <div class="sidebar-content">
+        <div class="sidebar-brand">
+          <a href="{% url 'employee_dashboard' %}"><img src="{% static 'assets/images/blessesmarine-logo.webp' %}"
+              alt="Blessed Marine Automation Logo" /></a>
+          <div id="close-sidebar">
+            <i class="fas fa-times"></i>
+          </div>
+        </div>
+        <!-- <div class="sidebar-header">
+              <div class="user-pic">
+                <img class="img-responsive img-rounded" src="assets/images/user-pro.webp"
+                  alt="User picture">
+              </div>
+              <div class="user-info">
+                <span class="user-name">Jhon
+                  <strong>Smith</strong>
+                </span>
+                <span class="user-role">Administrator</span>
+                <span class="user-status">
+                  <i class="fa fa-circle"></i>
+                  <span>Online</span>
+                </span>
+              </div>
+            </div> -->
+        <!-- sidebar-header  -->
+        <div class="sidebar-search">
+          <div>
+            <div class="input-group">
+              <input type="text" class="form-control search-menu" placeholder="Search..." />
+              <div class="input-group-append">
+                <span class="input-group-text">
+                  <i class="fa fa-search" aria-hidden="true"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- sidebar-search  -->
+        <div class="sidebar-menu">
+          <ul>
+            <li class="header-menu">
+              <span>General</span>
+            </li>
+            <li>
+              <a href="{% url 'employee_dashboard' %}">
+                <i class="fa fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+              </a>
+            </li>
+            <li class="sidebar-dropdown">
+              <a href="{% url 'attendance_list_view' %}">
+                <i class="fas fa-users"></i>
+                <span>Attendance</span>
+              </a>
+            </li>
+            <li class="sidebar-dropdown">
+              <a href="{% url 'profile_view' %}">
+                <i class="fas fa-tasks"></i>
+                <span>Profile</span>
+              </a>
+            </li>
+            <li class="sidebar-dropdown">
+              <a href="#">
+                <i class="far fa-gem"></i>
+                <span>Projects</span>
+              </a>
+              <div class="sidebar-submenu">
+                <ul>
+                  <li>
+                    <a href="{% url 'projects' %}">All Projects</a>
+                  </li>
+                  <li>
+                    <a href="#">Assign projects</a>
+                  </li>
+                </ul>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <!-- End Side Bar -->
+
+    {% block content %}
+
+    {% endblock %}
+
+  </div>
+  <!-- Bootstrap Bundle JS -->
+  <script src="{% static 'assets/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+  <!-- Jquery -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <!-- Apex Chart Js -->
+  <script src="{% static 'assets/vendor/apexchart/js/apexcharts.js' %}"></script>
+  <script src="{% static 'assets/vendor/apexchart/js/data.js' %}"></script>
+  <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
+  <!-- Main.js -->
+  <script src="{% static 'assets/js/main.js' %}"></script>
+
+  <!-- Punch In Chart -->
+  <script>
+    const maxSeconds = 1 * 3600; // 10 hours in seconds (100% progress)
+    let totalSeconds = 0; // Tracks the total elapsed time
+    let timerInterval = null; // Holds the setInterval reference
+
+    // Format seconds to hh:mm:ss
+    function formatTime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Initialize the radial bar chart
+    const options = {
+      series: [0], // Initial progress
+      chart: {
+        height: 160,
+        type: 'radialBar',
+      },
+      plotOptions: {
+        radialBar: {
+          hollow: {
+            size: '70%',
+          },
+          dataLabels: {
+            name: {
+              show: true,
+              fontSize: '14px',
+              fontWeight: '500',
+            },
+            value: {
+              show: true,
+              formatter: function () {
+                return formatTime(totalSeconds); // Show formatted time
+              },
+              fontSize: '16px',
+              fontWeight: '600',
+            }
+          }
+        }
+      },
+      labels: ['Total Hours'], // Label for the chart
+    };
+
+    const chart = new ApexCharts(document.querySelector("#Puncinchart"), options);
+    chart.render();
+
+    // Start the timer on Punch In
+    function startTimer() {
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          if (totalSeconds < maxSeconds) {
+            totalSeconds++; // Increment total time
+            const progress = (totalSeconds / maxSeconds) * 100; // Calculate progress percentage
+            chart.updateSeries([progress]); // Update chart
+          } else {
+            clearInterval(timerInterval); // Stop the timer if it reaches 10 hours
+          }
+        }, 1000); // Update every second
+        document.getElementById("punchIn").disabled = true;
+        document.getElementById("punchOut").disabled = false;
+      }
+    }
+
+    // Stop the timer on Punch Out
+    function stopTimer() {
+      clearInterval(timerInterval); // Stop the interval
+      timerInterval = null; // Reset the interval reference
+      document.getElementById("punchIn").disabled = false;
+      document.getElementById("punchOut").disabled = true;
+    }
+  </script>
+
+  <!-- Leave Details Chart -->
+  <script>
+    var optionsChartOne = {
+      series: [1254, 32, 658, 14, 68],
+      chart: {
+        type: 'donut',
+      },
+      labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
+      legend: {
+        position: 'bottom', // Moves the legend (labels) below the chart
+        horizontalAlign: 'center', // Centers the legend
+      },
+      responsive: [{
+        breakpoint: 480,
+        options: {
+
+          legend: {
+            position: 'bottom'
+          }
+        }
+      }]
+    };
+
+    var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
+    chartOne.render();
+  </script>
+
+
+<script>
+  function toggleRemarkBox() {
+      const status = document.getElementById("status").value;
+      const remarkBox = document.getElementById("remarkBox");
+
+      // Show remark box for specific statuses
+      if (status === "ONGOING" || status === "HOLD" || status === "CANCELLED") {
+          remarkBox.style.display = "block";
+      } else {
+          remarkBox.style.display = "none";
+      }
+  }
+</script>
+
+</body>
+
+</html>

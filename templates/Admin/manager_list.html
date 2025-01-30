@@ -1,0 +1,107 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Managers</h1>
+    </div>
+
+    <!-- Employs List -->
+    <div class="widget-box table-wdgt">
+        {% if page_obj %}
+        <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th>
+                        <div class="add-new-emply">
+                            <a class="badge bg-warning" href="{%url 'create-employee' %}">Add <i class="fas fa-plus"></i></a>
+                            <div class="dwnld-dropdown">
+                                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                                <div class="dwnld-dropdown-content">
+                                    <a href="#" title="Download XLSX">XLSX</a>
+                                    <a href="#" title="Download CSV">CSV</a>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th>Name</th>
+                    <th>Employee ID</th>
+                    <th>Rank</th>
+                    <th>Email</th>
+                    <th>Total Work Days</th>
+                    <th>On-Going Projects</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for manager in page_obj %}
+                <tr>
+                    <td><a href="{% url 'manager_profile' manager.id %}">{{ manager.user.get_full_name }}</a></td>
+                    <td>{{ manager.pk }}</td>
+                    <td>{{ manager.rank }}</td>
+                    <td>
+                        <a href="mailto:{{ employee.user.email }}">
+                            <i class="far fa-envelope"></i> {{ manager.user.email }}
+                        </a>
+                    </td>
+                    <td>{{ manager.work_days }}</td>
+                    <td>
+                        {% if manager.assigned_projects %}
+                            {% for project in manager.assigned_projects %}
+                                <span>{{ project.name }}</span>
+                                {% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            No projects assigned
+                        {% endif %}
+                    </td>                              
+                    <td class="list-action-col">
+                        <a href="#"><i class="far fa-edit"></i></a>
+                        <a href="#"><i class="far fa-trash-alt"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No employees found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            
+
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <button class="active">{{ num }}</button>
+            {% else %}
+            <a href="?page={{ num }}">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-center">NO EMPLOYEES</p>
+        {% endif %}
+    </div>
+</div>
+
+
+{% endblock %}

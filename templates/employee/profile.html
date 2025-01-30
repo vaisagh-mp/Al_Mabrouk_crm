@@ -1,0 +1,478 @@
+{% extends 'employee/employeebase.html' %} {% load custom_filters %} {% load static %} {% block content %}
+
+<div class="emply-profile-wraper">
+  <div class="pg-title">
+    <h1>Employee Details</h1>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="emp-info-wrapper">
+        <div class="emp-info-hdr">
+          <div class="emp-prfl-img">
+            <img
+              src="{% static 'assets/images/user-pro.webp' %}"
+              alt="Employee Profile Pic"
+            />
+          </div>
+          <h5>{{ employee.user.first_name }} {{ employee.user.last_name }}</h5>
+          <span>{{ employee.rank }}</span>
+          <span style="color: #3b7080">10+ years of Experience</span>
+        </div>
+
+        <div class="emp-details">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-id-card"></i>
+              EMB ID
+            </span>
+            <p class="text-dark">ALM-0{{ employee.pk }}</p>
+          </div>
+          <!-- <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-star"></i>
+              Team
+            </span>
+            {% for team in teams %}
+            <p class="text-dark">{{ team.name }}</p>
+            {% endfor %}
+          </div> -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-calendar-check"></i>
+              Date Of Join
+            </span>
+            <p class="text-dark">
+              {{ employee.user.date_joined|date:"d-m-Y" }}
+            </p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-tasks"></i>
+              Report Office
+            </span>
+            <div class="d-flex align-items-center">
+              <span class="avatar avatar-sm avatar-rounded me-2"> </span>
+              <p class="text-gray-9 mb-0">Doglas Martini</p>
+            </div>
+          </div>
+          <div class="row gx-2 mt-3">
+            <div class="col-6">
+              <div>
+                <!-- Button to trigger modal -->
+                <a
+                  href="#"
+                  class="btn btn-dark w-100"
+                  data-bs-toggle="modal"
+                  data-bs-target="#edit_employee"
+                  ><i class="fas fa-edit"></i> Edit Info</a
+                >
+              </div>
+
+              <!-- Modal -->
+              <div
+                class="modal fade"
+                id="edit_employee"
+                tabindex="-1"
+                aria-labelledby="editEmployeeLabel"
+                aria-hidden="true"
+              >
+                <div class="modal-dialog modal-dialog-centered">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="editEmployeeLabel">
+                        Edit Employee
+                      </h5>
+                      <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Close"
+                      ></button>
+                    </div>
+                    <div class="modal-body">
+                      <!-- Form inside the modal -->
+                      <form>
+                        <div class="card prf-upld-container p-3">
+                          <div class="d-flex align-items-center">
+                            <!-- Profile Image Preview -->
+                            <div class="me-3">
+                              <img
+                                src="https://via.placeholder.com/100"
+                                alt="Profile"
+                                class="rounded-circle"
+                                id="profilePreview"
+                              />
+                            </div>
+                            <!-- Upload Section -->
+                            <div>
+                              <h6 class="mb-1">Upload Profile Image</h6>
+                              <p class="text-muted small mb-2">
+                                Image should be below 4 MB
+                              </p>
+                              <input
+                                type="file"
+                                id="profileImage"
+                                class="form-control form-control-sm d-none"
+                                accept="image/*"
+                              />
+                              <button
+                                type="button"
+                                class="btn btn-primary btn-sm me-2"
+                                onclick="document.getElementById('profileImage').click()"
+                              >
+                                Upload
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-secondary btn-sm"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="firstName" class="form-label"
+                              >First Name *</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control"
+                              id="firstName"
+                              placeholder="Enter First Name"
+                              required
+                            />
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="lastName" class="form-label"
+                              >Last Name</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control"
+                              id="lastName"
+                              placeholder="Enter Last Name"
+                            />
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="employeeId" class="form-label"
+                              >Employee ID *</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control"
+                              id="employeeId"
+                              placeholder="Enter Employee ID"
+                              required
+                            />
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="joiningDate" class="form-label"
+                              >Joining Date *</label
+                            >
+                            <input
+                              type="date"
+                              class="form-control"
+                              id="joiningDate"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="username" class="form-label"
+                              >Username *</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control"
+                              id="username"
+                              placeholder="Enter Username"
+                              required
+                            />
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="email" class="form-label"
+                              >Email *</label
+                            >
+                            <input
+                              type="email"
+                              class="form-control"
+                              id="email"
+                              placeholder="Enter Email"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="password" class="form-label"
+                              >Password *</label
+                            >
+                            <input
+                              type="password"
+                              class="form-control"
+                              id="password"
+                              placeholder="Enter Password"
+                              required
+                            />
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="confirmPassword" class="form-label"
+                              >Confirm Password *</label
+                            >
+                            <input
+                              type="password"
+                              class="form-control"
+                              id="confirmPassword"
+                              placeholder="Confirm Password"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="phone" class="form-label"
+                              >Phone Number *</label
+                            >
+                            <input
+                              type="tel"
+                              class="form-control"
+                              id="phone"
+                              placeholder="Enter Phone Number"
+                              required
+                            />
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="company" class="form-label"
+                              >Company *</label
+                            >
+                            <input
+                              type="text"
+                              class="form-control"
+                              id="company"
+                              placeholder="Enter Company Name"
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-6 mb-3">
+                            <label for="department" class="form-label"
+                              >Department</label
+                            >
+                            <select
+                              class="form-select"
+                              id="department"
+                              required
+                            >
+                              <option selected disabled>
+                                Select Department
+                              </option>
+                              <option value="Finance">Finance</option>
+                              <option value="HR">HR</option>
+                              <option value="Engineering">Engineering</option>
+                            </select>
+                          </div>
+                          <div class="col-lg-6 mb-3">
+                            <label for="designation" class="form-label"
+                              >Designation</label
+                            >
+                            <select
+                              class="form-select"
+                              id="designation"
+                              required
+                            >
+                              <option selected disabled>
+                                Select Designation
+                              </option>
+                              <option value="Manager">Manager</option>
+                              <option value="Developer">Developer</option>
+                              <option value="Designer">Designer</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row">
+                          <div class="col-lg-12 mb-3">
+                            <label for="about" class="form-label"
+                              >About *</label
+                            >
+                            <textarea
+                              class="form-control"
+                              id="about"
+                              rows="3"
+                              placeholder="Enter a brief description"
+                              required
+                            ></textarea>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button
+                            type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                          >
+                            Cancel
+                          </button>
+                          <button type="submit" class="btn btn-primary">
+                            Save Changes
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div>
+                <a
+                  href="#"
+                  style="background-color: var(--bs-blue)"
+                  class="btn btn-primary w-100"
+                  ><i class="fas fa-trash-alt"></i>Delete</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+        <hr />
+
+        <div class="p-3 emp-basic-info border-bottom">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6>Basic information</h6>
+            <a
+              href="javascript:void(0);"
+              class="btn btn-icon btn-sm"
+              data-bs-toggle="modal"
+              data-bs-target="#edit_employee"
+              ><i class="fas fa-edit"></i>
+            </a>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-mobile-alt"></i>
+              Phone
+            </span>
+            <p class="text-dark">(+91) 2459 315 356</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-envelope"></i>
+              Email
+            </span>
+            <a
+              href="maito:{{ employee.user.email }}"
+              style="
+                color: #3b7080 !important;
+                font-size: 14px;
+                text-decoration: none;
+              "
+              class="text-info d-inline-flex align-items-center"
+              >{{ employee.user.email }}<i class="ti ti-copy text-dark ms-2"></i
+            ></a>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-mars-stroke"></i>
+              Gender
+            </span>
+            <p class="text-dark text-end">Male</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-birthday-cake"></i>
+              Birdthday
+            </span>
+            <p class="text-dark text-end">24th July 2000</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-map-marker-alt"></i>
+              Address
+            </span>
+            <p class="text-dark text-end">
+              1861 Bayonne Ave, <br />
+              Manchester, NJ, 08759
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="emp-status-col">
+        <div class="row mb-4">
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Attendance</h5>
+              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Projects Completed</h5>
+              <h6 style="color: #65a986">{{ completed_projects }}</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Projects Pending</h5>
+              <h6 style="color: #4f8bb7">{{ pending_projects }}</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Table -->
+        <div class="widget-box table-wdgt">
+          <h3>Projects</h3>
+          <table id="employee-prjct-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Project Code</th>
+                <th>Employee</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for project_data in all_projects %}
+              <tr>
+                <td><a href="#">{{ project_data.project.name }}</a></td>
+                <td>{{ project_data.project.code }}</td>
+                <td>{{ employee.user.get_full_name }}</td>
+                <td>
+                  {% if project_data.status == 'ONGOING' %}
+                  <span class="status ongoing">Ongoing</span>
+                  {% elif project_data.status == 'COMPLETED' %}
+                  <span class="status completed">Completed</span>
+                  {% elif project_data.status == 'HOLD' %}
+                  <span class="status hold">Hold</span>
+                  {% elif project_data.status == 'PENDING' %}
+                  <span class="status pending">Pending</span>
+                  {% elif project_data.status == 'CANCELLED' %}
+                  <span class="status cancelled">Cancelled</span>
+                  {% elif project_data.status == 'ASSIGN' %}
+                  <span class="status Assign">Assign</span>
+                  {% else %}
+                  <span class="status unknown">Unknown</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

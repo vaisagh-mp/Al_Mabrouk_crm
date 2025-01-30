@@ -1,0 +1,236 @@
+{% extends 'Manager/managerbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+  <div class="pg-title">
+    <h1>All Projects</h1>
+  </div>
+
+  <!-- Employs List -->
+  <div class="widget-box table-wdgt">
+    <table id="employeeTable">
+      <thead>
+        <tr style="border-bottom: 1px solid #ccc">
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th></th>
+          <th>
+            <div class="add-new-emply">
+              <div class="table-searchbar">
+                <div class="sidebar-search">
+                  <div>
+                    <div class="input-group">
+                      <input type="text" class="form-control search-menu" placeholder="Search..." />
+                      <a href="#">
+                        <div class="input-group-append">
+                          <span class="input-group-text">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                          </span>
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <a class="badge bg-warning" href="#" data-bs-toggle="modal" data-bs-target="#formModal">
+                Add <i class="fas fa-plus"></i>
+              </a>
+
+              <!-- Modal -->
+              <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="formModalLabel">Add New Project</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <form id="projectForm" method="POST" action="{% url 'add_project' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                          <label for="id_name" class="form-label">{{ form.name.label }}</label>
+                          {{ form.name }}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_code" class="form-label">{{ form.code.label }}</label>
+                          {{ form.code }}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_purchase_and_expenses" class="form-label">{{ form.purchase_and_expenses.label }}</label>
+                          {{ form.purchase_and_expenses }}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_invoice_amount" class="form-label">{{ form.invoice_amount.label }}</label>
+                          {{ form.invoice_amount}}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_currency_code" class="form-label">{{ form.currency_code.label }}</label>
+                          {{ form.currency_code }}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_status" class="form-label">{{ form.status.label }}</label>
+                          {{ form.status }}
+                        </div>
+                        <div class="mb-3">
+                          <label for="id_category" class="form-label">{{ form.category.label }}</label>
+                          {{ form.category }}
+                        </div>
+                      </form>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <button type="submit" class="btn btn-primary" form="projectForm">Save</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dwnld-dropdown">
+                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                <div class="dwnld-dropdown-content">
+                  <a href="#" title="Download XLSX">XLSX</a>
+                  <a href="#" title="Download CSV">CSV</a>
+                </div>
+              </div>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <thead>
+        <tr>
+          <th>Project Name</th>
+          <th>category</th>
+          <th>Code</th>
+          <th>Purchase & Expenses</th>
+          <th>Invoice Amount</th>
+          <th>Currency</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for project in projects %}
+          <tr>
+            <td><a href="{% url 'project-summary-view' project.id %}">{{ project.name }}</a></td>
+            <td>{{ project.category }}</td>
+            <td>{{ project.code }}</td>
+            <td>{{ project.purchase_and_expenses }}</td>
+            <td>{{ project.invoice }}</td>
+            <td>{{ project.currency }}</td>
+            <td>
+              <span class="status
+                {% if project.status == 'ONGOING' %}ongoing
+                {% elif project.status == 'COMPLETED' %}completed
+                {% elif project.status == 'ASSIGN' %}Assign
+                {% elif project.status == 'PENDING' %}pending
+                {% elif project.status == 'HOLD' %}hold
+                {% elif project.status == 'CANCELLED' %}cancelled
+                {% else %}status-default{% endif %}
+              ">{{ project.status }}</span>
+            </td>
+            <td class="list-action-col">
+              <a href="{% url 'edit_project' project.id %}"><i class="far fa-edit"></i></a>
+              <a href="{% url 'delete_project' project.id %}" onclick="return confirmDelete();"><i class="far fa-trash-alt"></i></a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination">
+      {% if projects.has_previous %}
+      <a href="?page={{ projects.previous_page_number }}">Previous</a>
+      {% endif %}
+      <span>Page {{ projects.number }} of {{ projects.paginator.num_pages }}</span>
+      {% if projects.has_next %}
+      <a href="?page={{ projects.next_page_number }}">Next</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Edit-Form-Modal -->
+<!-- <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="formModalLabel">Edit Project</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="projectForm" method="POST" action="#">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label for="name" class="form-label">Project Name</label>
+            <input type="text" class="form-control" id="name" name="name" required />
+          </div>
+          <div class="mb-3">
+            <label for="code" class="form-label">Code</label>
+            <input type="text" class="form-control" id="code" name="code" required />
+          </div>
+          <div class="mb-3">
+            <label for="purchaseExpenses" class="form-label">Purchase and Expenses</label>
+            <input type="number" class="form-control" id="purchaseExpenses" name="purchase_and_expenses" step="0.01" required />
+          </div>
+          <div class="mb-3">
+            <label for="invoiceAmount" class="form-label">Invoice Amount</label>
+            <input type="number" class="form-control" id="invoiceAmount" name="invoice_amount" step="0.01" required />
+          </div>
+          <div class="mb-3">
+            <label for="currencyCode" class="form-label">Currency Code</label>
+            <input type="text" class="form-control" id="currencyCode" name="currency_code" maxlength="3" required />
+          </div>
+          <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-select" id="status" name="status" required>
+              <option value="ACTIVE">Active</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="PENDING">Pending</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="submit" class="btn btn-primary" form="projectForm">Save</button>
+      </div>
+    </div>
+  </div>
+</div> -->
+
+
+<script>
+  document.getElementById('projectForm').addEventListener('submit', function(event) {
+    event.preventDefault();
+    const form = event.target;
+
+    fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form)
+    })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          alert('Project added successfully!');
+          location.reload();
+        } else {
+          alert('Error: ' + JSON.stringify(data.errors));
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while submitting the form.');
+      });
+  });
+</script>
+
+<script>
+  function confirmDelete() {
+    return confirm("Are you sure you want to delete this assignment?");
+  }
+</script>
+{% endblock %}

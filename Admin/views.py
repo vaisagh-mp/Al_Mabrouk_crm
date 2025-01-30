@@ -1,6 +1,9 @@
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required
+from calendar import monthrange
+from datetime import date
+from django.db.models import Q, F
 from django.db.models import Sum
 from django.db.models import Prefetch
 from django.http import HttpResponse
@@ -10,35 +13,33 @@ from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
-from .models import Attendance, Employee, ProjectAssignment, Project
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus
 
 
 # Home
 def dashboard(request):
     if request.user.is_superuser:  # For admin users
-
         total_projects = Project.objects.count()
-
         active_employees = Employee.objects.filter(user__is_active=True).count()
-
-        total_revenue = (
-            Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
-        )
-
-        # Pending invoices (projects with invoice_amount == 0)
+        total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
-        context = {
-        'total_projects': total_projects,
-        'active_employees': active_employees,
-        'total_revenue': total_revenue,
-        'pending_invoices': pending_invoices,
-    }
 
+        # Fetching project details with manager name
+        project_details = Project.objects.annotate(
+            leader_name=F('manager__user__username')  # Adjust field if necessary
+        ).values('name', 'leader_name', 'status')
+
+        context = {
+            'total_projects': total_projects,
+            'active_employees': active_employees,
+            'total_revenue': total_revenue,
+            'pending_invoices': pending_invoices,
+            'project_details': project_details,
+        }
         return render(request, 'Admin/dashboard.html', context)
     elif request.user.is_staff:  # For staff/manager users
         return render(request, 'Manager/dashboard.html')
     else:  # For other users (if applicable)
-        # Redirect non-admin/staff users to a different page
         return redirect('home')
 
 # create employee
@@ -96,34 +97,61 @@ def create_employee(request):
 
     return render(request, 'Admin/create_employee.html', {'form': form})
 
-
 # employee list
 @login_required
 def employee_list(request):
     if not request.user.is_staff:
         return redirect('login')
 
-    ongoing_project_assignments = ProjectAssignment.objects.filter(
-        project__status='ONGOING'
-    ).select_related('project')
+    # Filter ongoing project assignments
+    ongoing_project_assignments = TeamMemberStatus.objects.filter(
+        status='ONGOING'
+    ).select_related('team__project')
 
-    employees = Employee.objects.select_related('user').prefetch_related(
+    # Exclude managers and prefetch ongoing project assignments
+    employees = Employee.objects.exclude(is_manager=True).select_related('user').prefetch_related(
         Prefetch(
-            'projectassignment_set',
+            'project_statuses',  # This matches the `related_name` in TeamMemberStatus
             queryset=ongoing_project_assignments,
-            to_attr='assigned_projects'
+            to_attr='assigned_projects'  # Prefetch results stored as 'assigned_projects'
         )
     )
-
-    print(f"Total employees fetched: {employees.count()}")  # Debug total employees
-    for employee in employees:
-        print(f"Employee: {employee.user.get_full_name()}, Assigned Projects: {employee.assigned_projects}")
 
     paginator = Paginator(employees, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'Admin/employee_list.html', {'page_obj': page_obj})
+
+@login_required
+def manager_list(request):
+    if not request.user.is_staff:
+        return redirect('login')
+
+    # Filter projects with status 'ONGOING' and a manager assigned
+    ongoing_project_assignments = Project.objects.filter(
+        status='ONGOING'
+    ).select_related('manager')
+
+    # Fetch managers with their assigned ongoing projects
+    managers = Employee.objects.filter(is_manager=True).select_related('user').prefetch_related(
+        Prefetch(
+            'managed_projects',  # Related name from the 'manager' ForeignKey in Project
+            queryset=ongoing_project_assignments,
+            to_attr='assigned_projects'  # Store prefetch results in 'assigned_projects'
+        )
+    )
+
+    # Debugging output
+    for manager in managers:
+        print(f"Manager: {manager.user.get_full_name()}, Assigned Projects: {manager.assigned_projects}")
+
+    # Paginate the manager list
+    paginator = Paginator(managers, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'Admin/manager_list.html', {'page_obj': page_obj})
 
 # edit employee
 @login_required
@@ -159,7 +187,6 @@ def delete_employee(request, employee_id):
 
     return render(request, 'admin/confirm_delete_employee.html', {'employee': employee})
 
-
 # attendance list
 @login_required
 def attendance_list_view(request):
@@ -181,7 +208,6 @@ def attendance_list_view(request):
     }
     return render(request, 'Admin/attendance_list.html', context)
 
-
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
     return render(request, 'Admin/attendance_detail.html', {'attendance': attendance})
@@ -190,7 +216,7 @@ def attendance_detail(request, pk):
 def manage_attendance(request):
     # Ensure the user is a superuser (or manager)
     if not request.user.is_superuser:
-        return redirect('dashboard')
+        return redirect('admin-dashboard')
 
     pending_requests = Attendance.objects.filter(status='PENDING')
 
@@ -268,7 +294,6 @@ def delete_attendance(request, attendance_id):
     messages.success(request, 'Attendance record has been deleted successfully.')
     return redirect('attendance_list_view')
 
-
 # project list view
 @login_required
 def project_list_view(request):
@@ -300,15 +325,15 @@ def project_list_view(request):
 
     return render(request, 'Admin/project_list.html', context)
 
-
 # project summary
 @login_required
 def project_summary_view(request, project_id):
     # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
 
-    # Engineers involved in the project
-    assignments = ProjectAssignment.objects.filter(project=project)
+    # Fetch teams associated with the project
+    teams = project.teams.all()
+
     engineers = []
     engineer_salaries = {}
     total_engineer_salary = 0  # Initialize the total salary variable
@@ -316,37 +341,38 @@ def project_summary_view(request, project_id):
     # Dictionary to store total project hours per engineer
     engineer_project_hours = {}
 
-    for assignment in assignments:
-        engineer = assignment.employee
-        engineers.append(engineer.user.username)
-        # Assuming the salary is stored on the Employee model
-        engineer_salaries[engineer.user.username] = engineer.salary
-        total_engineer_salary += engineer.salary  # Add salary to the total
+    for team in teams:
+        # Iterate through each employee in the team
+        for engineer in team.employees.all():
+            engineers.append(engineer.user.username)
+            # Assuming the salary is stored on the Employee model
+            engineer_salaries[engineer.user.username] = engineer.salary
+            total_engineer_salary += engineer.salary  # Add salary to the total
 
-        # Calculate total project hours for this engineer based on attendance
-        attendance_records = Attendance.objects.filter(
-            employee=engineer, project=project)
-        total_hours = sum(
-            record.total_hours_of_work or 0 for record in attendance_records)
-        engineer_project_hours[engineer.user.username] = round(
-            total_hours, 2)  # Store the total hours worked for this project
+            # Calculate total project hours for this engineer based on attendance
+            attendance_records = Attendance.objects.filter(
+                employee=engineer, project=project)
+            total_hours = sum(
+                record.total_hours_of_work or 0 for record in attendance_records)
+            engineer_project_hours[engineer.user.username] = round(
+                total_hours, 2)  # Store the total hours worked for this project
 
-    # Calculate total work hours from ProjectAssignment (as a whole project)
-    total_work_hours = sum(
-        (assignment.time_stop - assignment.time_start).total_seconds() / 3600
-        for assignment in assignments
-    )
+    # Calculate total work hours from all teams (as a whole project)
+    # total_work_hours = sum(
+    #     (team.time_stop - team.time_start).total_seconds() / 3600
+    #     for team in teams
+    # )
 
     # Calculate total project duration (Total Project Hours)
-    if assignments.exists():
-        project_start = min(
-            assignment.time_start for assignment in assignments)
-        project_end = max(assignment.time_stop for assignment in assignments)
-        # Total duration in hours
-        total_project_hours = (
-            project_end - project_start).total_seconds() / 3600
-    else:
-        total_project_hours = 0
+    # if teams.exists():
+    #     project_start = min(
+    #         team.time_start for team in teams)
+    #     project_end = max(team.time_stop for team in teams)
+    #     # Total duration in hours
+    #     total_project_hours = (
+    #         project_end - project_start).total_seconds() / 3600
+    # else:
+    #     total_project_hours = 0
 
     # Calculate total expenses (will call the method which includes hours worked)
     total_expenses = project.calculate_expenses()
@@ -368,7 +394,7 @@ def project_summary_view(request, project_id):
         "engineer_project_hours": engineer_project_hours,  # Total hours for each engineer
         "total_work_days": work_days,  # Rounded to 2 decimal points
         # Rounded to 2 decimal points
-        "total_project_hours": round(total_project_hours, 2),
+        # "total_project_hours": round(total_project_hours, 2),
         "currency_code": project.currency_code,
         "total_expenses": round(total_expenses, 2),  # Rounded total expenses
         "profit": profit,
@@ -417,7 +443,6 @@ def delete_project(request, project_id):
     project.delete() 
     return redirect('project-list')
 
-
 # project_assignment_list
 @login_required
 def project_assignment_list(request):
@@ -448,7 +473,6 @@ def project_assignment_create(request):
 
     return render(request, 'Admin/project_assignment_list.html', {'form': form})
 
-
 # project_assignment_update
 @login_required
 def project_assignment_update(request, pk):
@@ -469,42 +493,77 @@ def project_assignment_delete(request, pk):
     assignment.delete()
     return redirect('project-assignment-list')
 
-
 @login_required
 def employee_profile(request, employee_id):
     # Fetch the employee
     employee = get_object_or_404(Employee, pk=employee_id)
+    teams = employee.teams_assigned.all()
+
+    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
+
+    # Count statuses for the employee's projects
+    completed_projects = team_member_statuses.filter(status='COMPLETED').count()
+    pending_projects = team_member_statuses.exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count()   
+    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
+
+    # Get the related projects from the team member status
+    all_projects = [
+        {
+            'project': status.team.project,
+            'manager': status.team.project.manager,
+            'status': status.status
+        }
+        for status in team_member_statuses
+    ]
 
     # Calculate attendance percentage
-    total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee, status='APPROVED'
+    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
+    # approved_attendance_records = Attendance.objects.filter(
+    #     employee=employee, status='APPROVED'
+    # ).count()
+    # attendance_percentage = (
+    #     (approved_attendance_records / 30) * 100
+    #     if total_attendance_records > 0
+    #     else 0
+    # )
+
+    # Get the current year and month
+    current_year = date.today().year
+    current_month = date.today().month
+
+    # Get the total number of days in the current month
+    total_days_in_month = monthrange(current_year, current_month)[1]
+
+    # Calculate total and approved attendance records for the current month
+    total_attendance_records = Attendance.objects.filter(
+        employee=employee,
+        login_time__year=current_year,
+        login_time__month=current_month
     ).count()
+
+    approved_attendance_records = Attendance.objects.filter(
+        employee=employee,
+        status='APPROVED',
+        login_time__year=current_year,
+        login_time__month=current_month
+    ).count()
+
+    # Calculate attendance percentage
     attendance_percentage = (
-        (approved_attendance_records / 30) * 100
-        if total_attendance_records > 0 else 0
+        (approved_attendance_records / total_days_in_month) * 100
+        if total_attendance_records > 0
+        else 0
     )
 
-    # Count number of projects
-    total_projects = employee.projectassignment_set.count()
-
-    # Fetch projects grouped by status
-    completed_projects = Project.objects.filter(
-        projectassignment__employee=employee, status='COMPLETED'
-    ).count()
-    pending_projects = Project.objects.filter(
-        projectassignment__employee=employee, status='PENDING'
-    ).count()
-    assigned_projects = Project.objects.filter(
-        projectassignment__employee=employee, status='ASSIGN'
-    ).count()
-
-    # Calculate completed projects
+    # Count total projects and pending projects
+    total_projects = completed_projects + pending_projects + assigned_projects
     total_pending_projects = total_projects - completed_projects
 
     # Context for template
     context = {
         'employee': employee,
+        'teams': teams,
+        'all_projects': all_projects,
         'attendance_percentage': round(attendance_percentage, 1),
         'total_projects': total_projects,
         'completed_projects': completed_projects,
@@ -512,3 +571,41 @@ def employee_profile(request, employee_id):
     }
 
     return render(request, 'Admin/employee_profile.html', context)
+
+@login_required
+def manager_profile(request, manager_id):
+    employee = get_object_or_404(Employee, pk=manager_id)
+
+    if employee.is_manager:
+        # Fetch projects managed by the manager
+        all_projects = Project.objects.filter(manager=employee).select_related('manager')
+    else:
+        pass
+
+    total_attendance_records = Attendance.objects.filter(employee=employee).count()
+    approved_attendance_records = Attendance.objects.filter(
+        employee=employee, status='APPROVED'
+    ).count()
+    attendance_percentage = (
+        (approved_attendance_records / total_attendance_records) * 100
+        if total_attendance_records > 0
+        else 0
+    )
+    # Count total projects and pending projects
+    completed_projects = Project.objects.filter(manager=employee, status='COMPLETED').count()
+    pending_projects = Project.objects.filter(manager=employee).exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count()
+    total_projects = completed_projects + pending_projects
+    total_pending_projects = total_projects - completed_projects
+
+    context = {
+        'employee': employee,
+        'all_projects': all_projects,
+        'attendance_percentage': round(attendance_percentage, 1),
+        'total_projects': total_projects,
+        'completed_projects': completed_projects,
+        'pending_projects': total_pending_projects,
+        'is_manager': employee.is_manager,  # Check if the employee is a manager or not
+    }
+
+    return render(request, 'Admin/manager_profile.html', context)
+

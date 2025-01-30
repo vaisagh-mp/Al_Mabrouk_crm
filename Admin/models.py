@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, m2m_changed
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from datetime import timedelta
@@ -33,12 +33,24 @@ class Project(models.Model):
     status = models.CharField(
         max_length=100, choices=STATUS_CHOICES, default='PENDING')
     category = models.CharField(
-        max_length=50, choices=CATEGORY_CHOICES, default='OVERSEAS')  # New field added
+        max_length=50, choices=CATEGORY_CHOICES, default='OVERSEAS')
+    manager = models.ForeignKey(
+        'Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_projects',
+        limit_choices_to={'is_manager': True}
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    deadline_date = models.DateField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        # Automatically set status to 'ASSIGN' if a manager is assigned
+        if self.manager and self.status == 'PENDING':
+            self.status = 'ASSIGN'
+        # Call the parent class's save method
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.name} ({self.code})"
 
-    from decimal import Decimal
 
     def calculate_expenses(self):
         """
@@ -66,8 +78,6 @@ class Project(models.Model):
             total_expenses += total_hours_worked * Decimal(employee.salary)
     
         return total_expenses
-
-
 
 
     def calculate_profit(self):
@@ -100,6 +110,45 @@ class Project(models.Model):
         return self.name
 
 
+class Team(models.Model):
+    name = models.CharField(max_length=255)
+    manager = models.ForeignKey(
+        'Employee', on_delete=models.CASCADE, related_name='managed_teams',
+        limit_choices_to={'is_manager': True}
+    )
+    employees = models.ManyToManyField(
+        'Employee', related_name='teams_assigned',
+        limit_choices_to={'is_employee': True}
+    )
+    project = models.ForeignKey(
+        'Project', on_delete=models.CASCADE, related_name='teams'
+    )
+
+    def save(self, *args, **kwargs):
+        # Update the project status to 'ASSIGN' if it's not already set
+        if self.project.status != 'ASSIGN':
+            self.project.status = 'ASSIGN'
+            self.project.save()
+
+        # Save the Team instance
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.name} (Managed by: {self.manager.user.username})"
+    
+# Signal to create TeamMemberStatus for each employee when a Team is saved
+@receiver(m2m_changed, sender=Team.employees.through)
+def create_team_member_status(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action == 'post_add':  # When employees are added to the team
+        for employee_id in pk_set:
+            employee = model.objects.get(id=employee_id)
+            # Create TeamMemberStatus for the employee in the team
+            TeamMemberStatus.objects.get_or_create(
+                team=instance,
+                employee=employee,
+                status='ASSIGN'
+            )
+
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
     is_employee = models.BooleanField(default=False)
@@ -118,10 +167,9 @@ class Employee(models.Model):
             attendance.total_hours_of_work for attendance in self.attendance_set.all())
         self.work_days = total_hours / 9  # 10 hours = 1 workday
         self.save()
-
+     
     def __str__(self):
         return f"{self.user.username} - {self.rank}"
-
 
 class ProjectAssignment(models.Model):
     """
@@ -142,7 +190,6 @@ class ProjectAssignment(models.Model):
 
     def __str__(self):
         return f"{self.employee.user.username} on {self.project.name}"
-
 
 class Attendance(models.Model):
     LOCATION_CHOICES = [
@@ -189,7 +236,82 @@ class Attendance(models.Model):
     def __str__(self):
         return f"Attendance for {self.employee.user.username} - {self.status}"
 
+class Leave(models.Model):
+    LEAVE_TYPE_CHOICES = [
+        ('SICK LEAVE', 'Sick Leave'),
+        ('ANNUAL LEAVE', 'Annual Leave'),
+        ('CASUAL LEAVE', 'Casual Leave'),
+    ]
 
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)  # Assuming you're using the default User model
+    leave_type = models.CharField(max_length=50, choices=LEAVE_TYPE_CHOICES)
+    from_date = models.DateField()
+    to_date = models.DateField()
+    reason = models.TextField()
+    no_of_days = models.IntegerField(editable=False)  # Automatically calculated
+    approval_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+
+    def save(self, *args, **kwargs):
+        # Calculate the number of days as the difference between the to_date and from_date
+        self.no_of_days = (self.to_date - self.from_date).days
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.leave_type} from {self.from_date} to {self.to_date} ({self.approval_status})"
+
+class TeamMemberStatus(models.Model):
+    STATUS_CHOICES = [
+        ('ASSIGN', 'Assign'),
+        ('ONGOING', 'Ongoing'),
+        ('HOLD', 'Hold'),
+        ('CANCELLED', 'Cancelled'),
+        ('COMPLETED', 'Completed'),
+    ]
+
+    team = models.ForeignKey('Team', on_delete=models.CASCADE, related_name='team_members_status')
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='project_statuses')
+    status = models.CharField(max_length=100, choices=STATUS_CHOICES, default='ASSIGN')
+    notes = models.TextField(max_length=2000, null=True, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('team', 'employee')
+
+    def __str__(self):
+        return f"{self.employee.user} - {self.team.project.name} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        """ Log changes before saving """
+        if self.pk:  # Check if it's an update, not a new object
+            old_status = TeamMemberStatus.objects.get(pk=self.pk).status
+            if old_status != self.status:
+                ActivityLog.objects.create(
+                    team_member_status=self,
+                    previous_status=old_status,
+                    new_status=self.status,
+                    notes=self.notes
+                )
+        super().save(*args, **kwargs)
+
+class ActivityLog(models.Model):
+    team_member_status = models.ForeignKey(
+        'TeamMemberStatus', 
+        on_delete=models.CASCADE, 
+        related_name='activity_logs'
+    )
+    previous_status = models.CharField(max_length=100, null=True, blank=True)
+    new_status = models.CharField(max_length=100)
+    notes = models.TextField(max_length=2000, null=True, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.team_member_status.employee.user} changed from {self.previous_status} to {self.new_status} at {self.changed_at}"
 
 # Signal to update the employee's work_days after saving an attendance record
 @receiver(post_save, sender=Attendance)

@@ -34,14 +34,16 @@
                             <i class="fas fa-star"></i>
                             Team
                         </span>
-                        <p class="text-dark">UI/UX Design</p>
+                        {% for team in teams %}
+                        <p class="text-dark">{{ team.name }}</p>
+                        {% endfor %}
                     </div>
                     <div class="d-flex align-items-center justify-content-between mb-2">
                         <span class="d-inline-flex align-items-center">
                             <i class="fas fa-calendar-check"></i>
                             Date Of Join
                         </span>
-                        <p class="text-dark">1st Jan 2023</p>
+                        <p class="text-dark">{{ employee.user.date_joined|date:"d-m-Y" }}</p>
                     </div>
                     <div class="d-flex align-items-center justify-content-between">
                         <span class="d-inline-flex align-items-center">
@@ -305,34 +307,35 @@
 
                 <!-- Project Table -->
                 <div class="widget-box table-wdgt">
+                    <h3>Projects</h3>
                     <table id="employee-prjct-table">
                         <thead>
                             <tr>
                                 <th>Project</th>
-                                <th>Project code</th>
+                                <th>Project Code</th>
                                 <th>Employee</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for project_assignment in employee.projectassignment_set.all %}
+                            {% for project_data in all_projects %}
                             <tr>
-                                <td><a href="#">{{ project_assignment.project.name }}</a></td>
-                                <td>{{ project_assignment.project.code }}</td>
+                                <td><a href="#">{{ project_data.project.name }}</a></td>
+                                <td>{{ project_data.project.code }}</td>
                                 <td>{{ employee.user.get_full_name }}</td>
                                 <td>
-                                    {% if project_assignment.project.status == 'ONGOING' %}
+                                    {% if project_data.status == 'ONGOING' %}
                                     <span class="status ongoing">Ongoing</span>
-                                    {% elif project_assignment.project.status == 'COMPLETED' %}
+                                    {% elif project_data.status == 'COMPLETED' %}
                                     <span class="status completed">Completed</span>
-                                    {% elif project_assignment.project.status == 'HOLD' %}
+                                    {% elif project_data.status == 'HOLD' %}
                                     <span class="status hold">Hold</span>
-                                    {% elif project_assignment.project.status == 'PENDING' %}
+                                    {% elif project_data.status == 'PENDING' %}
                                     <span class="status pending">Pending</span>
-                                    {% elif project_assignment.project.status == 'CANCELLED' %}
+                                    {% elif project_data.status == 'CANCELLED' %}
                                     <span class="status cancelled">Cancelled</span>
-                                    {% elif project_assignment.project.status == 'ASSIGN' %}
-                                    <span class="status Assign">ASSIGN</span>
+                                    {% elif project_data.status == 'ASSIGN' %}
+                                    <span class="status Assign">Assign</span>
                                     {% else %}
                                     <span class="status unknown">Unknown</span>
                                     {% endif %}
@@ -341,13 +344,8 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                    <div class="pagination" id="pagination">
-                        <button class="active">1</button>
-                        <button>2</button>
-                        <button>3</button>
-                    </div>
                 </div>
-
+                
             </div>
         </div>
     </div>

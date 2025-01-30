@@ -29,7 +29,7 @@
               data-bs-toggle="dropdown"
               aria-expanded="false"
             >
-              <i class="fas fa-user"></i><span>Admin</span>
+              <i class="fas fa-user"></i><span>{{request.user.username}}</span>
             </button>
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
               <li><a class="dropdown-item" href="#">Profile</a></li>
@@ -124,6 +124,9 @@
                       <ul>
                         <li>
                           <a href="{% url 'employee_list' %}">Employee List </a>
+                        </li>
+                        <li>
+                          <a href="{% url 'manager_list' %}">Manager List </a>
                         </li>
                         <li>
                           <a href="{% url 'create-employee' %}">Add Employee</a>

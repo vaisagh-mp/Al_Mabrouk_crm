@@ -1,0 +1,135 @@
+{% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Attendance</h1>
+    </div>
+
+    <!-- Employs List -->
+    <div class="widget-box table-wdgt">
+        <!-- <div class="add-new-emply">
+<a class="badge bg-warning" href="add-employee.html">Add <i class="fas fa-plus"></i></a>
+<a href="#" title="Xlsx Download"><i class="fas fa-download"></i></a>
+</div> -->
+        <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th>
+                        <div class="add-new-emply">
+                            <div class="table-searchbar">
+                                <div class="sidebar-search">
+                                    <div>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control search-menu"
+                                                placeholder="Search..." />
+                                            <a href="#">
+                                                <div class="input-group-append">
+                                                    <span class="input-group-text">
+                                                        <i class="fa fa-search" aria-hidden="true"></i>
+                                                    </span>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <a class="badge bg-warning" href="add-employee.html">Add <i class="fas fa-plus"></i></a>
+                            <div class="dwnld-dropdown">
+                                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                                <div class="dwnld-dropdown-content">
+                                    <a href="#" title="Download XLSX">XLSX</a>
+                                    <a href="#" title="Download CSV">CSV</a>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Login</th>
+                    <th>Logout</th>
+                    <th>Working Hours</th>
+                    <th>Manager Approval</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td>{{ record.login_time|date:"d/m/Y" }}</td>
+                    <td>{{ record.login_time|time:"h:i A" }}</td>
+                    <td>
+                        {% if record.log_out_time %}
+                        {{ record.log_out_time|time:"h:i A" }}
+                        {% else %}
+                        <span class="text-danger">Not logged out</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.total_hours_of_work %}
+                        {{ record.total_hours_of_work|floatformat:2 }} hrs
+                        {% else %}
+                        0 hrs
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.status %}
+                            <span class="status {% if record.status == 'PENDING' %}leave{% elif record.status == 'APPROVED' %}present{% elif record.status == 'REJECTED' %}sick-leave{% endif %}">
+                                {{ record.get_status_display }}
+                            </span>
+                        {% else %}
+                            <span class="status absent">No Status</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.attendance_status %}
+                            {% if record.status == 'APPROVED' %}
+                                <span class="status 
+                                    {% if record.attendance_status == 'PRESENT' %}present
+                                    {% elif record.attendance_status == 'LEAVE' %}leave
+                                    {% elif record.attendance_status == 'WORK FROM HOME' %}work-from-home
+                                    {% elif record.attendance_status == 'SICK LEAVE' %}sick-leave
+                                    {% elif record.attendance_status == 'ANNUAL LEAVE' %}annual-leave
+                                    {% elif record.attendance_status == 'CASUAL LEAVE' %}casual-leave
+                                    {% endif %}
+                                ">
+                                    {{ record.get_attendance_status_display }}
+                                </span>
+                            {% else %}
+                                <span class="status absent">No Status</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="status absent">No Status</span>
+                        {% endif %}
+                    </td>
+                    
+                    
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">No attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination" id="pagination">
+            <button class="active">1</button>
+            <button>2</button>
+            <button>3</button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

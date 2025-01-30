@@ -1,0 +1,81 @@
+{% extends 'Manager/managerbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="add-team-wraper">
+    <!-- <div class="pg-title">
+        <h1>Add Team</h1>
+    </div> -->
+
+    <!-- Team Form -->
+    <div class="add-tm-frm-wrapper">
+        <div class="container mt-5">
+            <div class="card shadow">
+                <div class="card-header text-center bg-primary text-white">
+                    <h3>Update Team</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+
+                        <!-- Team Name -->
+                        <div class="mb-3">
+                            <label for="teamName" class="form-label">Team Name</label>
+                            <input type="text" class="form-control" id="teamName" name="name" placeholder="Enter team name" value="{{ form.name.value }}" required>
+                        </div>
+
+                        <!-- Manager Selection -->
+                        <div class="mb-3">
+                            <label for="managerSelection" class="form-label">Manager</label>
+                            <select class="form-select" id="managerSelection" name="manager" {% if form.manager.value %} disabled {% endif %} required>
+                                <option value="">{{ request.user.first_name }}_{{ request.user.last_name }}</option>
+                                {% for manager in form.fields.manager.queryset %}
+                                <option value="{{ manager.id }}" {% if manager.id|stringformat:"s" == form.manager.value %} selected {% endif %}>
+                                    {{ manager.user.first_name }} {{ manager.user.last_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if form.manager.value %}
+                            <input type="hidden" name="manager" value="{{ form.manager.value }}">
+                            {% endif %}
+                        </div>
+
+                        <!-- Project Selection -->
+                        <div class="mb-3">
+                            <label for="projectSelection" class="form-label">Select Project</label>
+                            <select class="form-select" id="projectSelection" name="project" required>
+                                <option value="">Choose a project</option>
+                                {% for project in form.fields.project.queryset %}
+                                <option value="{{ project.id }}" {% if project.id == form.project.value %} selected {% endif %}>
+                                    {{ project.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Employees Selection -->
+                        <div class="mb-3">
+                            <label for="employeeSelection" class="form-label">Select Employees</label>
+                            <select class="form-select" id="employeeSelection" name="employees" multiple required>
+                                {% for employee in form.fields.employees.queryset %}
+                                <option value="{{ employee.id }}" {% if employee.id in form.employees.value %} selected {% endif %}>
+                                    {{ employee.user.first_name }} {{ employee.user.last_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">Hold down Ctrl (Windows) or Command (Mac) to select multiple employees.</small>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary">Update Team</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

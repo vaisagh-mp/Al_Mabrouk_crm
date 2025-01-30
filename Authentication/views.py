@@ -8,7 +8,7 @@ def custom_login(request):
         if request.user.is_superuser:
             return redirect('admin-dashboard')  # Admin redirection
         elif request.user.is_staff:  # For staff/manager users
-            return render(request, 'Manager/dashboard.html')
+            return redirect('manager-dashboard')
         else:
             return redirect('employee_dashboard')  # Ensure 'employee-dashboard' is correct
 
@@ -23,7 +23,7 @@ def custom_login(request):
                 if user.is_superuser:
                     return redirect('admin-dashboard')  # Admin redirection
                 elif user.is_staff:  # For staff/manager users
-                    return render(request, 'Manager/dashboard.html')
+                    return redirect('manager-dashboard')
                 else:
                     return redirect('employee_dashboard')  # Ensure 'employee-dashboard' is correct
             else:

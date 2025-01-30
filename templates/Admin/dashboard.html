@@ -129,15 +129,16 @@
               <th>Team</th>
               <th>Leader</th>
               <th>Priority</th>
-              <th>Tasks</th>
-              <th>Completed</th>
+              <!-- <th>Tasks</th> -->
+              <!-- <th>Completed</th> -->
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
+            {% for project in project_details %}
             <tr>
-              <td>Project A</td>
+              <td>{{ project.name }}</td>
               <td>
                 <div class="avatars">
                   <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
@@ -146,116 +147,19 @@
                   <span>+1</span>
                 </div>
               </td>
-              <td>John Doe</td>
+              <td>{{ project.leader_name }}</td>
               <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
+              <!-- <td>19</td> -->
+              <!-- <td>10</td> -->
+              <td><span class="status pending">{{ project.status }}</span></td>
               <td list-action-col>
                 <a href="#"><i class="far fa-edit"></i></a>
                 <a href="#"><i class="far fa-trash-alt"></i></a>
               </td>
+              
             </tr>
-            <tr>
-              <td>Project A</td>
-              <td>
-                <div class="avatars">
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <span>+1</span>
-                </div>
-              </td>
-              <td>John Doe</td>
-              <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
-              <td list-action-col>
-                <a href="#"><i class="far fa-edit"></i></a>
-                <a href="#"><i class="far fa-trash-alt"></i></a>
-              </td>
-            </tr>
-            <tr>
-              <td>Project A</td>
-              <td>
-                <div class="avatars">
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <span>+1</span>
-                </div>
-              </td>
-              <td>John Doe</td>
-              <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
-              <td list-action-col>
-                <a href="#"><i class="far fa-edit"></i></a>
-                <a href="#"><i class="far fa-trash-alt"></i></a>
-              </td>
-            </tr>
-            <tr>
-              <td>Project A</td>
-              <td>
-                <div class="avatars">
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <span>+1</span>
-                </div>
-              </td>
-              <td>John Doe</td>
-              <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
-              <td list-action-col>
-                <a href="#"><i class="far fa-edit"></i></a>
-                <a href="#"><i class="far fa-trash-alt"></i></a>
-              </td>
-            </tr>
-            <tr>
-              <td>Project A</td>
-              <td>
-                <div class="avatars">
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <span>+1</span>
-                </div>
-              </td>
-              <td>John Doe</td>
-              <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
-              <td list-action-col>
-                <a href="#"><i class="far fa-edit"></i></a>
-                <a href="#"><i class="far fa-trash-alt"></i></a>
-              </td>
-            </tr>
-            <tr>
-              <td>Project A</td>
-              <td>
-                <div class="avatars">
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-                  <span>+1</span>
-                </div>
-              </td>
-              <td>John Doe</td>
-              <td><span class="priority medium">Medium</span></td>
-              <td>19</td>
-              <td>10</td>
-              <td><span class="status pending">Pending</span></td>
-              <td list-action-col>
-                <a href="#"><i class="far fa-edit"></i></a>
-                <a href="#"><i class="far fa-trash-alt"></i></a>
-              </td>
-            </tr>
+            {% endfor %}
+            
           </tbody>
         </table>
       </div>

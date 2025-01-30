@@ -1,69 +1,166 @@
+{% extends 'Manager/managerbase.html' %}
 {% load static %}
+{% block content %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manager Dashboard</title>
-    <link rel="stylesheet" href="{% static 'assets/css/manager_dashboard.css' %}">
-</head>
-<body>
-    <!-- Navigation -->
-    <nav>
-        <ul>
-            <li><a href="{% url 'manager-dashboard' %}">Dashboard</a></li>
-            <li><a href="{% url 'custom_logout' %}">Logout</a></li>
-        </ul>
-    </nav>
-
-    <header>
-        <h1>Welcome, {{ request.user.first_name }} {{ request.user.last_name }}</h1>
-        <p>Manager Dashboard</p>
-    </header>
-
-    <!-- Quick Actions Section -->
-    <section>
-        <h2>Quick Actions</h2>
-        <div class="actions">
-            <a href="{% url 'manage_attendance_requests' %}" class="button">Manage Attendance</a>
-            <a href="#" class="button">View Reports</a>
-            <a href="#" class="button">Assign Tasks</a>
+    <div class="dashbrd-wraper">
+      <div class="pg-title">
+        <h1>Dashboard</h1>
+      </div>
+      <div class="row sparkboxes mt-4 mb-4">
+        <div class="col-md-4">
+          <div class="widget-box">
+            <div class="box box1">
+              <div id="spark1"></div>
+            </div>
+          </div>
         </div>
-    </section>
+        <div class="col-md-4">
+          <div class="widget-box">
+            <div class="box box2">
+              <div id="spark2"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="widget-box">
+            <div class="box box3">
+              <div id="spark3"></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <!-- Recent Activities Section -->
-    <section>
-        <h2>Recent Activities</h2>
-        <table class="activities-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Activity</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Example Rows -->
-                <tr>
-                    <td>2025-01-03</td>
-                    <td>Reviewed Employee Attendance</td>
-                    <td>Completed</td>
-                </tr>
-                <tr>
-                    <td>2025-01-02</td>
-                    <td>Approved Leave Requests</td>
-                    <td>Pending</td>
-                </tr>
-                <tr>
-                    <td colspan="3">No recent activities found.</td>
-            </tbody>
+      <!-- TATP -->
+      <div class="row status-card-row">
+        <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-green">
+            <h5>Total Projects</h5>
+            <h6>0</h6>
+            <p>
+              <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
+              month
+            </p>
+
+            <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-blue">
+            <h5>Active Employees</h5>
+            <h6>0</h6>
+            <p>
+              <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
+            </p>
+
+            <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-violet">
+            <h5>Total Revenue</h5>
+            <h6>₹ 0</h6>
+            <p>
+              <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
+              month
+            </p>
+
+            <div class="wdgt-bg-icons">
+              <i class="fas fa-money-bill-alt"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 m-b-20">
+          <div class="status-wdgt card-bg-orange">
+            <h5>Pending Invoices</h5>
+            <h6>0</h6>
+            <p>
+              <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
+            </p>
+
+            <div class="wdgt-bg-icons"><i class="fas fa-file-alt"></i></div>
+          </div>
+        </div>
+      </div>
+      <!-- End TATP -->
+
+      <div class="row mt-5 mb-4">
+        <div class="col-md-6">
+          <div class="widget-box">
+            <div class="box">
+              <div id="bar"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="widget-box">
+            <div class="box">
+              <div id="donut"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row mt-4 mb-4">
+        <div class="col-md-6">
+          <div class="widget-box">
+            <div class="box">
+              <div id="area"></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="widget-box">
+            <div class="box">
+              <div id="line"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project Table -->
+      <div class="widget-box table-wdgt">
+        <div class="widget-title">
+          <h4>Projects</h4>
+        </div>
+        <table class="prjtc-table">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Team</th>
+              <th>Leader</th>
+              <th>Priority</th>
+              <th>Tasks</th>
+              <th>Completed</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Project A</td>
+              <td>
+                <div class="avatars">
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
+                  <span>+1</span>
+                </div>
+              </td>
+              <td>jone </td>
+              <td><span class="priority medium">Medium</span></td>
+              <td>19</td>
+              <td>10</td>
+              <td><span class="status pending">On Going</span></td>
+              <td list-action-col>
+                <a href="#"><i class="far fa-edit"></i></a>
+                <a href="#"><i class="far fa-trash-alt"></i></a>
+              </td>
+            </tr>
+
+            
+          </tbody>
         </table>
-    </section>
+      </div>
+    </div>
 
-    <!-- Footer -->
-    <footer>
-        <p>&copy; {{ current_year }} Your Company Name. All rights reserved.</p>
-    </footer>
-</body>
-</html>
+{% endblock %}

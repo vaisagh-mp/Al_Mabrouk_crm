@@ -40,7 +40,7 @@
                     <th>Rank</th>
                     <th>Email</th>
                     <th>Total Work Days</th>
-                    <th>Projects</th>
+                    <th>On-GoingProjects</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -58,13 +58,15 @@
                     <td>{{ employee.work_days }}</td>
                     <td>
                         {% if employee.assigned_projects %}
-                        {% for project in employee.assigned_projects %}
-                        {{ project.project.name }}{% if not forloop.last %}, {% endif %}
-                        {% endfor %}
+                            {% for project_assignment in employee.assigned_projects %}
+                                <span>{{ project_assignment.team.project.name }}</span>
+                                {% if not forloop.last %}, {% endif %}
+                            {% endfor %}
                         {% else %}
-                        No projects assigned
+                            No projects Ongoing
                         {% endif %}
-                    </td>
+                    </td>                    
+                    
                     <td class="list-action-col">
                         <a href="#"><i class="far fa-edit"></i></a>
                         <a href="#"><i class="far fa-trash-alt"></i></a>
@@ -76,7 +78,7 @@
                 </tr>
                 {% endfor %}
             </tbody>
-
+            
         </table>
 
         <!-- Pagination -->

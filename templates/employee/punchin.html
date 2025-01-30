@@ -1,0 +1,110 @@
+{% extends 'employee/employeebase.html' %}
+{% load static %}
+{% block content %}
+
+<main class="punch-in-wrapper">
+    <!-- Attendance Status -->
+    <section>
+        <h2>Attendance Status</h2>
+        <form id="attendance-form" method="POST" action="{% url 'log_in' %}">
+            {% csrf_token %}
+            <select id="attendance-status" name="attendance_status" onchange="updateStatusText()">
+                <option value="" disabled selected>Select Status</option>
+                {% for status, display in attendance_status_choices %}
+                    <option value="{{ status }}" {% if status == user_attendance.attendance_status %}selected{% endif %}>{{ display }}</option>
+                {% endfor %}
+            </select>
+            <p id="selected-status" class="mt-4 text-gray-600">Status: <span class="font-bold text-blue-500"> 
+                {% if user_attendance %}
+                    {{ user_attendance.attendance_status|default:"Not Selected" }}
+                {% else %}
+                    Not Selected
+                {% endif %}
+            </span></p>
+        </form>
+    </section>
+
+    <!-- Project Selection -->
+    <section>
+        <h2>Select Project</h2>
+        <select id="project-select" name="project" form="attendance-form">
+            <option value="" disabled selected>Select a project</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+            {% endfor %}
+        </select>
+    </section>
+
+    <!-- Location Selection -->
+    <section>
+        <h2>Select Location</h2>
+        <select id="location-select" name="location" form="attendance-form" onchange="updateLocationText()">
+            <option value="" disabled selected>Select a location</option>
+            {% for code, name in location_choices %}
+                <option value="{{ code }}" {% if code == user_attendance.location %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+        <p id="selected-location" class="mt-4 text-gray-600">Location: <span class="font-bold text-blue-500">
+            {% if user_attendance %}
+                {{ user_attendance.location|default:"Not Selected" }}
+            {% else %}
+                Not Selected
+            {% endif %}
+        </span></p>
+    </section>
+
+    <!-- Travel Timer Section -->
+    <section>
+        <h2>Travel Time</h2>
+        <div class="flex items-center space-x-4">
+          <button id="travel-start" class="bg-blue-500">Start Travel</button>
+          <button id="travel-stop" class="bg-red-500" disabled>Stop Travel</button>
+        </div>
+        <p id="travel-timer" class="mt-4 text-lg text-gray-600">Travel Duration: <span class="font-bold text-blue-500">00:00:00</span></p>
+      </section>
+
+    <!-- Punch Status -->
+    <section>
+        <h2>Attendance</h2>
+        <p id="status" class="text-gray-600 text-lg">Status: 
+            {% if user_attendance and user_attendance.log_out_time is None %}
+                <span class="font-bold text-green-500">Punched In</span>
+            {% else %}
+                <span class="font-bold text-red-500">Punched Out</span>
+            {% endif %}
+        </p>
+
+        {% if user_attendance and user_attendance.log_out_time is None %}
+            <form method="POST" action="{% url 'log_off' user_attendance.id %}">
+                {% csrf_token %}
+                <button class="bg-red-500 mt-4">Punch Out</button>
+            </form>
+        {% else %}
+            <button id="punch-button" class="bg-blue-500 mt-4" onclick="submitForm()">Punch In</button>
+        {% endif %}
+    </section>
+</main>
+
+<script>
+    function submitForm() {
+        document.getElementById("attendance-form").submit();
+    }
+</script>
+<script>
+    // Function to update the selected status in the paragraph
+    function updateStatusText() {
+        var selectedStatus = document.getElementById("attendance-status").value;
+        var statusText = selectedStatus ? selectedStatus : "Not Selected";
+        document.getElementById("selected-status").innerHTML = "Status: <span class='font-bold text-blue-500'>" + statusText + "</span>";
+    }
+</script>
+<script>
+    // Function to update the selected location in the paragraph
+    function updateLocationText() {
+        var selectedLocation = document.getElementById("location-select").value;
+        var locationText = selectedLocation ? selectedLocation : "Not Selected";
+        document.getElementById("selected-location").innerHTML = "Location: <span class='font-bold text-blue-500'>" + locationText + "</span>";
+    }
+</script>
+
+{% endblock %}

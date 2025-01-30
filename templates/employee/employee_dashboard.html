@@ -1,128 +1,185 @@
+{% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
 {% load static %}
+{% block content %}
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Employee Dashboard</title>
-    <link rel="stylesheet" href="{% static 'assets/css/dashboard.css' %}"> <!--Link to CSS file-->
-</head>
-<body>
-    <!-- Navigation Bar (optional) -->
-    <nav>
-        <ul>
-            <li><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
-            <li><a href="{% url 'custom_logout' %}">Logout</a></li>
-        </ul>
-    </nav>
+<div class="dashbrd-wraper">
+    <div class="pg-title">
+        <h1>Dashboard</h1>
+    </div>
+    <!-- TATP -->
+    <div class="row status-card-row">
+        <div class="col-lg-3 col-md-6">
+            <div class="status-wdgt card-bg-green">
+                <h5>Total Projects</h5>
+                <h6>{{ total_projects }}</h6>
+                <p>
+                    <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
+                    month
+                </p>
 
-    <header>
-        <h1>Welcome, {{ employee.user.first_name }} {{ employee.user.last_name }}</h1>
-        <p>Employee Dashboard</p>
-    </header>
-
-    <!-- Employee Details Section -->
-    <section>
-        <h2>Your Details</h2>
-        <div class="employee-details">
-            <ul>
-                <li><strong>Rank:</strong> {{ employee.rank }}</li>
-                <li><strong>Salary:</strong> ${{ employee.salary }}</li>
-                <li><strong>Work Days:</strong> {{ employee.work_days }}</li>
-                <li><strong>Holidays:</strong> {{ employee.holidays }}</li>
-                <li><a href="{% url 'submit_attendance_request' %}">Add Attendance</a></li>
-            </ul>
+                <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
+            </div>
         </div>
-    </section>
+        <div class="col-lg-3 col-md-6">
+            <div class="status-wdgt card-bg-blue">
+                <h5>Pending Projects</h5>
+                <h6>{{ pending_projects }}</h6>
+                <p>
+                    <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
+                </p>
 
-    <!-- Attendance Records Section -->
-    <section>
-        <h2>Attendance Records</h2>
-        <table class="attendance-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Login Time</th>
-                    <th>Logout Time</th>
-                    <th>Total Hours</th>
-                    <th>Attendance</th>
-                    <th>Manager Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for record in attendance_records %}
-                <tr>
-                    <td>{{ record.login_time.date }}</td>
-                    <td>{{ record.login_time }}</td>
-                    <td>{{ record.log_out_time }}</td>
-                    <td>{{ record.total_hours_of_work }}</td>
-                    <td>{{ record.attendance_status }}</td>
-                    <td>{{ record.status }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6">No attendance records found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
+                <div class="wdgt-bg-icons"><i class="fas fa-spinner"></i></div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6">
+            <div class="status-wdgt card-bg-violet">
+                <h5>Completed Projects</h5>
+                <h6>{{ completed_projects }}</h6>
+                <p>
+                    <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
+                    month
+                </p>
 
-    <!-- Assigned Work Section -->
-    <section>
-        <h2>Assigned Work</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Project Name</th>
-                    <th>Project Code</th>
-                    <th>Category</th>
-                    <th>Status</th>
-                    <th>Start Date</th>
-                    <th>Stop Date</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for assignment in assigned_work %}
-                <tr>
-                    <td>{{ assignment.project.name }}</td>
-                    <td>{{ assignment.project.code }}</td>
-                    <td>{{ assignment.project.category }}</td>
-                    <td>
-                        <form method="post" action="{% url 'update_project_status' assignment.project.id %}">
-                            {% csrf_token %}
-                            <select name="status">
-                                {% for key, value in assignment.project.STATUS_CHOICES %}
-                                <option value="{{ key }}" {% if key == assignment.project.status %}selected{% endif %}>
-                                    {{ value }}
-                                </option>
+                <div class="wdgt-bg-icons">
+                    <i class="fas fa-tasks"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 m-b-20">
+            <div class="status-wdgt card-bg-orange">
+                <h5>Attendance</h5>
+                <h6>{{ attendance_percentage|floatformat:0 }}%</h6>
+                <p>
+                    <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
+                </p>
+
+                <div class="wdgt-bg-icons"><i class="fas fa-percentage"></i></div>
+            </div>
+        </div>
+    </div>
+    <!-- End TATP -->
+    <div class="row mt-4 mb-4">
+        <!-- Punch In Card -->
+        <div class="col-lg-4 col-md-6">
+            <div class="widget-box">
+                <div class="attendance-card">
+                    <h3>Attendance</h3>
+                    <div class="date">08:35 AM, 11 Mar 2025</div>
+                    <div id="Puncinchart"></div>
+
+                    <div class="info">
+                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In"> Punch In at <span>10:00 AM</span>
+                    </div>
+                    <a href="{% url 'attendance_dashboard' %}" id="punchIn" onclick="startTimer()">Punch In</a>
+                </div>
+            </div>
+        </div>
+        <!-- Leave Details Card -->
+        <div class="col-lg-4 col-md-6">
+            <div class="widget-box leave-card-widget">
+                <div class="leave-card">
+                    <button class="year-btn">2024</button>
+                    <div class="widget-title">
+                        <h4>Leave Details</h4>
+                    </div>
+                    <div class="leave-details">
+                        <div>
+                            <span class="label">Total Leaves</span>
+                            <span class="value">16</span>
+                        </div>
+                        <div>
+                            <span class="label">Taken</span>
+                            <span class="value">10</span>
+                        </div>
+                        <div>
+                            <span class="label">Absent</span>
+                            <span class="value">2</span>
+                        </div>
+                        <div>
+                            <span class="label">Request</span>
+                            <span class="value">0</span>
+                        </div>
+                        <div>
+                            <span class="label">Worked Days</span>
+                            <span class="value">240</span>
+                        </div>
+                        <div>
+                            <span class="label">Loss of Pay</span>
+                            <span class="value">2</span>
+                        </div>
+                    </div>
+                    <div class="aply-lv-btn"><a href="{% url 'apply_leave' %}" class="apply-btn">Apply New Leave</a></div>
+
+                </div>
+            </div>
+        </div>
+        <!-- Leave Details Chart Card -->
+        <div class="col-lg-4 col-md-6 lv-chrt-col">
+            <div class="widget-box leave-card-widget">
+                <div class="widget-title">
+                    <h4>Leave Details</h4>
+                </div>
+                <div id="leaveChart"></div>
+            </div>
+        </div>
+
+        <!-- Project Table -->
+        <div class="widget-box mt-4 table-wdgt">
+            <div class="widget-title">
+                <h4>Assigned Projects</h4>
+            </div>
+            <table class="prjtc-table">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Team</th>
+                        <th>Leader</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for work in assigned_work %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'project_details' work.team.project.id %}">
+                                {{ work.team.project.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <div class="avatars" style="width: max-content; margin: auto;">
+                                {% for member in work.team.employees.all %}
+                                    <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" />
                                 {% endfor %}
-                            </select>
-                            <button type="submit">Update</button>
-                        </form>
-                    </td>
-                    <td>{{ assignment.time_start|date:"Y-m-d" }}</td>
-                    <td>{{ assignment.time_stop|date:"Y-m-d" }}</td>
+                                <span>+{{ work.team.employees.count }}</span>
+                            </div>
+                        </td>
+                        <td>{{ work.team.manager.user.username }}</td>
+                        <td>
+                            <span class="priority {% if work.team.project.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
+                                {% if work.team.project.category == 'ANCHORAGE' %}
+                                    High
+                                {% else %}
+                                    Medium
+                                {% endif %}
+                            </span>
+                        </td>
+                        
+                        <td>
+                            <span class="status Assign">{{ work.get_status_display }}</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" style="text-align: center;">No projects assigned</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                            
+            </table>
+        </div>
+    </div>
+</div>
 
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6">No assigned work found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
-    
-    
-    
-
-    <!-- Footer (optional) -->
-    <!-- <footer>
-        <p>&copy; {{ current_year }} Your Company Name. All rights reserved.</p>
-    </footer> -->
-
-</body>
-</html>
+{% endblock %}

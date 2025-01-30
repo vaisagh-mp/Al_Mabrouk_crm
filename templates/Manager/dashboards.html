@@ -1,0 +1,113 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Dashboard</title>
+    <link rel="stylesheet" href="{% static 'assets/css/manager_dashboard.css' %}">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <ul>
+            <li><a href="{% url 'manager-dashboard' %}">Dashboard</a></li>
+            <li><a href="{% url 'custom_logout' %}">Logout</a></li>
+        </ul>
+    </nav>
+
+    <header>
+        <h1>Welcome, {{ request.user.first_name }} {{ request.user.last_name }}</h1>
+        <p>Manager Dashboard</p>
+    </header>
+
+    <!-- Quick Actions Section -->
+    <section>
+        <h2>Quick Actions</h2>
+        <div class="actions">
+            <a href="{% url 'manage_attendance_requests' %}" class="button">Manage Attendance</a>
+            <a href="{% url 'team-list' %}" class="button">Team List</a>
+            <a href="{% url 'team-create' %}" class="button">Create Team</a>
+            <a href="#" class="button">Assign Tasks</a>
+        </div>
+    </section>
+
+    <!-- Recent Activities Section -->
+    <section>
+        <h2>Recent Activities</h2>
+        <table class="activities-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Activity</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Example Rows -->
+                <tr>
+                    <td>2025-01-03</td>
+                    <td>Reviewed Employee Attendance</td>
+                    <td>Completed</td>
+                </tr>
+                <tr>
+                    <td>2025-01-02</td>
+                    <td>Approved Leave Requests</td>
+                    <td>Pending</td>
+                </tr>
+                <tr>
+                    <td colspan="3">No recent activities found.</td>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Assigned Work Section -->
+    <section>
+        <h2>Assigned Work</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Project Name</th>
+                    <th>Project Code</th>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for assignment in assigned_projects %}
+                <tr>
+                    <td>{{ assignment.name }}</td>
+                    <td>{{ assignment.code }}</td>
+                    <td>{{ assignment.get_category_display }}</td>
+                    <td>
+                        <form method="post" action="{% url 'update_project_status' assignment.id %}">
+                            {% csrf_token %}
+                            <select name="status">
+                                {% for key, value in assignment.STATUS_CHOICES %}
+                                <option value="{{ key }}" {% if key == assignment.status %}selected{% endif %}>
+                                    {{ value }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6">No assigned work found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    
+
+    <!-- Footer -->
+    <footer>
+        <p>&copy; {{ current_year }} Your Company Name. All rights reserved.</p>
+    </footer>
+</body>
+</html>

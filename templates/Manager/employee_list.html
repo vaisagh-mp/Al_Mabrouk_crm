@@ -1,0 +1,85 @@
+{% extends 'Manager/managerbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Employee</h1>
+    </div>
+
+    <!-- Employs List -->
+    <div class="widget-box table-wdgt">
+        {% if page_obj %}
+        <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th>Name</th>
+                    <th>Employee ID</th>
+                    <th>Rank</th>
+                    <th>Email</th>
+                    <th>Total Work Days</th>
+                    <th>On-Going Projects</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in page_obj %}
+                <tr>
+                    <td><a href="{% url 'employee_profile_view' employee.id %}">{{ employee.user.get_full_name }}</a></td>
+                    <td>{{ employee.pk }}</td>
+                    <td>{{ employee.rank }}</td>
+                    <td>
+                        <a href="mailto:{{ employee.user.email }}">
+                            <i class="far fa-envelope"></i> {{ employee.user.email }}
+                        </a>
+                    </td>
+                    <td>{{ employee.work_days }}</td>
+                    <td>
+                        {% if employee.ongoing_projects %}
+                            {% for project_status in employee.ongoing_projects %}
+                                <span>{{ project_status.team.project.name }}</span>
+                                {% if not forloop.last %}, {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            No projects ongoing
+                        {% endif %}
+                    </td>
+                    
+                    <td class="list-action-col">
+                        <a href="#"><i class="far fa-edit"></i></a>
+                        <a href="#"><i class="far fa-trash-alt"></i></a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7">No employees found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <button class="active">{{ num }}</button>
+            {% else %}
+            <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ num }}">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="text-center">NO EMPLOYEES</p>
+        {% endif %}
+    </div>
+    
+</div>
+
+
+{% endblock %}
