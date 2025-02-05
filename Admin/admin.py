@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance
 
 
 @admin.register(Project)
@@ -26,10 +26,9 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'rank', 'salary', 'work_days', 'holidays', 'overseas_days')
-    search_fields = ('user__username', 'rank')
-    list_filter = ('rank',)
-    readonly_fields = ('work_days',)
+    list_display = ('user', 'is_employee', 'is_manager', 'rank', 'salary', 'phone_number', 'date_of_join')
+    search_fields = ('user__username', 'rank', 'phone_number')
+    list_filter = ('is_employee', 'is_manager')
 
 
 @admin.register(ProjectAssignment)
@@ -41,10 +40,10 @@ class ProjectAssignmentAdmin(admin.ModelAdmin):
 
 @admin.register(Attendance)
 class AttendanceAdmin(admin.ModelAdmin):
-    list_display = ('employee', 'login_time', 'log_out_time', 'total_hours_of_work', 'status')
+    list_display = ('employee', 'login_time', 'log_out_time', 'total_hours_of_work', 'total_travel_time', 'status')
     search_fields = ('employee__user__username', 'status')
     list_filter = ('status',)
-    readonly_fields = ('total_hours_of_work',)
+    readonly_fields = ('total_hours_of_work', 'total_travel_time')
 
 
 @admin.register(Team)
@@ -83,3 +82,8 @@ class LeaveAdmin(admin.ModelAdmin):
     list_filter = ('approval_status', 'leave_type')
 
 admin.site.register(Leave, LeaveAdmin)
+
+@admin.register(LeaveBalance)
+class LeaveBalanceAdmin(admin.ModelAdmin):
+    list_display = ("user", "annual_leave", "sick_leave", "casual_leave")
+    search_fields = ("user__username",)

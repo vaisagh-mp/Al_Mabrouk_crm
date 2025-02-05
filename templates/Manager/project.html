@@ -10,9 +10,22 @@
     <div class="row">
       <div class="col-lg-5">
         <div class="row">
+
           <div class="col-12">
             <div class="pjct-info-dtls-box">
               <div class="widget-box">
+                <div class="pjct-info-item">
+                  <h6>Client:</h6>
+                  <span style="color: #1a1a1a"
+                    ><b> Splendour Marine LLC</b></span
+                  >
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Category:</h6>
+                  <span style="color: #1a1a1a"
+                    ><b>{{ project_data.category }}</b>
+                  </span>
+                </div>
                 <div class="pjct-info-item">
                   <h6>Cost:</h6>
                   <span class="cost">${{ project_data.invoice_amount }}</span>
@@ -77,10 +90,51 @@
               </div>
             </div>
           </div>
+
         </div>
       </div>
       <div class="col-lg-7">
-        <div class="prjct-time-line-box">
+        <div class="emp-pjct-status-box">
+          <div class="widget-box">
+            <div class="widget-title">
+              <h4>Update Status</h4>
+            </div>
+            <form
+              method="POST"
+              action="{% url 'update_team_manager_status' project_id=project_data.project_id %}"
+            >
+              {% csrf_token %}
+              <div class="prjct-status-updt-box">
+                <select
+                  id="status"
+                  name="status"
+                  onchange="toggleRemarkBox()"
+                  required
+                >
+                  <option value="" disabled selected>Select Status</option>
+                  <option value="ASSIGN">Assign</option>
+                  <option value="ONGOING">Ongoing</option>
+                  <option value="HOLD">On Hold</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+                <div class="button-row">
+                  <button type="submit" class="btn">Update</button>
+                </div>
+              </div>
+              <div id="remarkBox" class="remark-box" style="display: none">
+                <textarea
+                  id="remark"
+                  name="remark"
+                  rows="4"
+                  placeholder="Enter note here"
+                ></textarea>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="prjct-time-line-box employee">
           <div class="widget-box">
             <div class="widget-title">
               <h4>Projects Status</h4>
@@ -88,41 +142,37 @@
 
             <div class="project-timeline">
               <div class="time-line-vertical"></div>
-              
-              {% for status in project_data.statuses %}
-                <div class="timeline-item">
-                  <div class="dot {% if status.status == 'ONGOING' %}Blue{% elif status.status == 'HOLD' %}Gray{% elif status.status == 'CANCELLED' %}Red{% elif status.status == 'COMPLETED' %}Green{% else %}Orange{% endif %}"></div>
-                  <div class="content">
-                    <h5>{{ status.get_status_display }}</h5>
-                    <p>{{ status.employee.user.first_name }} updated status to "{{ status.get_status_display }}"</p>
-                    <span>{{ status.last_updated|timesince }} ago</span>
-                  </div>
+              {% for log in project_data.logs %}
+              <div class="timeline-item">
+                <div
+                  class="dot {% if log.status == 'ONGOING' %}Blue{% elif log.status == 'HOLD' %}Gray{% elif log.status == 'CANCELLED' %}Red{% elif log.status == 'COMPLETED' %}Green{% else %}Orange{% endif %}"
+                ></div>
+                <div class="content">
+                  <h5>{{ log.status }}</h5>
+                  <p>
+                    {{ log.team_member_status.employee.user.first_name }}
+                    changed status from "{{ log.previous_status}}" to "{{log.status }}"
+                  </p>
+                  {% if log.notes %}
+                  <p>Note: {{ log.notes }}</p>
+                  {% endif %}
+                  <span>{{ log.changed_at|timesince }} ago</span>
                 </div>
+              </div>
               {% empty %}
-                <div class="timeline-item">
-                  <div class="dot gray"></div>
-                  <div class="content">
-                    <h5>No Updates</h5>
-                    <p>No status updates are available for this project.</p>
-                    <span>—</span>
-                  </div>
+              <div class="timeline-item">
+                <div class="dot gray"></div>
+                <div class="content">
+                  <h5>No Updates</h5>
+                  <p>No status updates are available for this project.</p>
+                  <span>—</span>
                 </div>
+              </div>
               {% endfor %}
             </div>
             
             
             
-          </div>
-        </div>
-
-        <div class="clnt-info-box">
-          <div class="widget-box">
-            <div class="widget-title">
-              <h4>Client Info</h4>
-            </div>
-            <h6>Splendour Marine LLC</h6>
-            <p>Port: <span>UAE</span></p>
-            <p>Vessel: <span>Splendour Opal</span></p>
           </div>
         </div>
       </div>

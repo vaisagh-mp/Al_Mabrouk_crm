@@ -16,8 +16,11 @@ urlpatterns = [
     path('employees/', views.manager_employee_list, name='manager_employee_list'),
     path('employee/attendance/', views.attendance_list, name='attendance_list'),
     path('employee/attendance/<int:pk>/', views.attendance_detail, name='attendance_detail_view'),
+    path('attendance/edit/<int:attendance_id>/', views.manager_edit_attendance, name='manager_edit_attendance'),
+    path('attendance/delete/<int:attendance_id>/', views.manager_delete_attendance, name='manager_delete_attendance'),
     path('employee/manage-attendance/', views.manage_attendance, name='pending_attendance'),
     path('employee/employee-profile/<int:employee_id>/', views.employee_profile, name='employee_profile_view'),
     path('projects/', views.project_list_view, name='project_list'),
     path('project/<int:project_id>/', views.project_summary_view, name='project-summary-view'),
+    path('update-status/<int:project_id>/', views.update_team_manager_status, name='update_team_manager_status'),
 ]

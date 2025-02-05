@@ -35,3 +35,5 @@ window.addEventListener("resize", () => {
 
 // Trigger the resize event to set the initial state
 window.dispatchEvent(new Event("resize"));
+
+

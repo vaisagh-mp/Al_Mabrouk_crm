@@ -27,6 +27,7 @@
                     <th></th>
                     <th></th>
                     <th></th>
+                    <th></th>
                     <th>
                         <div class="add-new-emply">
                             <div class="table-searchbar">
@@ -35,25 +36,24 @@
                                         <div class="input-group">
                                             <input type="text" name="search" class="form-control search-menu"
                                                 value="{{ search_query }}" placeholder="Search by Employee Name" />
-                                            <button type="submit">
-                                                <div class="input-group-append">
-                                                    <span class="input-group-text">
-                                                        <i class="fa fa-search" aria-hidden="true"></i>
-                                                    </span>
-                                                </div>
-                                            </button>
+                            
+                                            <div class="input-group-append">
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fa fa-search" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </form>
                                 </div>
-                            </div>
-                            <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
+                            </div>                            
+                            <!-- <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
                             <div class="dwnld-dropdown">
                                 <a href="#" title="Download"><i class="fas fa-download"></i></a>
                                 <div class="dwnld-dropdown-content">
                                     <a href="#" title="Download XLSX">XLSX</a>
                                     <a href="#" title="Download CSV">CSV</a>
                                 </div>
-                            </div>
+                            </div> -->
                         </div>
                     </th>
                 </tr>
@@ -90,8 +90,8 @@
                         {% endif %}
                     </td>
                     <td class="list-action-col">
-                        <a href="{% url 'edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
-                        <a href="{% url 'delete_attendance' record.id %}"
+                        <a href="{% url 'manager_edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
+                        <a href="{% url 'manager_delete_attendance' record.id %}"
                             onclick="return confirm('Are you sure you want to delete this attendance?');">
                             <i class="far fa-trash-alt"></i>
                         </a>
@@ -100,18 +100,26 @@
                 {% endfor %}
             </tbody>
         </table>
-        <!-- Pagination Controls -->
         <div class="pagination" id="pagination">
             {% if attendance_records.has_previous %}
-            <a href="?page=1">First</a>
-            <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
+                <a href="?page={{ attendance_records.previous_page_number }}">
+                    <button>&laquo; Prev</button>
+                </a>
             {% endif %}
-            <span>Page {{ attendance_records.number }} of {{ attendance_records.paginator.num_pages }}</span>
+        
+            {% for num in attendance_records.paginator.page_range %}
+                <a href="?page={{ num }}">
+                    <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
+                </a>
+            {% endfor %}
+        
             {% if attendance_records.has_next %}
-            <a href="?page={{ attendance_records.next_page_number }}">Next</a>
-            <a href="?page={{ attendance_records.paginator.num_pages }}">Last</a>
+                <a href="?page={{ attendance_records.next_page_number }}">
+                    <button>Next &raquo;</button>
+                </a>
             {% endif %}
         </div>
+        
     </div>
 </div>
 

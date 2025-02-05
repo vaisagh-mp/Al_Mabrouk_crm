@@ -11,9 +11,20 @@ class EmployeeCreationForm(forms.ModelForm):
     salary = forms.DecimalField(max_digits=10, decimal_places=2, required=False, label="Salary (if Employee)")
     rank = forms.CharField(max_length=255, required=False, label="Rank (for Employee or Manager)")
 
+    # New fields
+    date_of_birth = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), required=False)
+    phone_number = forms.CharField(max_length=15, required=False, label="Phone Number")
+    date_of_join = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), required=False, label="Date of Joining")
+    address = forms.CharField(widget=forms.Textarea(attrs={'rows': 3}), required=False, label="Address")
+    profile_picture = forms.ImageField(required=False, label="Profile Picture")
+
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'password', 'password2', 'is_employee', 'is_manager', 'rank', 'salary']
+        fields = [
+            'username', 'first_name', 'last_name', 'email', 'password', 'password2',
+            'is_employee', 'is_manager', 'rank', 'salary',
+            'date_of_birth', 'phone_number', 'date_of_join', 'address', 'profile_picture'
+        ]
 
     def clean(self):
         cleaned_data = super().clean()
@@ -57,7 +68,12 @@ class EmployeeCreationForm(forms.ModelForm):
 
             # Create the Employee profile
             employee = Employee.objects.create(
-                user=user
+                user=user,
+                date_of_birth=self.cleaned_data.get("date_of_birth"),
+                phone_number=self.cleaned_data.get("phone_number"),
+                date_of_join=self.cleaned_data.get("date_of_join"),
+                address=self.cleaned_data.get("address"),
+                profile_picture=self.cleaned_data.get("profile_picture")
             )
 
             # Assign rank if provided
@@ -65,6 +81,7 @@ class EmployeeCreationForm(forms.ModelForm):
 
             if self.cleaned_data.get("is_employee"):
                 salary = self.cleaned_data.get("salary")
+                employee.salary = salary
                 print(f"Employee created with rank: {rank} and salary: {salary}")
             else:
                 print(f"Manager created with rank: {rank}")

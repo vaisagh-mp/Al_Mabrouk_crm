@@ -65,55 +65,86 @@
             <div class="widget-box">
                 <div class="attendance-card">
                     <h3>Attendance</h3>
-                    <div class="date">08:35 AM, 11 Mar 2025</div>
+                    <!-- Display current date and time -->
+                    <div class="date">{{ current_time }}</div>
+
                     <div id="Puncinchart"></div>
 
+                    <!-- Punch In Time -->
                     <div class="info">
-                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In"> Punch In at <span>10:00 AM</span>
+                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
+                        Punch In at <span>{{ last_punch_in }}</span>
                     </div>
-                    <a href="{% url 'attendance_dashboard' %}" id="punchIn" onclick="startTimer()">Punch In</a>
+
+                    <!-- Punch Out Time -->
+                    {% if last_punch_out != "Not Punched Out" %}
+                    <div class="info">
+                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
+                        Punch Out at <span>{{ last_punch_out }}</span>
+                    </div>
+                    {% endif %}
+
+                    <a href="{% url 'attendance_dashboard' %}" id="punchButton">
+                        {% if last_punch_in == "Not Punched In" %}
+                        Punch In
+                        {% else %}
+                        Punch Out
+                        {% endif %}
+                    </a>
                 </div>
             </div>
         </div>
+
+
         <!-- Leave Details Card -->
         <div class="col-lg-4 col-md-6">
             <div class="widget-box leave-card-widget">
                 <div class="leave-card">
-                    <button class="year-btn">2024</button>
+                    <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
                     <div class="widget-title">
                         <h4>Leave Details</h4>
                     </div>
                     <div class="leave-details">
                         <div>
                             <span class="label">Total Leaves</span>
-                            <span class="value">16</span>
+                            <span class="value">{{ total_leaves }}</span>
                         </div>
                         <div>
                             <span class="label">Taken</span>
-                            <span class="value">10</span>
+                            <span class="value">{{ leaves_taken }}</span>
                         </div>
                         <div>
-                            <span class="label">Absent</span>
-                            <span class="value">2</span>
+                            <span class="label">Annual Leave</span>
+                            <span class="value">{{ annual_leave_taken }}</span>
+                        </div>
+                        <div>
+                            <span class="label">Casual Leave</span>
+                            <span class="value">{{ casual_leave_taken }}</span>
+                        </div>
+                        <div>
+                            <span class="label">Sick Leave</span>
+                            <span class="value">{{ sick_leave_taken }}</span>
                         </div>
                         <div>
                             <span class="label">Request</span>
-                            <span class="value">0</span>
+                            <span class="value">{{ leave_requests }}</span>
                         </div>
                         <div>
                             <span class="label">Worked Days</span>
-                            <span class="value">240</span>
+                            <span class="value">{{ worked_days }}</span>
                         </div>
                         <div>
                             <span class="label">Loss of Pay</span>
-                            <span class="value">2</span>
+                            <span class="value">{{ loss_of_pay_days }}</span>
                         </div>
                     </div>
-                    <div class="aply-lv-btn"><a href="{% url 'apply_leave' %}" class="apply-btn">Apply New Leave</a></div>
-
+                    <div class="aply-lv-btn">
+                        <a href="{% url 'apply_leave' %}" class="apply-btn">Apply New Leave</a>
+                    </div>
                 </div>
             </div>
         </div>
+
         <!-- Leave Details Chart Card -->
         <div class="col-lg-4 col-md-6 lv-chrt-col">
             <div class="widget-box leave-card-widget">
@@ -150,22 +181,24 @@
                         <td>
                             <div class="avatars" style="width: max-content; margin: auto;">
                                 {% for member in work.team.employees.all %}
-                                    <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" />
+                                <img src="{% static 'assets/images/user-pro.webp' %}"
+                                    alt="{{ member.user.username }}" />
                                 {% endfor %}
                                 <span>+{{ work.team.employees.count }}</span>
                             </div>
                         </td>
                         <td>{{ work.team.manager.user.username }}</td>
                         <td>
-                            <span class="priority {% if work.team.project.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
+                            <span
+                                class="priority {% if work.team.project.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
                                 {% if work.team.project.category == 'ANCHORAGE' %}
-                                    High
+                                High
                                 {% else %}
-                                    Medium
+                                Medium
                                 {% endif %}
                             </span>
                         </td>
-                        
+
                         <td>
                             <span class="status Assign">{{ work.get_status_display }}</span>
                         </td>
@@ -176,10 +209,26 @@
                     </tr>
                     {% endfor %}
                 </tbody>
-                            
+
             </table>
         </div>
     </div>
 </div>
+
+
+<script>
+    function updateCurrentTime() {
+        let now = new Date();
+        let options = {
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+            day: '2-digit', month: 'short', year: 'numeric'
+        };
+        document.querySelector('.date').innerText = now.toLocaleString('en-US', options);
+    }
+
+    // Update the time every second
+    setInterval(updateCurrentTime, 1000);
+    updateCurrentTime();
+</script>
 
 {% endblock %}

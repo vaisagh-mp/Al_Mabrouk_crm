@@ -28,7 +28,7 @@
         </button>
         <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
           <li><a class="dropdown-item" href="{% url 'profile_view' %}">Profile</a></li>
-          <li><a class="dropdown-item" href="#">Task</a></li>
+          <li><a class="dropdown-item" href="{% url 'projects' %}">Task</a></li>
           <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
         </ul>
       </div>
@@ -98,6 +98,12 @@
               </a>
             </li>
             <li class="sidebar-dropdown">
+              <a href="{% url 'my_leave' %}">
+                <i class="fa fa-book"></i>
+                <span>Leave</span>
+              </a>
+            </li>
+            <li class="sidebar-dropdown">
               <a href="{% url 'profile_view' %}">
                 <i class="fas fa-tasks"></i>
                 <span>Profile</span>
@@ -113,9 +119,9 @@
                   <li>
                     <a href="{% url 'projects' %}">All Projects</a>
                   </li>
-                  <li>
+                  <!-- <li>
                     <a href="#">Assign projects</a>
-                  </li>
+                  </li> -->
                 </ul>
               </div>
             </li>

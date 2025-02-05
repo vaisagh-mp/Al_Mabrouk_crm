@@ -155,9 +155,14 @@ class Employee(models.Model):
     is_manager = models.BooleanField(default=False)
     rank = models.CharField(max_length=255, blank=True, null=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    work_days = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True)  # Calculated field
+    work_days = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True)
     holidays = models.IntegerField(null=True, blank=True)
     overseas_days = models.IntegerField(default=0)
+    date_of_birth = models.DateField(null=True, blank=True)
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    date_of_join = models.DateField(null=True, blank=True)
+    address = models.TextField(blank=True, null=True)
+    profile_picture = models.ImageField(upload_to="profile_pictures/", null=True, blank=True)
 
     def calculate_work_days(self):
         """
@@ -165,9 +170,9 @@ class Employee(models.Model):
         """
         total_hours = sum(
             attendance.total_hours_of_work for attendance in self.attendance_set.all())
-        self.work_days = total_hours / 9  # 10 hours = 1 workday
+        self.work_days = total_hours / 9  # 9 hours = 1 workday
         self.save()
-     
+
     def __str__(self):
         return f"{self.user.username} - {self.rank}"
 
@@ -209,11 +214,7 @@ class Attendance(models.Model):
 
     ATTENDANCE_STATUS = [
         ('PRESENT', 'Present'),
-        ('LEAVE', 'Leave'),
         ('WORK FROM HOME', 'Work from Home'),
-        ('SICK LEAVE', 'Sick Leave'),
-        ('ANNUAL LEAVE', 'Annual Leave'),
-        ('CASUAL LEAVE', 'Casual Leave'),
     ]
 
     employee = models.ForeignKey(
@@ -232,6 +233,17 @@ class Attendance(models.Model):
     rejected_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='rejected_attendance')
     travel_in_time = models.DateTimeField(null=True, blank=True)
     travel_out_time = models.DateTimeField(null=True, blank=True)
+    total_travel_time = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        """Calculate total travel time before saving."""
+        if self.travel_in_time and self.travel_out_time:
+            travel_duration = self.travel_out_time - self.travel_in_time
+            self.total_travel_time = round(travel_duration.total_seconds() / 3600, 2)  # Convert to hours
+        else:
+            self.total_travel_time = None  # Reset if travel_out_time is not set
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Attendance for {self.employee.user.username} - {self.status}"
@@ -264,6 +276,16 @@ class Leave(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.leave_type} from {self.from_date} to {self.to_date} ({self.approval_status})"
+
+class LeaveBalance(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="leave_balance")
+    annual_leave = models.IntegerField(default=24)
+    sick_leave = models.IntegerField(default=12) 
+    casual_leave = models.IntegerField(default=6)
+
+    def __str__(self):
+        return f"{self.user.username} - Leave Balance"
+    
 
 class TeamMemberStatus(models.Model):
     STATUS_CHOICES = [

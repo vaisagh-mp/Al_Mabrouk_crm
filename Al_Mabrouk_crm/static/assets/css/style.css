@@ -2288,3 +2288,94 @@ table .fa-times {
 }
 
 /*================ End Add Team Page  ================*/
+
+/*---------- Date Filter -----------*/
+
+.date-filter {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 20px;
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.date-filter label {
+  font-weight: bold;
+  color: #333;
+}
+
+.date-filter input {
+  padding: 10px;
+  border: 2px solid var(--secondary-bg);
+  border-radius: 8px;
+  outline: none;
+  font-size: 16px;
+  transition: 0.3s ease-in-out;
+}
+
+.date-filter input:focus {
+  border-color: var(--secondary-bg);
+  box-shadow: 0 0 8px rgba(0, 91, 187, 0.5);
+}
+@media (max-width: 767px) {
+  .date-filter {
+    flex-direction: column;
+  }
+  .date-filter input {
+    padding: 5px;
+  }
+}
+/*---------- End Date Filter -----------*/
+
+/*---------- Leave Details Year Filter ----------*/
+.year-dropdown {
+  position: relative;
+  display: inline-block;
+  float: right;
+}
+
+.year-select {
+  appearance: none;
+  background-color: #f1f1f1;
+  color: #1a1a1a;
+  border: none;
+  font-size: 14px;
+  font-weight: 400;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.year-select:focus {
+  outline: none;
+}
+/*---------- End Leave Details Year Filter ----------*/
+
+/*================ Leave Page  ================*/
+.leave-tab-wrapper {
+  margin-bottom: 25px;
+}
+.leave-tab-wrapper a {
+  text-decoration: none;
+  padding: 10px 15px;
+  color: var(--primary-font-color);
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  margin: 0 5px;
+  transition: background-color 0.3s ease;
+}
+/* Change background color when active */
+.leave-tab-wrapper a.active,
+.leave-tab-wrapper a:hover {
+  background-color: var(--secondary-bg);
+  color: #fff;
+}
+@media (max-width: 767px) {
+  .leave-tab-wrapper a {
+    padding: 5px 10px;
+  }
+}
+/*================ End Leave Page  ================*/

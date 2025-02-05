@@ -1,0 +1,82 @@
+{% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Leave Statuses</h1>
+    </div>
+
+    <div class="leave-tab-wrapper">
+        <a href="{% url 'apply_leave' %}">Apply</a>
+        <a href="{% url 'my_leave' %}" class="active">My Leave</a>
+        <a href="{% url 'leave_records' %}">Leave Records</a>
+    </div>
+
+    <!-- Leave List -->
+    <div class="widget-box table-wdgt">
+        <table id="leaveTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Leave Type</th>
+                    <th>From Date</th>
+                    <th>To Date</th>
+                    <th>No. of Days</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leave in leaves %}
+                <tr>
+                    <td><a href="#">{{ leave.user.username }}</a></td>
+                    <td>{{ leave.leave_type }}</td>
+                    <td>{{ leave.from_date|date:"d/m/Y" }}</td>
+                    <td>{{ leave.to_date|date:"d/m/Y" }}</td>
+                    <td>{{ leave.no_of_days }}</td>
+                    <td>
+                        <span class="status 
+                            {% if leave.approval_status == 'APPROVED' %}completed
+                            {% elif leave.approval_status == 'REJECTED' %}cancelled
+                            {% else %}pending{% endif %}">
+                            {{ leave.approval_status }}
+                        </span>
+                    </td>
+                    <td>{{ leave.reason }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center">No leave applications found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="pagination" id="pagination">
+            {% if leaves.has_previous %}
+                <a href="?page={{ leaves.previous_page_number }}">
+                    <button>&laquo; Prev</button>
+                </a>
+            {% endif %}
+        
+            {% for num in leaves.paginator.page_range %}
+                <a href="?page={{ num }}">
+                    <button class="{% if num == leaves.number %}active{% endif %}">{{ num }}</button>
+                </a>
+            {% endfor %}
+        
+            {% if leaves.has_next %}
+                <a href="?page={{ leaves.next_page_number }}">
+                    <button>Next &raquo;</button>
+                </a>
+            {% endif %}
+        </div>
+        
+    </div>
+</div>
+
+
+{% endblock %}

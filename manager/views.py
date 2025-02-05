@@ -9,7 +9,7 @@ from django.core.paginator import Paginator
 from Admin.forms import ProjectAssignmentForm
 from .forms import TeamForm
 from django.contrib import messages
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog
 
 
 # Home
@@ -38,8 +38,20 @@ def update_project_status(request, project_id):
 # List all teams
 @login_required
 def team_list(request):
-    teams = Team.objects.all()  # Or filter based on some condition if needed
-    return render(request, 'team/team_list.html', {'teams': teams})
+    search_query = request.GET.get('search', '').strip()  # Get the search input
+
+    # Filter teams by name based on search input
+    if search_query:
+        teams = Team.objects.filter(name__icontains=search_query)
+    else:
+        teams = Team.objects.all()
+
+    # Pagination (10 teams per page)
+    paginator = Paginator(teams, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'team/team_list.html', {'teams': page_obj, 'search_query': search_query})
 
 # Show details of a team
 @login_required
@@ -414,48 +426,38 @@ def employee_profile(request, employee_id):
 
 @login_required
 def project_list_view(request):
-    # Get the currently logged-in user
     current_user = request.user
-
-    # Retrieve the related employee object
     employee = current_user.employee_profile
 
-    # Check if the user is a manager
     if employee.is_manager:
-        # Fetch all projects managed by the employee
-        projects = Project.objects.filter(manager=employee)
-
-        # Prepare the project data
-        project_data = [
-            {
-                "id": project.id,
-                "name": project.name,
-                "category": project.category,
-                "code": project.code,
-                "status": project.status,
-                "invoice": project.invoice_amount,
-                "currency": project.currency_code,
-                "purchase_and_expenses": project.purchase_and_expenses,
-            }
-            for project in projects
-        ]
+        projects = Project.objects.filter(manager=employee).values(
+            "id", "name", "category", "code", "status",
+            "invoice_amount", "currency_code", "purchase_and_expenses"
+        )
     else:
-        # If not a manager, set project_data to an empty list or an appropriate message
-        project_data = []
+        projects = []
+
+    # Pagination (10 projects per page)
+    paginator = Paginator(projects, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        "projects": project_data,
+        "projects": page_obj,
     }
 
     return render(request, 'Manager/project_list.html', context)
+
 
 # project summary
 @login_required
 def project_summary_view(request, project_id):
     # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
+    employee = get_object_or_404(Employee, user=request.user)
     statuses = TeamMemberStatus.objects.filter(team__project__id=project_id).order_by('-last_updated')
-
+    logs = ActivityLog.objects.filter(team_member_status__employee_id=employee.id).order_by('-changed_at')
+    status_choices = TeamMemberStatus.STATUS_CHOICES
     # Fetch teams associated with the project
     teams = project.teams.all()
 
@@ -511,6 +513,9 @@ def project_summary_view(request, project_id):
         "project_create": project.created_at,
         "deadline_date": project.deadline_date,
         "statuses": statuses,
+        'logs': logs,
+        "project_id": project.id,
+        "status_choices": status_choices,
     }
 
     # Pass the data to the template
@@ -519,3 +524,67 @@ def project_summary_view(request, project_id):
     }
 
     return render(request, 'Manager/project.html', context)
+
+
+@login_required
+def update_team_manager_status(request, project_id):
+    if request.method == "POST":
+        employee = get_object_or_404(Employee, user=request.user)
+        status = request.POST.get("status")
+        remark = request.POST.get("remark", "")
+
+        # Fetch the TeamMemberStatus entry
+        team_member_status = Project.objects.filter(
+            id=project_id,
+            manager=employee
+        ).first()
+
+        if team_member_status:
+            team_member_status.status = status
+            team_member_status.notes = remark
+            team_member_status.save()
+
+            messages.success(request, "Status updated successfully.")
+        else:
+            messages.error(request, "No team member status found for this project.")
+
+    return redirect('project-summary-view', project_id=project_id)
+
+
+# Edit attendance
+@login_required
+def manager_edit_attendance(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+
+    if request.method == 'POST':
+        attendance.employee_id = request.POST.get('employee')
+        attendance.project_id = request.POST.get('project')
+        attendance.login_time = request.POST.get('login_time')
+        attendance.log_out_time = request.POST.get('log_out_time')
+        attendance.location = request.POST.get('location')
+        attendance.attendance_status = request.POST.get('attendance_status')
+        attendance.status = request.POST.get('status')
+        attendance.rejection_reason = request.POST.get('rejection_reason')
+        attendance.travel_in_time = request.POST.get('travel_in_time')
+        attendance.travel_out_time = request.POST.get('travel_out_time')
+        attendance.save()
+
+        messages.success(request, 'Attendance record has been Updated successfully.')
+        return redirect('attendance_list_view')
+
+    employees = Employee.objects.all()
+    projects = Project.objects.all()
+    return render(request, 'manager/manager_edit_attendance.html', {
+        'attendance': attendance,
+        'employees': employees,
+        'projects': projects,
+    })
+
+# Delete attendance
+@login_required
+def manager_delete_attendance(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+    attendance.delete()
+    # Add a success message
+    messages.success(request, 'Attendance record has been deleted successfully.')
+    return redirect('attendance_list')

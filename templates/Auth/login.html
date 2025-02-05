@@ -1,56 +1,47 @@
 {% load static %}
 
+
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Almabrouk CRM</title>
-    <!-- Bootstrap -->
-    <link
-      rel="stylesheet"
-      href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}"
-    />
-    <!-- Fontawesome -->
-    <link
-      href="https://use.fontawesome.com/releases/v5.0.6/css/all.css"
-      rel="stylesheet"
-    />
-    <!-- Apex Chart css -->
+    <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
+    <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
-    <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
-  </head>
-  <body>
+</head>
+<body>
     <div class="container login-wrapper">
-      <div class="login-container">
-        <h1>Almabrouk</h1>
-        <p>Log in to access your tools and information.</p>
-         <!-- Display error message if login fails -->
-         
-        <form id="loginForm" method="POST">
-          {% csrf_token %}
-            <input type="username" id="username" name="username" required=""
-            placeholder="Enter your username">
-            <input type="password" id="password" name="password"
-            required="" placeholder="*********">
-            <button type="submit">Log in</button>
-        </form>
-        <a href="#">Foregot password?</a>
-        <div class="footer">
-            <p>&copy; 2024 Almabrouk</p>
+        <div class="login-container">
+            <h1>Almabrouk</h1>
+            <p>Log in to access your tools and information.</p>
+            
+            <!-- Display error messages -->
+            {% if messages %}
+                <div class="alert alert-danger">
+                    {% for message in messages %}
+                        <p>{{ message }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <form id="loginForm" method="POST">
+                {% csrf_token %}
+                <input type="text" id="username" name="username" required placeholder="Enter your username">
+                <input type="password" id="password" name="password" required placeholder="*********">
+                <button type="submit">Log in</button>
+            </form>
+
+            <a href="#">Forgot password?</a>
+            <div class="footer">
+                <p>&copy; 2024 Almabrouk</p>
+            </div>
         </div>
     </div>
-    </div>
-    <!-- Bootstrap Bundle JS -->
+
     <script src="{% static 'assets/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-    <!-- Jquery -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-    <!-- Apex Chart Js -->
-    <script src="{% static 'assets/vendor/apexchart/js/apexcharts.js' %}"></script>
-    <script src="{% static 'assets/vendor/apexchart/js/data.js' %}"></script>
-    <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
-    <!-- Main.js -->
-    <script src="{% static 'assets/js/main.js' %}"></script>
-  </body>
+</body>
 </html>
+

@@ -16,7 +16,7 @@
           <th></th>
           <th></th>
           <th></th>
-          <th></th>
+          <!-- <th></th> -->
           <th></th>
           <th></th>
           <th>
@@ -37,12 +37,12 @@
                   </div>
                 </div>
               </div>
-              <a class="badge bg-warning" href="#" data-bs-toggle="modal" data-bs-target="#formModal">
+              <!-- <a class="badge bg-warning" href="#" data-bs-toggle="modal" data-bs-target="#formModal">
                 Add <i class="fas fa-plus"></i>
-              </a>
+              </a> -->
 
               <!-- Modal -->
-              <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+              <!-- <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                   <div class="modal-content">
                     <div class="modal-header">
@@ -88,15 +88,15 @@
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> -->
 
-              <div class="dwnld-dropdown">
+              <!-- <div class="dwnld-dropdown">
                 <a href="#" title="Download"><i class="fas fa-download"></i></a>
                 <div class="dwnld-dropdown-content">
                   <a href="#" title="Download XLSX">XLSX</a>
                   <a href="#" title="Download CSV">CSV</a>
                 </div>
-              </div>
+              </div> -->
             </div>
           </th>
         </tr>
@@ -110,46 +110,59 @@
           <th>Invoice Amount</th>
           <th>Currency</th>
           <th>Status</th>
-          <th>Action</th>
+          <!-- <th>Action</th> -->
         </tr>
       </thead>
       <tbody>
         {% for project in projects %}
-          <tr>
+        <tr>
             <td><a href="{% url 'project-summary-view' project.id %}">{{ project.name }}</a></td>
             <td>{{ project.category }}</td>
             <td>{{ project.code }}</td>
             <td>{{ project.purchase_and_expenses }}</td>
-            <td>{{ project.invoice }}</td>
-            <td>{{ project.currency }}</td>
+            <td>{{ project.invoice_amount }}</td>  <!-- Fixed Field Name -->
+            <td>{{ project.currency_code }}</td>  <!-- Fixed Field Name -->
             <td>
-              <span class="status
-                {% if project.status == 'ONGOING' %}ongoing
-                {% elif project.status == 'COMPLETED' %}completed
-                {% elif project.status == 'ASSIGN' %}Assign
-                {% elif project.status == 'PENDING' %}pending
-                {% elif project.status == 'HOLD' %}hold
-                {% elif project.status == 'CANCELLED' %}cancelled
-                {% else %}status-default{% endif %}
-              ">{{ project.status }}</span>
+                <span class="status
+                    {% if project.status == 'ONGOING' %}ongoing
+                    {% elif project.status == 'COMPLETED' %}completed
+                    {% elif project.status == 'ASSIGN' %}Assign
+                    {% elif project.status == 'PENDING' %}pending
+                    {% elif project.status == 'HOLD' %}hold
+                    {% elif project.status == 'CANCELLED' %}cancelled
+                    {% else %}status-default{% endif %}">
+                    {{ project.status }}
+                </span>
             </td>
-            <td class="list-action-col">
-              <a href="{% url 'edit_project' project.id %}"><i class="far fa-edit"></i></a>
-              <a href="{% url 'delete_project' project.id %}" onclick="return confirmDelete();"><i class="far fa-trash-alt"></i></a>
-            </td>
-          </tr>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center">No projects available</td>
+        </tr>
         {% endfor %}
-      </tbody>
+    </tbody>
+    
     </table>
     <div class="pagination" id="pagination">
       {% if projects.has_previous %}
-      <a href="?page={{ projects.previous_page_number }}">Previous</a>
+          <a href="?page={{ projects.previous_page_number }}">
+              <button>&laquo; Prev</button>
+          </a>
       {% endif %}
-      <span>Page {{ projects.number }} of {{ projects.paginator.num_pages }}</span>
+  
+      {% for num in projects.paginator.page_range %}
+          <a href="?page={{ num }}">
+              <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
+          </a>
+      {% endfor %}
+  
       {% if projects.has_next %}
-      <a href="?page={{ projects.next_page_number }}">Next</a>
+          <a href="?page={{ projects.next_page_number }}">
+              <button>Next &raquo;</button>
+          </a>
       {% endif %}
-    </div>
+  </div>
+  
   </div>
 </div>
 
