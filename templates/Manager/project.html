@@ -144,35 +144,44 @@
               <div class="time-line-vertical"></div>
               {% for log in project_data.logs %}
               <div class="timeline-item">
-                <div
-                  class="dot {% if log.status == 'ONGOING' %}Blue{% elif log.status == 'HOLD' %}Gray{% elif log.status == 'CANCELLED' %}Red{% elif log.status == 'COMPLETED' %}Green{% else %}Orange{% endif %}"
-                ></div>
-                <div class="content">
-                  <h5>{{ log.status }}</h5>
-                  <p>
-                    {{ log.team_member_status.employee.user.first_name }}
-                    changed status from "{{ log.previous_status}}" to "{{log.status }}"
-                  </p>
-                  {% if log.notes %}
-                  <p>Note: {{ log.notes }}</p>
-                  {% endif %}
-                  <span>{{ log.changed_at|timesince }} ago</span>
-                </div>
+                  <div class="dot 
+                      {% if log.new_status == 'ONGOING' %}Blue
+                      {% elif log.new_status == 'HOLD' %}Gray
+                      {% elif log.new_status == 'CANCELLED' %}Red
+                      {% elif log.new_status == 'COMPLETED' %}Green
+                      {% else %}Orange{% endif %}">
+                  </div>
+                  <div class="content">
+                      <h5>{{ log.new_status }}</h5>
+                      <p>
+                          {% if log.team_member_status %}
+                              {{ log.team_member_status.employee.user.first_name }} {{ log.team_member_status.employee.user.last_name }}
+                          {% else %}
+                              {{ log.changed_by.user.first_name }} {{ log.changed_by.user.last_name }} (Manager)
+                          {% endif %}
+                          changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                      </p>
+                      {% if log.notes %}
+                      <p>Note: {{ log.notes }}</p>
+                      {% endif %}
+                      <span>{{ log.changed_at|timesince }} ago</span>
+                  </div>
               </div>
               {% empty %}
               <div class="timeline-item">
-                <div class="dot gray"></div>
-                <div class="content">
-                  <h5>No Updates</h5>
-                  <p>No status updates are available for this project.</p>
-                  <span>—</span>
-                </div>
+                  <div class="dot gray"></div>
+                  <div class="content">
+                      <h5>No Updates</h5>
+                      <p>No status updates are available for this project.</p>
+                      <span>—</span>
+                  </div>
               </div>
               {% endfor %}
-            </div>
-            
-            
-            
+          </div>
+          
+          
+          
+
           </div>
         </div>
       </div>

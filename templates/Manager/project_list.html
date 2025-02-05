@@ -25,15 +25,15 @@
                 <div class="sidebar-search">
                   <div>
                     <div class="input-group">
-                      <input type="text" class="form-control search-menu" placeholder="Search..." />
-                      <a href="#">
-                        <div class="input-group-append">
-                          <span class="input-group-text">
-                            <i class="fa fa-search" aria-hidden="true"></i>
-                          </span>
-                        </div>
-                      </a>
-                    </div>
+                      <form method="GET" action="" class="d-flex">
+                          <input type="text" name="search" class="form-control search-menu" placeholder="Search projects..."
+                                 value="{{ search_query }}" />
+                          <button type="submit" class="btn btn-primary">
+                              <i class="fa fa-search" aria-hidden="true"></i>
+                          </button>
+                      </form>
+                  </div>
+                  
                   </div>
                 </div>
               </div>
@@ -145,23 +145,24 @@
     </table>
     <div class="pagination" id="pagination">
       {% if projects.has_previous %}
-          <a href="?page={{ projects.previous_page_number }}">
+          <a href="?search={{ search_query }}&page={{ projects.previous_page_number }}">
               <button>&laquo; Prev</button>
           </a>
       {% endif %}
   
       {% for num in projects.paginator.page_range %}
-          <a href="?page={{ num }}">
+          <a href="?search={{ search_query }}&page={{ num }}">
               <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
           </a>
       {% endfor %}
   
       {% if projects.has_next %}
-          <a href="?page={{ projects.next_page_number }}">
+          <a href="?search={{ search_query }}&page={{ projects.next_page_number }}">
               <button>Next &raquo;</button>
           </a>
       {% endif %}
   </div>
+  
   
   </div>
 </div>

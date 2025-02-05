@@ -7,9 +7,10 @@ from django.db.models import Q, F
 from django.db.models import Prefetch
 from django.core.paginator import Paginator
 from Admin.forms import ProjectAssignmentForm
+from employee_data.forms import EmployeeUpdateForm
 from .forms import TeamForm
 from django.contrib import messages
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave
 
 
 # Home
@@ -21,6 +22,114 @@ def dashboard(request):
         return render(request, 'Manager/dashboard.html', {'assigned_projects': assigned_projects})
     else:
         return render(request, 'employee/employee_dashboard.html')
+
+@login_required
+def manager_profile(request):
+    # Fetch the manager's employee profile
+    manager = get_object_or_404(Employee, user=request.user, is_manager=True)
+
+    # Fetch teams managed by the manager
+    teams = Team.objects.filter(manager=manager).prefetch_related('employees')
+
+    # Fetch projects managed by the manager
+    projects = Project.objects.filter(manager=manager)
+
+    # Calculate the total number of employees under the manager
+    total_employees = sum(team.employees.count() for team in teams)
+
+    # Get the current year and month
+    current_year = date.today().year
+    current_month = date.today().month
+
+    # Get the total number of days in the current month
+    total_days_in_month = monthrange(current_year, current_month)[1]
+
+    # Calculate total attendance records for employees under the manager
+    employee_attendance_records = Attendance.objects.filter(
+        employee__teams_assigned__manager=manager,
+        login_time__year=current_year,
+        login_time__month=current_month
+    ).count()
+
+    approved_attendance_records = Attendance.objects.filter(
+        employee__teams_assigned__manager=manager,
+        status='APPROVED',
+        login_time__year=current_year,
+        login_time__month=current_month
+    ).count()
+
+    # Calculate attendance percentage
+    attendance_percentage = (
+        (approved_attendance_records / total_days_in_month) * 100
+        if employee_attendance_records > 0
+        else 0
+    )
+
+    # Count completed, pending, and assigned projects
+    completed_projects = projects.filter(status='COMPLETED').count()
+    pending_projects = projects.exclude(status='COMPLETED').count()
+
+    # Prepare data for each project
+    managed_projects = [
+        {
+            "name": project.name,
+            "code": project.code,
+            "status": project.status,
+            "team": project.teams.first(),  # Fetch first assigned team
+        }
+        for project in projects
+    ]
+
+    # Context for the template
+    context = {
+        "manager": manager,
+        "teams": teams,
+        "total_employees": total_employees,
+        "attendance_percentage": round(attendance_percentage, 1),
+        "completed_projects": completed_projects,
+        "pending_projects": pending_projects,
+        "managed_projects": managed_projects,
+    }
+
+    return render(request, 'Manager/manager_profile.html', context)
+
+@login_required
+def update_manager_profile(request):
+    manager = request.user.employee_profile  # Get the Manager profile
+
+    if not manager.is_manager:
+        messages.error(request, "You are not authorized to access this page.")
+        return redirect("manager_dashboard")  # Redirect to manager dashboard if unauthorized
+
+    if request.method == "POST":
+        form = EmployeeUpdateForm(request.POST, request.FILES, instance=manager)
+        if form.is_valid():
+            user = request.user
+            user.first_name = form.cleaned_data["first_name"]
+            user.last_name = form.cleaned_data["last_name"]
+            user.email = form.cleaned_data["email"]
+
+            # Save new password if provided
+            if form.cleaned_data["password"]:
+                user.set_password(form.cleaned_data["password"])
+
+            user.save()
+
+            # Save the manager form (rank & salary included)
+            form.save()
+
+            messages.success(request, "Your profile has been updated successfully.")
+            return redirect("manager_profile")  # Redirect to manager profile view
+
+    else:
+        form = EmployeeUpdateForm(instance=manager, initial={
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
+            "email": request.user.email,
+        })
+
+    return render(request, "Manager/manager_profile_update.html", {"form": form})
+
 
 def update_project_status(request, project_id):
     if request.method == "POST":
@@ -208,18 +317,19 @@ def attendance_list(request):
     # Fetch teams managed by the current manager and prefetch employees and their attendance
     teams = Team.objects.filter(manager=current_manager).prefetch_related(
         Prefetch(
-            'employees',  # Prefetch employees related to the manager's teams
+            'employees',
             queryset=Employee.objects.filter(is_employee=True).select_related('user').prefetch_related(
+                'teams_assigned',  # Fetch teams directly
                 Prefetch(
-                    'attendance_set',  # Prefetch attendance records for each employee
-                    queryset=Attendance.objects.select_related(
-                        'employee', 'project').order_by('-login_time'),
-                    to_attr='attendance_records'  # Store the result as 'attendance_records'
+                    'attendance_set',  
+                    queryset=Attendance.objects.select_related('employee', 'project').order_by('-login_time'),
+                    to_attr='attendance_records'
                 )
             ),
-            to_attr='team_employees'  # Store the result as 'team_employees'
+            to_attr='team_employees'
         )
     )
+
 
     # Flatten the list of employees across all teams
     employees = []
@@ -341,6 +451,110 @@ def manage_attendance(request):
 
     return render(request, 'Manager/manage_attendance.html', {'requests': pending_requests})
 
+# Manage Leave
+@login_required
+def manage_leave(request):
+    # Get the current manager
+    try:
+        current_manager = request.user.employee_profile
+    except Employee.DoesNotExist:
+        return redirect('no_employee_profile')
+
+    # Ensure the logged-in user is a manager
+    if not current_manager.is_manager:
+        return redirect('no_permission_page')
+
+    # Fetch teams managed by the current manager and their employees
+    teams = current_manager.managed_teams.prefetch_related('employees')
+    employees = set()
+    for team in teams:
+        employees.update(team.employees.all())
+
+    # Fetch pending leave requests for employees under the manager's teams
+    pending_leaves = Leave.objects.filter(user__employee_profile__in=employees, approval_status='PENDING')
+
+    # Pagination (10 leave requests per page)
+    paginator = Paginator(pending_leaves, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    if request.method == 'POST':
+        leave_id = request.POST.get('leave_id')
+        action = request.POST.get('action')  # APPROVE or REJECT
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        if not action:
+            messages.error(request, "Action (Approve/Reject) must be selected!")
+            return redirect('manage_leave')
+
+        try:
+            leave_request = Leave.objects.get(id=leave_id)
+
+            if leave_request.user.employee_profile not in employees:
+                messages.error(request, "You are not authorized to manage this leave request!")
+                return redirect('manage_leave')
+
+            if action == 'APPROVE':
+                leave_request.approval_status = 'APPROVED'
+                messages.success(request, "Leave request approved successfully!")
+            elif action == 'REJECT':
+                leave_request.approval_status = 'REJECTED'
+                leave_request.reason += f"\nRejection Reason: {rejection_reason}"  # Store rejection reason
+                messages.success(request, "Leave request rejected successfully!")
+
+            leave_request.save()
+
+        except Leave.DoesNotExist:
+            messages.error(request, "Leave request not found!")
+
+    return render(request, 'Manager/manage_leave.html', {'leaves': page_obj})
+
+# Leave list
+@login_required
+def leave_list(request):
+    search_query = request.GET.get('search', '').strip()
+
+    # Get the current manager
+    try:
+        current_manager = request.user.employee_profile
+    except Employee.DoesNotExist:
+        return redirect('no_employee_profile')
+
+    # Ensure the logged-in user is a manager
+    if not current_manager.is_manager:
+        return redirect('no_permission_page')
+
+    # Fetch teams managed by the current manager
+    teams = Team.objects.filter(manager=current_manager).prefetch_related('employees')
+    
+    # Collect employees from managed teams
+    employees = set()
+    for team in teams:
+        employees.update(team.employees.all())
+
+    # Fetch leave records for employees under the manager
+    leave_records = Leave.objects.filter(user__employee_profile__in=employees).select_related('user')
+
+    # Apply search filter
+    if search_query:
+        leave_records = leave_records.filter(user__username__icontains=search_query)
+
+    # Sort leave records by date (latest first)
+    leave_records = leave_records.order_by('-from_date')
+
+    # Paginate leave records (10 per page)
+    paginator = Paginator(leave_records, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'leave_records': page_obj,
+        'search_query': search_query,
+    }
+
+    return render(request, 'Manager/leave_list.html', context)
+
+
 # Employee profile
 @login_required
 def employee_profile(request, employee_id):
@@ -429,8 +643,21 @@ def project_list_view(request):
     current_user = request.user
     employee = current_user.employee_profile
 
+    # Get search query
+    search_query = request.GET.get('search', '').strip()
+
+    # Filter projects only if the user is a manager
     if employee.is_manager:
-        projects = Project.objects.filter(manager=employee).values(
+        projects = Project.objects.filter(manager=employee)
+
+        # Apply search filter
+        if search_query:
+            projects = projects.filter(
+                name__icontains=search_query
+            )
+
+        # Convert to dictionary values for efficiency
+        projects = projects.values(
             "id", "name", "category", "code", "status",
             "invoice_amount", "currency_code", "purchase_and_expenses"
         )
@@ -444,53 +671,50 @@ def project_list_view(request):
 
     context = {
         "projects": page_obj,
+        "search_query": search_query,  # Send search query back to template
     }
 
     return render(request, 'Manager/project_list.html', context)
 
-
 # project summary
-@login_required
+@login_required 
 def project_summary_view(request, project_id):
-    # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
     employee = get_object_or_404(Employee, user=request.user)
-    statuses = TeamMemberStatus.objects.filter(team__project__id=project_id).order_by('-last_updated')
-    logs = ActivityLog.objects.filter(team_member_status__employee_id=employee.id).order_by('-changed_at')
+
+    # Fetch logs from team members
+    team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
+    print('team_logs:', team_logs)
+    # Fetch logs where the manager updated the project status
+    manager_logs = ActivityLog.objects.filter(project=project)
+    print('manager LOGS:', manager_logs)
+
+    # Merge both logs and order by `changed_at`
+    logs = (team_logs | manager_logs).order_by('-changed_at')
+
+    statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
     status_choices = TeamMemberStatus.STATUS_CHOICES
-    # Fetch teams associated with the project
     teams = project.teams.all()
 
     engineers = []
     engineer_salaries = {}
-    total_engineer_salary = 0  # Initialize the total salary variable
-
-    # Dictionary to store total project hours per engineer
+    total_engineer_salary = 0
     engineer_project_hours = {}
 
     for team in teams:
-        # Iterate through each employee in the team
         for engineer in team.employees.all():
             engineers.append(engineer.user.username)
-            # Assuming the salary is stored on the Employee model
             engineer_salaries[engineer.user.username] = engineer.salary
-            total_engineer_salary += engineer.salary  # Add salary to the total
+            total_engineer_salary += engineer.salary
 
-            # Calculate total project hours for this engineer based on attendance
-            attendance_records = Attendance.objects.filter(
-                employee=engineer, project=project)
-            total_hours = sum(
-                record.total_hours_of_work or 0 for record in attendance_records)
-            engineer_project_hours[engineer.user.username] = round(
-                total_hours, 2)  # Store the total hours worked for this project
+            attendance_records = Attendance.objects.filter(employee=engineer, project=project)
+            total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
+            engineer_project_hours[engineer.user.username] = round(total_hours, 2)
+
     total_expenses = project.calculate_expenses()
-
-    # Calculate profit
     profit = project.calculate_profit()
-
     work_days = project.calculate_total_work_days()
 
-    # Prepare data for the project
     project_data = {
         "project_name": project.name,
         "project_manager": project.manager,
@@ -499,30 +723,23 @@ def project_summary_view(request, project_id):
         "purchase_and_expenses": project.purchase_and_expenses,
         "invoice_amount": project.invoice_amount,
         "engineers": engineers,
-        "engineer_salaries": engineer_salaries,  # Include engineer salaries
-        "engineer_project_hours": engineer_project_hours,  # Total hours for each engineer
-        "total_work_days": work_days,  # Rounded to 2 decimal points
-        # Rounded to 2 decimal points
-        # "total_project_hours": round(total_project_hours, 2),
+        "engineer_salaries": engineer_salaries,
+        "engineer_project_hours": engineer_project_hours,
+        "total_work_days": work_days,
         "currency_code": project.currency_code,
-        "total_expenses": round(total_expenses, 2),  # Rounded total expenses
+        "total_expenses": round(total_expenses, 2),
         "profit": profit,
         "status": project.status,
-        # Total salary for all engineers
         "total_engineer_salary": round(total_engineer_salary, 2),
         "project_create": project.created_at,
         "deadline_date": project.deadline_date,
         "statuses": statuses,
-        'logs': logs,
+        "logs": logs,  # Now includes both manager & team member logs
         "project_id": project.id,
         "status_choices": status_choices,
     }
 
-    # Pass the data to the template
-    context = {
-        "project_data": project_data
-    }
-
+    context = {"project_data": project_data}
     return render(request, 'Manager/project.html', context)
 
 

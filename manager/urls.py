@@ -4,8 +4,13 @@ from . import views
 urlpatterns = [
     path('dashboard/', views.dashboard, name='manager-dashboard'),
     path('manage-attendance/', views.manage_attendance_requests, name='manage_attendance_requests'),
+    path('manage-leave/', views.manage_leave, name='manage_leave'),
+    path('leave-list/', views.leave_list, name='leave_list'),
     path('project-assignments/create/', views.project_assignment_create, name='project-assign'),
     path('update-project-status/<int:project_id>/', views.update_project_status, name='update_project_status'),
+
+    path('manager/profile/', views.manager_profile, name='manager_profile'),
+    path("manager/profile/update/", views.update_manager_profile, name="update_manager_profile"),
 
     path('teams/', views.team_list, name='team-list'),
     path('team/<int:pk>/', views.team_detail, name='team-detail'),

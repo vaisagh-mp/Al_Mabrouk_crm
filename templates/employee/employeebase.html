@@ -22,10 +22,22 @@
   <header>
     <div class="hdr-user">
       <div class="dropdown">
-        <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown"
-          aria-expanded="false">
-          <i class="fas fa-user"></i><span>{{request.user.first_name}}_{{request.user.last_name}}</span>
-        </button>
+        <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1"
+                  data-bs-toggle="dropdown" aria-expanded="false">
+                  
+                  {% if request.user.employee_profile.profile_picture %}
+                      <!-- Show Profile Picture if available -->
+                      <img src="{{ request.user.employee_profile.profile_picture.url }}" 
+                           alt="Profile Picture" 
+                           class="rounded-circle" 
+                           style="width: 30px; height: 30px; object-fit: cover;">
+                  {% else %}
+                      <!-- Show Default User Icon if no profile picture -->
+                      <i class="fas fa-user"></i>
+                  {% endif %}
+                  
+                  <span>{{ request.user.first_name }}_{{ request.user.last_name }}</span>
+              </button>
         <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
           <li><a class="dropdown-item" href="{% url 'profile_view' %}">Profile</a></li>
           <li><a class="dropdown-item" href="{% url 'projects' %}">Task</a></li>

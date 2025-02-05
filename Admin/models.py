@@ -48,6 +48,19 @@ class Project(models.Model):
         # Call the parent class's save method
         super().save(*args, **kwargs)
 
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_project = Project.objects.get(pk=self.pk)
+            if old_project.status != self.status:
+                ActivityLog.objects.create(
+                    project=self,
+                    previous_status=old_project.status,
+                    new_status=self.status,
+                    changed_by=self.manager
+                )
+        super().save(*args, **kwargs)
+
+
     def __str__(self):
         return f"{self.name} ({self.code})"
 
@@ -270,9 +283,12 @@ class Leave(models.Model):
     approval_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
 
     def save(self, *args, **kwargs):
-        # Calculate the number of days as the difference between the to_date and from_date
-        self.no_of_days = (self.to_date - self.from_date).days
+        # Calculate leave duration
+        leave_days = (self.to_date - self.from_date).days
+        # Ensure minimum leave is 1 day
+        self.no_of_days = leave_days + 1 if leave_days == 0 else leave_days
         super().save(*args, **kwargs)
+
 
     def __str__(self):
         return f"{self.user.username} - {self.leave_type} from {self.from_date} to {self.to_date} ({self.approval_status})"
@@ -323,17 +339,25 @@ class TeamMemberStatus(models.Model):
 
 class ActivityLog(models.Model):
     team_member_status = models.ForeignKey(
-        'TeamMemberStatus', 
-        on_delete=models.CASCADE, 
+        'TeamMemberStatus', on_delete=models.CASCADE, null=True, blank=True,
         related_name='activity_logs'
     )
-    previous_status = models.CharField(max_length=100, null=True, blank=True)
+    project = models.ForeignKey(
+        'Project', on_delete=models.CASCADE, null=True, blank=True, 
+        related_name='project_logs'  # New relation for manager logs
+    )
+    previous_status = models.CharField(max_length=100, default="UNKNOWN")
     new_status = models.CharField(max_length=100)
-    notes = models.TextField(max_length=2000, null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    changed_by = models.ForeignKey(
+        'Employee', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='status_changes'
+    )  # To track who changed the status
     changed_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.team_member_status.employee.user} changed from {self.previous_status} to {self.new_status} at {self.changed_at}"
+        return f"{self.changed_by.user.username if self.changed_by else 'Unknown'} changed {self.previous_status} → {self.new_status}"
+
 
 # Signal to update the employee's work_days after saving an attendance record
 @receiver(post_save, sender=Attendance)
