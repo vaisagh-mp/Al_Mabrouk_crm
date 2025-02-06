@@ -580,7 +580,6 @@ def apply_leave(request):
 
     return render(request, 'employee/leave.html', {'form': form})
 
-
 @login_required
 def my_leave_status(request):
     """View to display the leave status of the logged-in user."""

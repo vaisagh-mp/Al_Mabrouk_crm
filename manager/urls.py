@@ -28,4 +28,8 @@ urlpatterns = [
     path('projects/', views.project_list_view, name='project_list'),
     path('project/<int:project_id>/', views.project_summary_view, name='project-summary-view'),
     path('update-status/<int:project_id>/', views.update_team_manager_status, name='update_team_manager_status'),
+
+    path('apply-leave/', views.manager_apply_leave, name='manager_apply_leave'),
+    path("my-leave/", views.manager_leave_status, name="manager_leave_status"),
+    path("leave-records/", views.manager_leave_records, name="manager_leave_records"),
 ]

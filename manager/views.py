@@ -7,10 +7,10 @@ from django.db.models import Q, F
 from django.db.models import Prefetch
 from django.core.paginator import Paginator
 from Admin.forms import ProjectAssignmentForm
-from employee_data.forms import EmployeeUpdateForm
+from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance
 
 
 # Home
@@ -684,10 +684,10 @@ def project_summary_view(request, project_id):
 
     # Fetch logs from team members
     team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
-    print('team_logs:', team_logs)
+    
     # Fetch logs where the manager updated the project status
     manager_logs = ActivityLog.objects.filter(project=project)
-    print('manager LOGS:', manager_logs)
+    
 
     # Merge both logs and order by `changed_at`
     logs = (team_logs | manager_logs).order_by('-changed_at')
@@ -805,3 +805,66 @@ def manager_delete_attendance(request, attendance_id):
     # Add a success message
     messages.success(request, 'Attendance record has been deleted successfully.')
     return redirect('attendance_list')
+
+@login_required
+def manager_apply_leave(request):
+    if request.method == 'POST':
+        form = LeaveForm(request.POST)
+        if form.is_valid():
+            leave_application = form.save(commit=False)
+            leave_application.user = request.user  # Assign current user
+            leave_application.no_of_days = (leave_application.to_date - leave_application.from_date).days + 1  # Include both dates
+            leave_application.save()
+
+            messages.success(request, "Leave request submitted successfully.")
+            return redirect('manager_leave_status')  # Redirect after success
+
+    else:
+        form = LeaveForm()
+
+    return render(request, 'Manager/leave.html', {'form': form})
+
+@login_required
+def manager_leave_status(request):
+    """View to display the leave status of the logged-in user."""
+    leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
+    
+    # Paginate leave requests (10 per page)
+    paginator = Paginator(leaves_list, 10)  
+    page_number = request.GET.get("page")
+    leaves = paginator.get_page(page_number)
+
+    return render(request, "Manager/leavestatus.html", {"leaves": leaves})
+
+@login_required
+def manager_leave_records(request):
+    """View to display the leave records for the logged-in user."""
+
+    # Retrieve leave balance from the database
+    leave_balance = LeaveBalance.objects.filter(user=request.user).first()
+
+    if not leave_balance:
+        leave_balance = LeaveBalance.objects.create(user=request.user)  # Create default balance
+
+    # Convert balance into a dictionary for easy access
+    leave_balances = {
+        "ANNUAL LEAVE": leave_balance.annual_leave,
+        "SICK LEAVE": leave_balance.sick_leave,
+        "CASUAL LEAVE": leave_balance.casual_leave,
+    }
+
+    # Initialize summary dictionary
+    leave_summary = {leave: {"pending": 0, "scheduled": 0, "taken": 0, "balance": leave_balances.get(leave, 0)} for leave in leave_balances}
+
+    # Retrieve all leave requests for the user
+    user_leaves = Leave.objects.filter(user=request.user)
+
+    for leave in user_leaves:
+        if leave.leave_type in leave_summary:
+            if leave.approval_status == "PENDING":
+                leave_summary[leave.leave_type]["pending"] += leave.no_of_days
+            elif leave.approval_status == "APPROVED":
+                leave_summary[leave.leave_type]["taken"] += leave.no_of_days
+                leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
+
+    return render(request, "Manager/leaverecords.html", {"leave_summary": leave_summary})

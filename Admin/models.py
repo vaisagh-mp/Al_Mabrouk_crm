@@ -284,7 +284,7 @@ class Leave(models.Model):
 
     def save(self, *args, **kwargs):
         # Calculate leave duration
-        leave_days = (self.to_date - self.from_date).days
+        leave_days = (self.to_date - self.from_date).days + 1
         # Ensure minimum leave is 1 day
         self.no_of_days = leave_days + 1 if leave_days == 0 else leave_days
         super().save(*args, **kwargs)
