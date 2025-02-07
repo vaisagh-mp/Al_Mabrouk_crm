@@ -29,7 +29,11 @@ urlpatterns = [
     path('project/<int:project_id>/', views.project_summary_view, name='project-summary-view'),
     path('update-status/<int:project_id>/', views.update_team_manager_status, name='update_team_manager_status'),
 
+    path('attendance/', views.manager_render_attendance_page, name='manager_attendance_dashboard'),
+
     path('apply-leave/', views.manager_apply_leave, name='manager_apply_leave'),
     path("my-leave/", views.manager_leave_status, name="manager_leave_status"),
+    path('attendance/log-in/', views.manager_log_in, name='manager_log_in'),
+    path('attendance/log-off/<int:attendance_id>/', views.manager_log_off, name='manager_log_off'),
     path("leave-records/", views.manager_leave_records, name="manager_leave_records"),
 ]

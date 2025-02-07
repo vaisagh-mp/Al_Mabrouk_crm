@@ -25,24 +25,23 @@
                 <div class="sidebar-search">
                   <div>
                     <div class="input-group">
-                      <input type="text" class="form-control search-menu" placeholder="Search..." />
-                      <a href="#">
-                        <div class="input-group-append">
-                          <span class="input-group-text">
+                      <form method="GET" action="" class="d-flex">
+                        <input type="text" name="search" class="form-control search-menu" placeholder="Search projects..."
+                               value="{{ search_query }}" />
+                        <button type="submit" class="btn btn-primary">
                             <i class="fa fa-search" aria-hidden="true"></i>
-                          </span>
-                        </div>
-                      </a>
+                        </button>
+                    </form>
                     </div>
                   </div>
                 </div>
               </div>
-              <a class="badge bg-warning" href="#" data-bs-toggle="modal" data-bs-target="#formModal">
+              <a class="badge bg-warning" href="{% url 'add_project' %}" >
                 Add <i class="fas fa-plus"></i>
               </a>
 
               <!-- Modal -->
-              <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
+              <!-- <div class="modal fade" id="formModal" tabindex="-1" aria-labelledby="formModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                   <div class="modal-content">
                     <div class="modal-header">
@@ -88,7 +87,7 @@
                     </div>
                   </div>
                 </div>
-              </div>
+              </div> -->
 
               <div class="dwnld-dropdown">
                 <a href="#" title="Download"><i class="fas fa-download"></i></a>
@@ -143,13 +142,23 @@
     </table>
     <div class="pagination" id="pagination">
       {% if projects.has_previous %}
-      <a href="?page={{ projects.previous_page_number }}">Previous</a>
+          <a href="?page={{ projects.previous_page_number }}">
+              <button>&laquo; Prev</button>
+          </a>
       {% endif %}
-      <span>Page {{ projects.number }} of {{ projects.paginator.num_pages }}</span>
+  
+      {% for num in projects.paginator.page_range %}
+          <a href="?page={{ num }}">
+              <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
+          </a>
+      {% endfor %}
+  
       {% if projects.has_next %}
-      <a href="?page={{ projects.next_page_number }}">Next</a>
+          <a href="?page={{ projects.next_page_number }}">
+              <button>Next &raquo;</button>
+          </a>
       {% endif %}
-    </div>
+  </div>
   </div>
 </div>
 

@@ -293,6 +293,124 @@
         <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
         <!-- Main.js -->
         <script src="{% static 'assets/js/main.js' %}"></script>
+
+
+  <!-- Punch In Chart -->
+  <script>
+    const maxSeconds = 1 * 3600; // 10 hours in seconds (100% progress)
+    let totalSeconds = 0; // Tracks the total elapsed time
+    let timerInterval = null; // Holds the setInterval reference
+
+    // Format seconds to hh:mm:ss
+    function formatTime(seconds) {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Initialize the radial bar chart
+    const options = {
+      series: [0], // Initial progress
+      chart: {
+        height: 160,
+        type: 'radialBar',
+      },
+      plotOptions: {
+        radialBar: {
+          hollow: {
+            size: '70%',
+          },
+          dataLabels: {
+            name: {
+              show: true,
+              fontSize: '14px',
+              fontWeight: '500',
+            },
+            value: {
+              show: true,
+              formatter: function () {
+                return formatTime(totalSeconds); // Show formatted time
+              },
+              fontSize: '16px',
+              fontWeight: '600',
+            }
+          }
+        }
+      },
+      labels: ['Total Hours'], // Label for the chart
+    };
+
+    const chart = new ApexCharts(document.querySelector("#Puncinchart"), options);
+    chart.render();
+
+    // Start the timer on Punch In
+    function startTimer() {
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          if (totalSeconds < maxSeconds) {
+            totalSeconds++; // Increment total time
+            const progress = (totalSeconds / maxSeconds) * 100; // Calculate progress percentage
+            chart.updateSeries([progress]); // Update chart
+          } else {
+            clearInterval(timerInterval); // Stop the timer if it reaches 10 hours
+          }
+        }, 1000); // Update every second
+        document.getElementById("punchIn").disabled = true;
+        document.getElementById("punchOut").disabled = false;
+      }
+    }
+
+    // Stop the timer on Punch Out
+    function stopTimer() {
+      clearInterval(timerInterval); // Stop the interval
+      timerInterval = null; // Reset the interval reference
+      document.getElementById("punchIn").disabled = false;
+      document.getElementById("punchOut").disabled = true;
+    }
+  </script>
+
+  <!-- Leave Details Chart -->
+  <script>
+    var optionsChartOne = {
+      series: [1254, 32, 658, 14, 68],
+      chart: {
+        type: 'donut',
+      },
+      labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
+      legend: {
+        position: 'bottom', // Moves the legend (labels) below the chart
+        horizontalAlign: 'center', // Centers the legend
+      },
+      responsive: [{
+        breakpoint: 480,
+        options: {
+
+          legend: {
+            position: 'bottom'
+          }
+        }
+      }]
+    };
+
+    var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
+    chartOne.render();
+  </script>
+
+
+<script>
+  function toggleRemarkBox() {
+      const status = document.getElementById("status").value;
+      const remarkBox = document.getElementById("remarkBox");
+
+      // Show remark box for specific statuses
+      if (status === "ONGOING" || status === "HOLD" || status === "CANCELLED") {
+          remarkBox.style.display = "block";
+      } else {
+          remarkBox.style.display = "none";
+      }
+  }
+</script>
 </body>
 
 </html>

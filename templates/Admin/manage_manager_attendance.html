@@ -1,0 +1,78 @@
+{% extends 'Admin/adminbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Manage Attendance</h1>
+    </div>
+
+    <!-- Employees List -->
+    <div class="widget-box table-wdgt">
+        {% if requests %}
+        <table id="employeeTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for request in requests %}
+                <tr>
+                    <td><a href="#">{{ request.employee.user.username }}</a></td>
+                    <td>{{ request.location }}</td>
+                    <td>{{ request.attendance_status }}</td>
+                    <td class="list-action-col d-flex justify-content-center">
+                      <form method="POST" action="{% url 'manage_manager_attendance' %}" style="display: flex; align-items: center;">
+                        {% csrf_token %}
+                        <input type="hidden" name="attendance_id" value="{{ request.id }}">
+                        <input type="hidden" name="action" value="APPROVE">
+                        <button type="submit" style="background: transparent; border: none; padding:0;">
+                            <i class="fas fa-check"></i>
+                        </button>
+                    </form>
+                        <a href="#" data-bs-toggle="modal" data-bs-target="#rejectModal{{ request.id }}"><i class="fas fa-times"></i>
+                        </a>
+                    </td>
+                </tr>
+
+                <!-- Reject Modal -->
+                <div class="modal fade reject-resn-modal" id="rejectModal{{ request.id }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ request.id }}" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="rejectModalLabel{{ request.id }}">Rejection Reason</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <form method="POST" action="{% url 'manage_manager_attendance' %}">
+                                {% csrf_token %}
+                                <div class="modal-body">
+                                    <input type="hidden" name="attendance_id" value="{{ request.id }}">
+                                    <textarea name="rejection_reason" class="form-control" placeholder="Enter the reason for rejection" required></textarea>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    <button type="submit" name="action" value="REJECT" class="btn btn-danger">Submit</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination" id="pagination">
+            <button class="active">1</button>
+            <button>2</button>
+            <button>3</button>
+        </div>
+        {% else %}
+        <p class="text-center">NO PENDING ATTENDANCE</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

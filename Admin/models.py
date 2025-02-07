@@ -25,6 +25,7 @@ class Project(models.Model):
 
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=100, unique=True)
+    client_name = models.CharField(max_length=255, default="", blank=True)
     purchase_and_expenses = models.DecimalField(
         max_digits=12, decimal_places=2, default=0.00)
     invoice_amount = models.DecimalField(
@@ -183,7 +184,7 @@ class Employee(models.Model):
         """
         total_hours = sum(
             attendance.total_hours_of_work for attendance in self.attendance_set.all())
-        self.work_days = total_hours / 9  # 9 hours = 1 workday
+        self.work_days = total_hours / 10  # 9 hours = 1 workday
         self.save()
 
     def __str__(self):

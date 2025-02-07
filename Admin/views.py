@@ -1,6 +1,6 @@
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
 from datetime import date
 from django.db.models import Q, F
@@ -13,7 +13,8 @@ from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus
+from .forms import ManagerEmployeeUpdateForm
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave
 
 
 # Home
@@ -45,53 +46,23 @@ def dashboard(request):
 # create employee
 @login_required
 def create_employee(request):
-    if not request.user.is_staff:  # Restrict to admin or staff users
-        return redirect('dashboard')  # Redirect to the admin homepage
-
+    # Only allow staff/admin users to access this view
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    
     if request.method == 'POST':
-        form = EmployeeCreationForm(request.POST)
+        # Pass request.FILES to handle file uploads (profile_picture)
+        form = EmployeeCreationForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                # Create the user
-                user = form.save(commit=False)
-                user.set_password(form.cleaned_data['password'])
-                user.save()
-                
-                # Get the form data for Employee
-                is_employee = form.cleaned_data.get('is_employee')
-                is_manager = form.cleaned_data.get('is_manager')
-                rank = form.cleaned_data.get('rank')
-                salary = form.cleaned_data.get('salary')
-
-                # Ensure either is_employee or is_manager is selected (not both)
-                if is_employee and not is_manager:
-                    user.is_employee = True
-                elif is_manager and not is_employee:
-                    user.is_manager = True
-                    user.is_staff = True  # Make manager a staff member
-                else:
-                    user.is_employee = False
-                    user.is_manager = False
-
-                user.save()  # Save user changes
-
-                # Create employee profile
-                employee = Employee.objects.create(
-                    user=user,
-                    rank=rank,
-                    salary=salary,
-                    is_employee=is_employee,
-                    is_manager=is_manager
-                )
-
+                form.save()  # Let the form's save() method handle creation
                 messages.success(request, 'Employee created successfully!')
                 return redirect('create-employee')
             except Exception as e:
-                messages.error(request, 'There was an error creating the employee.')
+                messages.error(request, f'There was an error creating the employee: {e}')
         else:
-            # If the form is not valid, print errors
-            print(form.errors)
-
+            messages.error(request, 'Please correct the errors below.')
+            print(form.errors)  # Optionally log the errors for debugging
     else:
         form = EmployeeCreationForm()
 
@@ -153,45 +124,32 @@ def manager_list(request):
 
     return render(request, 'Admin/manager_list.html', {'page_obj': page_obj})
 
-# edit employee
 @login_required
-def edit_employee(request, employee_id):
-    if not request.user.is_staff:  # Restrict to admin or staff users
-        return redirect('login')
+def manager_attendance_list_view(request):
+    search_query = request.GET.get('search', '')
+    attendance_records = Attendance.objects.select_related('employee').filter(employee__is_manager=True)
 
-    employee = get_object_or_404(Employee, id=employee_id)
-    if request.method == 'POST':
-        form = EmployeeCreationForm(request.POST, instance=employee)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Employee updated successfully!')
-            # Redirect to a list of employees or dashboard
-            return redirect('employee-list')
-    else:
-        form = EmployeeCreationForm(instance=employee)
+    if search_query:
+        attendance_records = attendance_records.filter(
+            employee__user__username__icontains=search_query
+        ).order_by('-login_time')
 
-    return render(request, 'admin/edit_employee.html', {'form': form, 'employee': employee})
+    paginator = Paginator(attendance_records, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
-# delete employee
-@login_required
-def delete_employee(request, employee_id):
-    if not request.user.is_staff:  # Restrict to admin or staff users
-        return redirect('login')
+    context = {
+        'attendance_records': page_obj,
+        'search_query': search_query,
+    }
+    return render(request, 'Admin/manager_attendance_list.html', context)
 
-    employee = get_object_or_404(Employee, id=employee_id)
-    if request.method == 'POST':
-        employee.delete()
-        messages.success(request, 'Employee deleted successfully!')
-        # Redirect to a list of employees or dashboard
-        return redirect('employee-list')
-
-    return render(request, 'admin/confirm_delete_employee.html', {'employee': employee})
 
 # attendance list
 @login_required
 def attendance_list_view(request):
     search_query = request.GET.get('search', '')
-    attendance_records = Attendance.objects.select_related('employee')
+    attendance_records = Attendance.objects.select_related('employee').filter(employee__is_employee=True)
 
     if search_query:
         attendance_records = attendance_records.filter(
@@ -217,8 +175,11 @@ def manage_attendance(request):
     # Ensure the user is a superuser (or manager)
     if not request.user.is_superuser:
         return redirect('admin-dashboard')
-
-    pending_requests = Attendance.objects.filter(status='PENDING')
+    
+    pending_requests = Attendance.objects.filter(
+        status='PENDING',
+        employee__is_employee=True  # Ensures only employees' attendance requests
+    ).select_related('employee', 'employee__user')
 
     if request.method == 'POST':
         # Get form data from the POST request
@@ -255,6 +216,52 @@ def manage_attendance(request):
             messages.error(request, "Attendance record not found!")
 
     return render(request, 'Admin/manage_attendance.html', {'requests': pending_requests})
+
+def manage_manager_attendance(request):
+    # Ensure the user is a superuser (or manager)
+    if not request.user.is_superuser:
+        return redirect('admin-dashboard')
+    
+    pending_requests = Attendance.objects.filter(
+        status='PENDING',
+        employee__is_manager=True  # Ensures only employees' attendance requests
+    ).select_related('employee', 'employee__user')
+
+    if request.method == 'POST':
+        # Get form data from the POST request
+        attendance_id = request.POST.get('attendance_id')
+        action = request.POST.get('action')  # APPROVE or REJECT
+        # Get rejection reason if provided
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        if not action:  # Handle case where 'action' is None or missing
+            messages.error(
+                request, "Action (Approve/Reject) must be selected!")
+            return redirect('manage_manager_attendance')
+
+        try:
+            # Find the attendance record
+            attendance = Attendance.objects.get(id=attendance_id)
+
+            if action == 'APPROVE':
+                attendance.status = 'APPROVED'
+                # or whatever the approved status should be
+                attendance.attendance_status = 'PRESENT'
+                messages.success(request, f"Attendance approved successfully!")
+            elif action == 'REJECT':
+                attendance.status = 'REJECTED'
+                # Adjust based on the actual status for rejection
+                attendance.attendance_status = 'LEAVE'
+                attendance.rejection_reason = rejection_reason  # Store the rejection reason
+                attendance.rejected_by = request.user
+                messages.success(request, f"Attendance rejected successfully!")
+
+            attendance.save()
+
+        except Attendance.DoesNotExist:
+            messages.error(request, "Attendance record not found!")
+
+    return render(request, 'Admin/manage_manager_attendance.html', {'requests': pending_requests})
 
 # Edit attendance
 @login_required
@@ -300,6 +307,13 @@ def project_list_view(request):
     # Query all projects
     projects = Project.objects.all()
 
+    search_query = request.GET.get('search', '').strip()
+
+    if search_query:
+            projects = projects.filter(
+                name__icontains=search_query
+            )
+
     # Prepare project data
     project_data = [
         {
@@ -315,12 +329,15 @@ def project_list_view(request):
         for project in projects
     ]
 
-    form = ProjectForm()
+    # Pagination (10 projects per page)
+    paginator = Paginator(project_data, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
     # Pass the data to the template
     context = {
-        "projects": project_data,
-        'form': form,
+        "projects": page_obj,
+        "search_query": search_query,
     }
 
     return render(request, 'Admin/project_list.html', context)
@@ -413,14 +430,18 @@ def project_summary_view(request, project_id):
 # add project
 @login_required
 def add_project(request):
+    form = ProjectForm()
+
     if request.method == 'POST':
         form = ProjectForm(request.POST)
         if form.is_valid():
             form.save()
-            return JsonResponse({'success': True})
+            return redirect('project-list')
         else:
-            return JsonResponse({'success': False, 'errors': form.errors}, status=400)
-    return render(request, 'Admin/project_list.html', {'form': form})
+            return redirect('project-list')
+
+    # No pagination code; simply render the form
+    return render(request, 'Admin/add_project.html', {'form': form})
 
 @login_required
 def edit_project(request, project_id):
@@ -572,6 +593,69 @@ def employee_profile(request, employee_id):
 
     return render(request, 'Admin/employee_profile.html', context)
 
+def is_admin(user):
+    return user.is_superuser
+
+@login_required
+@user_passes_test(is_admin)
+def admin_edit_employee(request, employee_id):
+    """Admin can edit employee details"""
+    employee = get_object_or_404(Employee, id=employee_id)
+
+    if request.method == "POST":
+        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        if form.is_valid():
+            user = employee.user
+            user.first_name = form.cleaned_data["first_name"]
+            user.last_name = form.cleaned_data["last_name"]
+            user.email = form.cleaned_data["email"]
+
+            # Save new password if provided
+            if form.cleaned_data["password"]:
+                user.set_password(form.cleaned_data["password"])
+
+            user.save()
+            form.save()
+
+            messages.success(request, "Employee profile updated successfully.")
+            return redirect("employee_list")  # Redirect to employee list page
+
+    else:
+        form = ManagerEmployeeUpdateForm(instance=employee, initial={
+            "first_name": employee.user.first_name,
+            "last_name": employee.user.last_name,
+            "email": employee.user.email,
+            "phone_number": employee.phone_number,
+            "rank": employee.rank,
+            "salary": employee.salary,
+            "date_of_birth": employee.date_of_birth,
+            "date_of_join": employee.date_of_join,
+            "work_days": employee.work_days,
+            "holidays": employee.holidays,
+            "overseas_days": employee.overseas_days,
+            "address": employee.address,
+        })
+
+    return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee})
+
+
+@login_required
+def admin_delete_employee(request, employee_id):
+    if not request.user.is_staff:  # Ensure only admins or staff can delete
+        return redirect('login')
+
+    employee = get_object_or_404(Employee, id=employee_id)
+    
+    # Process deletion on POST request
+    if request.method == 'POST':
+        employee.delete()
+        messages.success(request, 'Employee deleted successfully!')
+        return redirect('employee_list')
+
+    # Redirect back if accessed via GET (optional)
+    return redirect('employee_list')
+
+
 @login_required
 def manager_profile(request, manager_id):
     employee = get_object_or_404(Employee, pk=manager_id)
@@ -608,4 +692,152 @@ def manager_profile(request, manager_id):
     }
 
     return render(request, 'Admin/manager_profile.html', context)
+
+@login_required
+def employee_leave_list(request):
+    if not request.user.is_superuser:
+        return redirect('admin-dashboard')
+
+    search_query = request.GET.get('search', '').strip()
+
+    # Fetch only employee leave records
+    leave_records = Leave.objects.filter(user__employee_profile__is_employee=True).select_related('user').order_by('-from_date')
+
+    # Apply search filter (search by username)
+    if search_query:
+        leave_records = leave_records.filter(user__username__icontains=search_query)
+
+    # Paginate leave records (10 per page)
+    paginator = Paginator(leave_records, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'leave_records': page_obj,
+        'search_query': search_query,
+    }
+
+    return render(request, 'Admin/employee_leave_list.html', context)
+
+
+@login_required
+def manager_leave_list(request):
+    if not request.user.is_superuser:
+        return redirect('admin-dashboard')
+
+    search_query = request.GET.get('search', '').strip()
+
+    # Fetch only manager leave records
+    leave_records = Leave.objects.filter(user__employee_profile__is_manager=True).select_related('user').order_by('-from_date')
+
+    # Apply search filter (search by username)
+    if search_query:
+        leave_records = leave_records.filter(user__username__icontains=search_query)
+
+    # Paginate leave records (10 per page)
+    paginator = Paginator(leave_records, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'leave_records': page_obj,
+        'search_query': search_query,
+    }
+
+    return render(request, 'Admin/manager_leave_list.html', context)
+
+
+@login_required
+def employee_manage_leave(request):
+    if not request.user.is_superuser:
+        return redirect('admin-dashboard')
+
+    search_query = request.GET.get('search', '').strip()
+
+    # Fetch only employee leave requests
+    pending_leaves = Leave.objects.filter(user__employee_profile__is_employee=True, approval_status='PENDING').select_related('user')
+
+    # Apply search filter
+    if search_query:
+        pending_leaves = pending_leaves.filter(user__username__icontains=search_query)
+
+    # Paginate leave records (10 per page)
+    paginator = Paginator(pending_leaves, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    if request.method == 'POST':
+        leave_id = request.POST.get('leave_id')
+        action = request.POST.get('action')  # APPROVE or REJECT
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        if not action:
+            messages.error(request, "Action (Approve/Reject) must be selected!")
+            return redirect('employee_manage_leave')
+
+        try:
+            leave_request = Leave.objects.get(id=leave_id)
+
+            if action == 'APPROVE':
+                leave_request.approval_status = 'APPROVED'
+                messages.success(request, "Leave request approved successfully!")
+            elif action == 'REJECT':
+                leave_request.approval_status = 'REJECTED'
+                leave_request.reason += f"\nRejection Reason: {rejection_reason}"
+                messages.success(request, "Leave request rejected successfully!")
+
+            leave_request.save()
+
+        except Leave.DoesNotExist:
+            messages.error(request, "Leave request not found!")
+
+    return render(request, 'Admin/employee_manage_leave.html', {'leaves': page_obj})
+
+
+@login_required
+def manager_manage_leave(request):
+    if not request.user.is_superuser:
+        return redirect('admin-dashboard')
+
+    search_query = request.GET.get('search', '').strip()
+
+    # Fetch only manager leave requests
+    pending_leaves = Leave.objects.filter(user__employee_profile__is_manager=True, approval_status='PENDING').select_related('user')
+
+    # Apply search filter
+    if search_query:
+        pending_leaves = pending_leaves.filter(user__username__icontains=search_query)
+
+    # Paginate leave records (10 per page)
+    paginator = Paginator(pending_leaves, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    if request.method == 'POST':
+        leave_id = request.POST.get('leave_id')
+        action = request.POST.get('action')  # APPROVE or REJECT
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        if not action:
+            messages.error(request, "Action (Approve/Reject) must be selected!")
+            return redirect('manager_manage_leave')
+
+        try:
+            leave_request = Leave.objects.get(id=leave_id)
+
+            if action == 'APPROVE':
+                leave_request.approval_status = 'APPROVED'
+                messages.success(request, "Leave request approved successfully!")
+            elif action == 'REJECT':
+                leave_request.approval_status = 'REJECTED'
+                leave_request.reason += f"\nRejection Reason: {rejection_reason}"
+                messages.success(request, "Leave request rejected successfully!")
+
+            leave_request.save()
+
+        except Leave.DoesNotExist:
+            messages.error(request, "Leave request not found!")
+
+    return render(request, 'Admin/manager_manage_leave.html', {'leaves': page_obj})
+
 

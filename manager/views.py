@@ -2,7 +2,14 @@ from django.shortcuts import redirect, render, get_object_or_404
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from calendar import monthrange
+from django.utils.dateparse import parse_datetime
+from django.utils.timezone import now
+from django.utils.timezone import localtime
+from django.utils import timezone
+from django.db.models import Sum
 from datetime import date
+import pytz
+from datetime import datetime
 from django.db.models import Q, F
 from django.db.models import Prefetch
 from django.core.paginator import Paginator
@@ -14,15 +21,119 @@ from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, 
 
 
 # Home
+@login_required
 def dashboard(request):
-    if request.user.is_superuser:  # For admin users
+    user = request.user
+
+    # Superuser Admin Dashboard
+    if user.is_superuser:
         return render(request, 'Admin/dashboard.html')
-    elif request.user.is_staff:  # For staff/manager users
-        assigned_projects = Project.objects.filter(manager__user=request.user)
-        return render(request, 'Manager/dashboard.html', {'assigned_projects': assigned_projects})
+
+    # Manager Dashboard
+    elif user.is_staff:
+        manager = get_object_or_404(Employee, user=user)
+
+        # Get today's date
+        today = timezone.now().date()
+
+        # Get today's attendance record (if exists)
+        today_attendance = Attendance.objects.filter(
+            employee=manager,
+            login_time__date=today
+        ).first()
+
+        # Set Punch In & Punch Out times
+        local_tz = pytz.timezone('Asia/Kolkata')
+
+        last_punch_in = (
+            localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p')
+            if today_attendance else "Not Punched In"
+        )
+
+        last_punch_out = (
+            localtime(today_attendance.log_out_time).astimezone(local_tz).strftime('%I:%M %p')
+            if today_attendance and today_attendance.log_out_time else "Not Punched Out"
+        )
+
+        # Fetch projects assigned to the manager
+        assigned_projects = Project.objects.filter(manager=manager, status="ASSIGN")
+        total_projects = assigned_projects.count()
+        completed_projects = assigned_projects.filter(status='COMPLETED').count()
+        pending_projects = assigned_projects.exclude(status='COMPLETED').count()
+
+        # Fetch teams managed by the manager
+        teams = Team.objects.filter(manager=manager)
+        total_teams = teams.count()
+
+        # Attendance Stats (Manager's own attendance)
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        total_days_in_month = monthrange(current_year, current_month)[1]
+
+        approved_attendance_records = Attendance.objects.filter(
+            employee=manager,
+            status='APPROVED',
+            login_time__year=current_year,
+            login_time__month=current_month
+        ).count()
+
+        attendance_percentage = (approved_attendance_records / total_days_in_month) * 100 if total_days_in_month else 0
+
+        # Manager's Leave Stats
+        leave_balance = LeaveBalance.objects.filter(user=user).first()
+        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave + leave_balance.casual_leave if leave_balance else 0
+
+        # Leaves Taken
+        annual_leave_taken = Leave.objects.filter(
+            user=user, approval_status="APPROVED", leave_type="ANNUAL LEAVE", from_date__year=current_year
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
+        sick_leave_taken = Leave.objects.filter(
+            user=user, approval_status="APPROVED", leave_type="SICK LEAVE", from_date__year=current_year
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
+        casual_leave_taken = Leave.objects.filter(
+            user=user, approval_status="APPROVED", leave_type="CASUAL LEAVE", from_date__year=current_year
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
+        leaves_taken = annual_leave_taken + sick_leave_taken + casual_leave_taken
+
+        leave_requests = Leave.objects.filter(user=user, approval_status="PENDING").count()
+
+        # Fetching Workdays
+        worked_days = manager.work_days
+        absent_days = leaves_taken
+        loss_of_pay_days = absent_days - total_leaves if absent_days > total_leaves else 0
+
+        context = {
+            'manager': manager,
+            'assigned_projects': assigned_projects,
+            'total_projects': total_projects,
+            'completed_projects': completed_projects,
+            'pending_projects': pending_projects,
+            'total_teams': total_teams,
+            'attendance_percentage': round(attendance_percentage, 1),
+            'total_leaves': total_leaves,
+            'leaves_taken': leaves_taken,
+            'annual_leave_taken': annual_leave_taken,
+            'sick_leave_taken': sick_leave_taken,
+            'casual_leave_taken': casual_leave_taken,
+            'leave_requests': leave_requests,
+            'worked_days': worked_days,
+            'absent_days': absent_days,
+            'loss_of_pay_days': loss_of_pay_days,
+            "last_punch_in": last_punch_in,
+            "last_punch_out": last_punch_out,
+            "current_time": timezone.now().astimezone(local_tz).strftime('%I:%M %p, %d %b %Y')
+        }
+
+        return render(request, 'Manager/dashboard.html', context)
+
+    # Employee Dashboard
     else:
         return render(request, 'employee/employee_dashboard.html')
-
+    
+    
 @login_required
 def manager_profile(request):
     # Fetch the manager's employee profile
@@ -868,3 +979,86 @@ def manager_leave_records(request):
                 leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
 
     return render(request, "Manager/leaverecords.html", {"leave_summary": leave_summary})
+
+
+@login_required
+def manager_log_in(request):
+    if request.method == "POST":
+        employee = get_object_or_404(Employee, user=request.user)
+        project_id = request.POST.get("project")
+        location = request.POST.get("location")
+        attendance_status = request.POST.get("attendance_status")
+
+        # Retrieve the travel times from the POST data
+        travel_in_time_str = request.POST.get("travel_in_time")
+        travel_out_time_str = request.POST.get("travel_out_time")
+        travel_in_time = parse_datetime(travel_in_time_str) if travel_in_time_str else None
+        travel_out_time = parse_datetime(travel_out_time_str) if travel_out_time_str else None
+
+        attendance, created = Attendance.objects.get_or_create(
+            employee=employee,
+            project_id=project_id,
+            log_out_time__isnull=True,  # Prevent multiple active punch-ins
+            defaults={
+                "location": location,
+                "attendance_status": attendance_status,
+                "login_time": now(),
+                "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
+                "travel_out_time": travel_out_time,
+                "status": "PENDING",
+                "total_hours_of_work": 0,  # Default value
+            },
+        )
+
+        if created:
+            messages.success(request, "You have successfully logged in.")
+        else:
+            messages.error(request, "You are already logged in. Please log off before logging in again.")
+
+        return redirect("manager-dashboard")
+
+    return manager_render_attendance_page(request)
+
+@login_required
+def manager_log_off(request, attendance_id):
+    if request.method == "POST":
+        # Get the Employee object associated with the logged-in user
+        try:
+            employee = get_object_or_404(Employee, user=request.user)
+        except AttributeError:
+            messages.error(request, "Your user is not associated with an employee record.")
+            return redirect("manager_attendance_dashboard")
+        
+        # Get the Attendance record
+        attendance = get_object_or_404(Attendance, id=attendance_id, employee=employee)
+
+        # Update the log-out time
+        if attendance.log_out_time is None:
+            attendance.log_out_time = now()
+            # attendance.travel_out_time = now()
+            # Calculate total hours worked
+            attendance.total_hours_of_work = (
+                (attendance.log_out_time - attendance.login_time).total_seconds() / 3600
+            )
+            attendance.save()
+            messages.success(request, "You have successfully logged off.")
+        else:
+            messages.error(request, "You have already logged off.")
+
+    return redirect("manager-dashboard")  # Redirect to the appropriate page
+
+@login_required
+def manager_render_attendance_page(request):
+    employee = get_object_or_404(Employee, user=request.user)
+    user_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True).first()
+
+    attendance_status_choices = Attendance.ATTENDANCE_STATUS
+    location_choices = Attendance.LOCATION_CHOICES
+    projects = Project.objects.all()
+
+    return render(request, "Manager/punchin.html", {
+        "attendance_status_choices": attendance_status_choices,
+        "location_choices": location_choices,
+        "projects": projects,
+        "user_attendance": user_attendance,
+    })
