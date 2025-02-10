@@ -97,15 +97,16 @@ DATABASES = {
 }
 
 # DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'your_db_name',
-#         'USER': 'your_username',
-#         'PASSWORD': 'your_password',
-#         'HOST': 'localhost',  # Or the database server address
-#         'PORT': '5432',       # Default PostgreSQL port
-#     }
+#         'default': {
+#             'ENGINE': 'django.db.backends.postgresql_psycopg2',
+#             'NAME': 'almabroukcrm',
+#             'USER': 'almabroukcrm',
+#             'PASSWORD': 'almabroukcrm',
+#             'HOST': 'localhost',
+#             'PORT': '',
+#         }
 # }
+
 
 
 

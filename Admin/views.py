@@ -693,6 +693,64 @@ def manager_profile(request, manager_id):
 
     return render(request, 'Admin/manager_profile.html', context)
 
+def admin_edit_manager(request, manager_id):
+    """Admin can edit employee details"""
+    employee = get_object_or_404(Employee, pk=manager_id)
+
+    if request.method == "POST":
+        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        if form.is_valid():
+            user = employee.user
+            user.first_name = form.cleaned_data["first_name"]
+            user.last_name = form.cleaned_data["last_name"]
+            user.email = form.cleaned_data["email"]
+
+            # Save new password if provided
+            if form.cleaned_data["password"]:
+                user.set_password(form.cleaned_data["password"])
+
+            user.save()
+            form.save()
+
+            messages.success(request, "Employee profile updated successfully.")
+            return redirect("manager_list")  # Redirect to employee list page
+
+    else:
+        form = ManagerEmployeeUpdateForm(instance=employee, initial={
+            "first_name": employee.user.first_name,
+            "last_name": employee.user.last_name,
+            "email": employee.user.email,
+            "phone_number": employee.phone_number,
+            "rank": employee.rank,
+            "salary": employee.salary,
+            "date_of_birth": employee.date_of_birth,
+            "date_of_join": employee.date_of_join,
+            "work_days": employee.work_days,
+            "holidays": employee.holidays,
+            "overseas_days": employee.overseas_days,
+            "address": employee.address,
+        })
+
+    return render(request, "Admin/edit_manager.html", {"form": form, "employee": employee})
+
+
+@login_required
+def admin_delete_manager(request, manager_id):
+    if not request.user.is_staff:  # Ensure only admins or staff can delete
+        return redirect('login')
+
+    employee = get_object_or_404(Employee, id=manager_id)
+    
+    # Process deletion on POST request
+    if request.method == 'POST':
+        employee.delete()
+        messages.success(request, 'Manager deleted successfully!')
+        return redirect('manager_list')
+
+    # Redirect back if accessed via GET (optional)
+    return redirect('manager_list')
+
+
 @login_required
 def employee_leave_list(request):
     if not request.user.is_superuser:

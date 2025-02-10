@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import create_employee, employee_list, attendance_list_view, dashboard, project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee
+from .views import create_employee, employee_list, attendance_list_view, dashboard, project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager
 
 
 urlpatterns = [
@@ -13,7 +13,9 @@ urlpatterns = [
     path('employee/<int:employee_id>/', employee_profile, name='employee_profile'),
     path('manager/<int:manager_id>/', manager_profile, name='manager_profile'),
     path('employee/edit/<int:employee_id>/', admin_edit_employee, name='admin_edit_employee'),
+    path('manager/edit/<int:manager_id>/', admin_edit_manager, name='admin_edit_manager'),
     path('employee/delete/<int:employee_id>/', admin_delete_employee, name='admin_delete_employee'),
+    path('manager/delete/<int:manager_id>/', admin_delete_manager, name='admin_delete_manager'),
 
     path('employee/attendance/', attendance_list_view, name='attendance_list_adminview'),
     path('manager/attendance/', manager_attendance_list_view, name='manager_attendance_list_view'),
