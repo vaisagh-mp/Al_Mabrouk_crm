@@ -1574,6 +1574,13 @@ header .dropdown-menu {
   padding-left: 15px;
 }
 
+
+@media(min-width:992px) {
+  .prjct-time-line-box.admin .project-timeline{
+    height: 640px !important;
+  }
+}
+
 .prjct-time-line-box .widget-title {
   margin: 0;
   margin-bottom: 25px;
@@ -2386,47 +2393,48 @@ table .fa-times {
 
   .prjct-overview-progress {
     background: #e1dbf0;
-    border:solid 1px #e1dbf0;
-    border-radius:10px;
+    border: solid 1px #e1dbf0;
+    border-radius: 10px;
     height: 13px;
     overflow: hidden;
     width: 100%;
     box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1) inset;
-    /*progress width*/
-    width: 100%;
-  }
-  
-  .prjct-overview-progress .progress-bar {
+}
+
+/* Progress Color */
+.prjct-overview-progress .progress-bar {
     background: #00e396;
     height: inherit;
-  }
-  
-  .prjct-overview-progress .progress-bar-width{
     border-radius: 10px;
-    width: 75%;
-  }
-  
-  .prjct-overview-progress .progress-bar-anim {
+    transition: width 1s ease-in-out; /* Smooth Progress Transition */
+}
+
+/* Dynamically Updated Width */
+.prjct-overview-progress .progress-bar-width {
+    height: inherit;
+}
+
+/* Striped Animation */
+.prjct-overview-progress .progress-bar-anim {
     animation: progress 3s linear infinite;
-    /* Don't touch this anim bar color*/
     background: linear-gradient(
-      -45deg,
-      rgba(255, 255, 255, 0.25) 25%,
-      transparent 25%,
-      transparent 50%,
-      rgba(255, 255, 255, 0.25) 50%,
-      rgba(255, 255, 255, 0.25) 75%,
-      transparent 75%,
-      transparent);
-    /* Don't touch this */
+        -45deg,
+        rgba(255, 255, 255, 0.25) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.25) 50%,
+        rgba(255, 255, 255, 0.25) 75%,
+        transparent 75%,
+        transparent
+    );
     background-repeat: repeat-x;
-    /* The size of the bars must match the background-position in the @keyframes */
     background-size: 1.5em 1.5em;
     border-radius: 10px;
     height: inherit;
     width: 100%;
     padding-bottom: 22px;
-  }
+}
+
   
   @keyframes progress {
     to { background-position: 1.5em 0; }

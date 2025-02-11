@@ -71,18 +71,18 @@
     </div>
     <div class="col-lg-3 col-md-6 m-b-20">
       <div class="status-wdgt card-bg-orange">
-        <h5>Net Profit</h5>
-        <h6>0</h6>
-        <p>
-          <i class="fas fa-arrow-down"></i> <span>5%</span> Since last
-          month
-        </p>
-
-        <div class="wdgt-bg-icons">
-          <i class="fas fa-hourglass-start"></i>
-        </div>
+          <h5>Net Profit</h5>
+          <h6>{{ total_profit|floatformat:0 }} AED</h6>
+          <p>
+              <i class="fas fa-arrow-down"></i> <span>5%</span> Since last
+              month
+          </p>
+          <div class="wdgt-bg-icons">
+              <i class="fas fa-hourglass-start"></i>
+          </div>
       </div>
-    </div>
+  </div>
+  
   </div>
   <!-- End TATP -->
 
@@ -100,107 +100,103 @@
 
     <div class="col-lg-3 col-md-6">
       <div class="widget-box">
-        <div class="widget-title" style="margin-left: 0;">
-          <h4>Projects Overview</h4>
+          <div class="widget-title" style="margin-left: 0;">
+              <h4>Projects Overview</h4>
+          </div>
+          <hr />
+          
+          <div class="prjct-overview-card-top-sec">
+              <div>
+                  <p>Percentage of Project Completion</p>
+                  <p>
+                      <i class="fas fa-arrow-up"></i> <span>{{ completion_percentage }}%</span> Since last month
+                  </p>
+              </div>
+              <div>
+                  <span>{{ completion_percentage }}%</span>
+              </div>
+          </div>
+  
+          <div class="prjct-overview-progress">
+            <div class="progress-bar progress-bar-width" id="progressBar">
+                <div class="progress-bar-anim"></div>
+            </div>
         </div>
-        <hr />
-        <div class="prjct-overview-card-top-sec">
-          <div>
-            <p>Percentage of Project Completion</p>
-            <p>
-              <i class="fas fa-arrow-down"></i> <span>5%</span> Since last
-              month
-            </p>
+        
+               
+  
+          <div class="prjct-overview-item">
+              <div>
+                  <p>
+                      <i class="far fa-folder-open" style="background-color: #00e39741; color: #00e396"></i>
+                      Total Projects
+                  </p>
+              </div>
+              <div class="prjct-overview-item-right">
+                  <p style="background-color: #00e39741">{{ total_projects }}</p>
+              </div>
           </div>
-          <div>
-            <span>75%</span>
+  
+          <div class="prjct-overview-item">
+              <div>
+                  <p>
+                      <i class="far fa-folder-open" style="background-color: #ffb64871; color: #ffb748"></i>
+                      Ongoing Projects
+                  </p>
+              </div>
+              <div class="prjct-overview-item-right">
+                  <p style="background-color: #ffb748">{{ ongoing_projects }}</p>
+              </div>
           </div>
-        </div>
-
-        <div class="prjct-overview-progress">
-          <div
-            class="progress-bar progress-bar-width"
-            data-progress-bar-percent="100"
-          >
-            <div class="progress-bar-anim"><span>75%</span></div>
+  
+          <div class="prjct-overview-item">
+              <div>
+                  <p><i class="far fa-folder-open"></i> Projects Completed</p>
+              </div>
+              <div class="prjct-overview-item-right">
+                  <p>{{ completed_projects }}</p>
+              </div>
           </div>
-        </div>
-
-        <div class="prjct-overview-item">
-          <div>
-            <p>
-              <i
-                class="far fa-folder-open"
-                style="background-color: #00e39741; color: #00e396"
-              ></i
-              >Total Projects
-            </p>
+  
+          <div class="prjct-overview-item">
+              <div>
+                  <p><i class="far fa-folder-open"></i> Overdue Projects</p>
+              </div>
+              <div class="prjct-overview-item-right">
+                  <p>{{ overdue_projects }}</p>
+              </div>
           </div>
-
-          <div class="prjct-overview-item-right">
-            <p style="background-color: #00e39741">19,82</p>
-          </div>
-        </div>
-
-        <div class="prjct-overview-item">
-          <div>
-            <p>
-              <i
-                class="far fa-folder-open"
-                style="background-color: #ffb64871; color: #ffb748"
-              ></i
-              >Ongoing Projects
-            </p>
-          </div>
-
-          <div class="prjct-overview-item-right">
-            <p style="background-color: #ffb748">19,82</p>
-          </div>
-        </div>
-
-        <div class="prjct-overview-item">
-          <div>
-            <p><i class="far fa-folder-open"></i>Projects Completed</p>
-          </div>
-
-          <div class="prjct-overview-item-right">
-            <p>19,82</p>
-          </div>
-        </div>
-
-        <div class="prjct-overview-item">
-          <div>
-            <p><i class="far fa-folder-open"></i>Overdue Projects</p>
-          </div>
-
-          <div class="prjct-overview-item-right">
-            <p>19,82</p>
-          </div>
-        </div>
       </div>
+  </div>
+  
+
+  <div class="col-lg-4">
+    <div class="row admin-invo-row">
+        <!-- Total Invoice Amount -->
+        <div class="col-lg-12 col-md-6">
+            <div class="widget-box">
+                <div class="widget-title" style="margin-left:0;">
+                    <h4>Total Invoice Amount</h4>
+                </div>
+                <div id="total-invo"></div>
+                <h6 class="mt-2">{{ total_revenue|floatformat:0 }} AED</h6>
+
+            </div>
+        </div>
+
+        <!-- Pending Invoice Amount -->
+        <div class="col-lg-12 col-md-6">
+            <div class="widget-box">
+                <div class="widget-title" style="margin-left: 0;">
+                    <h4>Pending Invoice Amount</h4>
+                </div>
+                <div id="pending-invo"></div>
+                <h6 class="mt-2">{{ pending_invoices|floatformat:0 }} AED</h6>
+            </div>
+        </div>
     </div>
+</div>
 
-    <div class="col-lg-4">
-      <div class="row admin-invo-row">
-        <div class="col-lg-12 col-md-6">
-          <div class="widget-box">
-            <div class="widget-title"  style="margin-left:0;">
-              <h4>Total Invoice Amount</h4>
-            </div>
-                  <div id="total-invo"></div>
-                  <h6 class="mt-2">$2156</h6>
-          </div>
-        </div>
-        <div class="col-lg-12 col-md-6">
-          <div class="widget-box">
-            <div class="widget-title" style="margin-left: 0;">
-              <h4>Pending Invoice Amount</h4>
-            </div>
-                  <div id="pending-invo"></div>
-                  <h6 class="mt-2">$2156</h6>
-          </div>
-        </div>
-      </div>
       
       
   </div>
@@ -220,18 +216,22 @@
         <tr>
           <th>Project</th>
           <th>Team</th>
-          <th>Leader</th>
+          <th>Manager</th>
           <th>Priority</th>
           <!-- <th>Tasks</th> -->
           <!-- <th>Completed</th> -->
           <th>Status</th>
-          <th>Actions</th>
+          <!-- <th>Actions</th> -->
         </tr>
       </thead>
       <tbody>
         {% for project in project_details %}
         <tr>
-          <td>{{ project.name }}</td>
+          <td>
+            <a href="{% url 'project-summary' project.id %}">
+                {{ project.name }}
+            </a>
+        </td>               
           <td>
             <div class="avatars">
               <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
@@ -241,14 +241,23 @@
             </div>
           </td>
           <td>{{ project.leader_name }}</td>
-          <td><span class="priority medium">Medium</span></td>
+          <td>
+            <span
+                class="priority {% if project.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
+                {% if project.category == 'ANCHORAGE' %}
+                High
+                {% else %}
+                Medium
+                {% endif %}
+            </span>
+        </td>
           <!-- <td>19</td> -->
           <!-- <td>10</td> -->
           <td><span class="status pending">{{ project.status }}</span></td>
-          <td list-action-col>
+          <!-- <td list-action-col>
             <a href="#"><i class="far fa-edit"></i></a>
             <a href="#"><i class="far fa-trash-alt"></i></a>
-          </td>
+          </td> -->
           
         </tr>
         {% endfor %}
@@ -257,5 +266,19 @@
     </table>
   </div>
 </div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      // Ensure completion_percentage is safely rendered as a number
+      let completionPercentage = parseFloat("{{ completion_percentage|default:0 }}") || 0;
+      
+      let progressBar = document.getElementById("progressBar");
+  
+      if (progressBar) {
+          progressBar.style.width = completionPercentage + "%";
+      }
+  });
+  </script>
+  
 
 {% endblock %}

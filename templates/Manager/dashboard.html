@@ -70,18 +70,19 @@
                   <div id="Puncinchart"></div>
 
                   <!-- Punch In Time -->
-                  <div class="info">
-                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
-                      Punch In at <span>{{ last_punch_in }}</span>
-                  </div>
-
-                  <!-- Punch Out Time -->
-                  {% if last_punch_out != "Not Punched Out" %}
-                  <div class="info">
-                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
-                      Punch Out at <span>{{ last_punch_out }}</span>
-                  </div>
-                  {% endif %}
+                    <div class="info punch-in">
+                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
+                        Punch In at <span>{{ last_punch_in }}</span>
+                    </div>
+                    
+                    <!-- Punch Out Time -->
+                    {% if last_punch_out != "Not Punched Out" %}
+                    <div class="info punch-out">
+                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
+                        Punch Out at <span>{{ last_punch_out }}</span>
+                    </div>
+                    {% endif %}
+                    
 
                   <a href="{% url 'manager_attendance_dashboard' %}" id="punchButton">
                       {% if last_punch_in == "Not Punched In" %}
@@ -192,16 +193,16 @@
                         {{ work.teams.first.manager.user.username }} <!-- Fetching the first team’s manager -->
                     </td>
                     
-                      <td>
-                          <span
-                              class="priority {% if work.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
-                              {% if work.team.project.category == 'ANCHORAGE' %}
-                              High
-                              {% else %}
-                              Medium
-                              {% endif %}
-                          </span>
-                      </td>
+                    <td>
+                        <span class="priority {% if work.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
+                            {% if work.category == 'ANCHORAGE' %}
+                                High
+                            {% else %}
+                                Medium
+                            {% endif %}
+                        </span>
+                    </td>
+                    
 
                       <td>
                           <span class="status Assign">{{ work.get_status_display }}</span>

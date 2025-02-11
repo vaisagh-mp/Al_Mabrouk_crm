@@ -214,8 +214,8 @@
                         </li>
                       </ul>
                     </div>
-                  </li>
-                  <li class="sidebar-dropdown">
+                  </li> -->
+                  <!-- <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fa fa-globe"></i>
                       <span>Maps</span>
@@ -230,24 +230,24 @@
                         </li>
                       </ul>
                     </div>
-                  </li>
-                  <li class="header-menu">
-                    <span>Extra</span>
                   </li> -->
-                  <!-- <li>
+                  <!-- <li class="header-menu">
+                    <span>Extra</span>
+                  </li>  -->
+                   <!-- <li>
                     <a href="#">
                       <i class="fa fa-book"></i>
                       <span>Documentation</span>
                       <span class="badge bg-pill bg-primary">Beta</span>
                     </a>
-                  </li>
+                  </li> -->
                   <li>
-                    <a href="#">
+                    <a href="{% url 'attendance_status' %}">
                       <i class="fa fa-calendar"></i>
-                      <span>Calendar</span>
+                      <span>Attendance Status</span>
                     </a>
                   </li>
-                  <li>
+                  <!-- <li>
                     <a href="#">
                       <i class="fa fa-folder"></i>
                       <span>Examples</span>
@@ -369,7 +369,81 @@
       document.getElementById("punchOut").disabled = true;
     }
   </script>
+<!-- <script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const maxSeconds = 10 * 3600; // 10 hours in seconds (100% progress)
 
+    let punchInTime = parseInt("{{ last_punch_in|default:0 }}", 10); // Convert to integer
+    let punchOutTime = parseInt("{{ last_punch_out|default:0 }}", 10);
+    let currentTime = Math.floor(Date.now() / 1000); // Get current Unix timestamp
+
+    // Ensure valid timestamps
+    punchInTime = Number.isInteger(punchInTime) && punchInTime > 0 ? punchInTime : null;
+    punchOutTime = Number.isInteger(punchOutTime) && punchOutTime > 0 ? punchOutTime : null;
+
+    // Calculate elapsed time since punch-in
+    let elapsedSeconds = punchInTime ? currentTime - punchInTime : 0;
+    let totalSeconds = Math.min(elapsedSeconds, maxSeconds); // Cap at 10 hours
+    let progress = (totalSeconds / maxSeconds) * 100; // Calculate percentage
+    let timerInterval = null;
+
+    function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Initialize ApexCharts Radial Progress Bar
+    const options = {
+        series: [progress],
+        chart: { height: 160, type: 'radialBar' },
+        plotOptions: {
+            radialBar: {
+                hollow: { size: '70%' },
+                dataLabels: {
+                    name: { show: true, fontSize: '14px', fontWeight: '500' },
+                    value: {
+                        show: true,
+                        formatter: function () { return formatTime(totalSeconds); },
+                        fontSize: '16px',
+                        fontWeight: '600',
+                    }
+                }
+            }
+        },
+        labels: ['Total Hours'],
+    };
+
+    const chart = new ApexCharts(document.querySelector("#Puncinchart"), options);
+    chart.render();
+
+    // Function to update progress dynamically
+    function updateProgress() {
+        if (totalSeconds < maxSeconds) {
+            totalSeconds++;
+            let updatedProgress = (totalSeconds / maxSeconds) * 100;
+            chart.updateSeries([updatedProgress]);
+        } else {
+            clearInterval(timerInterval);  // Stop at 10 hours
+        }
+    }
+
+    // Start the timer if punch-in exists and no punch-out recorded
+    if (punchInTime && !punchOutTime) {
+        timerInterval = setInterval(updateProgress, 1000);
+    }
+
+    // Stop progress if punch-out exists
+    if (punchOutTime) {
+        totalSeconds = punchOutTime - punchInTime; // Ensure correct elapsed time
+        let finalProgress = (totalSeconds / maxSeconds) * 100;
+        chart.updateSeries([finalProgress]);
+    }
+});
+</script> -->
+
+</script>
   <!-- Leave Details Chart -->
   <script>
     var optionsChartOne = {

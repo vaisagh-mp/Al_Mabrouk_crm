@@ -17,7 +17,7 @@
                 <div class="pjct-info-item">
                   <h6>Client:</h6>
                   <span style="color: #1a1a1a"
-                    ><b> Splendour Marine LLC</b></span
+                    ><b> {{ project_data.client_name }}</b></span
                   >
                 </div>
                 <div class="pjct-info-item">
@@ -28,7 +28,7 @@
                 </div>
                 <div class="pjct-info-item">
                   <h6>Cost:</h6>
-                  <span class="cost">${{ project_data.invoice_amount }}</span>
+                  <span class="cost">{{ project_data.invoice_amount }} AED</span>
                 </div>
                 <div class="pjct-info-item">
                   <h6>Created:</h6>
@@ -178,10 +178,6 @@
               </div>
               {% endfor %}
           </div>
-          
-          
-          
-
           </div>
         </div>
       </div>
@@ -209,22 +205,22 @@
         </tr>
         <tr>
           <td>Invoice Amount</td>
-          <td>{{ project_data.invoice_amount }}</td>
+          <td>{{ project_data.invoice_amount }} AED</td>
         </tr>
         <tr>
           <td>Purchase and Expenses</td>
-          <td>{{ project_data.purchase_and_expenses }}</td>
+          <td>{{ project_data.purchase_and_expenses }} AED</td>
         </tr>
         <tr>
           <td>Total Work days</td>
           <td>{{ project_data.total_work_days }}</td>
         </tr>
-        {% for engineer, hours in project_data.engineer_project_hours.items %}
+        <!-- {% for engineer, hours in project_data.engineer_project_hours.items %}
         <tr>
           <td>Total Project Hours</td>
           <td>{{ hours|format_hours }}</td>
         </tr>
-        {% endfor %}
+        {% endfor %} -->
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", " }}</td>
@@ -235,11 +231,11 @@
         </tr>
         <tr>
           <td>Total Expenses</td>
-          <td>{{ project_data.total_expenses|floatformat:2 }}</td>
+          <td>{{ project_data.total_expenses|floatformat:2 }} AED</td>
         </tr>
         <tr>
           <td>Profit</td>
-          <td>{{ project_data.profit|floatformat:2 }}</td>
+          <td>{{ project_data.profit|floatformat:2 }} AED</td>
         </tr>
       </tbody>
     </table>

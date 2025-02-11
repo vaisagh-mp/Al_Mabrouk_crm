@@ -22,6 +22,7 @@ urlpatterns = [
     path('employee/attendance/', views.attendance_list, name='attendance_list'),
     path('employee/attendance/<int:pk>/', views.attendance_detail, name='attendance_detail_view'),
     path('attendance/edit/<int:attendance_id>/', views.manager_edit_attendance, name='manager_edit_attendance'),
+    path('attendance-status/', views.attendance, name='attendance_status'),
     path('attendance/delete/<int:attendance_id>/', views.manager_delete_attendance, name='manager_delete_attendance'),
     path('employee/manage-attendance/', views.manage_attendance, name='pending_attendance'),
     path('employee/employee-profile/<int:employee_id>/', views.employee_profile, name='employee_profile_view'),

@@ -30,7 +30,7 @@ class Project(models.Model):
         max_digits=12, decimal_places=2, default=0.00)
     invoice_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=0.00)
-    currency_code = models.CharField(max_length=10, default="USD")
+    currency_code = models.CharField(max_length=10, default="AED")
     status = models.CharField(
         max_length=100, choices=STATUS_CHOICES, default='PENDING')
     category = models.CharField(
@@ -103,22 +103,13 @@ class Project(models.Model):
     
     def calculate_total_work_days(self):
         """
-        Calculate the total work days for this project by summing the
-        differences between time_stop and time_start for all project assignments.
+        Calculate the total work days for this project as the difference 
+        between the deadline_date and the created_at date.
         """
-        total_duration = timedelta()  # Initialize total duration as 0
+        if self.deadline_date and self.created_at:
+            return (self.deadline_date - self.created_at.date()).days
+        return 0  # Return 0 if either date is missing
 
-        # Iterate through all assignments related to this project
-        for assignment in self.projectassignment_set.all():
-            if assignment.time_start and assignment.time_stop:
-                # Calculate the duration of each assignment
-                total_duration += assignment.time_stop - assignment.time_start
-
-        # Convert total duration to days
-        total_days = total_duration.days  # Total days is just the difference in days
-
-        # Return total work days as an integer
-        return total_days
 
     def __str__(self):
         return self.name

@@ -5,9 +5,143 @@
 
 <div class="emply-list-wraper">
   <div class="pg-title">
-    <h1>Project Details</h1>
+    <h1>{{ project_data.project_name }}</h1>
   </div>
 
+  <section class="prjct-dtls-top">
+    <div class="row">
+      <div class="col-lg-5">
+        <div class="row">
+          <div class="col-12">
+            <div class="pjct-info-dtls-box">
+              <div class="widget-box">
+                <div class="pjct-info-item">
+                  <h6>Client:</h6>
+                  <span style="color: #1a1a1a"
+                    ><b> {{ project_data.client_name }}</b></span
+                  >
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Project Manager:</h6>
+                  <span style="color: #1a1a1a"><b>{{ project_data.project_manager }}</b></span>
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Category:</h6>
+                  <span style="color: #1a1a1a"><b>{{ project_data.category }}</b></span>
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Cost:</h6>
+                  <span class="cost">{{ project_data.invoice_amount }} AED</span>
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Created:</h6>
+                  <span class="created">{{ project_data.project_create | date:"d-m-Y" }}</span>
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Deadline:</h6>
+                  <span class="deadline">{{ project_data.deadline_date | date:"d-m-Y" }}</span>
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Priority:</h6>
+                  {% if project_data.category == 'ANCHORAGE' %}
+                    <span class="priority high">High</span>
+                  {% else %}
+                    <span class="priority medium">Medium</span>
+                  {% endif %}
+                </div>                
+                <div class="pjct-info-item">
+                  <h6>Status:</h6>
+                  <span class="status">{{ project_data.status }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Assigned Team -->
+          <div class="col-12">
+            <div class="widget-box team">
+              <div class="widget-title">
+                <h4>Assigned Team</h4>
+              </div>
+              <div class="prjct-info-team">
+                <div class="prjct-info-team-member">
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ project_data.project_manager }}" />
+                  <div class="prjct-info-team-member-info">
+                    <h4>{{ project_data.project_manager }}</h4>
+                    <p>Project Manager</p>
+                  </div>
+                </div>
+                <hr />
+                {% for engineer in project_data.engineers %}
+                <div class="prjct-info-team-member">
+                  <img class="small" src="{% static 'assets/images/user-pro.webp' %}" alt="{{ engineer }}" />
+                  <div class="prjct-info-team-member-info">
+                    <h6>{{ engineer }}</h6>
+                    <p>Team Member</p>
+                  </div>
+                  <div class="prjct-info-status green"></div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Project Status Updates -->
+      <div class="col-lg-7">
+        <div class="prjct-time-line-box admin">
+          <div class="widget-box">
+            <div class="widget-title">
+              <h4>Project Timeline</h4>
+            </div>
+            <div class="project-timeline">
+              <div class="time-line-vertical"></div>
+              {% for log in project_data.logs %}
+              <div class="timeline-item">
+                  <div class="dot 
+                      {% if log.new_status == 'ONGOING' %}Blue
+                      {% elif log.new_status == 'HOLD' %}Gray
+                      {% elif log.new_status == 'CANCELLED' %}Red
+                      {% elif log.new_status == 'COMPLETED' %}Green
+                      {% else %}Orange{% endif %}">
+                  </div>
+                  <div class="content">
+                      <h5>{{ log.new_status }}</h5>
+                      <p>
+                          {% if log.team_member_status %}
+                              {{ log.team_member_status.employee.user.first_name }} {{ log.team_member_status.employee.user.last_name }}
+                          {% else %}
+                              {{ log.changed_by.user.first_name }} {{ log.changed_by.user.last_name }} (Manager)
+                          {% endif %}
+                          changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                      </p>
+                      {% if log.notes %}
+                      <p>Note: {{ log.notes }}</p>
+                      {% endif %}
+                      <span>{{ log.changed_at|timesince }} ago</span>
+                  </div>
+              </div>
+              {% empty %}
+              <div class="timeline-item">
+                  <div class="dot gray"></div>
+                  <div class="content">
+                      <h5>No Updates</h5>
+                      <p>No status updates are available for this project.</p>
+                      <span>—</span>
+                  </div>
+              </div>
+              {% endfor %}
+          </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Project Financials -->
   <div class="widget-box table-wdgt">
     <table class="vertical-table">
       <tbody>
@@ -20,7 +154,7 @@
           <td>{{ project_data.code }}</td>
         </tr>
         <tr>
-          <td>category</td>
+          <td>Category</td>
           <td>{{ project_data.category }}</td>
         </tr>
         <tr>
@@ -29,37 +163,39 @@
         </tr>
         <tr>
           <td>Invoice Amount</td>
-          <td>{{ project_data.invoice_amount }}</td>
+          <td>{{ project_data.invoice_amount }} AED</td>
         </tr>
         <tr>
           <td>Purchase and Expenses</td>
-          <td>{{ project_data.purchase_and_expenses }}</td>
+          <td>{{ project_data.purchase_and_expenses }} AED</td>
         </tr>
         <tr>
-          <td>Total Work days</td>
+          <td>Total Work Days</td>
           <td>{{ project_data.total_work_days }}</td>
         </tr>
-        {% for engineer, hours in project_data.engineer_project_hours.items %}
-        <tr>
+        
+        <!-- <tr>
           <td>Total Project Hours</td>
+          {% for engineer, hours in project_data.engineer_project_hours.items %}
           <td>{{ hours|format_hours }}</td>
-        </tr>
-        {% endfor %}
+          {% endfor %}
+        </tr> -->
+        
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", " }}</td>
         </tr>
         <tr>
           <td>Mandays</td>
-          <td>{{project_data.total_engineer_salary}}/hr</td>
+          <td>{{ project_data.total_engineer_salary }}/hr </td>
         </tr>
         <tr>
           <td>Total Expenses</td>
-          <td>{{ project_data.total_expenses|floatformat:2 }}</td>
+          <td>{{ project_data.total_expenses|floatformat:2 }} AED</td>
         </tr>
         <tr>
           <td>Profit</td>
-          <td>{{ project_data.profit|floatformat:2 }}</td>
+          <td>{{ project_data.profit|floatformat:2 }} AED</td>
         </tr>
       </tbody>
     </table>

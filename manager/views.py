@@ -478,6 +478,22 @@ def attendance_list(request):
     }
     return render(request, 'Manager/attendance_list.html', context)
 
+
+def attendance(request):
+    employee = get_object_or_404(Employee, user=request.user)
+    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
+
+    # Pagination settings
+    paginator = Paginator(attendance_records, 10)  # Show 10 records per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
+    }
+    return render(request, 'Manager/attendance.html', context)
+
+
 # Employee attendance details
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
@@ -799,7 +815,7 @@ def project_summary_view(request, project_id):
     # Fetch logs where the manager updated the project status
     manager_logs = ActivityLog.objects.filter(project=project)
     
-
+    client_name = project.client_name
     # Merge both logs and order by `changed_at`
     logs = (team_logs | manager_logs).order_by('-changed_at')
 
@@ -828,6 +844,7 @@ def project_summary_view(request, project_id):
 
     project_data = {
         "project_name": project.name,
+        "client_name": project.client_name,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
@@ -1015,7 +1032,7 @@ def manager_log_in(request):
         else:
             messages.error(request, "You are already logged in. Please log off before logging in again.")
 
-        return redirect("manager-dashboard")
+        return redirect("attendance_status")
 
     return manager_render_attendance_page(request)
 

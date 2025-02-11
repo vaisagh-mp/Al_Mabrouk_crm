@@ -278,9 +278,9 @@
             yaxis: {
               min: 0,
             },
-            colors: ["#DCE6EC"],
+            // colors: ["#DCE6EC"],
             title: {
-              text: "$424,652",
+              text: "{{ total_revenue|default:0|floatformat:0}} AED",
               offsetX: 0,
               style: {
                 fontSize: "24px",
@@ -323,9 +323,9 @@
             yaxis: {
               min: 0,
             },
-            colors: ["#DCE6EC"],
+            // colors: ["#DCE6EC"],
             title: {
-              text: "$235,312",
+              text: "{{ total_expenses|default:0|floatformat:0}} AED",
               offsetX: 0,
               style: {
                 fontSize: "24px",
@@ -374,7 +374,7 @@
               min: 0,
             },
             title: {
-              text: "$135,965",
+              text: "{{ total_profit|default:0|floatformat:0}} AED",
               offsetX: 0,
               style: {
                 fontSize: "24px",

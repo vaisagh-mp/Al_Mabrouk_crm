@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import create_employee, employee_list, attendance_list_view, dashboard, project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager
+from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager
 
 
 urlpatterns = [
@@ -26,7 +26,7 @@ urlpatterns = [
     path('attendance/delete/<int:attendance_id>/', delete_attendance, name='delete_attendance'),
 
     path('projects/', project_list_view, name='project-list'),
-    path('project/<int:project_id>/', project_summary_view, name='project-summary'),
+    path('project/<int:project_id>/', admin_project_summary_view, name='project-summary'),
     path('add-project/', add_project, name='add_project'),
     path('project/edit/<int:project_id>/', edit_project, name='edit_project'),
     path('project/delete/<int:project_id>/', delete_project, name='delete_project'),

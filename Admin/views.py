@@ -3,8 +3,8 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
 from datetime import date
-from django.db.models import Q, F
-from django.db.models import Sum
+from django.db.models import Q, F, Sum
+from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.http import JsonResponse
@@ -14,33 +14,65 @@ from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from .forms import ManagerEmployeeUpdateForm
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog
 
 
 # Home
+@login_required
 def dashboard(request):
-    if request.user.is_superuser:  # For admin users
+    if request.user.is_superuser:  # Admin users
+        # Get total projects
         total_projects = Project.objects.count()
+        
+        # Active Employees
         active_employees = Employee.objects.filter(user__is_active=True).count()
+        
+        # Total Revenue (Invoice Amount Sum)
         total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+        
+        # Total Expenses (Purchase & Expenses Sum)
+        total_expenses = Project.objects.aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+        
+        # Total Profit = Revenue - Expenses
+        total_profit = total_revenue - total_expenses
+        
+        # Pending Invoices (Projects where invoice_amount is 0)
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
-
+        
+        # Project Status Counts
+        ongoing_projects = Project.objects.filter(status='ONGOING').count()
+        completed_projects = Project.objects.filter(status='COMPLETED').count()
+        
+        # Overdue Projects (where deadline_date has passed but status is not completed)
+        overdue_projects = Project.objects.filter(deadline_date__lt=now().date(), status__in=['ONGOING', 'PENDING']).count()
+        
+        # Project Completion Percentage
+        completion_percentage = (completed_projects / total_projects * 100) if total_projects > 0 else 0
+        
         # Fetching project details with manager name
         project_details = Project.objects.annotate(
-            leader_name=F('manager__user__username')  # Adjust field if necessary
-        ).values('name', 'leader_name', 'status')
+            leader_name=F('manager__user__username')
+        ).values('id', 'name', 'leader_name', 'status', 'category')
 
         context = {
             'total_projects': total_projects,
             'active_employees': active_employees,
-            'total_revenue': total_revenue,
+            'total_revenue': round(total_revenue, 2),
+            'total_expenses': round(total_expenses, 2),
+            'total_profit': round(total_profit, 2),
             'pending_invoices': pending_invoices,
             'project_details': project_details,
+            'ongoing_projects': ongoing_projects,
+            'completed_projects': completed_projects,
+            'overdue_projects': overdue_projects,
+            'completion_percentage': round(completion_percentage, 2),
         }
         return render(request, 'Admin/dashboard.html', context)
-    elif request.user.is_staff:  # For staff/manager users
+    
+    elif request.user.is_staff:  # Manager users
         return render(request, 'Manager/dashboard.html')
-    else:  # For other users (if applicable)
+
+    else:  # Other users
         return redirect('home')
 
 # create employee
@@ -342,89 +374,156 @@ def project_list_view(request):
 
     return render(request, 'Admin/project_list.html', context)
 
-# project summary
+# # project summary
+# @login_required
+# def project_summary_view(request, project_id):
+#     # Get the specific project by ID
+#     project = get_object_or_404(Project, id=project_id)
+
+#     # Fetch teams associated with the project
+#     teams = project.teams.all()
+
+#     engineers = []
+#     engineer_salaries = {}
+#     total_engineer_salary = 0  # Initialize the total salary variable
+
+#     # Dictionary to store total project hours per engineer
+#     engineer_project_hours = {}
+
+#     for team in teams:
+#         # Iterate through each employee in the team
+#         for engineer in team.employees.all():
+#             engineers.append(engineer.user.username)
+#             # Assuming the salary is stored on the Employee model
+#             engineer_salaries[engineer.user.username] = engineer.salary
+#             total_engineer_salary += engineer.salary  # Add salary to the total
+
+#             # Calculate total project hours for this engineer based on attendance
+#             attendance_records = Attendance.objects.filter(
+#                 employee=engineer, project=project)
+#             total_hours = sum(
+#                 record.total_hours_of_work or 0 for record in attendance_records)
+#             engineer_project_hours[engineer.user.username] = round(
+#                 total_hours, 2)  # Store the total hours worked for this project
+
+#     # Calculate total work hours from all teams (as a whole project)
+#     # total_work_hours = sum(
+#     #     (team.time_stop - team.time_start).total_seconds() / 3600
+#     #     for team in teams
+#     # )
+
+#     # Calculate total project duration (Total Project Hours)
+#     # if teams.exists():
+#     #     project_start = min(
+#     #         team.time_start for team in teams)
+#     #     project_end = max(team.time_stop for team in teams)
+#     #     # Total duration in hours
+#     #     total_project_hours = (
+#     #         project_end - project_start).total_seconds() / 3600
+#     # else:
+#     #     total_project_hours = 0
+
+#     # Calculate total expenses (will call the method which includes hours worked)
+#     total_expenses = project.calculate_expenses()
+
+#     # Calculate profit
+#     profit = project.calculate_profit()
+
+#     work_days = project.calculate_total_work_days()
+
+#     # Prepare data for the project
+#     project_data = {
+#         "project_name": project.name,
+#         "code": project.code,
+#         "category": project.category,
+#         "purchase_and_expenses": project.purchase_and_expenses,
+#         "invoice_amount": project.invoice_amount,
+#         "engineers": engineers,
+#         "engineer_salaries": engineer_salaries,  # Include engineer salaries
+#         "engineer_project_hours": engineer_project_hours,  # Total hours for each engineer
+#         "total_work_days": work_days,  # Rounded to 2 decimal points
+#         # Rounded to 2 decimal points
+#         # "total_project_hours": round(total_project_hours, 2),
+#         "currency_code": project.currency_code,
+#         "total_expenses": round(total_expenses, 2),  # Rounded total expenses
+#         "profit": profit,
+#         "status": project.status,
+#         # Total salary for all engineers
+#         "total_engineer_salary": round(total_engineer_salary, 2),
+#     }
+
+#     # Pass the data to the template
+#     context = {
+#         "project_data": project_data
+#     }
+
+#     return render(request, 'Admin/project.html', context)
+
 @login_required
-def project_summary_view(request, project_id):
-    # Get the specific project by ID
+def admin_project_summary_view(request, project_id):
+    # Ensure only admins can access this page
+    if not request.user.is_superuser:
+        messages.error(request, "You do not have permission to access this page.")
+        return redirect("admin_dashboard")  # Redirect to admin dashboard
+
     project = get_object_or_404(Project, id=project_id)
 
-    # Fetch teams associated with the project
+    # Fetch logs from both team members and manager
+    team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
+    manager_logs = ActivityLog.objects.filter(project=project)
+
+    # Merge and sort logs
+    logs = (team_logs | manager_logs).order_by('-changed_at')
+
+    # Fetch team statuses
+    statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
+    status_choices = TeamMemberStatus.STATUS_CHOICES
     teams = project.teams.all()
 
     engineers = []
     engineer_salaries = {}
-    total_engineer_salary = 0  # Initialize the total salary variable
-
-    # Dictionary to store total project hours per engineer
+    total_engineer_salary = 0
     engineer_project_hours = {}
 
     for team in teams:
-        # Iterate through each employee in the team
         for engineer in team.employees.all():
             engineers.append(engineer.user.username)
-            # Assuming the salary is stored on the Employee model
             engineer_salaries[engineer.user.username] = engineer.salary
-            total_engineer_salary += engineer.salary  # Add salary to the total
+            total_engineer_salary += engineer.salary
 
-            # Calculate total project hours for this engineer based on attendance
-            attendance_records = Attendance.objects.filter(
-                employee=engineer, project=project)
-            total_hours = sum(
-                record.total_hours_of_work or 0 for record in attendance_records)
-            engineer_project_hours[engineer.user.username] = round(
-                total_hours, 2)  # Store the total hours worked for this project
+            attendance_records = Attendance.objects.filter(employee=engineer, project=project)
+            total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
+            engineer_project_hours[engineer.user.username] = round(total_hours, 2)
 
-    # Calculate total work hours from all teams (as a whole project)
-    # total_work_hours = sum(
-    #     (team.time_stop - team.time_start).total_seconds() / 3600
-    #     for team in teams
-    # )
-
-    # Calculate total project duration (Total Project Hours)
-    # if teams.exists():
-    #     project_start = min(
-    #         team.time_start for team in teams)
-    #     project_end = max(team.time_stop for team in teams)
-    #     # Total duration in hours
-    #     total_project_hours = (
-    #         project_end - project_start).total_seconds() / 3600
-    # else:
-    #     total_project_hours = 0
-
-    # Calculate total expenses (will call the method which includes hours worked)
     total_expenses = project.calculate_expenses()
-
-    # Calculate profit
     profit = project.calculate_profit()
-
     work_days = project.calculate_total_work_days()
 
-    # Prepare data for the project
     project_data = {
         "project_name": project.name,
+        "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
         "purchase_and_expenses": project.purchase_and_expenses,
         "invoice_amount": project.invoice_amount,
         "engineers": engineers,
-        "engineer_salaries": engineer_salaries,  # Include engineer salaries
-        "engineer_project_hours": engineer_project_hours,  # Total hours for each engineer
-        "total_work_days": work_days,  # Rounded to 2 decimal points
-        # Rounded to 2 decimal points
-        # "total_project_hours": round(total_project_hours, 2),
+        "engineer_salaries": engineer_salaries,
+        "engineer_project_hours": engineer_project_hours,
+        "total_work_days": work_days,
         "currency_code": project.currency_code,
-        "total_expenses": round(total_expenses, 2),  # Rounded total expenses
+        "total_expenses": round(total_expenses, 2),
         "profit": profit,
         "status": project.status,
-        # Total salary for all engineers
         "total_engineer_salary": round(total_engineer_salary, 2),
+        "project_create": project.created_at,
+        "deadline_date": project.deadline_date,
+        "statuses": statuses,
+        "logs": logs,
+        "project_id": project.id,
+        "status_choices": status_choices,
     }
 
-    # Pass the data to the template
-    context = {
-        "project_data": project_data
-    }
-
+    context = {"project_data": project_data}
     return render(request, 'Admin/project.html', context)
 
 # add project
