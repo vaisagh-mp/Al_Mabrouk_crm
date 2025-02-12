@@ -171,28 +171,24 @@
                   </tr>
               </thead>
               <tbody>
-                  {% for work in assigned_projects %}
-                  <tr>
-                      <td>
-                          <a href="{% url 'project-summary-view' work.id %}">
-                              {{ work.name }}
-                          </a>
-                      </td>
-                      <td>
-                        <div class="avatars" style="width: max-content; margin: auto;">
-                            {% for team in work.teams.all %}  <!-- Loop through teams related to the project -->
-                                {% for member in team.employees.all %}  <!-- Loop through employees in each team -->
-                                    <img src="{% static 'assets/images/user-pro.webp' %}" 
-                                        alt="{{ member.user.username }}" />
-                                {% endfor %}
-                            {% endfor %}
-                            <span>+{{ work.teams.first.employees.count }}</span> 
-                        </div>
+                {% for work in assigned_projects %}
+                <tr>
+                    <td>
+                        <a href="{% url 'project-summary-view' work.id %}">
+                            {{ work.name }}
+                        </a>
                     </td>
                     <td>
-                        {{ work.teams.first.manager.user.username }} <!-- Fetching the first team’s manager -->
+                        <div class="avatars" style="width: max-content; margin: auto;">
+                            {% for team in work.teams.all %}
+                                {% for member in team.employees.all %}
+                                    <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" />
+                                {% endfor %}
+                            {% endfor %}
+                            <span>+{{ work.teams.all|length }}</span> 
+                        </div>
                     </td>
-                    
+                    <td>{{ work.manager.user.username }}</td>
                     <td>
                         <span class="priority {% if work.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
                             {% if work.category == 'ANCHORAGE' %}
@@ -202,18 +198,17 @@
                             {% endif %}
                         </span>
                     </td>
-                    
-
-                      <td>
-                          <span class="status Assign">{{ work.get_status_display }}</span>
-                      </td>
-                  </tr>
-                  {% empty %}
-                  <tr>
-                      <td colspan="5" style="text-align: center;">No projects assigned</td>
-                  </tr>
-                  {% endfor %}
-              </tbody>
+                    <td>
+                        <span class="status Assign">{{ work.get_status_display }}</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="text-align: center;">No projects assigned</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            
 
           </table>
       </div>

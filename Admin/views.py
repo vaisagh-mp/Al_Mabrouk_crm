@@ -501,6 +501,7 @@ def admin_project_summary_view(request, project_id):
 
     project_data = {
         "project_name": project.name,
+        "client_name": project.client_name,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,

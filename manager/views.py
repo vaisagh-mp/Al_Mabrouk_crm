@@ -57,8 +57,8 @@ def dashboard(request):
 
         # Fetch projects assigned to the manager
         assigned_projects = Project.objects.filter(manager=manager, status="ASSIGN")
-        total_projects = assigned_projects.count()
-        completed_projects = assigned_projects.filter(status='COMPLETED').count()
+        total_projects = Project.objects.filter(manager=manager).count()
+        completed_projects = Project.objects.filter(status='COMPLETED').count()
         pending_projects = assigned_projects.exclude(status='COMPLETED').count()
 
         # Fetch teams managed by the manager
