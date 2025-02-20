@@ -77,28 +77,28 @@
             </tbody>
         </table>
 
-        <!-- Pagination -->
-        <div class="pagination" id="pagination">
-            {% if leaves.has_previous %}
-                <a href="?page={{ leaves.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
-
-            {% for page in leaves.paginator.page_range %}
-                <a href="?page={{ page }}" class="{% if leaves.number == page %}active{% endif %}">
-                    <button>{{ page }}</button>
-                </a>
-            {% endfor %}
-
-            {% if leaves.has_next %}
-                <a href="?page={{ leaves.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
         {% else %}
         <p class="text-center">No Pending Leave Requests</p>
+        {% endif %}
+    </div>
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+        {% if leaves.has_previous %}
+            <a href="?page={{ leaves.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+
+        {% for page in leaves.paginator.page_range %}
+            <a href="?page={{ page }}" class="{% if leaves.number == page %}active{% endif %}">
+                <button>{{ page }}</button>
+            </a>
+        {% endfor %}
+
+        {% if leaves.has_next %}
+            <a href="?page={{ leaves.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
         {% endif %}
     </div>
 </div>

@@ -17,6 +17,7 @@
                     <th></th>
                     <th></th>
                     <th></th>
+                    <th></th>
                     <th>
                         <div class="add-new-emply">
                             <div class="table-searchbar">
@@ -26,7 +27,7 @@
                                             <input type="text" name="search" class="form-control search-menu"
                                                 value="{{ search_query }}" placeholder="Search by Employee Name" />
                                             <div class="input-group-append">
-                                                <button type="submit" class="btn btn-primary">
+                                                <button class="srh-btn" type="submit" class="btn btn-primary">
                                                     <i class="fa fa-search" aria-hidden="true"></i>
                                                 </button>
                                             </div>
@@ -47,6 +48,7 @@
                     <th>No. of Days</th>
                     <th>Reason</th>
                     <th>Status</th>
+                    <th>Attachments</th>
                 </tr>
             </thead>
             <tbody>
@@ -66,31 +68,38 @@
                             {{ leave.get_approval_status_display }}
                         </span>
                     </td>
+                    <td>
+                        {% if leave.medical_certificate %}
+                            <a style="color: #6777ef;" href="{{ leave.medical_certificate.url }}">View</a>
+                        {% else %}
+                            <span style="font-size: 12px; font-style: italic;">No such medical certificate</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
 
-        <!-- Pagination -->
-        <div class="pagination" id="pagination">
-            {% if leave_records.has_previous %}
-                <a href="?search={{ search_query }}&page={{ leave_records.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
+    </div>
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+        {% if leave_records.has_previous %}
+            <a href="?search={{ search_query }}&page={{ leave_records.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
 
-            {% for num in leave_records.paginator.page_range %}
-                <a href="?search={{ search_query }}&page={{ num }}">
-                    <button class="{% if num == leave_records.number %}active{% endif %}">{{ num }}</button>
-                </a>
-            {% endfor %}
+        {% for num in leave_records.paginator.page_range %}
+            <a href="?search={{ search_query }}&page={{ num }}">
+                <button class="{% if num == leave_records.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endfor %}
 
-            {% if leave_records.has_next %}
-                <a href="?search={{ search_query }}&page={{ leave_records.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
+        {% if leave_records.has_next %}
+            <a href="?search={{ search_query }}&page={{ leave_records.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
     </div>
 </div>
 

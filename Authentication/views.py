@@ -2,7 +2,9 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.views.decorators.cache import never_cache
 
+@never_cache 
 def custom_login(request):
     if request.user.is_authenticated:
         if request.user.is_superuser:
@@ -37,7 +39,7 @@ def custom_login(request):
 
     return render(request, 'Auth/login.html', {'form': form})
 
-
+@never_cache 
 def custom_logout(request):
     logout(request)
     return redirect('custom-login')  # Redirect to login page

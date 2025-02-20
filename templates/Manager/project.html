@@ -27,10 +27,6 @@
                   </span>
                 </div>
                 <div class="pjct-info-item">
-                  <h6>Cost:</h6>
-                  <span class="cost">{{ project_data.invoice_amount }} AED</span>
-                </div>
-                <div class="pjct-info-item">
                   <h6>Created:</h6>
                   <span class="created">{{ project_data.project_create |date:"d-m-Y"  }}</span>
                 </div>
@@ -95,6 +91,25 @@
       </div>
       <div class="col-lg-7">
         <div class="emp-pjct-status-box">
+          <div class="widget-box">
+              <div class="widget-title">
+                  <h4>Upload Attachment</h4>
+              </div>
+              <form method="POST" enctype="multipart/form-data">
+                  {% csrf_token %}
+                  <input class="upload-inpt" type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.png">
+                  <button type="submit" class="btn">Upload</button>
+              </form>
+  
+              {% if project_data.attachment_url %}
+                  <p><strong>Current Attachment:</strong> <a href="{{ project_data.attachment_url }}" target="_blank">View File</a></p>
+              {% else %}
+                  <p>No attachment uploaded yet.</p>
+              {% endif %}
+          </div>
+        </div>
+
+        <div class="emp-pjct-status-box" style="margin-top: 20px;">
           <div class="widget-box">
             <div class="widget-title">
               <h4>Update Status</h4>
@@ -183,63 +198,6 @@
       </div>
     </div>
   </section>
-
-  <div class="widget-box table-wdgt">
-    <table class="vertical-table">
-      <tbody>
-        <tr>
-          <td>Project Name</td>
-          <td>{{ project_data.project_name }}</td>
-        </tr>
-        <tr>
-          <td>Code</td>
-          <td>{{ project_data.code }}</td>
-        </tr>
-        <tr>
-          <td>category</td>
-          <td>{{ project_data.category }}</td>
-        </tr>
-        <tr>
-          <td>Status</td>
-          <td>{{ project_data.status }}</td>
-        </tr>
-        <tr>
-          <td>Invoice Amount</td>
-          <td>{{ project_data.invoice_amount }} AED</td>
-        </tr>
-        <tr>
-          <td>Purchase and Expenses</td>
-          <td>{{ project_data.purchase_and_expenses }} AED</td>
-        </tr>
-        <tr>
-          <td>Total Work days</td>
-          <td>{{ project_data.total_work_days }}</td>
-        </tr>
-        <!-- {% for engineer, hours in project_data.engineer_project_hours.items %}
-        <tr>
-          <td>Total Project Hours</td>
-          <td>{{ hours|format_hours }}</td>
-        </tr>
-        {% endfor %} -->
-        <tr>
-          <td>Engineers</td>
-          <td>{{ project_data.engineers|join:", " }}</td>
-        </tr>
-        <tr>
-          <td>Mandays</td>
-          <td>{{project_data.total_engineer_salary}}/hr</td>
-        </tr>
-        <tr>
-          <td>Total Expenses</td>
-          <td>{{ project_data.total_expenses|floatformat:2 }} AED</td>
-        </tr>
-        <tr>
-          <td>Profit</td>
-          <td>{{ project_data.profit|floatformat:2 }} AED</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
 </div>
 
 {% endblock %}

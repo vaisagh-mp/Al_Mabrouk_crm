@@ -38,7 +38,7 @@
                                                 value="{{ search_query }}" placeholder="Search by Employee Name" />
                             
                                             <div class="input-group-append">
-                                                <button type="submit" class="btn btn-primary">
+                                                <button class="srh-btn" type="submit" class="btn btn-primary">
                                                     <i class="fa fa-search" aria-hidden="true"></i>
                                                 </button>
                                             </div>
@@ -79,7 +79,7 @@
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
                     <td>{{ record.log_out_time|time:"g:ia" }}</td>
-                    <td>{{ record.total_hours_of_work|format_hours }}</td>
+                    <td>{{ record.total_hours_of_work|format_work_duration }}</td>
                     <td>
                         {% with record.employee.teams_assigned.all as teams %}
                             {% if teams %}
@@ -105,26 +105,25 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div class="pagination" id="pagination">
-            {% if attendance_records.has_previous %}
-                <a href="?page={{ attendance_records.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
-        
-            {% for num in attendance_records.paginator.page_range %}
-                <a href="?page={{ num }}">
-                    <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
-                </a>
-            {% endfor %}
-        
-            {% if attendance_records.has_next %}
-                <a href="?page={{ attendance_records.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
-        
+    </div>
+    <div class="pagination" id="pagination">
+        {% if attendance_records.has_previous %}
+            <a href="?page={{ attendance_records.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+    
+        {% for num in attendance_records.paginator.page_range %}
+            <a href="?page={{ num }}">
+                <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endfor %}
+    
+        {% if attendance_records.has_next %}
+            <a href="?page={{ attendance_records.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
     </div>
 </div>
 

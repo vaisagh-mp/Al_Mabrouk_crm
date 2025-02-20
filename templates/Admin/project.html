@@ -13,7 +13,7 @@
       <div class="col-lg-5">
         <div class="row">
           <div class="col-12">
-            <div class="pjct-info-dtls-box">
+            <div class="pjct-info-dtls-box admin">
               <div class="widget-box">
                 <div class="pjct-info-item">
                   <h6>Client:</h6>
@@ -166,7 +166,7 @@
           <td>{{ project_data.invoice_amount }} AED</td>
         </tr>
         <tr>
-          <td>Purchase and Expenses</td>
+          <td>Expenses</td>
           <td>{{ project_data.purchase_and_expenses }} AED</td>
         </tr>
         <tr>
@@ -174,19 +174,12 @@
           <td>{{ project_data.total_work_days }}</td>
         </tr>
         
-        <!-- <tr>
-          <td>Total Project Hours</td>
-          {% for engineer, hours in project_data.engineer_project_hours.items %}
-          <td>{{ hours|format_hours }}</td>
-          {% endfor %}
-        </tr> -->
-        
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", " }}</td>
         </tr>
         <tr>
-          <td>Mandays</td>
+          <td>Man-Hours</td>
           <td>{{ project_data.total_engineer_salary }}/hr </td>
         </tr>
         <tr>
@@ -196,6 +189,10 @@
         <tr>
           <td>Profit</td>
           <td>{{ project_data.profit|floatformat:2 }} AED</td>
+        </tr>
+        <tr>
+          <td>Profit Percentage</td>
+          <td>{{ project_data.profit_percent|floatformat:1}} %</td>
         </tr>
       </tbody>
     </table>

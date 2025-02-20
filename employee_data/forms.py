@@ -5,7 +5,7 @@ from datetime import timedelta
 class LeaveForm(forms.ModelForm):
     class Meta:
         model = Leave
-        fields = ['leave_type', 'from_date', 'to_date', 'reason']
+        fields = ['leave_type', 'from_date', 'to_date', 'reason', 'medical_certificate']
         widgets = {
             'from_date': forms.DateInput(attrs={'type': 'date'}),
             'to_date': forms.DateInput(attrs={'type': 'date'}),

@@ -71,7 +71,7 @@
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
                     <td>{{ record.log_out_time|time:"g:ia" }}</td>
-                    <td>{{ record.total_hours_of_work|format_hours }}</td>
+                    <td>{{ record.total_hours_of_work|format_work_duration }}</td>
                     <td class="list-action-col">
                         <a href="{% url 'edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
                         <a href="{% url 'delete_attendance' record.id %}"

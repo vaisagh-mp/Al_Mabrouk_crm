@@ -2,7 +2,6 @@
 
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -20,6 +19,18 @@
 <body>
     <!-- Header -->
     <header>
+      <div class="hdr-notification">
+        <a href="#" id="open-notification-popup">
+            <button type="button" class="btn btn-primary position-relative">
+                <i class="fas fa-bell"></i>
+                <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    0
+                    <span class="visually-hidden">unread messages</span>
+                </span>
+            </button>
+        </a>
+    </div>
+
       <div class="hdr-user">
           <div class="dropdown">
               <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1"
@@ -40,10 +51,34 @@
               </button>
               <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
                   <li><a class="dropdown-item" href="{% url 'manager_profile' %}">Profile</a></li>
-                  <li><a class="dropdown-item" href="#">Task</a></li>
+                  <li><a class="dropdown-item" href="{% url 'project_list' %}">Task</a></li>
+                  <!-- <li>
+                    <a class="dropdown-item" href="#" id="open-notification-popup">
+                        Notification 
+                        <span id="notification-count" class="badge rounded-pill bg-danger" style="display: none;">0</span>
+                    </a>
+                </li>                 -->
                   <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
               </ul>
           </div>
+
+          <!-- Notification Popup -->
+          <div id="notification-popup" class="notification-popup">
+            <div class="popup-header">
+                <h5>Project Notifications</h5>
+                <button class="close-popup">&times;</button>
+            </div>
+
+            <div class="popup-body">
+                <div id="notification-list-manager">
+                    <p>Loading...</p>
+                </div>
+            </div>
+          
+            <!-- Button should be outside the list -->
+            <button class="mark-all-read" id="mark-read-manager">Mark All as Read</button>
+          </div>
+
       </div>
   </header>
   
@@ -248,6 +283,14 @@
                     </a>
                   </li>
                   <!-- <li>
+                    <a href="#" id="open-notification-popup">
+                        <i class="fa fa-folder"></i>
+                        <span>Notification</span>
+                        <span id="notification-count" class="badge rounded-pill bg-danger" style="display: none;">0</span>
+                    </a>
+                </li> -->
+                
+                  <!-- <li>
                     <a href="#">
                       <i class="fa fa-folder"></i>
                       <span>Examples</span>
@@ -297,21 +340,24 @@
 
   <!-- Punch In Chart -->
   <script>
-    const maxSeconds = 1 * 3600; // 10 hours in seconds (100% progress)
-    let totalSeconds = 0; // Tracks the total elapsed time
-    let timerInterval = null; // Holds the setInterval reference
-
-    // Format seconds to hh:mm:ss
+    // Maximum seconds for a 10-hour day
+    const maxSeconds = 10 * 3600;
+    let totalSeconds = 0; 
+    let timerInterval = null;
+  
+    // Helper to format seconds as hh:mm:ss
     function formatTime(seconds) {
       const hours = Math.floor(seconds / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
       const secs = seconds % 60;
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${hours.toString().padStart(2, '0')}:` +
+             `${minutes.toString().padStart(2, '0')}:` +
+             `${secs.toString().padStart(2, '0')}`;
     }
-
-    // Initialize the radial bar chart
-    const options = {
-      series: [0], // Initial progress
+  
+    // Configure the radial bar chart using ApexCharts
+    const chartOptions = {
+      series: [0],
       chart: {
         height: 160,
         type: 'radialBar',
@@ -330,7 +376,7 @@
             value: {
               show: true,
               formatter: function () {
-                return formatTime(totalSeconds); // Show formatted time
+                return formatTime(totalSeconds);
               },
               fontSize: '16px',
               fontWeight: '600',
@@ -338,112 +384,70 @@
           }
         }
       },
-      labels: ['Total Hours'], // Label for the chart
+      labels: ['Total Hours'],
     };
-
-    const chart = new ApexCharts(document.querySelector("#Puncinchart"), options);
-    chart.render();
-
-    // Start the timer on Punch In
-    function startTimer() {
-      if (!timerInterval) {
+  
+    const chartEl = document.querySelector("#Puncinchart");
+    if (chartEl) {
+      const chart = new ApexCharts(chartEl, chartOptions);
+      chart.render();
+  
+      // Function to start the timer from an initial elapsed time
+      function startTimer(initialSeconds) {
+        totalSeconds = initialSeconds;
         timerInterval = setInterval(() => {
           if (totalSeconds < maxSeconds) {
-            totalSeconds++; // Increment total time
-            const progress = (totalSeconds / maxSeconds) * 100; // Calculate progress percentage
-            chart.updateSeries([progress]); // Update chart
+            totalSeconds++;
+            const progress = (totalSeconds / maxSeconds) * 100;
+            chart.updateSeries([progress]);
           } else {
-            clearInterval(timerInterval); // Stop the timer if it reaches 10 hours
+            clearInterval(timerInterval);
           }
-        }, 1000); // Update every second
-        document.getElementById("punchIn").disabled = true;
-        document.getElementById("punchOut").disabled = false;
+        }, 1000);
       }
-    }
-
-    // Stop the timer on Punch Out
-    function stopTimer() {
-      clearInterval(timerInterval); // Stop the interval
-      timerInterval = null; // Reset the interval reference
-      document.getElementById("punchIn").disabled = false;
-      document.getElementById("punchOut").disabled = true;
+  
+      // Function to stop the timer
+      function stopTimer() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+  
+      document.addEventListener("DOMContentLoaded", function() {
+        // Use ISO 8601 date format from Django using the 'c' format
+        const loginTimeStr = "{{ user_attendance.login_time|date:'c' }}";
+        const logOutTimeStr = "{{ user_attendance.log_out_time|date:'c' }}";
+        
+        // Debug: log the date strings to the console
+        console.log("loginTimeStr:", loginTimeStr);
+        console.log("logOutTimeStr:", logOutTimeStr);
+  
+        // Check if loginTimeStr is not empty or "None"
+        if (loginTimeStr && loginTimeStr.trim() !== "" && loginTimeStr !== "None") {
+          const loginTime = new Date(loginTimeStr).getTime();
+          
+          if (!logOutTimeStr || logOutTimeStr.trim() === "" || logOutTimeStr === "None") {
+            // Currently punched in
+            const now = new Date().getTime();
+            const elapsedSeconds = Math.floor((now - loginTime) / 1000);
+            startTimer(elapsedSeconds);
+          } else {
+            // Punched out; calculate total elapsed time
+            const logOutTime = new Date(logOutTimeStr).getTime();
+            totalSeconds = Math.floor((logOutTime - loginTime) / 1000);
+            const progress = (totalSeconds / maxSeconds) * 100;
+            chart.updateSeries([progress]);
+            stopTimer();
+          }
+        } else {
+          console.log("No valid login time provided.");
+          chart.updateSeries([0]);
+        }
+      });
+    } else {
+      console.error("Element with id 'Puncinchart' not found.");
     }
   </script>
-<!-- <script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const maxSeconds = 10 * 3600; // 10 hours in seconds (100% progress)
-
-    let punchInTime = parseInt("{{ last_punch_in|default:0 }}", 10); // Convert to integer
-    let punchOutTime = parseInt("{{ last_punch_out|default:0 }}", 10);
-    let currentTime = Math.floor(Date.now() / 1000); // Get current Unix timestamp
-
-    // Ensure valid timestamps
-    punchInTime = Number.isInteger(punchInTime) && punchInTime > 0 ? punchInTime : null;
-    punchOutTime = Number.isInteger(punchOutTime) && punchOutTime > 0 ? punchOutTime : null;
-
-    // Calculate elapsed time since punch-in
-    let elapsedSeconds = punchInTime ? currentTime - punchInTime : 0;
-    let totalSeconds = Math.min(elapsedSeconds, maxSeconds); // Cap at 10 hours
-    let progress = (totalSeconds / maxSeconds) * 100; // Calculate percentage
-    let timerInterval = null;
-
-    function formatTime(seconds) {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-
-    // Initialize ApexCharts Radial Progress Bar
-    const options = {
-        series: [progress],
-        chart: { height: 160, type: 'radialBar' },
-        plotOptions: {
-            radialBar: {
-                hollow: { size: '70%' },
-                dataLabels: {
-                    name: { show: true, fontSize: '14px', fontWeight: '500' },
-                    value: {
-                        show: true,
-                        formatter: function () { return formatTime(totalSeconds); },
-                        fontSize: '16px',
-                        fontWeight: '600',
-                    }
-                }
-            }
-        },
-        labels: ['Total Hours'],
-    };
-
-    const chart = new ApexCharts(document.querySelector("#Puncinchart"), options);
-    chart.render();
-
-    // Function to update progress dynamically
-    function updateProgress() {
-        if (totalSeconds < maxSeconds) {
-            totalSeconds++;
-            let updatedProgress = (totalSeconds / maxSeconds) * 100;
-            chart.updateSeries([updatedProgress]);
-        } else {
-            clearInterval(timerInterval);  // Stop at 10 hours
-        }
-    }
-
-    // Start the timer if punch-in exists and no punch-out recorded
-    if (punchInTime && !punchOutTime) {
-        timerInterval = setInterval(updateProgress, 1000);
-    }
-
-    // Stop progress if punch-out exists
-    if (punchOutTime) {
-        totalSeconds = punchOutTime - punchInTime; // Ensure correct elapsed time
-        let finalProgress = (totalSeconds / maxSeconds) * 100;
-        chart.updateSeries([finalProgress]);
-    }
-});
-</script> -->
-
-</script>
+  
   <!-- Leave Details Chart -->
   <script>
     var optionsChartOne = {
@@ -485,6 +489,79 @@
       }
   }
 </script>
+
+<!-- JavaScript for Fetching Notifications -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+      const notificationPopup = document.getElementById("notification-popup");
+      const notificationList = document.getElementById("notification-list-manager");
+      const markReadBtn = document.getElementById("mark-read-manager");
+      const openNotificationBtn = document.getElementById("open-notification-popup");
+      const closePopupBtn = document.querySelector(".close-popup");
+      const notificationCount = document.getElementById("notification-count");
+
+      // Function to Fetch Notifications and Update Badge
+      function fetchManagerNotifications() {
+          fetch("{% url 'manager-fetch-notifications' %}")
+              .then(response => response.json())
+              .then(data => {
+                  notificationList.innerHTML = "";
+
+                  if (data.notifications.length === 0) {
+                      notificationList.innerHTML = "<p>No new notifications</p>";
+                      markReadBtn.style.display = "none";  // Hide button
+                      notificationCount.style.display = "none";  // Hide badge
+                  } else {
+                      data.notifications.forEach(notification => {
+                          const item = document.createElement("div");
+                          item.classList.add("notification-item");
+                          item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
+                          notificationList.prepend(item);
+                      });
+                      markReadBtn.style.display = "block";  // Show button
+                      notificationCount.textContent = data.notifications.length;  // Update badge count
+                      notificationCount.style.display = "inline-block";  // Show badge
+                  }
+              });
+      }
+
+      // Show Popup When Clicking Notification Menu
+      openNotificationBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          fetchManagerNotifications();
+          notificationPopup.style.display = "block";
+      });
+
+      // Close Popup
+      closePopupBtn.addEventListener("click", function () {
+          notificationPopup.style.display = "none";
+      });
+
+      // Mark All Notifications as Read
+      markReadBtn.addEventListener("click", function () {
+          fetch("{% url 'manager-mark-notifications-as-read' %}", {
+              method: "POST",
+              headers: { "X-CSRFToken": "{{ csrf_token }}" }
+          }).then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                fetchManagerNotifications();
+            });
+      });
+
+      // Auto Fetch Notifications Every 5 Seconds
+      setInterval(fetchManagerNotifications, 5000);
+      fetchManagerNotifications();
+  });
+</script>
+
+<script>
+  var myModal = new bootstrap.Modal(document.getElementById('uploadModal{{ leave.id }}'), {
+      keyboard: false
+  });
+  myModal.show();
+</script>
+
 </body>
 
 </html>

@@ -128,20 +128,33 @@
         <div class="row mb-4">
           <div class="col-lg-4">
             <div class="status-wdgt">
+              
               <h5>Attendance</h5>
+              {% if employee.is_manager %}
               <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              {% else %}
+              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              {% endif %}
             </div>
           </div>
           <div class="col-lg-4">
             <div class="status-wdgt">
               <h5>Projects Completed</h5>
+              {% if employee.is_manager %}
+              <h6 style="color: #65a986">{{ manager_completed_projects }}</h6>
+              {% else %}
               <h6 style="color: #65a986">{{ completed_projects }}</h6>
+              {% endif %}
             </div>
           </div>
           <div class="col-lg-4">
             <div class="status-wdgt">
               <h5>Projects Pending</h5>
+              {% if employee.is_manager %}
+              <h6 style="color: #4f8bb7">{{ manager_pending_projects }}</h6>
+              {% else %}
               <h6 style="color: #4f8bb7">{{ pending_projects }}</h6>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -149,26 +162,47 @@
         <div class="widget-box table-wdgt">
           <h3>Projects</h3>
           <table id="employee-prjct-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Project Code</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for project_data in all_projects %}
-              <tr>
-                <td><a href="#">{{ project_data.project.name }}</a></td>
-                <td>{{ project_data.project.code }}</td>
-                <td>
-                  <span class="status {{ project_data.status|lower }}">{{ project_data.status }}</span>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
+              <thead>
+                  <tr>
+                      <th>Project</th>
+                      <th>Project Code</th>
+                      <th>Status</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% if employee.is_manager %}
+                      <!-- Show Manager's Projects -->
+                      {% for project in manager_projects %}
+                      <tr>
+                          <td><a href="#">{{ project.name }}</a></td>
+                          <td>{{ project.code }}</td>
+                          <td><span class="status {{ project.status | lower}} | Assign">{{ project.status }}</span></td>
+                      </tr>
+                      {% empty %}
+                      <tr>
+                          <td colspan="3">No projects managed by this manager.</td>
+                      </tr>
+                      {% endfor %}
+                  {% else %}
+                      <!-- Show Employee's Assigned Projects -->
+                      {% for project_data in all_projects %}
+                      <tr>
+                          <td><a href="#">{{ project_data.project.name }}</a></td>
+                          <td>{{ project_data.project.code }}</td>
+                          <td>
+                              <span class="status {{ project_data.status|lower }} | Assign">{{ project_data.status }}</span>
+                          </td>
+                      </tr>
+                      {% empty %}
+                      <tr>
+                          <td colspan="3">No projects assigned to this employee.</td>
+                      </tr>
+                      {% endfor %}
+                  {% endif %}
+              </tbody>
           </table>
-        </div>
+      </div>
+      
       </div>
     </div>
   </div>

@@ -21,6 +21,7 @@
                     <th>Travel Time</th>
                     <th>Admin Approval</th>
                     <th>Status</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -37,12 +38,18 @@
                     </td>
                     <td>
                         {% if record.total_hours_of_work %}
-                        {{ record.total_hours_of_work|floatformat:2 }} hrs
+                        {{ record.total_hours_of_work|format_work_duration }}
                         {% else %}
                         0 hrs
                         {% endif %}
                     </td>
-                    <td>{{ record.total_travel_time}}</td>
+                    <td>
+                        {% if record.total_travel_time and record.total_travel_time != 'None' %}
+                            {{ record.total_travel_time }}
+                        {% else %}
+                            --:--
+                        {% endif %}
+                    </td>
                     <td>
                         {% if record.status %}
                             <span class="status {% if record.status == 'PENDING' %}leave{% elif record.status == 'APPROVED' %}present{% elif record.status == 'REJECTED' %}sick-leave{% endif %}">
@@ -73,8 +80,13 @@
                             <span class="status absent">No Status</span>
                         {% endif %}
                     </td>
-                    
-                    
+                    <!-- <td>
+                        <a href="{% url 'manager_update_travel_time' record.id %}" class="apply-btn" style="color: azure;height: auto;">Update</a>
+                    </td> -->
+                    <td class="list-action-col">
+                        <a href="{% url 'manager_update_travel_time' record.id %}"><i class="far fa-edit"></i></a>
+                    </td>
+
                 </tr>
                 {% empty %}
                 <tr>
@@ -83,25 +95,26 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div class="pagination" id="pagination">
-            <!-- {% if attendance_records.has_previous %}
-                <a href="?page=1">&laquo; First</a>
-                <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
-            {% endif %} -->
         
-            {% for num in attendance_records.paginator.page_range %}
-                {% if num == attendance_records.number %}
-                    <button class="active">{{ num }}</button>
-                {% else %}
-                    <a href="?page={{ num }}"><button>{{ num }}</button></a>
-                {% endif %}
-            {% endfor %}
-        
-            <!-- {% if attendance_records.has_next %}
-                <a href="?page={{ attendance_records.next_page_number }}">Next</a>
-                <a href="?page={{ attendance_records.paginator.num_pages }}">Last &raquo;</a>
-            {% endif %} -->
-        </div>
+    </div>
+    <div class="pagination" id="pagination">
+        <!-- {% if attendance_records.has_previous %}
+            <a href="?page=1">&laquo; First</a>
+            <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
+        {% endif %} -->
+    
+        {% for num in attendance_records.paginator.page_range %}
+            {% if num == attendance_records.number %}
+                <button class="active">{{ num }}</button>
+            {% else %}
+                <a href="?page={{ num }}"><button>{{ num }}</button></a>
+            {% endif %}
+        {% endfor %}
+    
+        <!-- {% if attendance_records.has_next %}
+            <a href="?page={{ attendance_records.next_page_number }}">Next</a>
+            <a href="?page={{ attendance_records.paginator.num_pages }}">Last &raquo;</a>
+        {% endif %} -->
     </div>
 </div>
 

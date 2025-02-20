@@ -1,6 +1,7 @@
 from django import forms
+from django.utils.timezone import now
 from django.contrib.auth.models import User
-from .models import Project, ProjectAssignment, Employee
+from .models import Project, ProjectAssignment, Employee, Leave
 
 class EmployeeCreationForm(forms.ModelForm):
     # Fields for the User model
@@ -85,7 +86,33 @@ class EmployeeCreationForm(forms.ModelForm):
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ['name', 'code','client_name', 'purchase_and_expenses', 'invoice_amount', 'currency_code', 'status', 'category', 'manager', 'deadline_date']
+        fields = [
+            'name', 'code', 'client_name', 'purchase_and_expenses',
+            'invoice_amount', 'currency_code', 'status', 'category',
+            'manager', 'deadline_date', 'priority','job_description',
+        ]
+        widgets = {
+            'priority': forms.RadioSelect(choices=Project.PRIORITY_CHOICES),
+            'job_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        today = now().date()  # Get the current date
+
+        # Get managers who are **currently on approved annual leave**
+        managers_on_leave = Leave.objects.filter(
+            leave_type='ANNUAL LEAVE',
+            approval_status='APPROVED',
+            from_date__lte=today,  # Leave starts on or before today
+            to_date__gte=today      # Leave ends on or after today
+        ).values_list('user_id', flat=True)  # Get IDs of users on leave
+
+        # Filter the manager queryset to exclude those on leave
+        self.fields['manager'].queryset = Employee.objects.filter(
+            is_manager=True
+        ).exclude(user__id__in=managers_on_leave)
        
     
 class ProjectAssignmentForm(forms.ModelForm):

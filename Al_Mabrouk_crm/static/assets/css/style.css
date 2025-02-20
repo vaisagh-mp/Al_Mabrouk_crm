@@ -147,7 +147,7 @@ header .dropdown-menu {
 
 @media (max-width: 991px) {
   header {
-    height: 55px;
+    height: 70px;
   }
 }
 
@@ -1003,13 +1003,14 @@ header .dropdown-menu {
   background-color: #f1f1f1;
 }
 
-.widget-box .pagination {
+.pagination{
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-end !important;
   margin: 20px 0;
+  padding-bottom: 50px;
 }
 
-.widget-box .pagination button {
+.pagination button {
   padding: 8px 16px;
   margin: 0 5px;
   border: none;
@@ -1019,12 +1020,12 @@ header .dropdown-menu {
   font-size: 14px;
 }
 
-.widget-box .pagination button.active {
-  background-color: var(--bs-blue);
+.pagination button.active {
+  background-color: var(--bs-blue) !important;
   color: #fff;
 }
 
-.widget-box .pagination button:disabled {
+.pagination button:disabled {
   background-color: #e9ecef;
   cursor: not-allowed;
 }
@@ -1288,6 +1289,8 @@ header .dropdown-menu {
   height: 60px;
   margin: auto;
   margin-bottom: 20px;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
 .emp-prfl-img img {
@@ -1576,7 +1579,7 @@ header .dropdown-menu {
 
 
 @media(min-width:992px) {
-  .prjct-time-line-box.admin .project-timeline{
+  .prjct-time-line-box.admin .project-timeline {
     height: 640px !important;
   }
 }
@@ -1654,7 +1657,7 @@ header .dropdown-menu {
 #employeeTable td .priority.high {
   background-color: var(--dark-red);
   color: white;
-  padding: 5px 10px; 
+  padding: 5px 10px;
   border-radius: 5px;
 }
 
@@ -1672,6 +1675,7 @@ header .dropdown-menu {
 .prjct-info-team {
   height: 262px;
   overflow-y: scroll;
+  padding-right: 15px;
 }
 
 .prjct-info-team-member {
@@ -1854,18 +1858,20 @@ table .fa-times {
   border-color: #f5c6cb;
 }
 
-/*================ Punch In Page  ================*/ 
+/*================ Punch In Page  ================*/
 
-.punch-hdr{
+.punch-hdr {
   background-color: #3d6999;
-  
+
   padding: 16px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   text-align: center;
 }
 
-@media(max-width:767px){
-  .punch-hdr img{width: 100%;}
+@media(max-width:767px) {
+  .punch-hdr img {
+    width: 100%;
+  }
 }
 
 .punch-hdr p {
@@ -1907,7 +1913,7 @@ table .fa-times {
   cursor: pointer;
 }
 
-.punch-in-wrapper  button:disabled {
+.punch-in-wrapper button:disabled {
   background-color: #d1d5db;
   cursor: not-allowed;
 }
@@ -1949,8 +1955,13 @@ table .fa-times {
 .punch-in-wrapper .text-gray-600 {
   color: #4b5563;
 }
-.punch-in-wrapper select{font-size: 14px;font-weight: 400;}
-/*================ End Punch In Page  ================*/ 
+
+.punch-in-wrapper select {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/*================ End Punch In Page  ================*/
 
 /*================ Employee Dashboard  ================*/
 .widget-box progress {
@@ -2195,7 +2206,7 @@ table .fa-times {
 }
 
 .prjct-time-line-box.employee .project-timeline {
-  height: 415px;
+  height: 266px !important;
 }
 
 
@@ -2266,17 +2277,21 @@ table .fa-times {
 .add-tm-frm-wrapper .card-header {
   background-color: var(--secondary-bg) !important;
 }
+
 .add-tm-frm-wrapper .form-control {
   font-size: 14px !important;
   box-shadow: none !important;
 }
+
 .add-tm-frm-wrapper .form-select {
   font-size: 14px !important;
   box-shadow: none !important;
 }
+
 .add-tm-frm-wrapper button {
   background-color: var(--secondary-bg) !important;
 }
+
 .add-tm-frm-wrapper .form-text {
   font-size: 12px;
 }
@@ -2327,14 +2342,17 @@ table .fa-times {
   border-color: var(--secondary-bg);
   box-shadow: 0 0 8px rgba(0, 91, 187, 0.5);
 }
+
 @media (max-width: 767px) {
   .date-filter {
     flex-direction: column;
   }
+
   .date-filter input {
     padding: 5px;
   }
 }
+
 /*---------- End Date Filter -----------*/
 
 /*---------- Leave Details Year Filter ----------*/
@@ -2359,12 +2377,14 @@ table .fa-times {
 .year-select:focus {
   outline: none;
 }
+
 /*---------- End Leave Details Year Filter ----------*/
 
 /*================ Leave Page  ================*/
 .leave-tab-wrapper {
   margin-bottom: 25px;
 }
+
 .leave-tab-wrapper a {
   text-decoration: none;
   padding: 10px 15px;
@@ -2374,88 +2394,255 @@ table .fa-times {
   margin: 0 5px;
   transition: background-color 0.3s ease;
 }
+
 /* Change background color when active */
 .leave-tab-wrapper a.active,
 .leave-tab-wrapper a:hover {
   background-color: var(--secondary-bg);
   color: #fff;
 }
+
 @media (max-width: 767px) {
   .leave-tab-wrapper a {
     padding: 5px 10px;
   }
 }
+
 /*================ End Leave Page  ================*/
 
-/*================ Admin Dashboard  ================*/ 
-  .prjct-overview-card-top-sec{display: flex;justify-content: space-between;}
-  .prjct-overview-card-top-sec span{font-weight: 600;}
+/*================ Admin Dashboard  ================*/
+.prjct-overview-card-top-sec {
+  display: flex;
+  justify-content: space-between;
+}
 
-  .prjct-overview-progress {
-    background: #e1dbf0;
-    border: solid 1px #e1dbf0;
-    border-radius: 10px;
-    height: 13px;
-    overflow: hidden;
-    width: 100%;
-    box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1) inset;
+.prjct-overview-card-top-sec span {
+  font-weight: 600;
+}
+
+.prjct-overview-progress {
+  background: #e1dbf0;
+  border: solid 1px #e1dbf0;
+  border-radius: 10px;
+  height: 13px;
+  overflow: hidden;
+  width: 100%;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1) inset;
 }
 
 /* Progress Color */
 .prjct-overview-progress .progress-bar {
-    background: #00e396;
-    height: inherit;
-    border-radius: 10px;
-    transition: width 1s ease-in-out; /* Smooth Progress Transition */
+  background: #00e396;
+  height: inherit;
+  border-radius: 10px;
+  transition: width 1s ease-in-out;
+  /* Smooth Progress Transition */
 }
 
 /* Dynamically Updated Width */
 .prjct-overview-progress .progress-bar-width {
-    height: inherit;
+  height: inherit;
 }
 
 /* Striped Animation */
 .prjct-overview-progress .progress-bar-anim {
-    animation: progress 3s linear infinite;
-    background: linear-gradient(
-        -45deg,
-        rgba(255, 255, 255, 0.25) 25%,
-        transparent 25%,
-        transparent 50%,
-        rgba(255, 255, 255, 0.25) 50%,
-        rgba(255, 255, 255, 0.25) 75%,
-        transparent 75%,
-        transparent
-    );
-    background-repeat: repeat-x;
-    background-size: 1.5em 1.5em;
-    border-radius: 10px;
-    height: inherit;
-    width: 100%;
-    padding-bottom: 22px;
+  animation: progress 3s linear infinite;
+  background: linear-gradient(-45deg,
+      rgba(255, 255, 255, 0.25) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(255, 255, 255, 0.25) 50%,
+      rgba(255, 255, 255, 0.25) 75%,
+      transparent 75%,
+      transparent);
+  background-repeat: repeat-x;
+  background-size: 1.5em 1.5em;
+  border-radius: 10px;
+  height: inherit;
+  width: 100%;
+  padding-bottom: 22px;
 }
 
-  
-  @keyframes progress {
-    to { background-position: 1.5em 0; }
+
+@keyframes progress {
+  to {
+    background-position: 1.5em 0;
+  }
+}
+
+.prjct-overview-item {
+  margin: 15px 0;
+}
+
+.prjct-overview-item {
+  display: flex;
+  justify-content: space-between;
+  white-space: nowrap;
+}
+
+.prjct-overview-item i {
+  padding: 6px;
+  border-radius: 50%;
+  text-align: center;
+}
+
+.prjct-overview-item-right p {
+  padding: 0px 8px;
+  border-radius: 5px;
+  margin: 0;
+  color: #1a1a1a;
+}
+
+.prjct-analy-row .col-lg-4 .col-lg-12 {
+  margin-bottom: 20px;
+}
+
+@media(max-width:767px) {
+  .prjct-analy-row {
+    margin-top: 10px !important;
   }
 
-  .prjct-overview-item{margin: 15px 0;}
-  .prjct-overview-item{display: flex;justify-content: space-between;white-space:nowrap;}
-  .prjct-overview-item i{padding: 6px;border-radius: 50%;text-align: center;}
-  .prjct-overview-item-right p{padding: 0px 8px;border-radius: 5px;margin: 0;color: #1a1a1a;}
-
-  .prjct-analy-row .col-lg-4 .col-lg-12{margin-bottom: 20px;}
-  @media(max-width:767px){
-    .prjct-analy-row{margin-top: 10px!important;}
-    .prjct-analy-row .col-lg-3{margin-top: 20px;}
-    .prjct-analy-row .col-lg-5{margin-top: 20px;}
-    .prjct-analy-row .col-lg-4 .col-lg-12{margin-bottom:0;}
-
+  .prjct-analy-row .col-lg-3 {
+    margin-top: 20px;
   }
-  @media(min-width:768px) and (max-width:991px){
-    .prjct-analy-row .col-lg-4{margin-top: 20px;}
-    .prjct-analy-row .col-lg-3 .widget-box{height: 456px;}
+
+  .prjct-analy-row .col-lg-5 {
+    margin-top: 20px;
   }
-  
-  /*================ End Admin Dashboard  ================*/
+
+  .prjct-analy-row .col-lg-4 .col-lg-12 {
+    margin-bottom: 0;
+  }
+
+}
+
+@media(min-width:768px) and (max-width:991px) {
+  .prjct-analy-row .col-lg-4 {
+    margin-top: 20px;
+  }
+
+  .prjct-analy-row .col-lg-3 .widget-box {
+    height: 456px;
+  }
+}
+
+/*================ End Admin Dashboard  ================*/
+
+/*-- Styles for Notification Popup --*/
+
+.notification-popup {
+  display: none;
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -20%);
+  width: 350px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+  padding: 15px;
+  z-index: 1000;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
+
+.popup-body {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.notification-item {
+  border-bottom: 1px solid #ddd;
+  padding: 5px;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.mark-all-read {
+  width: 100%;
+  padding: 10px;
+  background: blue;
+  color: rgb(83, 105, 207);
+  border: none;
+  cursor: pointer;
+  margin-top: 10px;
+  display: block;  /* Ensure it is always visible */
+  text-align: center;
+}
+
+.close-popup {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* Table row highlight for unread notifications */
+.unread-notification {
+  background-color: #fff7de !important; /* Stronger yellow */
+}
+
+
+.srh-btn{
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px 10px !important;
+}
+
+
+/*---------- Notification Badge ----------*/
+.notification-badge{width: 20px;height: 20px;border-radius: 50%;background-color: var(--dark-red);padding: 3px;color: #fff;font-size: 10px;position: absolute;right:10px;top: -6px;text-align: center;}
+.sidebar-menu a{width: max-content !important;}
+
+.hdr-notification {margin-right: 10px;}
+.hdr-notification button{background-color: transparent !important;color: var(--bs-blue);box-shadow: none !important;border: none;}
+.hdr-notification button:hover,.hdr-notification button:focus{color: var(--primary-font-color);}
+.hdr-notification i{font-size: 23px;}
+.hdr-notification .start-100{left: 75% !important;}
+.hdr-notification .badge{width:20px;height: 20px;padding: 0 !important;display: flex !important;align-items: center;justify-content: center;}
+
+/*---------- End Notification Badge ----------*/
+
+.upload-inpt{
+  width: 250px;
+  overflow-x: hidden;
+}
+
+@media(max-width:767px){
+  .upload-inpt{
+    width: 200px;
+  } 
+
+.project-timeline .timeline-item .dot{
+width: 13px;
+}
+}
+
+@media(min-width:768px) and (max-width:991px){
+  .upload-inpt{
+    width: 315px;
+  } 
+}
+
+@media(min-width:767px){
+  .pjct-info-dtls-box .widget-box{
+  height: 300px;
+}
+}
+.pjct-info-dtls-box.admin .widget-box{
+  height: unset;
+}
+
+.certi-upld-btn{background-color: transparent;border: none;}
+.certi-upld-btn{
+  color: var(--edit-icon);
+}

@@ -1,4 +1,5 @@
 from django.shortcuts import redirect, render, get_object_or_404
+from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from calendar import monthrange
@@ -17,7 +18,8 @@ from Admin.forms import ProjectAssignmentForm
 from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance
+from django.http import JsonResponse
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification
 
 
 # Home
@@ -124,6 +126,7 @@ def dashboard(request):
             'loss_of_pay_days': loss_of_pay_days,
             "last_punch_in": last_punch_in,
             "last_punch_out": last_punch_out,
+            'user_attendance': today_attendance,
             "current_time": timezone.now().astimezone(local_tz).strftime('%I:%M %p, %d %b %Y')
         }
 
@@ -241,7 +244,7 @@ def update_manager_profile(request):
 
     return render(request, "Manager/manager_profile_update.html", {"form": form})
 
-
+@login_required
 def update_project_status(request, project_id):
     if request.method == "POST":
         project = get_object_or_404(Project, id=project_id)
@@ -478,7 +481,7 @@ def attendance_list(request):
     }
     return render(request, 'Manager/attendance_list.html', context)
 
-
+@login_required
 def attendance(request):
     employee = get_object_or_404(Employee, user=request.user)
     attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
@@ -493,8 +496,8 @@ def attendance(request):
     }
     return render(request, 'Manager/attendance.html', context)
 
-
 # Employee attendance details
+@login_required
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
     return render(request, 'Manager/attendance_detail.html', {'attendance': attendance})
@@ -819,6 +822,11 @@ def project_summary_view(request, project_id):
     # Merge both logs and order by `changed_at`
     logs = (team_logs | manager_logs).order_by('-changed_at')
 
+    # Handle File Upload
+    if request.method == "POST" and request.FILES.get("attachment"):
+        project.attachment = request.FILES["attachment"]
+        project.save()
+
     statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
     status_choices = TeamMemberStatus.STATUS_CHOICES
     teams = project.teams.all()
@@ -865,6 +873,7 @@ def project_summary_view(request, project_id):
         "logs": logs,  # Now includes both manager & team member logs
         "project_id": project.id,
         "status_choices": status_choices,
+        "attachment_url": project.attachment.url if project.attachment else None,   
     }
 
     context = {"project_data": project_data}
@@ -902,24 +911,88 @@ def manager_edit_attendance(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
 
     if request.method == 'POST':
-        attendance.employee_id = request.POST.get('employee')
+        login_time = request.POST.get('login_time')
+        log_out_time = request.POST.get('log_out_time')
+        travel_in_time = request.POST.get('travel_in_time')
+        travel_out_time = request.POST.get('travel_out_time')
+
+        # Parse datetime fields
+        if login_time:
+            attendance.login_time = datetime.strptime(login_time, '%Y-%m-%dT%H:%M')
+        if log_out_time:
+            attendance.log_out_time = datetime.strptime(log_out_time, '%Y-%m-%dT%H:%M')
+        if travel_in_time:
+            attendance.travel_in_time = datetime.strptime(travel_in_time, '%Y-%m-%dT%H:%M')
+        if travel_out_time:
+            attendance.travel_out_time = datetime.strptime(travel_out_time, '%Y-%m-%dT%H:%M')
+
+        # Ensure the employee_id is set
+        employee_id = request.POST.get('employee')
+        if not employee_id:
+            # Handle missing employee_id, e.g., raise an error or set a default
+            messages.error(request, "Employee is required.")
+            return redirect('manager_edit_attendance', attendance_id=attendance.id)
+
+        attendance.employee_id = employee_id  # Ensure employee_id is provided
         attendance.project_id = request.POST.get('project')
-        attendance.login_time = request.POST.get('login_time')
-        attendance.log_out_time = request.POST.get('log_out_time')
         attendance.location = request.POST.get('location')
         attendance.attendance_status = request.POST.get('attendance_status')
-        attendance.status = request.POST.get('status')
+        attendance.status = request.POST.get('status', 'default_status')  # Default value for status if not provided
         attendance.rejection_reason = request.POST.get('rejection_reason')
-        attendance.travel_in_time = request.POST.get('travel_in_time')
-        attendance.travel_out_time = request.POST.get('travel_out_time')
+
         attendance.save()
 
-        messages.success(request, 'Attendance record has been Updated successfully.')
-        return redirect('attendance_list_view')
+        messages.success(request, 'Attendance record has been updated successfully.')
+        return redirect('attendance_list')
 
     employees = Employee.objects.all()
     projects = Project.objects.all()
-    return render(request, 'manager/manager_edit_attendance.html', {
+    return render(request, 'Manager/manager_edit_attendance.html', {
+        'attendance': attendance,
+        'employees': employees,
+        'projects': projects,
+    })
+
+def manager_update_travel_time(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+
+    if request.method == 'POST':
+        # Extract values for datetime fields only
+        login_time = request.POST.get('login_time')
+        log_out_time = request.POST.get('log_out_time')
+        travel_in_time = request.POST.get('travel_in_time')
+        travel_out_time = request.POST.get('travel_out_time')
+
+        # Parse datetime fields
+        if login_time:
+            attendance.login_time = datetime.strptime(login_time, '%Y-%m-%dT%H:%M')
+        if log_out_time:
+            attendance.log_out_time = datetime.strptime(log_out_time, '%Y-%m-%dT%H:%M')
+        if travel_in_time:
+            attendance.travel_in_time = datetime.strptime(travel_in_time, '%Y-%m-%dT%H:%M')
+        if travel_out_time:
+            attendance.travel_out_time = datetime.strptime(travel_out_time, '%Y-%m-%dT%H:%M')
+
+        # Handle other fields (but don't update project, attendance_status, and status)
+        employee_id = request.POST.get('employee')
+        if not employee_id:
+            messages.error(request, "Employee is required.")
+            return redirect('manager_edit_attendance', attendance_id=attendance.id)
+
+        attendance.employee_id = employee_id  # Ensure employee_id is provided
+        # Exclude project, attendance_status, and status from form submission
+        attendance.rejection_reason = request.POST.get('rejection_reason')
+        
+        # Don't update the "project", "attendance_status", and "status" fields
+
+        attendance.save()
+
+        messages.success(request, 'Travel time has been updated successfully.')
+        return redirect('attendance_status')
+
+    employees = Employee.objects.all()
+    projects = Project.objects.all()
+    return render(request, 'Manager/update_travel_time.html', {
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
@@ -937,20 +1010,55 @@ def manager_delete_attendance(request, attendance_id):
 @login_required
 def manager_apply_leave(request):
     if request.method == 'POST':
-        form = LeaveForm(request.POST)
+        form = LeaveForm(request.POST, request.FILES)
         if form.is_valid():
             leave_application = form.save(commit=False)
             leave_application.user = request.user  # Assign current user
             leave_application.no_of_days = (leave_application.to_date - leave_application.from_date).days + 1  # Include both dates
             leave_application.save()
 
+            # Send notification to all admins
+            admins = User.objects.filter(is_superuser=True)  # Get all admin users
+            for admin in admins:
+                Notification.objects.create(
+                    recipient=admin,
+                    message=f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}."
+                )
+
             messages.success(request, "Leave request submitted successfully.")
             return redirect('manager_leave_status')  # Redirect after success
-
     else:
         form = LeaveForm()
 
     return render(request, 'Manager/leave.html', {'form': form})
+
+@login_required
+def manager_upload_medical_certificate(request, leave_id):
+    leave = Leave.objects.get(id=leave_id)
+    if request.method == 'POST':
+        medical_certificate = request.FILES.get('medical_certificate')
+
+        if medical_certificate:
+            leave.medical_certificate = medical_certificate
+            leave.save()
+
+            # Check if certificate is uploaded within 2 days from leave start date
+            if leave.from_date:
+                days_since_start = (timezone.now().date() - leave.from_date).days
+
+                if days_since_start > 0:
+                    # If uploaded after 2 days, change leave type to Annual Leave
+                    if leave.leave_type == 'SICK LEAVE':
+                        leave.leave_type = 'ANNUAL LEAVE'
+                        leave.save()
+
+                    messages.success(request, "Medical certificate uploaded late. Leave converted to Annual Leave.")
+                else:
+                    messages.success(request, "Medical certificate uploaded successfully.")
+
+            return redirect('manager_leave_status')
+
+    return redirect('manager_leave_status')  # Redirect if GET request or no file uploaded
 
 @login_required
 def manager_leave_status(request):
@@ -1022,7 +1130,7 @@ def manager_log_in(request):
                 "login_time": now(),
                 "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
                 "travel_out_time": travel_out_time,
-                "status": "PENDING",
+                "status": "APPROVED",
                 "total_hours_of_work": 0,  # Default value
             },
         )
@@ -1079,3 +1187,19 @@ def manager_render_attendance_page(request):
         "projects": projects,
         "user_attendance": user_attendance,
     })
+
+
+@login_required
+def manager_fetch_notifications(request):
+    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
+    return JsonResponse({"notifications": list(notifications)})
+
+@login_required
+def manager_mark_notifications_as_read(request):
+    """Mark all unread notifications for the logged-in manager as read."""
+    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
+    
+    if notifications.exists():
+        notifications.update(is_read=True)  # Bulk update for efficiency
+    
+    return JsonResponse({"message": "Notifications marked as read"})

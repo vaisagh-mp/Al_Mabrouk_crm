@@ -1,7 +1,8 @@
 from django.db import models
-from django.db.models.signals import post_save, m2m_changed
+from django.db.models.signals import post_save, m2m_changed, pre_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
+from datetime import datetime
 from datetime import timedelta
 from django.db.models import Q
 from decimal import Decimal
@@ -23,6 +24,12 @@ class Project(models.Model):
         ('HOLIDAY_WORKING', 'Holiday Working'),
     ]
 
+    PRIORITY_CHOICES = [
+        ('HIGH', 'High'),
+        ('MEDIUM', 'Medium'),
+        ('LOW', 'Low'),
+    ]
+
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=100, unique=True)
     client_name = models.CharField(max_length=255, default="", blank=True)
@@ -35,12 +42,15 @@ class Project(models.Model):
         max_length=100, choices=STATUS_CHOICES, default='PENDING')
     category = models.CharField(
         max_length=50, choices=CATEGORY_CHOICES, default='OVERSEAS')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='MEDIUM')
+    job_description = models.TextField(blank=True, null=True)
     manager = models.ForeignKey(
         'Employee', on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_projects',
         limit_choices_to={'is_manager': True}
     )
     created_at = models.DateTimeField(auto_now_add=True)
     deadline_date = models.DateField(null=True, blank=True)
+    attachment = models.FileField(upload_to='project_attachments/', blank=True, null=True)
 
     def save(self, *args, **kwargs):
         # Automatically set status to 'ASSIGN' if a manager is assigned
@@ -101,6 +111,16 @@ class Project(models.Model):
         """
         return self.invoice_amount - self.calculate_expenses()
     
+    def calculate_profit_percentage(self):
+        """
+        Calculate profit percentage as:
+        (Invoice Amount - Total Expenses) / Invoice Amount * 100
+        """
+        profit = self.invoice_amount - self.calculate_expenses()
+        if self.invoice_amount == 0:
+            return 0  # Avoid division by zero
+        return (profit / self.invoice_amount) * 100
+
     def calculate_total_work_days(self):
         """
         Calculate the total work days for this project as the difference 
@@ -109,11 +129,23 @@ class Project(models.Model):
         if self.deadline_date and self.created_at:
             return (self.deadline_date - self.created_at.date()).days
         return 0  # Return 0 if either date is missing
+    
+    def calculate_revevenue(self):
+        return self.invoice_amount - self.calculate_expenses()
+    
+    def calculate_revenue_percentage(self):
+        """
+        Calculate revenue percentage as:
+        (Invoice Amount - Total Expenses) / Invoice Amount * 100
+        """
+        revenue = self.invoice_amount - self.calculate_expenses()
+        if self.invoice_amount == 0:
+            return 0  # Avoid division by zero
+        return (revenue / self.invoice_amount) * 100
 
 
     def __str__(self):
         return self.name
-
 
 class Team(models.Model):
     name = models.CharField(max_length=255)
@@ -174,9 +206,18 @@ class Employee(models.Model):
         Automatically calculate total work days based on attendance records.
         """
         total_hours = sum(
-            attendance.total_hours_of_work for attendance in self.attendance_set.all())
-        self.work_days = total_hours / 10  # 9 hours = 1 workday
+            attendance.total_hours_of_work or 0 for attendance in self.attendance_set.all()
+        )
+        self.work_days = total_hours / 10  # assuming 10 hours = 1 workday
         self.save()
+
+    def get_role(self):
+        """Returns the role based on is_employee and is_manager flags."""
+        if self.is_manager:
+            return "Manager"
+        elif self.is_employee:
+            return "Employee"
+        return "Unknown"
 
     def __str__(self):
         return f"{self.user.username} - {self.rank}"
@@ -243,6 +284,11 @@ class Attendance(models.Model):
     def save(self, *args, **kwargs):
         """Calculate total travel time before saving."""
         if self.travel_in_time and self.travel_out_time:
+            if isinstance(self.travel_in_time, str):
+                self.travel_in_time = datetime.strptime(self.travel_in_time, '%Y-%m-%dT%H:%M')
+            if isinstance(self.travel_out_time, str):
+                self.travel_out_time = datetime.strptime(self.travel_out_time, '%Y-%m-%dT%H:%M')
+            
             travel_duration = self.travel_out_time - self.travel_in_time
             self.total_travel_time = round(travel_duration.total_seconds() / 3600, 2)  # Convert to hours
         else:
@@ -273,6 +319,7 @@ class Leave(models.Model):
     reason = models.TextField()
     no_of_days = models.IntegerField(editable=False)  # Automatically calculated
     approval_status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    medical_certificate = models.FileField(upload_to='medical_certificates/', null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # Calculate leave duration
@@ -280,7 +327,6 @@ class Leave(models.Model):
         # Ensure minimum leave is 1 day
         self.no_of_days = leave_days + 1 if leave_days == 0 else leave_days
         super().save(*args, **kwargs)
-
 
     def __str__(self):
         return f"{self.user.username} - {self.leave_type} from {self.from_date} to {self.to_date} ({self.approval_status})"
@@ -317,16 +363,25 @@ class TeamMemberStatus(models.Model):
         return f"{self.employee.user} - {self.team.project.name} ({self.status})"
 
     def save(self, *args, **kwargs):
-        """ Log changes before saving """
+        """ Log changes before saving and notify the team manager """
         if self.pk:  # Check if it's an update, not a new object
             old_status = TeamMemberStatus.objects.get(pk=self.pk).status
             if old_status != self.status:
+                # Log activity
                 ActivityLog.objects.create(
                     team_member_status=self,
                     previous_status=old_status,
                     new_status=self.status,
                     notes=self.notes
                 )
+
+                # Send notification to the team manager
+                if self.team.manager:
+                    Notification.objects.create(
+                        recipient=self.team.manager.user,
+                        message=f"Employee '{self.employee.user.username}' status in project '{self.team.project.name}' changed from '{old_status}' to '{self.status}'."
+                    )
+
         super().save(*args, **kwargs)
 
 class ActivityLog(models.Model):
@@ -359,3 +414,15 @@ def update_employee_work_days(sender, instance, **kwargs):
     """
     employee = instance.employee
     employee.calculate_work_days()
+
+
+class Notification(models.Model):
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Notification for {self.recipient.username} - {self.message[:20]}"
+    
+    

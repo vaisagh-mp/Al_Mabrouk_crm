@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification
 
 
 @admin.register(Project)
@@ -87,3 +87,16 @@ admin.site.register(Leave, LeaveAdmin)
 class LeaveBalanceAdmin(admin.ModelAdmin):
     list_display = ("user", "annual_leave", "sick_leave", "casual_leave")
     search_fields = ("user__username",)
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('recipient', 'message', 'is_read', 'created_at')
+    list_filter = ('is_read', 'created_at')
+    search_fields = ('recipient__username', 'message')
+    ordering = ('-created_at',)
+    actions = ['mark_as_read']
+
+    def mark_as_read(self, request, queryset):
+        queryset.update(is_read=True)
+    mark_as_read.short_description = "Mark selected notifications as read"

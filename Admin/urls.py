@@ -1,6 +1,5 @@
 from django.urls import path
-from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager
-
+from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
@@ -40,4 +39,11 @@ urlpatterns = [
     path('manager-leave-list/', manager_leave_list, name='manager_leave_list'),
     path('employee-manage-leave/', employee_manage_leave, name='employee_manage_leave'),
     path('manager-manage-leave/', manager_manage_leave, name='manager_manage_leave'),
+
+    path('fetch-notifications/', fetch_notifications, name='fetch-notifications'),
+    path('mark-notifications-as-read/', mark_notifications_as_read, name='mark-notifications-as-read'),
+
+    path("admin-notifications/", admin_notifications, name="admin-notifications"),
+    path("admin-mark-all-notifications/", admin_mark_all_notifications, name="admin-mark-all-notifications"),
+    path("admin-mark-single-notification/<int:notification_id>/", admin_mark_single_notification, name="admin-mark-single-notification"),
 ]

@@ -70,19 +70,25 @@
 
                     <div id="Puncinchart"></div>
 
-                    <!-- Punch In Time -->
-                    <div class="info">
-                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
-                        Punch In at <span>{{ last_punch_in }}</span>
-                    </div>
-
-                    <!-- Punch Out Time -->
                     {% if last_punch_out != "Not Punched Out" %}
-                    <div class="info">
-                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
-                        Punch Out at <span>{{ last_punch_out }}</span>
-                    </div>
-                    {% endif %}
+                  <!-- Display punch out time if available -->
+                  <div class="info punch-out">
+                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
+                      Punch Out at <span>{{ last_punch_out }}</span>
+                  </div>
+                        {% elif last_punch_in != "Not Punched In" %}
+                            <!-- Otherwise, display punch in time -->
+                            <div class="info punch-in">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
+                                Punch In at <span>{{ last_punch_in }}</span>
+                            </div>
+                        {% else %}
+                            <!-- If no punch in or out recorded, display a message -->
+                            <div class="info">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="No Punch">
+                                Click the button below to punchin.
+                            </div>
+                        {% endif %}
 
                     <a href="{% url 'attendance_dashboard' %}" id="punchButton">
                         {% if last_punch_in == "Not Punched In" %}
@@ -94,7 +100,6 @@
                 </div>
             </div>
         </div>
-
 
         <!-- Leave Details Card -->
         <div class="col-lg-4 col-md-6">
@@ -230,5 +235,6 @@
     setInterval(updateCurrentTime, 1000);
     updateCurrentTime();
 </script>
+
 
 {% endblock %}

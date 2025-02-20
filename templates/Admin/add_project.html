@@ -40,6 +40,34 @@
           />
         </div>
 
+        <!-- Priority Field (Radio Buttons) -->
+        <div class="mb-3">
+          <label class="form-label">Priority:</label>
+          <div>
+            {% for choice in form.fields.priority.choices %}
+              <div class="form-check form-check-inline">
+                <input
+                  type="radio"
+                  class="form-check-input"
+                  id="priority_{{ choice.0 }}"
+                  name="priority"
+                  value="{{ choice.0 }}"
+                  {% if form.priority.value == choice.0 %}checked{% endif %}
+                />
+                <label class="form-check-label" for="priority_{{ choice.0 }}">{{ choice.1 }}</label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Job Description -->
+        <div class="mb-3">
+          <label for="id_job_description" class="form-label">Job Description</label>
+          <textarea class="form-control" id="id_job_description" name="job_description" rows="4">
+            {{ form.job_description.value|default_if_none:'' }}
+          </textarea>
+        </div>
+
         <!-- Client Name -->
         <div class="mb-3">
             <label for="id_name" class="form-label">Client Name</label>
@@ -154,5 +182,18 @@
     </div>
   </div>
 </div>
+
+{% if form.errors %}
+  <div class="alert alert-danger">
+    <ul>
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+          <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
 
 {% endblock %}

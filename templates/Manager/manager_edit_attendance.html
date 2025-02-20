@@ -54,11 +54,10 @@
       display: block;
       width: 100%;
       padding: 10px;
-      background-color: #007bff;
+      background-color: var(--secondary-bg);
       border: none;
-      color: white;
       font-size: 16px;
-      font-weight: bold;
+      /* font-weight: bold; */
       border-radius: 4px;
       cursor: pointer;
       transition: background-color 0.3s;
@@ -148,7 +147,7 @@
     <textarea name="rejection_reason" id="rejection_reason">{{ attendance.rejection_reason }}</textarea>
 
     <!-- Submit Button -->
-    <button type="submit">Update Attendance</button>
+    <button type="submit" style="color: white;">Update Attendance</button>
 </form>
 
 {% endblock %}

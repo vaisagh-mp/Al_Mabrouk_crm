@@ -11,118 +11,121 @@ from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
 
 @login_required
 def employee_dashboard(request):
-    employee = get_object_or_404(Employee, user=request.user)
+        user = request.user
+        if hasattr(user, 'employee_profile') and user.employee_profile.is_employee:
+            employee = get_object_or_404(Employee, user=user)
 
-    # Fetch attendance records for the employee
-    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
+            # Fetch attendance records for the employee
+            attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
 
-    today = datetime.now().date()
-    today_attendance = attendance_records.filter(login_time__date=today).first()
+            today = datetime.now().date()
+            today_attendance = attendance_records.filter(login_time__date=today).first()
 
-    # Convert to local timezone (Asia/Kolkata)
-    local_tz = pytz.timezone('Asia/Kolkata')
-    now = timezone.now().astimezone(local_tz)
+            # Convert to local timezone (Asia/Kolkata)
+            local_tz = pytz.timezone('Asia/Kolkata')
+            now = timezone.now().astimezone(local_tz)
 
-    # Punch In/Out Details
-    if today_attendance:
-        last_punch_in = localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p')
-        last_punch_out = (
-            localtime(today_attendance.log_out_time).astimezone(local_tz).strftime('%I:%M %p')
-            if today_attendance.log_out_time else "Not Punched Out"
-        )
-    else:
-        last_punch_in = "Not Punched In"
-        last_punch_out = "Not Punched Out"
+            # Punch In/Out Details
+            if today_attendance:
+                last_punch_in = localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p')
+                last_punch_out = (
+                    localtime(today_attendance.log_out_time).astimezone(local_tz).strftime('%I:%M %p')
+                    if today_attendance.log_out_time else "Not Punched Out"
+                )
+            else:
+                last_punch_in = "Not Punched In"
+                last_punch_out = "Not Punched Out"
 
-    # Fetch Leave Balance (default values if not found)
-    leave_balance = LeaveBalance.objects.filter(user=request.user).first()
-    total_leaves = leave_balance.annual_leave + leave_balance.sick_leave + leave_balance.casual_leave if leave_balance else 0
+            # Fetch Leave Balance (default values if not found)
+            leave_balance = LeaveBalance.objects.filter(user=request.user).first()
+            total_leaves = leave_balance.annual_leave + leave_balance.sick_leave + leave_balance.casual_leave if leave_balance else 0
 
-    # Calculate Leaves Taken, Absent Days, and Pending Requests
-    current_year = now.year
-    leaves_taken = Leave.objects.filter(user=request.user, approval_status="APPROVED", from_date__year=current_year).aggregate(total=Sum('no_of_days'))['total'] or 0
-    absent_days = Leave.objects.filter(user=request.user, approval_status="APPROVED", from_date__year=current_year).aggregate(total=Sum('no_of_days'))['total'] or 0
-    leave_requests = Leave.objects.filter(user=request.user, approval_status="PENDING").count()
+            # Calculate Leaves Taken, Absent Days, and Pending Requests
+            current_year = now.year
+            leaves_taken = Leave.objects.filter(user=request.user, approval_status="APPROVED", from_date__year=current_year).aggregate(total=Sum('no_of_days'))['total'] or 0
+            absent_days = Leave.objects.filter(user=request.user, approval_status="APPROVED", from_date__year=current_year).aggregate(total=Sum('no_of_days'))['total'] or 0
+            leave_requests = Leave.objects.filter(user=request.user, approval_status="PENDING").count()
 
-    # Get total Annual Leave taken
-    annual_leave_taken = Leave.objects.filter(
-        user=request.user,
-        approval_status="APPROVED",
-        leave_type="ANNUAL LEAVE",
-        from_date__year=current_year
-    ).aggregate(total=Sum('no_of_days'))['total'] or 0
+            # Get total Annual Leave taken
+            annual_leave_taken = Leave.objects.filter(
+                user=request.user,
+                approval_status="APPROVED",
+                leave_type="ANNUAL LEAVE",
+                from_date__year=current_year
+            ).aggregate(total=Sum('no_of_days'))['total'] or 0
 
-    # Get total Sick Leave taken
-    sick_leave_taken = Leave.objects.filter(
-        user=request.user,
-        approval_status="APPROVED",
-        leave_type="SICK LEAVE",
-        from_date__year=current_year
-    ).aggregate(total=Sum('no_of_days'))['total'] or 0
+            # Get total Sick Leave taken
+            sick_leave_taken = Leave.objects.filter(
+                user=request.user,
+                approval_status="APPROVED",
+                leave_type="SICK LEAVE",
+                from_date__year=current_year
+            ).aggregate(total=Sum('no_of_days'))['total'] or 0
 
-    # Get total Casual Leave taken
-    casual_leave_taken = Leave.objects.filter(
-        user=request.user,
-        approval_status="APPROVED",
-        leave_type="CASUAL LEAVE",
-        from_date__year=current_year
-    ).aggregate(total=Sum('no_of_days'))['total'] or 0
+            # Get total Casual Leave taken
+            casual_leave_taken = Leave.objects.filter(
+                user=request.user,
+                approval_status="APPROVED",
+                leave_type="CASUAL LEAVE",
+                from_date__year=current_year
+            ).aggregate(total=Sum('no_of_days'))['total'] or 0
 
 
 
-    # Fetch Employee Work Days
-    worked_days = employee.work_days
+            # Fetch Employee Work Days
+            worked_days = employee.work_days
 
-    # Loss of Pay Days = Absent Days
-    loss_of_pay_days = absent_days - total_leaves if absent_days > total_leaves else 0
+            # Loss of Pay Days = Absent Days
+            loss_of_pay_days = absent_days - total_leaves if absent_days > total_leaves else 0
 
-    # Calculate Attendance Percentage
-    current_month = now.month
-    total_days_in_month = monthrange(current_year, current_month)[1]
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        status='APPROVED',
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-    attendance_percentage = (approved_attendance_records / total_days_in_month) * 100
+            # Calculate Attendance Percentage
+            current_month = now.month
+            total_days_in_month = monthrange(current_year, current_month)[1]
+            approved_attendance_records = Attendance.objects.filter(
+                employee=employee,
+                status='APPROVED',
+                login_time__year=current_year,
+                login_time__month=current_month
+            ).count()
+            attendance_percentage = (approved_attendance_records / total_days_in_month) * 100
 
-    # Fetch assigned work
-    assigned_work = TeamMemberStatus.objects.filter(employee=employee, status='ASSIGN').select_related('team__project')
-    projects = TeamMemberStatus.objects.filter(employee=employee).select_related('team__project')
-    total_projects = projects.count()
-    pending_projects = projects.exclude(team__project__status='COMPLETED').count()
-    completed_projects = assigned_work.filter(team__project__status='COMPLETED').count()
+            # Fetch assigned work
+            assigned_work = TeamMemberStatus.objects.filter(employee=employee, status='ASSIGN').select_related('team__project')
+            projects = TeamMemberStatus.objects.filter(employee=employee).select_related('team__project')
+            total_projects = projects.count()
+            pending_projects = projects.exclude(team__project__status='COMPLETED').count()
+            completed_projects = assigned_work.filter(team__project__status='COMPLETED').count()
 
-    context = {
-        'employee': employee,
-        'attendance_records': attendance_records,
-        'attendance_percentage': attendance_percentage,
-        'current_time': now.strftime('%I:%M %p, %d %b %Y'),
-        'last_punch_in': last_punch_in,
-        'last_punch_out': last_punch_out,
-        'total_projects': total_projects,
-        'pending_projects': pending_projects,
-        'completed_projects': completed_projects,
-        'total_leaves': total_leaves,
-        'leaves_taken': leaves_taken,
-        'absent_days': absent_days,
-        'annual_leave_taken': annual_leave_taken,
-        'sick_leave_taken': sick_leave_taken,
-        'casual_leave_taken': casual_leave_taken,
-        'leave_requests': leave_requests,
-        'worked_days': worked_days,
-        'loss_of_pay_days': loss_of_pay_days,
-    }
+            context = {
+                'employee': employee,
+                'attendance_records': attendance_records,
+                'attendance_percentage': attendance_percentage,
+                'current_time': now.strftime('%I:%M %p, %d %b %Y'),
+                'last_punch_in': last_punch_in,
+                'last_punch_out': last_punch_out,
+                'total_projects': total_projects,
+                'pending_projects': pending_projects,
+                'completed_projects': completed_projects,
+                'total_leaves': total_leaves,
+                'leaves_taken': leaves_taken,
+                'absent_days': absent_days,
+                'annual_leave_taken': annual_leave_taken,
+                'sick_leave_taken': sick_leave_taken,
+                'casual_leave_taken': casual_leave_taken,
+                'leave_requests': leave_requests,
+                'worked_days': worked_days,
+                'loss_of_pay_days': loss_of_pay_days,
+                'user_attendance': today_attendance,
+            }
 
-    return render(request, 'employee/employee_dashboard.html', context)
+            return render(request, 'employee/employee_dashboard.html', context)
 
 @login_required
 def submit_attendance_request(request):
@@ -169,7 +172,7 @@ def submit_attendance_request(request):
             location=location,
             attendance_status=attendance_status,
             project=project,  # Include the project field
-            status='PENDING',
+            status='APPROVED',
         )
         messages.success(request, "Attendance request submitted successfully!")
         return redirect('employee_dashboard')
@@ -210,6 +213,7 @@ def update_project_status(request, project_id):
     
     return redirect("employee_dashboard")  # Redirect back to the employee dashboard
 
+@login_required
 def attendance_list(request):
     employee = get_object_or_404(Employee, user=request.user)
     attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
@@ -379,6 +383,12 @@ def project_details(request, project_id):
     # Get the specific project by ID
     project = get_object_or_404(Project, id=project_id)
     employee = get_object_or_404(Employee, user=request.user)
+
+    # Handle File Upload
+    if request.method == "POST" and request.FILES.get("attachment"):
+        project.attachment = request.FILES["attachment"]
+        project.save()
+   
     statuses = TeamMemberStatus.objects.filter(
         team__project__id=project_id,
         employee=employee  # Filtering by current logged-in employee
@@ -446,6 +456,7 @@ def project_details(request, project_id):
         'logs': logs,
         "project_id": project.id,
         "status_choices": status_choices,
+        "attachment_url": project.attachment.url if project.attachment else None,
     }
 
     # Pass the data to the template
@@ -503,7 +514,7 @@ def log_in(request):
                 "login_time": now(),
                 "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
                 "travel_out_time": travel_out_time,
-                "status": "PENDING",
+                "status": "APPROVED",
                 "total_hours_of_work": 0,  # Default value
             },
         )
@@ -513,7 +524,7 @@ def log_in(request):
         else:
             messages.error(request, "You are already logged in. Please log off before logging in again.")
 
-        return redirect("employee_dashboard")
+        return redirect("attendance_list_view")
 
     return render_attendance_page(request)
 
@@ -543,7 +554,7 @@ def log_off(request, attendance_id):
         else:
             messages.error(request, "You have already logged off.")
 
-    return redirect("employee_dashboard")  # Redirect to the appropriate page
+    return redirect("attendance_list_view")  # Redirect to the appropriate page
 
 @login_required
 def render_attendance_page(request):
@@ -561,11 +572,56 @@ def render_attendance_page(request):
         "user_attendance": user_attendance,
     })
 
+@login_required
+def employee_update_travel_time(request, attendance_id):
+    attendance = get_object_or_404(Attendance, id=attendance_id)
+
+    if request.method == 'POST':
+        # Extract values for datetime fields only
+        login_time = request.POST.get('login_time')
+        log_out_time = request.POST.get('log_out_time')
+        travel_in_time = request.POST.get('travel_in_time')
+        travel_out_time = request.POST.get('travel_out_time')
+
+        # Parse datetime fields
+        if login_time:
+            attendance.login_time = datetime.strptime(login_time, '%Y-%m-%dT%H:%M')
+        if log_out_time:
+            attendance.log_out_time = datetime.strptime(log_out_time, '%Y-%m-%dT%H:%M')
+        if travel_in_time:
+            attendance.travel_in_time = datetime.strptime(travel_in_time, '%Y-%m-%dT%H:%M')
+        if travel_out_time:
+            attendance.travel_out_time = datetime.strptime(travel_out_time, '%Y-%m-%dT%H:%M')
+
+        # Handle other fields (but don't update project, attendance_status, and status)
+        employee_id = request.POST.get('employee')
+        if not employee_id:
+            messages.error(request, "Employee is required.")
+            return redirect('manager_edit_attendance', attendance_id=attendance.id)
+
+        attendance.employee_id = employee_id  # Ensure employee_id is provided
+        # Exclude project, attendance_status, and status from form submission
+        attendance.rejection_reason = request.POST.get('rejection_reason')
+        
+        # Don't update the "project", "attendance_status", and "status" fields
+
+        attendance.save()
+
+        messages.success(request, 'Travel time has been updated successfully.')
+        return redirect('attendance_status')
+
+    employees = Employee.objects.all()
+    projects = Project.objects.all()
+    return render(request, 'employee/update_travel_time.html', {
+        'attendance': attendance,
+        'employees': employees,
+        'projects': projects,
+    })
 
 @login_required
 def apply_leave(request):
     if request.method == 'POST':
-        form = LeaveForm(request.POST)
+        form = LeaveForm(request.POST,request.FILES)
         if form.is_valid():
             leave_application = form.save(commit=False)
             leave_application.user = request.user  # Assign current user
@@ -579,6 +635,35 @@ def apply_leave(request):
         form = LeaveForm()
 
     return render(request, 'employee/leave.html', {'form': form})
+
+@login_required
+def employee_upload_medical_certificate(request, leave_id):
+    leave = Leave.objects.get(id=leave_id)
+    if request.method == 'POST':
+        medical_certificate = request.FILES.get('medical_certificate')
+
+        if medical_certificate:
+            leave.medical_certificate = medical_certificate
+            leave.save()
+
+            # Check if certificate is uploaded within 2 days from leave start date
+            if leave.from_date:
+                days_since_start = (timezone.now().date() - leave.from_date).days
+
+                if days_since_start > 0:
+                    # If uploaded after 2 days, change leave type to Annual Leave
+                    if leave.leave_type == 'SICK LEAVE':
+                        leave.leave_type = 'ANNUAL LEAVE'
+                        leave.save()
+
+                    messages.success(request, "Medical certificate uploaded late. Leave converted to Annual Leave.")
+                else:
+                    messages.success(request, "Medical certificate uploaded successfully.")
+
+            return redirect('my_leave')
+
+    return redirect('my_leave')  # Redirect if GET request or no file uploaded
+
 
 @login_required
 def my_leave_status(request):
@@ -624,3 +709,20 @@ def leave_records(request):
                 leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
 
     return render(request, "employee/leaverecords.html", {"leave_summary": leave_summary})
+
+
+@login_required
+def employee_fetch_notifications(request):
+    """Fetch unread notifications for the logged-in employee."""
+    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
+    return JsonResponse({"notifications": list(notifications)})
+
+@login_required
+def employee_mark_notifications_as_read(request):
+    """Mark all unread notifications for the logged-in employee as read."""
+    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
+    
+    if notifications.exists():
+        notifications.update(is_read=True)  # Bulk update for efficiency
+    
+    return JsonResponse({"message": "Notifications marked as read"})

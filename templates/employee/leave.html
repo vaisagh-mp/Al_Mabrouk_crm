@@ -18,7 +18,7 @@
         </div>
 
         <!-- Django Form -->
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
             {% csrf_token %}
             
             <div class="form-group">
@@ -39,6 +39,12 @@
             <div class="form-group">
                 <label for="noOfDays">No of Days</label>
                 <input type="number" id="noOfDays" name="no_of_days" required readonly>
+            </div>
+
+            <!-- Medical Certificate Upload -->
+            <div class="form-group">
+                <label for="{{ form.medical_certificate.id_for_label }}">Medical Certificate</label>
+                {{ form.medical_certificate }}  <!-- This will render the file input field -->
             </div>
 
             <div class="form-group">

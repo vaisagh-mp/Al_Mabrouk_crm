@@ -22,6 +22,7 @@ urlpatterns = [
     path('employee/attendance/', views.attendance_list, name='attendance_list'),
     path('employee/attendance/<int:pk>/', views.attendance_detail, name='attendance_detail_view'),
     path('attendance/edit/<int:attendance_id>/', views.manager_edit_attendance, name='manager_edit_attendance'),
+    path('travel-time/edit/<int:attendance_id>/', views.manager_update_travel_time, name='manager_update_travel_time'),
     path('attendance-status/', views.attendance, name='attendance_status'),
     path('attendance/delete/<int:attendance_id>/', views.manager_delete_attendance, name='manager_delete_attendance'),
     path('employee/manage-attendance/', views.manage_attendance, name='pending_attendance'),
@@ -37,4 +38,9 @@ urlpatterns = [
     path('attendance/log-in/', views.manager_log_in, name='manager_log_in'),
     path('attendance/log-off/<int:attendance_id>/', views.manager_log_off, name='manager_log_off'),
     path("leave-records/", views.manager_leave_records, name="manager_leave_records"),
+    path('upload_medical_certificate/<int:leave_id>/', views.manager_upload_medical_certificate, name='manager_upload_medical_certificate'),
+
+    
+    path('manager-fetch-notifications/', views.manager_fetch_notifications, name='manager-fetch-notifications'),
+    path('manager-mark-notifications-as-read', views.manager_mark_notifications_as_read, name='manager-mark-notifications-as-read'),
 ]

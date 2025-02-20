@@ -2,67 +2,189 @@
 
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Almabrouk CRM</title>
+    <!-- Bootstrap -->
+    <link
+      rel="stylesheet"
+      href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}"
+    />
+    <!-- Fontawesome -->
+    <link
+      href="https://use.fontawesome.com/releases/v5.0.6/css/all.css"
+      rel="stylesheet"
+    />
+    <!-- Apex Chart css -->
+    <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
+    <!-- Style.css -->
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+  </head>
 
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Almabrouk CRM</title>
-  <!-- Bootstrap -->
-  <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
-  <!-- Fontawesome -->
-  <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
-  <!-- Apex Chart css -->
-  <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
-  <!-- Style.css -->
-  <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
-</head>
+  <!-- Styles for Notification Popup -->
+  <style>
+    .notification-popup-employee {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translate(-50%, -20%);
+      width: 350px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+      padding: 15px;
+      z-index: 1000;
+    }
 
-<body>
-  <!-- Header -->
-  <header>
-    <div class="hdr-user">
-      <div class="dropdown">
-        <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1"
-                  data-bs-toggle="dropdown" aria-expanded="false">
-                  
-                  {% if request.user.employee_profile.profile_picture %}
-                      <!-- Show Profile Picture if available -->
-                      <img src="{{ request.user.employee_profile.profile_picture.url }}" 
-                           alt="Profile Picture" 
-                           class="rounded-circle" 
-                           style="width: 30px; height: 30px; object-fit: cover;">
-                  {% else %}
-                      <!-- Show Default User Icon if no profile picture -->
-                      <i class="fas fa-user"></i>
-                  {% endif %}
-                  
-                  <span>{{ request.user.first_name }}_{{ request.user.last_name }}</span>
-              </button>
-        <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-          <li><a class="dropdown-item" href="{% url 'profile_view' %}">Profile</a></li>
-          <li><a class="dropdown-item" href="{% url 'projects' %}">Task</a></li>
-          <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
-        </ul>
-      </div>
+    .popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 5px;
+    }
+
+    .popup-body {
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    .notification-item {
+      border-bottom: 1px solid #ddd;
+      padding: 5px;
+    }
+
+    .notification-item:last-child {
+      border-bottom: none;
+    }
+
+    .mark-all-read {
+      width: 100%;
+      padding: 8px;
+      background: blue;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .close-popup-employee {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+    }
+  </style>
+
+  <body>
+    <!-- Header -->
+    <header>
+      <div class="hdr-notification">
+        <a href="#" id="open-notification-popup-employee">
+            <button type="button" class="btn btn-primary position-relative">
+                <i class="fas fa-bell"></i>
+                <span id="notification-count-employee" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    
+                    <span class="visually-hidden">unread messages</span>
+                </span>
+            </button>
+        </a>
     </div>
-  </header>
-  <!-- End Header -->
 
-  <div class="page-wrapper chiller-theme toggled" id="content">
-    <!-- Side Bar -->
-    <nav id="sidebar" class="sidebar-wrapper sidebar">
-      <a id="show-sidebar" onclick="toggleSidebar()" class="btn btn-sm btn-dark" href="#">
-        <i class="fas fa-bars"></i>
-      </a>
-      <div class="sidebar-content">
-        <div class="sidebar-brand">
-          <a href="{% url 'employee_dashboard' %}"><img src="{% static 'assets/images/blessesmarine-logo.webp' %}"
-              alt="Blessed Marine Automation Logo" /></a>
-          <div id="close-sidebar">
-            <i class="fas fa-times"></i>
-          </div>
+      <div class="hdr-user">
+        <div class="dropdown">
+          <button
+            class="btndropdown-toggle"
+            type="button"
+            id="dropdownMenuButton1"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+          >
+            {% if request.user.employee_profile.profile_picture %}
+            <!-- Show Profile Picture if available -->
+            <img
+              src="{{ request.user.employee_profile.profile_picture.url }}"
+              alt="Profile Picture"
+              class="rounded-circle"
+              style="width: 30px; height: 30px; object-fit: cover"
+            />
+            {% else %}
+            <!-- Show Default User Icon if no profile picture -->
+            <i class="fas fa-user"></i>
+            {% endif %}
+
+            <span
+              >{{ request.user.first_name }}_{{ request.user.last_name }}</span
+            >
+          </button>
+          <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+            <li>
+              <a class="dropdown-item" href="{% url 'profile_view' %}"
+                >Profile</a
+              >
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'projects' %}">Task</a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{% url 'custom_logout' %}"
+                >Log out</a
+              >
+            </li>
+          </ul>
         </div>
-        <!-- <div class="sidebar-header">
+
+        <!-- Notification Popup -->
+        <div
+          id="notification-popup-employee"
+          class="notification-popup-employee"
+        >
+          <div class="popup-header">
+            <h5>Project Notifications</h5>
+            <button class="close-popup-employee">&times;</button>
+          </div>
+
+          <div class="popup-body">
+            <div id="notification-list-employee">
+              <p>Loading...</p>
+            </div>
+          </div>
+
+          <!-- Button should be outside the list -->
+          <button class="mark-all-read" id="mark-read-employee" style="display: block;color: rgb(83, 105, 207);">
+            Mark All as Read
+          </button>
+        </div>
+      </div>
+    </header>
+    <!-- End Header -->
+
+    <div class="page-wrapper chiller-theme toggled" id="content">
+      <!-- Side Bar -->
+      <nav id="sidebar" class="sidebar-wrapper sidebar">
+        <a
+          id="show-sidebar"
+          onclick="toggleSidebar()"
+          class="btn btn-sm btn-dark"
+          href="#"
+        >
+          <i class="fas fa-bars"></i>
+        </a>
+        <div class="sidebar-content">
+          <div class="sidebar-brand">
+            <a href="{% url 'employee_dashboard' %}"
+              ><img
+                src="{% static 'assets/images/blessesmarine-logo.webp' %}"
+                alt="Blessed Marine Automation Logo"
+            /></a>
+            <div id="close-sidebar">
+              <i class="fas fa-times"></i>
+            </div>
+          </div>
+          <!-- <div class="sidebar-header">
               <div class="user-pic">
                 <img class="img-responsive img-rounded" src="assets/images/user-pro.webp"
                   alt="User picture">
@@ -78,89 +200,102 @@
                 </span>
               </div>
             </div> -->
-        <!-- sidebar-header  -->
-        <div class="sidebar-search">
-          <div>
-            <div class="input-group">
-              <input type="text" class="form-control search-menu" placeholder="Search..." />
-              <div class="input-group-append">
-                <span class="input-group-text">
-                  <i class="fa fa-search" aria-hidden="true"></i>
-                </span>
+          <!-- sidebar-header  -->
+          <div class="sidebar-search">
+            <div>
+              <div class="input-group">
+                <input
+                  type="text"
+                  class="form-control search-menu"
+                  placeholder="Search..."
+                />
+                <div class="input-group-append">
+                  <span class="input-group-text">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <!-- sidebar-search  -->
-        <div class="sidebar-menu">
-          <ul>
-            <li class="header-menu">
-              <span>General</span>
-            </li>
-            <li>
-              <a href="{% url 'employee_dashboard' %}">
-                <i class="fa fa-tachometer-alt"></i>
-                <span>Dashboard</span>
-              </a>
-            </li>
-            <li class="sidebar-dropdown">
-              <a href="{% url 'attendance_list_view' %}">
-                <i class="fas fa-users"></i>
-                <span>Attendance</span>
-              </a>
-            </li>
-            <li class="sidebar-dropdown">
-              <a href="{% url 'my_leave' %}">
-                <i class="fa fa-book"></i>
-                <span>Leave</span>
-              </a>
-            </li>
-            <li class="sidebar-dropdown">
-              <a href="{% url 'profile_view' %}">
-                <i class="fas fa-tasks"></i>
-                <span>Profile</span>
-              </a>
-            </li>
-            <li class="sidebar-dropdown">
-              <a href="#">
-                <i class="far fa-gem"></i>
-                <span>Projects</span>
-              </a>
-              <div class="sidebar-submenu">
-                <ul>
-                  <li>
-                    <a href="{% url 'projects' %}">All Projects</a>
-                  </li>
-                  <!-- <li>
+          <!-- sidebar-search  -->
+          <div class="sidebar-menu">
+            <ul>
+              <li class="header-menu">
+                <span>General</span>
+              </li>
+              <li>
+                <a href="{% url 'employee_dashboard' %}">
+                  <i class="fa fa-tachometer-alt"></i>
+                  <span>Dashboard</span>
+                </a>
+              </li>
+              <li class="sidebar-dropdown">
+                <a href="{% url 'attendance_list_view' %}">
+                  <i class="fas fa-users"></i>
+                  <span>Attendance</span>
+                </a>
+              </li>
+              <li class="sidebar-dropdown">
+                <a href="{% url 'my_leave' %}">
+                  <i class="fa fa-book"></i>
+                  <span>Leave</span>
+                </a>
+              </li>
+              <li class="sidebar-dropdown">
+                <a href="{% url 'profile_view' %}">
+                  <i class="fas fa-tasks"></i>
+                  <span>Profile</span>
+                </a>
+              </li>
+              <li class="sidebar-dropdown">
+                <a href="#">
+                  <i class="far fa-gem"></i>
+                  <span>Projects</span>
+                </a>
+                <div class="sidebar-submenu">
+                  <ul>
+                    <li>
+                      <a href="{% url 'projects' %}">All Projects</a>
+                    </li>
+                    <!-- <li>
                     <a href="#">Assign projects</a>
                   </li> -->
-                </ul>
-              </div>
-            </li>
-          </ul>
+                  </ul>
+                </div>
+              </li>
+              <!-- <li>
+                <a href="#" id="open-notification-popup-employee">
+                  <i class="fa fa-folder"></i>
+                  <span>Notification</span>
+                  <span
+                    id="notification-count-employee"
+                    class="badge rounded-pill bg-danger"
+                    style="display: none"
+                    >0</span
+                  >
+                </a>
+              </li> -->
+            </ul>
+          </div>
         </div>
-      </div>
-    </nav>
-    <!-- End Side Bar -->
+      </nav>
+      <!-- End Side Bar -->
 
-    {% block content %}
+      {% block content %} {% endblock %}
+    </div>
+    <!-- Bootstrap Bundle JS -->
+    <script src="{% static 'assets/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+    <!-- Jquery -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <!-- Apex Chart Js -->
+    <script src="{% static 'assets/vendor/apexchart/js/apexcharts.js' %}"></script>
+    <script src="{% static 'assets/vendor/apexchart/js/data.js' %}"></script>
+    <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
+    <!-- Main.js -->
+    <script src="{% static 'assets/js/main.js' %}"></script>
 
-    {% endblock %}
-
-  </div>
-  <!-- Bootstrap Bundle JS -->
-  <script src="{% static 'assets/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
-  <!-- Jquery -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-  <!-- Apex Chart Js -->
-  <script src="{% static 'assets/vendor/apexchart/js/apexcharts.js' %}"></script>
-  <script src="{% static 'assets/vendor/apexchart/js/data.js' %}"></script>
-  <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
-  <!-- Main.js -->
-  <script src="{% static 'assets/js/main.js' %}"></script>
-
-  <!-- Punch In Chart -->
-  <script>
+    <!-- Punch In Chart -->
+    <!-- <script>
     const maxSeconds = 1 * 3600; // 10 hours in seconds (100% progress)
     let totalSeconds = 0; // Tracks the total elapsed time
     let timerInterval = null; // Holds the setInterval reference
@@ -232,50 +367,254 @@
       document.getElementById("punchIn").disabled = false;
       document.getElementById("punchOut").disabled = true;
     }
-  </script>
+  </script> -->
 
-  <!-- Leave Details Chart -->
-  <script>
-    var optionsChartOne = {
-      series: [1254, 32, 658, 14, 68],
-      chart: {
-        type: 'donut',
-      },
-      labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
-      legend: {
-        position: 'bottom', // Moves the legend (labels) below the chart
-        horizontalAlign: 'center', // Centers the legend
-      },
-      responsive: [{
-        breakpoint: 480,
-        options: {
+    <script>
+      // Maximum seconds for a 10-hour day
+      const maxSeconds = 10 * 3600;
+      let totalSeconds = 0;
+      let timerInterval = null;
 
-          legend: {
-            position: 'bottom'
-          }
-        }
-      }]
-    };
-
-    var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
-    chartOne.render();
-  </script>
-
-
-<script>
-  function toggleRemarkBox() {
-      const status = document.getElementById("status").value;
-      const remarkBox = document.getElementById("remarkBox");
-
-      // Show remark box for specific statuses
-      if (status === "ONGOING" || status === "HOLD" || status === "CANCELLED") {
-          remarkBox.style.display = "block";
-      } else {
-          remarkBox.style.display = "none";
+      // Helper to format seconds as hh:mm:ss
+      function formatTime(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return (
+          `${hours.toString().padStart(2, "0")}:` +
+          `${minutes.toString().padStart(2, "0")}:` +
+          `${secs.toString().padStart(2, "0")}`
+        );
       }
-  }
-</script>
 
-</body>
+      // Configure the radial bar chart using ApexCharts
+      const chartOptions = {
+        series: [0],
+        chart: {
+          height: 160,
+          type: "radialBar",
+        },
+        plotOptions: {
+          radialBar: {
+            hollow: {
+              size: "70%",
+            },
+            dataLabels: {
+              name: {
+                show: true,
+                fontSize: "14px",
+                fontWeight: "500",
+              },
+              value: {
+                show: true,
+                formatter: function () {
+                  return formatTime(totalSeconds);
+                },
+                fontSize: "16px",
+                fontWeight: "600",
+              },
+            },
+          },
+        },
+        labels: ["Total Hours"],
+      };
 
+      const chartEl = document.querySelector("#Puncinchart");
+      if (chartEl) {
+        const chart = new ApexCharts(chartEl, chartOptions);
+        chart.render();
+
+        // Function to start the timer from an initial elapsed time
+        function startTimer(initialSeconds) {
+          totalSeconds = initialSeconds;
+          timerInterval = setInterval(() => {
+            if (totalSeconds < maxSeconds) {
+              totalSeconds++;
+              const progress = (totalSeconds / maxSeconds) * 100;
+              chart.updateSeries([progress]);
+            } else {
+              clearInterval(timerInterval);
+            }
+          }, 1000);
+        }
+
+        // Function to stop the timer
+        function stopTimer() {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          // Use ISO 8601 date format from Django using the 'c' format
+          const loginTimeStr = "{{ user_attendance.login_time|date:'c' }}";
+          const logOutTimeStr = "{{ user_attendance.log_out_time|date:'c' }}";
+
+          // Debug: log the date strings to the console
+          console.log("loginTimeStr:", loginTimeStr);
+          console.log("logOutTimeStr:", logOutTimeStr);
+
+          // Check if loginTimeStr is not empty or "None"
+          if (
+            loginTimeStr &&
+            loginTimeStr.trim() !== "" &&
+            loginTimeStr !== "None"
+          ) {
+            const loginTime = new Date(loginTimeStr).getTime();
+
+            if (
+              !logOutTimeStr ||
+              logOutTimeStr.trim() === "" ||
+              logOutTimeStr === "None"
+            ) {
+              // Currently punched in
+              const now = new Date().getTime();
+              const elapsedSeconds = Math.floor((now - loginTime) / 1000);
+              startTimer(elapsedSeconds);
+            } else {
+              // Punched out; calculate total elapsed time
+              const logOutTime = new Date(logOutTimeStr).getTime();
+              totalSeconds = Math.floor((logOutTime - loginTime) / 1000);
+              const progress = (totalSeconds / maxSeconds) * 100;
+              chart.updateSeries([progress]);
+              stopTimer();
+            }
+          } else {
+            console.log("No valid login time provided.");
+            chart.updateSeries([0]);
+          }
+        });
+      } else {
+        console.error("Element with id 'Puncinchart' not found.");
+      }
+    </script>
+
+    <!-- Leave Details Chart -->
+    <script>
+      var optionsChartOne = {
+        series: [1254, 32, 658, 14, 68],
+        chart: {
+          type: "donut",
+        },
+        labels: [
+          "1254 on time",
+          "32 Late Attendance",
+          "658 Work From Home",
+          "14 Absent",
+          "68 Sick Leave",
+        ],
+        legend: {
+          position: "bottom", // Moves the legend (labels) below the chart
+          horizontalAlign: "center", // Centers the legend
+        },
+        responsive: [
+          {
+            breakpoint: 480,
+            options: {
+              legend: {
+                position: "bottom",
+              },
+            },
+          },
+        ],
+      };
+
+      var chartOne = new ApexCharts(
+        document.querySelector("#leaveChart"),
+        optionsChartOne
+      );
+      chartOne.render();
+    </script>
+
+    <script>
+      function toggleRemarkBox() {
+        const status = document.getElementById("status").value;
+        const remarkBox = document.getElementById("remarkBox");
+
+        // Show remark box for specific statuses
+        if (
+          status === "ONGOING" ||
+          status === "HOLD" ||
+          status === "CANCELLED"
+        ) {
+          remarkBox.style.display = "block";
+        } else {
+          remarkBox.style.display = "none";
+        }
+      }
+    </script>
+
+    <!-- JavaScript for Fetching Employee Notifications -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const notificationPopup = document.getElementById(
+          "notification-popup-employee"
+        );
+        const notificationList = document.getElementById(
+          "notification-list-employee"
+        );
+        const markReadBtn = document.getElementById("mark-read-employee");
+        const openNotificationBtn = document.getElementById(
+          "open-notification-popup-employee"
+        );
+        const closePopupBtn = document.querySelector(".close-popup-employee");
+        const notificationCount = document.getElementById(
+          "notification-count-employee"
+        );
+
+        // Function to Fetch Notifications
+        function fetchEmployeeNotifications() {
+          fetch("{% url 'employee-fetch-notifications' %}")
+            .then((response) => response.json())
+            .then((data) => {
+              notificationList.innerHTML = "";
+
+              if (data.notifications.length === 0) {
+                notificationList.innerHTML = "<p>No new notifications</p>";
+              } else {
+                data.notifications.forEach((notification) => {
+                  const item = document.createElement("div");
+                  item.classList.add("notification-item");
+                  item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
+                  notificationList.prepend(item);
+                });
+              }
+
+              // Update Notification Count Badge
+              notificationCount.textContent = data.notifications.length;
+              notificationCount.style.display =
+                data.notifications.length > 0 ? "inline-block" : "none";
+            });
+        }
+
+        // Show Popup When Clicking Notification Menu
+        openNotificationBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          fetchEmployeeNotifications();
+          notificationPopup.style.display = "block";
+        });
+
+        // Close Popup
+        closePopupBtn.addEventListener("click", function () {
+          notificationPopup.style.display = "none";
+        });
+
+        // Mark All Notifications as Read
+        markReadBtn.addEventListener("click", function () {
+          fetch("{% url 'employee-mark-notifications-as-read' %}", {
+            method: "POST",
+            headers: { "X-CSRFToken": "{{ csrf_token }}" },
+          })
+            .then((response) => response.json())
+            .then((data) => {
+              alert(data.message);
+              fetchEmployeeNotifications();
+            });
+        });
+
+        // Auto Fetch Notifications Every 5 Seconds
+        setInterval(fetchEmployeeNotifications, 5000);
+        fetchEmployeeNotifications();
+      });
+    </script>
+  </body>
 </html>

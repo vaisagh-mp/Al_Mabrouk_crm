@@ -71,17 +71,17 @@
             </tbody>
         </table>
 
-        <!-- Pagination -->
-        <div class="pagination" id="pagination">
-            {% for page in requests.paginator.page_range %}
-                <a href="?page={{ page }}{% if search_query %}&search={{ search_query }}{% endif %}" class="{% if requests.number == page %}active{% endif %}">
-                    {{ page }}
-                </a>
-            {% endfor %}
-        </div>
         {% else %}
         <p class="text-center">No Pending Attendance Requests</p>
         {% endif %}
+    </div>
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+        {% for page in requests.paginator.page_range %}
+            <a href="?page={{ page }}{% if search_query %}&search={{ search_query }}{% endif %}" class="{% if requests.number == page %}active{% endif %}">
+                {{ page }}
+            </a>
+        {% endfor %}
     </div>
 </div>
 {% endblock %}

@@ -1,5 +1,5 @@
 from django import forms
-from Admin.models import Team, Employee
+from Admin.models import Team, Employee, Project
 
 class TeamForm(forms.ModelForm):
     class Meta:
@@ -20,4 +20,5 @@ class TeamForm(forms.ModelForm):
         if user and hasattr(user, 'employee_profile') and user.employee_profile.is_manager:
             self.fields['manager'].initial = user.employee_profile
             self.fields['manager'].widget.attrs['readonly'] = True  # Make it non-editable
+            self.fields['project'].queryset = Project.objects.filter(manager=user.employee_profile)
 

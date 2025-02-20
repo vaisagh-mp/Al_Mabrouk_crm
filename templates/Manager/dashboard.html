@@ -69,20 +69,26 @@
 
                   <div id="Puncinchart"></div>
 
-                  <!-- Punch In Time -->
-                    <div class="info punch-in">
-                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
-                        Punch In at <span>{{ last_punch_in }}</span>
-                    </div>
-                    
-                    <!-- Punch Out Time -->
-                    {% if last_punch_out != "Not Punched Out" %}
-                    <div class="info punch-out">
-                        <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
-                        Punch Out at <span>{{ last_punch_out }}</span>
-                    </div>
-                    {% endif %}
-                    
+                  {% if last_punch_out != "Not Punched Out" %}
+                  <!-- Display punch out time if available -->
+                  <div class="info punch-out">
+                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
+                      Punch Out at <span>{{ last_punch_out }}</span>
+                  </div>
+                        {% elif last_punch_in != "Not Punched In" %}
+                            <!-- Otherwise, display punch in time -->
+                            <div class="info punch-in">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
+                                Punch In at <span>{{ last_punch_in }}</span>
+                            </div>
+                        {% else %}
+                            <!-- If no punch in or out recorded, display a message -->
+                            <div class="info">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="No Punch">
+                                Click the button below to punchin.
+                            </div>
+                        {% endif %}
+              
 
                   <a href="{% url 'manager_attendance_dashboard' %}" id="punchButton">
                       {% if last_punch_in == "Not Punched In" %}
@@ -190,13 +196,9 @@
                     </td>
                     <td>{{ work.manager.user.username }}</td>
                     <td>
-                        <span class="priority {% if work.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
-                            {% if work.category == 'ANCHORAGE' %}
-                                High
-                            {% else %}
-                                Medium
-                            {% endif %}
-                        </span>
+                        <span class="priority {{ work.priority | lower }}">
+                            {{ work.priority }}
+                          </span>
                     </td>
                     <td>
                         <span class="status Assign">{{ work.get_status_display }}</span>

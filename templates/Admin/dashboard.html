@@ -122,25 +122,23 @@
                 <div class="progress-bar-anim"></div>
             </div>
         </div>
-        
-               
-  
+
           <div class="prjct-overview-item">
               <div>
                   <p>
-                      <i class="far fa-folder-open" style="background-color: #00e39741; color: #00e396"></i>
+                      <i class="far fa-folder-open" style="background-color: #269ffb; color: #9fd6ff"></i>
                       Total Projects
                   </p>
               </div>
               <div class="prjct-overview-item-right">
-                  <p style="background-color: #00e39741">{{ total_projects }}</p>
+                  <p style="background-color: #8fcbfa">{{ total_projects }}</p>
               </div>
           </div>
   
           <div class="prjct-overview-item">
               <div>
                   <p>
-                      <i class="far fa-folder-open" style="background-color: #ffb64871; color: #ffb748"></i>
+                      <i class="far fa-folder-open" style="background-color: #ffb64871; color: #df8e15"></i>
                       Ongoing Projects
                   </p>
               </div>
@@ -151,24 +149,23 @@
   
           <div class="prjct-overview-item">
               <div>
-                  <p><i class="far fa-folder-open"></i> Projects Completed</p>
+                  <p><i class="far fa-folder-open" style="background-color: #00e39741; color: #00e396"></i> Projects Completed</p>
               </div>
               <div class="prjct-overview-item-right">
-                  <p>{{ completed_projects }}</p>
+                  <p  style="background-color: #00e39741">{{ completed_projects }}</p>
               </div>
           </div>
   
           <div class="prjct-overview-item">
               <div>
-                  <p><i class="far fa-folder-open"></i> Overdue Projects</p>
+                  <p><i class="far fa-folder-open" style="background-color: #f13535; color: #ffb748"></i> Overdue Projects</p>
               </div>
               <div class="prjct-overview-item-right">
-                  <p>{{ overdue_projects }}</p>
+                  <p style="background-color: #f13535">{{ overdue_projects }}</p>
               </div>
           </div>
       </div>
   </div>
-  
 
   <div class="col-lg-4">
     <div class="row admin-invo-row">
@@ -196,9 +193,7 @@
         </div>
     </div>
 </div>
-
-      
-      
+ 
   </div>
   </div>
 
@@ -229,9 +224,9 @@
         <tr>
           <td>
             <a href="{% url 'project-summary' project.id %}">
-                {{ project.name }}
+              {{ project.name }}
             </a>
-        </td>               
+          </td>
           <td>
             <div class="avatars">
               <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
@@ -242,27 +237,15 @@
           </td>
           <td>{{ project.leader_name }}</td>
           <td>
-            <span
-                class="priority {% if project.category == 'ANCHORAGE' %}high{% else %}medium{% endif %}">
-                {% if project.category == 'ANCHORAGE' %}
-                High
-                {% else %}
-                Medium
-                {% endif %}
+            <span class="priority {{ project.priority | lower }}">
+              {{ project.priority }}
             </span>
-        </td>
-          <!-- <td>19</td> -->
-          <!-- <td>10</td> -->
-          <td><span class="status pending">{{ project.status }}</span></td>
-          <!-- <td list-action-col>
-            <a href="#"><i class="far fa-edit"></i></a>
-            <a href="#"><i class="far fa-trash-alt"></i></a>
-          </td> -->
-          
+          </td>
+          <td><span class="status {{ project.status | lower }} | Assign ">{{ project.status }}</span></td>
         </tr>
         {% endfor %}
-        
       </tbody>
+      
     </table>
   </div>
 </div>

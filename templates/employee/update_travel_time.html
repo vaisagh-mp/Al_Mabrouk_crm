@@ -1,0 +1,142 @@
+{% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      margin: 0;
+      padding: 0;
+    }
+  
+    .form-container {
+      max-width: 600px;
+      margin: 50px auto;
+      background: #ffffff;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+  
+    .form-container h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #343a40;
+    }
+  
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: #495057;
+    }
+  
+    select, input, textarea {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #495057;
+      background-color: #f8f9fa;
+    }
+  
+    select:focus, input:focus, textarea:focus {
+      border-color: #80bdff;
+      outline: none;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    }
+  
+    button {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      background-color: var(--secondary-bg);
+      border: none;
+      font-size: 16px;
+      /* font-weight: bold; */
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+  
+    button:hover {
+      background-color: #0056b3;
+    }
+  
+    .form-container .message {
+      text-align: center;
+      font-size: 14px;
+      color: #28a745;
+      margin-bottom: 15px;
+    }
+  
+    .error-message {
+      color: #dc3545;
+      text-align: center;
+      margin-bottom: 15px;
+    }
+  
+    @media (max-width: 768px) {
+      .form-container {
+        padding: 15px;
+      }
+  
+      button {
+        font-size: 14px;
+      }
+    }
+</style>
+  
+
+  <form method="POST" action="{% url 'employee_update_travel_time' attendance.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="employee" value="{{ attendance.employee.id }}">
+    <!-- Employee Field (Read-only) -->
+    <label for="employee">Employee:</label>
+    <input type="text" id="employee" value="{{ attendance.employee.user.username }}" readonly>
+    
+    <!-- Project Field (Read-only) -->
+    <label for="project">Project:</label>
+    <input type="text" id="project" value="{{ attendance.project.name }}" readonly>
+    
+    <!-- Login Time (Editable) -->
+    <label for="login_time">Login Time:</label>
+    <input type="datetime-local" name="login_time" id="login_time" value="{{ attendance.login_time|date:'Y-m-d\\TH:i' }}" readonly>
+    
+    <!-- Logout Time (Editable) -->
+    <label for="log_out_time">Logout Time:</label>
+    <input type="datetime-local" name="log_out_time" id="log_out_time" value="{{ attendance.log_out_time|date:'Y-m-d\\TH:i' }}" readonly>
+    
+    <!-- Travel_in_time (Editable) -->
+    <label for="travel_in_time">Travel in time:</label>
+    <input type="datetime-local" name="travel_in_time" id="travel_in_time" value="{{ attendance.travel_in_time|date:'Y-m-d\\TH:i' }}">
+    
+    <!-- Travel_out_time (Editable) -->
+    <label for="travel_out_time">Travel out time:</label>
+    <input type="datetime-local" name="travel_out_time" id="travel_out_time" value="{{ attendance.travel_out_time|date:'Y-m-d\\TH:i' }}">
+    
+    <!-- Location Field (Read-only) -->
+    <label for="location">Location:</label>
+    <input type="text" id="location" value="{{ attendance.get_location_display }}" readonly>
+    
+    <!-- Attendance Status (Read-only) -->
+    <label for="attendance_status">Attendance Status:</label>
+    <input type="text" id="attendance_status" value="{{ attendance.get_attendance_status_display }}" readonly>
+
+    <!-- Status (Read-only) -->
+    <label for="status">Status:</label>
+    <input type="text" id="status" value="{{ attendance.get_status_display }}" readonly>
+
+    <!-- Rejection Reason (Read-only) -->
+    <label for="rejection_reason">Rejection Reason:</label>
+    <textarea name="rejection_reason" id="rejection_reason" readonly>{{ attendance.rejection_reason }}</textarea>
+
+    <!-- Submit Button -->
+    <button type="submit" style="color: white;">Update Travel Time</button>
+</form>
+
+{% endblock %}

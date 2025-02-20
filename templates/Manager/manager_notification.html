@@ -1,0 +1,134 @@
+<!-- Notification Popup (Initially Hidden) -->
+<div id="notification-popup" class="notification-popup">
+    <div class="popup-header">
+        <h5>Project Notifications</h5>
+        <button class="close-popup">&times;</button>
+    </div>
+    <div class="popup-body" id="notification-list-manager">
+        <p>Loading...</p>
+    </div>
+    <button class="mark-all-read" id="mark-read-manager">Mark All as Read</button>
+</div>
+
+<!-- Styles for Notification Popup -->
+<style>
+    .notification-popup {
+        display: none;
+        position: fixed;
+        top: 20%;
+        left: 50%;
+        transform: translate(-50%, -20%);
+        width: 350px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+        padding: 15px;
+        z-index: 1000;
+    }
+
+    .popup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 5px;
+    }
+
+    .popup-body {
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .notification-item {
+        border-bottom: 1px solid #ddd;
+        padding: 5px;
+    }
+
+    .notification-item:last-child {
+        border-bottom: none;
+    }
+
+    .mark-all-read {
+        width: 100%;
+        padding: 8px;
+        background: blue;
+        color: white;
+        border: none;
+        cursor: pointer;
+        margin-top: 10px;
+    }
+
+    .close-popup {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+    }
+</style>
+
+<!-- JavaScript for Fetching Notifications -->
+<!-- <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const notificationPopup = document.getElementById("notification-popup");
+        const notificationList = document.getElementById("notification-list-manager");
+        const markReadBtn = document.getElementById("mark-read-manager");
+        const openNotificationBtn = document.getElementById("open-notification-popup");
+        const closePopupBtn = document.querySelector(".close-popup");
+        const notificationCount = document.getElementById("notification-count");
+
+        // Function to Fetch Notifications
+        function fetchManagerNotifications() {
+            fetch("{% url 'manager-fetch-notifications' %}")
+                .then(response => response.json())
+                .then(data => {
+                    notificationList.innerHTML = "";
+                    
+                    if (data.notifications.length === 0) {
+                        notificationList.innerHTML = "<p>No new notifications</p>";
+                    } else {
+                        data.notifications.forEach(notification => {
+                            const item = document.createElement("div");
+                            item.classList.add("notification-item");
+                            item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
+                            notificationList.prepend(item);
+                        });
+                    }
+
+                    // Update Notification Count Badge
+                    notificationCount.textContent = data.notifications.length;
+                    notificationCount.style.display = data.notifications.length > 0 ? "inline-block" : "none";
+                });
+        }
+
+        // Show Popup When Clicking Notification Menu
+        openNotificationBtn.addEventListener("click", function (event) {
+            event.preventDefault();
+            fetchManagerNotifications();
+            notificationPopup.style.display = "block";
+        });
+
+        // Close Popup
+        closePopupBtn.addEventListener("click", function () {
+            notificationPopup.style.display = "none";
+        });
+
+        // Mark All Notifications as Read
+        markReadBtn.addEventListener("click", function () {
+            fetch("{% url 'manager-mark-notifications-as-read' %}", {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}" }
+            }).then(response => response.json())
+              .then(data => {
+                  alert(data.message);
+                  fetchManagerNotifications();
+              });
+        });
+
+        // Auto Fetch Notifications Every 5 Seconds
+        setInterval(fetchManagerNotifications, 5000);
+        fetchManagerNotifications();
+    });
+</script> -->
+
+{% endblock %}

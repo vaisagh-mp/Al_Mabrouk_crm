@@ -3,6 +3,129 @@
 
 {% block content %}
 
+<style>
+    /* Modal Background */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5); /* Slightly darken the background */
+}
+
+/* Modal Container */
+.modal-dialog {
+    max-width: 600px; /* Set a max width for the modal */
+    margin: 30px auto; /* Center the modal */
+}
+
+/* Modal Header */
+.modal-header {
+    background-color: #2c3e50; /* Dark background */
+    color: white; /* White text color */
+    border-bottom: 2px solid #ecf0f1; /* Light border under header */
+    padding: 15px 20px; /* Padding inside header */
+}
+
+.modal-header .btn-close {
+    background-color: #e74c3c; /* Red close button */
+    border-radius: 50%; /* Round close button */
+    width: 35px;
+    height: 35px;
+    padding: 5px;
+    opacity: 0.8;
+}
+
+.modal-header .btn-close:hover {
+    opacity: 1;
+}
+
+/* Modal Title */
+.modal-title {
+    font-weight: 600;
+    font-size: 18px;
+}
+
+/* Modal Body */
+.modal-body {
+    background-color: #ecf0f1; /* Light background for content */
+    padding: 25px;
+    border-radius: 8px;
+}
+
+/* Form Label */
+.modal-body .form-group label {
+    font-size: 14px;
+    color: #34495e; /* Dark text */
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+/* File Input */
+.modal-body .form-group input[type="file"] {
+    border: 1px solid #bdc3c7; /* Border color */
+    padding: 12px;
+    border-radius: 5px; /* Rounded corners */
+    width: 100%;
+    background-color: #fff;
+    color: #34495e; /* Text color */
+    font-size: 14px;
+}
+
+.modal-body .form-group input[type="file"]:hover {
+    border-color: #2980b9; /* Blue border on hover */
+}
+
+/* Submit Button */
+.submit-btn {
+    background-color: #2980b9; /* Blue background */
+    color: white; /* White text */
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.3s ease;
+}
+
+.submit-btn:hover {
+    background-color: #1f6f91; /* Darker blue on hover */
+}
+
+/* Modal Footer */
+.modal-footer {
+    background-color: #ecf0f1;
+    padding: 10px 20px;
+    border-top: 2px solid #bdc3c7; /* Light border on top */
+}
+
+/* Close Button in Footer */
+.modal-footer .btn-close {
+    background-color: #bdc3c7; /* Light close button */
+    color: white;
+    padding: 8px 20px;
+    border-radius: 5px;
+    opacity: 0.8;
+}
+
+.modal-footer .btn-close:hover {
+    background-color: #95a5a6; /* Slightly darker close button on hover */
+}
+
+/* Button for triggering the modal */
+.apply-btn {
+    background-color: #2980b9;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.apply-btn:hover {
+    background-color: #1f6f91;
+}
+
+</style>
+
 <div class="emply-list-wraper">
     <div class="pg-title">
         <h1>Leave Statuses</h1>
@@ -26,6 +149,7 @@
                     <th>No. of Days</th>
                     <th>Status</th>
                     <th>Reason</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,6 +169,53 @@
                         </span>
                     </td>
                     <td>{{ leave.reason }}</td>
+                    <!-- <td>
+                        {% if leave.medical_certificate %}
+                            <a href="{{ leave.medical_certificate.url }}" target="_blank" class="apply-btn" style="color: azure; height: auto;">
+                                Download Medical Certificate
+                            </a>
+                        {% else %}
+                            No Certificate
+                        {% endif %}
+                    </td> -->
+                    <td>
+                        <!-- Trigger Modal -->
+                        <button class="apply-btn" style="color: azure;" data-bs-toggle="modal" data-bs-target="#uploadModal{{ leave.id }}">
+                            Upload Certificate
+                        </button>
+
+                    </td>
+
+                    <!-- Modal for Uploading Medical Certificate -->
+                    {% for leave in leaves %}
+                    <div class="modal fade" id="uploadModal{{ leave.id }}" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="uploadModalLabel">Upload Medical Certificate for {{ leave.user.username }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form method="POST" enctype="multipart/form-data" action="{% url 'manager_upload_medical_certificate' leave.id %}">
+                                        {% csrf_token %}
+                                        <div class="form-group">
+                                            <label for="medical_certificate">Medical Certificate</label>
+                                            <input type="file" class="form-control" id="medical_certificate" name="medical_certificate" {% if leave.medical_certificate %} disabled {% endif %} required>
+                                        </div>
+                                        <div class="form-actions">
+                                            {% if leave.medical_certificate %}
+                                                <button type="button" class="btn btn-success" disabled>Uploaded</button>
+                                            {% else %}
+                                                <button type="submit" class="submit-btn">Upload</button>
+                                            {% endif %}
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+
                 </tr>
                 {% empty %}
                 <tr>
@@ -52,28 +223,26 @@
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
-
-        <div class="pagination" id="pagination">
-            {% if leaves.has_previous %}
-                <a href="?page={{ leaves.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
-        
-            {% for num in leaves.paginator.page_range %}
-                <a href="?page={{ num }}">
-                    <button class="{% if num == leaves.number %}active{% endif %}">{{ num }}</button>
-                </a>
-            {% endfor %}
-        
-            {% if leaves.has_next %}
-                <a href="?page={{ leaves.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
-        
+        </table> 
+    </div>
+    <div class="pagination" id="pagination">
+        {% if leaves.has_previous %}
+            <a href="?page={{ leaves.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+    
+        {% for num in leaves.paginator.page_range %}
+            <a href="?page={{ num }}">
+                <button class="{% if num == leaves.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endfor %}
+    
+        {% if leaves.has_next %}
+            <a href="?page={{ leaves.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
     </div>
 </div>
 

@@ -12,7 +12,7 @@
     <!-- Fontawesome -->
     <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
     <!-- Apex Chart css -->
-    <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
+    <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
 </head>
@@ -20,6 +20,19 @@
 <body>
     <!-- Header -->
     <header>
+      <div class="hdr-notification">
+        <a href="{% url 'admin-notifications' %}">
+            <button type="button" class="btn btn-primary position-relative">
+                <i class="fas fa-bell"></i>
+                <span id="admin-notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    0
+                    <span class="visually-hidden">unread messages</span>
+                </span>
+            </button>
+        </a>
+    </div>
+    
+
         <div class="hdr-user">
           <div class="dropdown">
             <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1"
@@ -40,7 +53,7 @@
               </button>
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
               <li><a class="dropdown-item" href="#">Profile</a></li>
-              <li><a class="dropdown-item" href="#">Task</a></li>
+              <li><a class="dropdown-item" href="{% url 'project-list' %}">Task</a></li>
               <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
             </ul>
           </div>
@@ -125,7 +138,7 @@
                   <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-users"></i>
-                      <span>Employee</span>
+                      <span>Employees</span>
                     </a>
                     <div class="sidebar-submenu">
                       <ul>
@@ -147,7 +160,7 @@
                       </ul>
                     </div>
                   </li>
-                  <li class="sidebar-dropdown">
+                  <!-- <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-users"></i>
                       <span>Manager</span>
@@ -171,7 +184,7 @@
                         </li>
                       </ul>
                     </div>
-                  </li>
+                  </li> -->
                   <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-tasks"></i>
@@ -213,6 +226,13 @@
                       </ul>
                     </div>
                   </li>
+                  <li>
+                    <a href="{% url 'admin-notifications' %}">
+                        <i class="fas fa-bell"></i>
+                        <span>Notifications</span>
+                        <span id="admin-notification-count" class="badge rounded-pill bg-danger" style="display: none;">0</span>
+                    </a>
+                </li>
                   
                 </ul>
               </div>
@@ -560,6 +580,31 @@
           var chart2 = new ApexCharts(document.querySelector("#pending-invo"), options2);
           chart2.render();
         </script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+      const adminNotificationCount = document.getElementById("admin-notification-count");
+
+      // Function to Fetch Unread Notification Count
+      function fetchAdminNotificationCount() {
+          fetch("{% url 'fetch-notifications' %}")
+              .then(response => response.json())
+              .then(data => {
+                  if (data.unread_count === 0) {
+                      adminNotificationCount.style.display = "none";  // Hide badge if no unread notifications
+                  } else {
+                      adminNotificationCount.textContent = data.unread_count;  // Update count
+                      adminNotificationCount.style.display = "inline-block";  // Show badge
+                  }
+              });
+      }
+
+      // Auto Fetch Unread Count Every 10 Seconds
+      setInterval(fetchAdminNotificationCount, 10000);
+      fetchAdminNotificationCount();
+  });
+</script>
+
 </body>
 
 </html>
