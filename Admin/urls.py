@@ -9,6 +9,7 @@ urlpatterns = [
     path('employee/create/', create_employee, name='create-employee'),
     # path('employee/edit/<int:employee_id>/', edit_employee, name='edit-employee'),
     # path('employee/delete/<int:employee_id>/', delete_employee, name='delete-employee'),
+    # path('user/edit/<int:user_id>/', admin_edit_user, name='admin_edit_user'),
     path('employee/<int:employee_id>/', employee_profile, name='employee_profile'),
     path('manager/<int:manager_id>/', manager_profile, name='manager_profile'),
     path('employee/edit/<int:employee_id>/', admin_edit_employee, name='admin_edit_employee'),

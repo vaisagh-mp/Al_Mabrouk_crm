@@ -628,39 +628,67 @@ def employee_profile(request, employee_id):
 
     return render(request, 'Admin/employee_profile.html', context)
 
-@login_required
 def is_admin(user):
+    """Check if user is an admin"""
     return user.is_superuser
 
 @login_required
 @user_passes_test(is_admin)
 def admin_edit_employee(request, employee_id):
-    """Admin can edit employee details"""
-    employee = get_object_or_404(Employee, id=employee_id)
+    """Admin can edit an employee's profile"""
+    
+    # Ensure we are fetching an Employee instance, NOT a User
+    try:
+        employee = Employee.objects.select_related("user").get(id=employee_id)
+    except Employee.DoesNotExist:
+        messages.error(request, "Employee not found.")
+        return redirect("employee_list")
+
+    # Ensure employee has a related user
+    if not employee.user:
+        messages.error(request, "This employee does not have a linked user account.")
+        return redirect("employee_list")
+
+    user = employee.user  # Safely access related User instance
 
     if request.method == "POST":
         form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
         if form.is_valid():
-            user = employee.user
+            # Update User fields
             user.first_name = form.cleaned_data["first_name"]
             user.last_name = form.cleaned_data["last_name"]
             user.email = form.cleaned_data["email"]
 
-            # Save new password if provided
-            if form.cleaned_data["password"]:
+            if form.cleaned_data.get("password"):
                 user.set_password(form.cleaned_data["password"])
 
             user.save()
-            form.save()
+
+            # Update Employee fields
+            employee.phone_number = form.cleaned_data["phone_number"]
+            employee.rank = form.cleaned_data["rank"]
+            employee.salary = form.cleaned_data["salary"]
+            employee.date_of_birth = form.cleaned_data["date_of_birth"]
+            employee.date_of_join = form.cleaned_data["date_of_join"]
+            employee.work_days = form.cleaned_data["work_days"]
+            employee.holidays = form.cleaned_data["holidays"]
+            employee.overseas_days = form.cleaned_data["overseas_days"]
+            employee.address = form.cleaned_data["address"]
+
+            # Handle profile picture upload
+            if "profile_picture" in request.FILES:
+                employee.profile_picture = request.FILES["profile_picture"]
+
+            employee.save()
 
             messages.success(request, "Employee profile updated successfully.")
-            return redirect("employee_list")  # Redirect to employee list page
+            return redirect("employee_list")
 
     else:
         form = ManagerEmployeeUpdateForm(instance=employee, initial={
-            "first_name": employee.user.first_name,
-            "last_name": employee.user.last_name,
-            "email": employee.user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
             "phone_number": employee.phone_number,
             "rank": employee.rank,
             "salary": employee.salary,
@@ -813,7 +841,6 @@ def employee_leave_list(request):
     }
 
     return render(request, 'Admin/employee_leave_list.html', context)
-
 
 @login_required
 def manager_leave_list(request):
