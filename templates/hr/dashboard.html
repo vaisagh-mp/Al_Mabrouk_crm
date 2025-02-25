@@ -187,12 +187,12 @@
                     {% if attendance.attendance_status %}
                     {% if attendance.status == 'APPROVED' %}
                         <span class="status 
-                            {% if record.attendance_status == 'PRESENT' %}present
-                            {% elif record.attendance_status == 'LEAVE' %}leave
-                            {% elif record.attendance_status == 'WORK FROM HOME' %}work-from-home
-                            {% elif record.attendance_status == 'SICK LEAVE' %}sick-leave
-                            {% elif record.attendance_status == 'ANNUAL LEAVE' %}annual-leave
-                            {% elif record.attendance_status == 'CASUAL LEAVE' %}casual-leave
+                            {% if attendance.attendance_status == 'PRESENT' %}present
+                            {% elif attendance.attendance_status == 'LEAVE' %}leave
+                            {% elif attendance.attendance_status == 'WORK FROM HOME' %}work-from-home
+                            {% elif attendance.attendance_status == 'SICK LEAVE' %}sick-leave
+                            {% elif attendance.attendance_status == 'ANNUAL LEAVE' %}annual-leave
+                            {% elif attendance.attendance_status == 'CASUAL LEAVE' %}casual-leave
                             {% endif %}
                         ">
                             {{ attendance.get_attendance_status_display }}
