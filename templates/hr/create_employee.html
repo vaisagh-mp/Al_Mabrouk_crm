@@ -2,196 +2,172 @@
 {% load static %}
 {% block content %}
 
-<div class="add-emply-wraper">
+<div class="emply-list-wraper">
 
-  <div class="container mt-3">
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
+  {% if messages %}
+      <div class="alert alert-success">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </div>
     {% endif %}
-</div>
-
+    
   <div class="pg-title">
-    <h1>Add Employee</h1>
+    <h1>Add New Employee</h1>
   </div>
 
-  <div class="widget-box add-emply-pg">
-    <div class="create-emply-frm add-frm">
+  <div class="widget-box table-wdgt">
+    <div class="add-project-wrapper">
       <!-- Note: enctype="multipart/form-data" is required for file uploads -->
-      <form method="post" enctype="multipart/form-data" action="{% url 'create-employee' %}">
+      <form method="post" enctype="multipart/form-data" action="{% url 'hr_create_employee' %}">
         {% csrf_token %}
-        <div class="row">
-          <!-- Username -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.username }}
-                <label>Username</label>
-                <div class="ripple-effect"></div>
+
+        <!-- Username -->
+        <div class="mb-3">
+          <label for="id_username" class="form-label">Username*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_username"
+            name="username"
+            required
+            placeholder="Enter username"
+            value="{{ form.username.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- First Name -->
+        <div class="mb-3">
+          <label for="id_first_name" class="form-label">First Name*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_first_name"
+            name="first_name"
+            required
+            placeholder="Enter first name"
+            value="{{ form.first_name.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Last Name -->
+        <div class="mb-3">
+          <label for="id_last_name" class="form-label">Last Name*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_last_name"
+            name="last_name"
+            required
+            placeholder="Enter last name"
+            value="{{ form.last_name.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Email -->
+        <div class="mb-3">
+          <label for="id_email" class="form-label">Email*</label>
+          <input
+            type="email"
+            class="form-control"
+            id="id_email"
+            name="email"
+            required
+            placeholder="Enter email"
+            value="{{ form.email.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Role Selection (Radio Buttons) -->
+        <div class="mb-3">
+          <label class="form-label">Select Role:*</label>
+          <div>
+            {% for choice in form.fields.role.choices %}
+              <div class="form-check form-check-inline">
+                <input
+                  type="radio"
+                  class="form-check-input"
+                  id="role_{{ choice.0 }}"
+                  name="role"
+                  value="{{ choice.0 }}"
+                  {% if form.role.value == choice.0 %}checked{% endif %}
+                />
+                <label class="form-check-label" for="role_{{ choice.0 }}">{{ choice.1 }}</label>
               </div>
-            </div>
+            {% endfor %}
           </div>
-          <!-- First Name -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.first_name }}
-                <label>First Name</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Last Name -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.last_name }}
-                <label>Last Name</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Rank -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.rank}}
-                <label>Rank</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Salary -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.salary }}
-                <label>Salary</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-           <!-- Is Employee Checkbox -->
-           <div class="col-lg-6">
-            <div class="input-wrapper">
-              <div class="add-frm-check">
-                {{ form.is_employee }}
-                <label for="id_is_employee">Is Employee</label>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Is Manager Checkbox -->
-          <div class="col-lg-6">
-            <div class="input-wrapper">
-              <div class="add-frm-check">
-                {{ form.is_manager }}
-                <label for="id_is_manager">Is Manager</label>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="input-wrapper">
-              <div class="add-frm-check">
-                {{ form.is_administration }}
-                <label for="id_is_administration">Is Administration</label>
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-6">
-            <div class="input-wrapper">
-              <div class="add-frm-check">
-                {{ form.is_hr }}
-                <label for="id_is_hr">Is Hr</label>
-              </div>
-            </div>
-          </div>
-          <!-- Email -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.email }}
-                <label>Email</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Password -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.password }}
-                <label>Password</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Confirm Password -->
-          <div class="col-lg-12">
-            <div class="input-wrapper">
-              <div class="ripple-input">
-                {{ form.password2 }}
-                <label>Confirm Password</label>
-                <div class="ripple-effect"></div>
-              </div>
-            </div>
-          </div>
-          <!-- Submit Button -->
-          <div class="col-lg-12">
-            <div class="create-btn">
-              <button class="prmry-btn" type="submit">Add</button>
-            </div>
-          </div>
+        </div>
+
+        <!-- Rank -->
+        <div class="mb-3">
+          <label for="id_rank" class="form-label">Rank*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_rank"
+            name="rank"
+            placeholder="Enter rank"
+            value="{{ form.rank.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Salary -->
+        <div class="mb-3">
+          <label for="id_salary" class="form-label">Salary*</label>
+          <input
+            type="number"
+            class="form-control"
+            id="id_salary"
+            name="salary"
+            placeholder="Enter salary"
+            value="{{ form.salary.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Password -->
+        <div class="mb-3">
+          <label for="id_password" class="form-label">Password*</label>
+          <input
+            type="password"
+            class="form-control"
+            id="id_password"
+            name="password"
+            required
+            placeholder="Enter password"
+          />
+        </div>
+
+        <!-- Confirm Password -->
+        <div class="mb-3">
+          <label for="id_password2" class="form-label">Confirm Password*</label>
+          <input
+            type="password"
+            class="form-control"
+            id="id_password2"
+            name="password2"
+            required
+            placeholder="Confirm password"
+          />
+        </div>
+
+        <!-- Submit Button -->
+        <div class="create-btn mt-4">
+          <button class="prmry-btn" type="submit">Add</button>
         </div>
       </form>
     </div>
   </div>
 </div>
 
-<script>
-  document.addEventListener("DOMContentLoaded", function() {
-      // Get the checkbox elements by their IDs
-      var isEmployeeCheckbox = document.getElementById("id_is_employee");
-      var isManagerCheckbox = document.getElementById("id_is_manager");
-      var isAdminCheckbox = document.getElementById("id_is_administration");
-      var isHrCheckbox = document.getElementById("id_is_hr");
-  
-      // Check that both elements exist before adding event listeners
-      if (isEmployeeCheckbox && isManagerCheckbox) {
-          isEmployeeCheckbox.addEventListener("change", function() {
-              if (isEmployeeCheckbox.checked) {
-                  isManagerCheckbox.checked = false;
-                  isHrCheckbox.checked = false;
-                  isAdminCheckbox.checked = false;
-              }
-          });
-  
-          isManagerCheckbox.addEventListener("change", function() {
-              if (isManagerCheckbox.checked) {
-                  isEmployeeCheckbox.checked = false;
-                  isHrCheckbox.checked = false;
-                  isAdminCheckbox.checked = false;
-              }
-          });
-          isAdminCheckbox.addEventListener("change", function() {
-              if (isAdminCheckbox.checked) {
-                  isEmployeeCheckbox.checked = false;
-                  isManagerCheckbox.checked = false;
-                  isHrCheckbox.checked = false;
-              }
-          });
-          isHrCheckbox.addEventListener("change", function() {
-              if (isHrCheckbox.checked) {
-                  isEmployeeCheckbox.checked = false;
-                  isManagerCheckbox.checked = false;
-                  isAdminCheckbox.checked = false;
-              }
-          });
-      }
-  });
-  </script>
+{% if form.errors %}
+  <div class="alert alert-danger">
+    <ul>
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+          <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
 {% endblock %}

@@ -18,7 +18,7 @@ def custom_login(request):
             elif employee.is_administration:
                 return redirect('admstrn-dashboard')
             elif employee.is_hr:
-                return redirect('hr_create_employee')  # Adjust if HR has a separate dashboard
+                return redirect('hr-dashboard')  # Adjust if HR has a separate dashboard
             else:
                 return redirect('employee_dashboard')  
         except ObjectDoesNotExist:
@@ -35,7 +35,7 @@ def custom_login(request):
             if user is not None:
                 login(request, user)
 
-                # ✅ Handle superuser separately
+                #Handle superuser separately
                 if user.is_superuser:
                     return redirect('admin-dashboard')
 
@@ -47,7 +47,7 @@ def custom_login(request):
                     elif employee.is_administration:
                         return redirect('admstrn-dashboard')
                     elif employee.is_hr:
-                        return redirect('hr_create_employee')  # Adjust as needed
+                        return redirect('hr-dashboard')  # Adjust as needed
                     else:
                         return redirect('employee_dashboard')
                 except ObjectDoesNotExist:
