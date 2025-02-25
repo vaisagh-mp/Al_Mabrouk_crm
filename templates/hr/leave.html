@@ -47,6 +47,10 @@
             <div class="form-group">
                 <label for="{{ form.medical_certificate.id_for_label }}">Medical Certificate</label>
                 {{ form.medical_certificate }}  <!-- This will render the file input field -->
+                <p style="font-style: italic; color: #838282;font-size: 10px;">
+                    <strong>Note:</strong> Medical Certificate is required if applying for <b>Sick Leave</b>. 
+                    Please upload it within <b>2 days</b>.
+                </p>
             </div>
 
             <div class="form-group">
