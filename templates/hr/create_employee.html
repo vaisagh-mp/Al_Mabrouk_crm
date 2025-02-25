@@ -1,0 +1,197 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="add-emply-wraper">
+
+  <div class="container mt-3">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+</div>
+
+  <div class="pg-title">
+    <h1>Add Employee</h1>
+  </div>
+
+  <div class="widget-box add-emply-pg">
+    <div class="create-emply-frm add-frm">
+      <!-- Note: enctype="multipart/form-data" is required for file uploads -->
+      <form method="post" enctype="multipart/form-data" action="{% url 'create-employee' %}">
+        {% csrf_token %}
+        <div class="row">
+          <!-- Username -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.username }}
+                <label>Username</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- First Name -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.first_name }}
+                <label>First Name</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Last Name -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.last_name }}
+                <label>Last Name</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Rank -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.rank}}
+                <label>Rank</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Salary -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.salary }}
+                <label>Salary</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+           <!-- Is Employee Checkbox -->
+           <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_employee }}
+                <label for="id_is_employee">Is Employee</label>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Is Manager Checkbox -->
+          <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_manager }}
+                <label for="id_is_manager">Is Manager</label>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_administration }}
+                <label for="id_is_administration">Is Administration</label>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="input-wrapper">
+              <div class="add-frm-check">
+                {{ form.is_hr }}
+                <label for="id_is_hr">Is Hr</label>
+              </div>
+            </div>
+          </div>
+          <!-- Email -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.email }}
+                <label>Email</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Password -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.password }}
+                <label>Password</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Confirm Password -->
+          <div class="col-lg-12">
+            <div class="input-wrapper">
+              <div class="ripple-input">
+                {{ form.password2 }}
+                <label>Confirm Password</label>
+                <div class="ripple-effect"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Submit Button -->
+          <div class="col-lg-12">
+            <div class="create-btn">
+              <button class="prmry-btn" type="submit">Add</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      // Get the checkbox elements by their IDs
+      var isEmployeeCheckbox = document.getElementById("id_is_employee");
+      var isManagerCheckbox = document.getElementById("id_is_manager");
+      var isAdminCheckbox = document.getElementById("id_is_administration");
+      var isHrCheckbox = document.getElementById("id_is_hr");
+  
+      // Check that both elements exist before adding event listeners
+      if (isEmployeeCheckbox && isManagerCheckbox) {
+          isEmployeeCheckbox.addEventListener("change", function() {
+              if (isEmployeeCheckbox.checked) {
+                  isManagerCheckbox.checked = false;
+                  isHrCheckbox.checked = false;
+                  isAdminCheckbox.checked = false;
+              }
+          });
+  
+          isManagerCheckbox.addEventListener("change", function() {
+              if (isManagerCheckbox.checked) {
+                  isEmployeeCheckbox.checked = false;
+                  isHrCheckbox.checked = false;
+                  isAdminCheckbox.checked = false;
+              }
+          });
+          isAdminCheckbox.addEventListener("change", function() {
+              if (isAdminCheckbox.checked) {
+                  isEmployeeCheckbox.checked = false;
+                  isManagerCheckbox.checked = false;
+                  isHrCheckbox.checked = false;
+              }
+          });
+          isHrCheckbox.addEventListener("change", function() {
+              if (isHrCheckbox.checked) {
+                  isEmployeeCheckbox.checked = false;
+                  isManagerCheckbox.checked = false;
+                  isAdminCheckbox.checked = false;
+              }
+          });
+      }
+  });
+  </script>
+{% endblock %}

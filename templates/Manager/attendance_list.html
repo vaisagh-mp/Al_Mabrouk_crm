@@ -4,17 +4,21 @@
 {% block content %}
 
 <div class="emply-list-wraper">
+
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+    
     <div class="pg-title">
         <h1>Attendance</h1>
     </div>
-
-    {% if messages %}
-    <ul class="messages">
-        {% for message in messages %}
-        <li class="{{ message.tags }}">{{ message }}</li>
-        {% endfor %}
-    </ul>
-    {% endif %}
 
     <!-- Attendance Table with Search and Action Controls -->
     <div class="widget-box table-wdgt">

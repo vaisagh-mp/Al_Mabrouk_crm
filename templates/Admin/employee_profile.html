@@ -16,7 +16,7 @@
             {% if employee.profile_picture %}
             <img src="{{ employee.profile_picture.url }}" alt="Employee Profile Pic">
             {% else %}
-            <img src="https://via.placeholder.com/150" alt="Default Profile Pic">
+            <img src="{% static 'assets/images/user-pro.webp' %}" alt="Default Profile Pic">
             {% endif %}
           </div>
           <h5>{{ employee.user.first_name }} {{ employee.user.last_name }}</h5>
@@ -41,10 +41,10 @@
           </div>
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
-              <i class="fas fa-rupee-sign"></i>
+              <i class="fas fa-money-bill-alt"></i>
               Salary
             </span>
-            <p class="text-dark">{{ employee.salary }} ₹</p>
+            <p class="text-dark">{{ employee.salary }} AED</p>
           </div>
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">

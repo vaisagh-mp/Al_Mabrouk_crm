@@ -1,0 +1,217 @@
+{% extends 'hr/hrbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="emply-profile-wraper">
+  <div class="pg-title">
+    <h1>Employee Details</h1>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="emp-info-wrapper">
+        <div class="emp-info-hdr">
+          <div class="emp-prfl-img">
+            {% if employee.profile_picture %}
+            <img src="{{ employee.profile_picture.url }}" alt="Employee Profile Pic">
+            {% else %}
+            <img src="https://via.placeholder.com/150" alt="Default Profile Pic">
+            {% endif %}
+          </div>
+          <h5>{{ employee.user.first_name }} {{ employee.user.last_name }}</h5>
+          <span>{{ employee.rank }}</span>
+          <!-- <span style="color: #3b7080">{{ employee.experience_years }} years of Experience</span> -->
+        </div>
+
+        <div class="emp-details">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-id-card"></i>
+              EMB ID
+            </span>
+            <p class="text-dark">ALM-0{{ employee.pk }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-calendar-check"></i>
+              Date Of Join
+            </span>
+            <p class="text-dark">{{ employee.date_of_join|date:"d-m-Y" }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-rupee-sign"></i>
+              Salary
+            </span>
+            <p class="text-dark">{{ employee.salary }} ₹</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-globe"></i>
+              Overseas Days
+            </span>
+            <p class="text-dark">{{ employee.overseas_days }}</p>
+          </div>
+        </div>
+        <hr />
+
+        <div class="p-3 emp-basic-info border-bottom">
+          <h6>Basic Information</h6>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-mobile-alt"></i>
+              Phone
+            </span>
+            <p class="text-dark">{{ employee.phone_number }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-envelope"></i>
+              Email
+            </span>
+            <a href="maito:{{ employee.user.email }}" style="
+                color: #3b7080 !important;
+                font-size: 14px;
+                text-decoration: none;
+              " class="text-info d-inline-flex align-items-center">{{ employee.user.email }}<i
+                class="ti ti-copy text-dark ms-2"></i></a>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-birthday-cake"></i>
+              Birthday
+            </span>
+            <p class="text-dark">{{ employee.date_of_birth }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-map-marker-alt"></i>
+              Address
+            </span>
+            <p class="text-dark text-end">{{ employee.address }}</p>
+          </div>
+          <!-- <a href="{% url 'admin_edit_employee' employee.id %}" class="btn btn-dark w-100 mt-3"><i class="fas fa-edit"></i> Edit Info</a> -->
+          <div class="row gx-2 mt-3">
+            <div class="col-6">
+                <div>
+                  <!-- Button to trigger modal -->
+                  <a
+                    href="{% url 'hr_edit_employee' employee.id %}"
+                    class="btn btn-dark w-100"
+                    
+                    ><i class="fas fa-edit" style="color: #fff;"></i> Edit Info</a
+                  >
+                </div>
+
+              </div>
+              <div class="col-6">
+                <div>
+                    <form action="{% url 'admin_delete_employee' employee.id %}" method="POST" 
+        onsubmit="return confirmDelete();">
+        {% csrf_token %}
+                  
+                  <button type="submit"  class="btn btn-primary w-100">
+                    <i class="fas fa-trash-alt" style="color: #fff;"></i> Delete
+                  </button>
+                </form>
+                </div>
+              </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="emp-status-col">
+        <div class="row mb-4">
+          <div class="col-lg-4">
+            <div class="status-wdgt">
+              
+              <h5>Attendance</h5>
+              {% if employee.is_manager %}
+              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              {% else %}
+              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="status-wdgt">
+              <h5>Projects Completed</h5>
+              {% if employee.is_manager %}
+              <h6 style="color: #65a986">{{ manager_completed_projects }}</h6>
+              {% else %}
+              <h6 style="color: #65a986">{{ completed_projects }}</h6>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="status-wdgt">
+              <h5>Projects Pending</h5>
+              {% if employee.is_manager %}
+              <h6 style="color: #4f8bb7">{{ manager_pending_projects }}</h6>
+              {% else %}
+              <h6 style="color: #4f8bb7">{{ pending_projects }}</h6>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="widget-box table-wdgt">
+          <h3>Projects</h3>
+          <table id="employee-prjct-table">
+              <thead>
+                  <tr>
+                      <th>Project</th>
+                      <th>Project Code</th>
+                      <th>Status</th>
+                  </tr>
+              </thead>
+              <tbody>
+                  {% if employee.is_manager %}
+                      <!-- Show Manager's Projects -->
+                      {% for project in manager_projects %}
+                      <tr>
+                          <td><a href="#">{{ project.name }}</a></td>
+                          <td>{{ project.code }}</td>
+                          <td><span class="status {{ project.status | lower}} | Assign">{{ project.status }}</span></td>
+                      </tr>
+                      {% empty %}
+                      <tr>
+                          <td colspan="3">No projects managed by this manager.</td>
+                      </tr>
+                      {% endfor %}
+                  {% else %}
+                      <!-- Show Employee's Assigned Projects -->
+                      {% for project_data in all_projects %}
+                      <tr>
+                          <td><a href="#">{{ project_data.project.name }}</a></td>
+                          <td>{{ project_data.project.code }}</td>
+                          <td>
+                              <span class="status {{ project_data.status|lower }} | Assign">{{ project_data.status }}</span>
+                          </td>
+                      </tr>
+                      {% empty %}
+                      <tr>
+                          <td colspan="3">No projects assigned to this employee.</td>
+                      </tr>
+                      {% endfor %}
+                  {% endif %}
+              </tbody>
+          </table>
+      </div>
+      
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+    function confirmDelete() {
+      return confirm("Are you sure you want to delete this employee?");
+    }
+  </script>
+{% endblock %}

@@ -267,7 +267,7 @@ def team_list(request):
     if search_query:
         teams = Team.objects.filter(name__icontains=search_query)
     else:
-        teams = Team.objects.all()
+        teams = Team.objects.all().order_by('-project__created_at')
 
     # Pagination (10 teams per page)
     paginator = Paginator(teams, 10)
@@ -778,7 +778,7 @@ def project_list_view(request):
 
     # Filter projects only if the user is a manager
     if employee.is_manager:
-        projects = Project.objects.filter(manager=employee)
+        projects = Project.objects.filter(manager=employee).order_by('-created_at')
 
         # Apply search filter
         if search_query:

@@ -3,6 +3,15 @@
 {% block content %}
 
 <div class="emply-list-wraper">
+
+    {% if messages %}
+      <div class="alert alert-success">
+        {% for message in messages %}
+          <p>{{ message }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+    
     <div class="pg-title">
         <h1>Employee</h1>
     </div>
@@ -74,8 +83,8 @@
                         {% endif %}
                     </td>                    
                     <td class="list-action-col">
-                        <a href="#"><i class="far fa-edit"></i></a>
-                        <a href="#"><i class="far fa-trash-alt"></i></a>
+                        <a href="{% url 'admin_edit_employee' employee.id %}"><i class="far fa-edit"></i></a>
+                        <a href="{% url 'admin_delete_employee' employee.id %}"><i class="far fa-trash-alt"></i></a>
                     </td>
                 </tr>
                 {% empty %}

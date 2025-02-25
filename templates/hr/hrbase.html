@@ -1,0 +1,611 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Almabrouk CRM</title>
+    <!-- Bootstrap -->
+    <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
+    <!-- Fontawesome -->
+    <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
+    <!-- Apex Chart css -->
+    <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
+    <!-- Style.css -->
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+</head>
+
+<body>
+    <!-- Header -->
+    <header>
+      <div class="hdr-notification">
+        <a href="#" id="open-notification-popup">
+            <button type="button" class="btn btn-primary position-relative">
+                <i class="fas fa-bell"></i>
+                <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                    0
+                    <span class="visually-hidden">unread messages</span>
+                </span>
+            </button>
+        </a>
+    </div>
+    
+
+        <div class="hdr-user">
+          <div class="dropdown">
+            <button class="btndropdown-toggle" type="button" id="dropdownMenuButton1"
+                  data-bs-toggle="dropdown" aria-expanded="false">
+                  
+                  {% if request.user.employee_profile.profile_picture %}
+                      <!-- Show Profile Picture if available -->
+                      <img src="{{ request.user.employee_profile.profile_picture.url }}" 
+                           alt="Profile Picture" 
+                           class="rounded-circle" 
+                           style="width: 30px; height: 30px; object-fit: cover;">
+                  {% else %}
+                      <!-- Show Default User Icon if no profile picture -->
+                      <i class="fas fa-user"></i>
+                  {% endif %}
+                  
+                  <span>{{ request.user.username }}</span>
+              </button>
+            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+              <li><a class="dropdown-item" href="#">Profile</a></li>
+              <li><a class="dropdown-item" href="{% url 'project-list' %}">Task</a></li>
+              <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
+            </ul>
+          </div>
+
+          <!-- Notification Popup -->
+          <div id="notification-popup" class="notification-popup">
+            <div class="popup-header">
+                <h5>Project Notifications</h5>
+                <button class="close-popup">&times;</button>
+            </div>
+
+            <div class="popup-body">
+                <div id="notification-list-manager">
+                    <p>Loading...</p>
+                </div>
+            </div>
+          
+            <!-- Button should be outside the list -->
+            <button class="mark-all-read" id="mark-read-manager">Mark All as Read</button>
+          </div>
+
+        </div>
+      </header>
+    <!-- End Header -->
+
+    <div class="page-wrapper chiller-theme toggled"  id="content">
+        <!-- Side Bar -->
+        <nav id="sidebar"  class="sidebar-wrapper sidebar">
+            <a id="show-sidebar"   onclick="toggleSidebar()" class="btn btn-sm btn-dark" href="#">
+              <i class="fas fa-bars"></i>
+            </a>
+            <div class="sidebar-content">
+              <div class="sidebar-brand">
+                <a href="{% url 'hr-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.webp' %}"
+                  alt="Almabrouk Marine Logo" /></a>
+                <div id="close-sidebar">
+                  <i class="fas fa-times"></i>
+                </div>
+              </div>
+              <!-- <div class="sidebar-header">
+              <div class="user-pic">
+                <img class="img-responsive img-rounded" src="assets/images/user-pro.webp"
+                  alt="User picture">
+              </div>
+              <div class="user-info">
+                <span class="user-name">Jhon
+                  <strong>Smith</strong>
+                </span>
+                <span class="user-role">Administrator</span>
+                <span class="user-status">
+                  <i class="fa fa-circle"></i>
+                  <span>Online</span>
+                </span>
+              </div>
+            </div> -->
+              <!-- sidebar-header  -->
+              <div class="sidebar-search">
+                <div>
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      class="form-control search-menu"
+                      placeholder="Search..."
+                    />
+                    <div class="input-group-append">
+                      <span class="input-group-text">
+                        <i class="fa fa-search" aria-hidden="true"></i>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- sidebar-search  -->
+              <div class="sidebar-menu">
+                <ul>
+                  <li class="header-menu">
+                    <span>General</span>
+                  </li>
+                    <li>
+                      <a href="{% url 'hr-dashboard' %}">
+                        <i class="fa fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                      </a>
+                    </li>
+
+                    <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="far fa-gem"></i>
+                      <span>Add Staffs</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'hr_create_employee' %}">Add Employee</a>
+                        </li>
+                      </ul>
+                    </div>
+                    </li>
+
+                    <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fas fa-users"></i>
+                      <span>Employees</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'hr_employee_list' %}">Employee List </a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_attendance_list_view' %}">Employee Attendance</a>
+                        </li>
+                        <!-- <li>
+                          <a href="{% url 'manage_attendance' %}">Manage Attendance</a>
+                        </li> -->
+                        <li>
+                          <a href="{% url 'hr_employee_leave_list' %}">Leave List</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_employee_manage_leave' %}">Manage Leave</a>
+                        </li>
+                      </ul>
+                    </div>
+                    </li>
+
+                    <li>
+                      <a href="{% url 'hr_attendance_status' %}">
+                        <i class="fa fa-calendar"></i>
+                        <span>Attendance Status</span>
+                      </a>
+                    </li>
+                  
+                  <!-- <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fas fa-tasks"></i>
+                      <span>Projects</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'admstrn_project_list_view' %}">All Projects </a>
+                        </li>
+                        <li>
+                          <a href="{% url 'admstrn_add_project' %}">Add Project</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li>
+                  <li>
+                    <a href="{% url 'admstrn_attendance_status' %}">
+                      <i class="fa fa-calendar"></i>
+                      <span>Attendance Status</span>
+                    </a>
+                  </li> -->
+                    <li>
+                      <a href="{% url 'hr_apply_leave' %}">
+                        <i class="fa fa-book"></i>
+                        <span>Leave</span>
+                      </a>
+                    </li>
+                  
+                  <!-- <li>
+                    <a href="{% url 'admin-notifications' %}">
+                        <i class="fas fa-bell"></i>
+                        <span>Notifications</span>
+                        <span id="admin-notification-count" class="badge rounded-pill bg-danger" style="display: none;">0</span>
+                    </a>
+                    </li> -->
+                  
+                </ul>
+              </div>
+              <!-- sidebar-menu  -->
+            </div>
+            <!-- sidebar-content  -->
+            <!-- <div class="sidebar-footer">
+              <a href="#">
+                <i class="fa fa-bell"></i>
+                <span class="badge bg-pill bg-warning notification">3</span>
+              </a>
+              <a href="#">
+                <i class="fa fa-envelope"></i>
+                <span class="badge bg-pill bg-success notification">7</span>
+              </a>
+              <a href="#">
+                <i class="fa fa-cog"></i>
+                <span class="bg-sonar"></span>
+              </a>
+              <a href="#">
+                <i class="fa fa-power-off"></i>
+              </a>
+            </div> -->
+          </nav>
+        <!-- End Side Bar -->
+
+        {% block content %}
+
+        {% endblock %}
+
+    </div>
+        <!-- Bootstrap Bundle JS -->
+        <script src="{% static 'assets/vendor/bootstrap/js/bootstrap.bundle.min.js' %}"></script>
+        <!-- Jquery -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        <!-- Apex Chart Js -->
+        <script src="{% static 'assets/vendor/apexchart/js/apexcharts.js' %}"></script>
+        <script src="{% static 'assets/vendor/apexchart/js/data.js' %}"></script>
+        <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
+        <!-- Main.js -->
+        <script src="{% static 'assets/js/main.js' %}"></script>
+
+        <script>
+          var options = {
+            series: [
+              {
+                data: randomizeArray(sparklineData),
+              },
+            ],
+            chart: {
+              type: "area",
+              height: 160,
+              sparkline: {
+                enabled: true,
+              },
+            },
+            stroke: {
+              curve: "straight",
+            },
+            fill: {
+              opacity: 0.3,
+            },
+            yaxis: {
+              min: 0,
+            },
+            // colors: ["#DCE6EC"],
+            title: {
+              text: "{{ total_revenue|default:0|floatformat:0}} AED",
+              offsetX: 0,
+              style: {
+                fontSize: "24px",
+              },
+            },
+            subtitle: {
+              text: "Revenue",
+              offsetX: 0,
+              style: {
+                fontSize: "14px",
+              },
+            },
+          };
+    
+          var chart = new ApexCharts(
+            document.querySelector("#revenue-chart"),
+            options
+          );
+          chart.render();
+    
+          var optionsSpark2 = {
+            series: [
+              {
+                data: randomizeArray(sparklineData),
+              },
+            ],
+            chart: {
+              type: "area",
+              height: 160,
+              sparkline: {
+                enabled: true,
+              },
+            },
+            stroke: {
+              curve: "straight",
+            },
+            fill: {
+              opacity: 0.3,
+            },
+            yaxis: {
+              min: 0,
+            },
+            // colors: ["#DCE6EC"],
+            title: {
+              text: "{{ total_expenses|default:0|floatformat:0}} AED",
+              offsetX: 0,
+              style: {
+                fontSize: "24px",
+              },
+            },
+            subtitle: {
+              text: "Expenses",
+              offsetX: 0,
+              style: {
+                fontSize: "14px",
+              },
+            },
+          };
+    
+          var chartSpark2 = new ApexCharts(
+            document.querySelector("#expence-chart"),
+            optionsSpark2
+          );
+          chartSpark2.render();
+    
+          var optionsSpark3 = {
+            series: [
+              {
+                data: randomizeArray(sparklineData),
+              },
+            ],
+            chart: {
+              type: "area",
+              height: 160,
+              sparkline: {
+                enabled: true,
+              },
+            },
+            stroke: {
+              curve: "straight",
+            },
+            fill: {
+              opacity: 0.3,
+            },
+            xaxis: {
+              crosshairs: {
+                width: 1,
+              },
+            },
+            yaxis: {
+              min: 0,
+            },
+            title: {
+              text: "{{ total_profit|default:0|floatformat:0}} AED",
+              offsetX: 0,
+              style: {
+                fontSize: "24px",
+              },
+            },
+            subtitle: {
+              text: "Profits",
+              offsetX: 0,
+              style: {
+                fontSize: "14px",
+              },
+            },
+          };
+    
+          var chartSpark3 = new ApexCharts(
+            document.querySelector("#profit-chart"),
+            optionsSpark3
+          );
+          chartSpark3.render();
+        </script>
+    
+      <!-- Punch In Chart -->
+      <script>
+  // Maximum seconds for a 10-hour day
+  const maxSeconds = 10 * 3600;
+  let totalSeconds = 0; 
+  let timerInterval = null;
+
+  // Helper to format seconds as hh:mm:ss
+  function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:` +
+           `${minutes.toString().padStart(2, '0')}:` +
+           `${secs.toString().padStart(2, '0')}`;
+  }
+
+  // Configure the radial bar chart using ApexCharts
+  const chartOptions = {
+    series: [0],
+    chart: {
+      height: 160,
+      type: 'radialBar',
+    },
+    plotOptions: {
+      radialBar: {
+        hollow: {
+          size: '70%',
+        },
+        dataLabels: {
+          name: {
+            show: true,
+            fontSize: '14px',
+            fontWeight: '500',
+          },
+          value: {
+            show: true,
+            formatter: function () {
+              return formatTime(totalSeconds);
+            },
+            fontSize: '16px',
+            fontWeight: '600',
+          }
+        }
+      }
+    },
+    labels: ['Total Hours'],
+  };
+
+  const chartEl = document.querySelector("#Puncinchart");
+  if (chartEl) {
+    const chart = new ApexCharts(chartEl, chartOptions);
+    chart.render();
+
+    // Function to start the timer from an initial elapsed time
+    function startTimer(initialSeconds) {
+      totalSeconds = initialSeconds;
+      timerInterval = setInterval(() => {
+        if (totalSeconds < maxSeconds) {
+          totalSeconds++;
+          const progress = (totalSeconds / maxSeconds) * 100;
+          chart.updateSeries([progress]);
+        } else {
+          clearInterval(timerInterval);
+        }
+      }, 1000);
+    }
+
+    // Function to stop the timer
+    function stopTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Use ISO 8601 date format from Django using the 'c' format
+      const loginTimeStr = "{{ user_attendance.login_time|date:'c' }}";
+      const logOutTimeStr = "{{ user_attendance.log_out_time|date:'c' }}";
+      
+      // Debug: log the date strings to the console
+      console.log("loginTimeStr:", loginTimeStr);
+      console.log("logOutTimeStr:", logOutTimeStr);
+
+      // Check if loginTimeStr is not empty or "None"
+      if (loginTimeStr && loginTimeStr.trim() !== "" && loginTimeStr !== "None") {
+        const loginTime = new Date(loginTimeStr).getTime();
+        
+        if (!logOutTimeStr || logOutTimeStr.trim() === "" || logOutTimeStr === "None") {
+          // Currently punched in
+          const now = new Date().getTime();
+          const elapsedSeconds = Math.floor((now - loginTime) / 1000);
+          startTimer(elapsedSeconds);
+        } else {
+          // Punched out; calculate total elapsed time
+          const logOutTime = new Date(logOutTimeStr).getTime();
+          totalSeconds = Math.floor((logOutTime - loginTime) / 1000);
+          const progress = (totalSeconds / maxSeconds) * 100;
+          chart.updateSeries([progress]);
+          stopTimer();
+        }
+      } else {
+        console.log("No valid login time provided.");
+        chart.updateSeries([0]);
+      }
+    });
+  } else {
+    console.error("Element with id 'Puncinchart' not found.");
+  }
+      </script>
+
+      <!-- Leave Details Chart -->
+      <script>
+  var optionsChartOne = {
+    series: [1254, 32, 658, 14, 68],
+    chart: {
+      type: 'donut',
+    },
+    labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
+    legend: {
+      position: 'bottom', // Moves the legend (labels) below the chart
+      horizontalAlign: 'center', // Centers the legend
+    },
+    responsive: [{
+      breakpoint: 480,
+      options: {
+
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }]
+  };
+
+  var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
+  chartOne.render();
+      </script>
+      
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const notificationPopup = document.getElementById("notification-popup");
+            const notificationList = document.getElementById("notification-list-manager");
+            const markReadBtn = document.getElementById("mark-read-manager");
+            const openNotificationBtn = document.getElementById("open-notification-popup");
+            const closePopupBtn = document.querySelector(".close-popup");
+            const notificationCount = document.getElementById("notification-count");
+      
+            // Function to Fetch Notifications and Update Badge
+            function fetchManagerNotifications() {
+                fetch("{% url 'hr_fetch_notifications' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        notificationList.innerHTML = "";
+      
+                        if (data.notifications.length === 0) {
+                            notificationList.innerHTML = "<p>No new notifications</p>";
+                            markReadBtn.style.display = "none";  // Hide button
+                            notificationCount.style.display = "none";  // Hide badge
+                        } else {
+                            data.notifications.forEach(notification => {
+                                const item = document.createElement("div");
+                                item.classList.add("notification-item");
+                                item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
+                                notificationList.prepend(item);
+                            });
+                            markReadBtn.style.display = "block";  // Show button
+                            notificationCount.textContent = data.notifications.length;  // Update badge count
+                            notificationCount.style.display = "inline-block";  // Show badge
+                        }
+                    });
+            }
+      
+            // Show Popup When Clicking Notification Menu
+            openNotificationBtn.addEventListener("click", function (event) {
+                event.preventDefault();
+                fetchManagerNotifications();
+                notificationPopup.style.display = "block";
+            });
+      
+            // Close Popup
+            closePopupBtn.addEventListener("click", function () {
+                notificationPopup.style.display = "none";
+            });
+      
+            // Mark All Notifications as Read
+            markReadBtn.addEventListener("click", function () {
+                fetch("{% url 'hr_mark_notifications_as_read' %}", {
+                    method: "POST",
+                    headers: { "X-CSRFToken": "{{ csrf_token }}" }
+                }).then(response => response.json())
+                  .then(data => {
+                      alert(data.message);
+                      fetchManagerNotifications();
+                  });
+            });
+      
+            // Auto Fetch Notifications Every 5 Seconds
+            setInterval(fetchManagerNotifications, 5000);
+            fetchManagerNotifications();
+        });
+      </script>
+
+</body>
+
+</html>

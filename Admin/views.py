@@ -10,10 +10,9 @@ from django.http import HttpResponse
 from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
-from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm
+from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
-from .forms import ManagerEmployeeUpdateForm
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification
 
 
@@ -66,6 +65,7 @@ def dashboard(request):
             'completed_projects': completed_projects,
             'overdue_projects': overdue_projects,
             'completion_percentage': round(completion_percentage, 2),
+            "now": now()
         }
         return render(request, 'Admin/dashboard.html', context)
     
@@ -73,28 +73,26 @@ def dashboard(request):
         return render(request, 'Manager/dashboard.html')
 
     else:  # Other users
-        return redirect('home')
+        return redirect('custom-login')
 
 # create employee
 @login_required
 def create_employee(request):
-    # Only allow staff/admin users to access this view
     if not request.user.is_staff:
         return redirect('dashboard')
     
     if request.method == 'POST':
-        # Pass request.FILES to handle file uploads (profile_picture)
         form = EmployeeCreationForm(request.POST, request.FILES)
         if form.is_valid():
             try:
-                form.save()  # Let the form's save() method handle creation
+                form.save()
                 messages.success(request, 'Employee created successfully!')
-                return redirect('create-employee')
+                return redirect('employee_list')
             except Exception as e:
                 messages.error(request, f'There was an error creating the employee: {e}')
         else:
             messages.error(request, 'Please correct the errors below.')
-            print(form.errors)  # Optionally log the errors for debugging
+            print(form.errors)
     else:
         form = EmployeeCreationForm()
 
@@ -104,7 +102,7 @@ def create_employee(request):
 @login_required
 def employee_list(request):
     if not request.user.is_staff:
-        return redirect('login')
+        return redirect('custom-login')
 
     # Filter ongoing project assignments
     ongoing_project_assignments = TeamMemberStatus.objects.filter(
@@ -118,7 +116,7 @@ def employee_list(request):
             queryset=ongoing_project_assignments,
             to_attr='assigned_projects'  # Prefetch results stored as 'assigned_projects'
         )
-    )
+    ).order_by('-user__date_joined')
 
     paginator = Paginator(employees, 10)
     page_number = request.GET.get('page')
@@ -314,7 +312,7 @@ def edit_attendance(request, attendance_id):
         attendance.save()
 
         messages.success(request, 'Attendance record has been Updated successfully.')
-        return redirect('attendance_list_view')
+        return redirect('attendance_list_adminview')
 
     employees = Employee.objects.all()
     projects = Project.objects.all()
@@ -331,7 +329,7 @@ def delete_attendance(request, attendance_id):
     attendance.delete()
     # Add a success message
     messages.success(request, 'Attendance record has been deleted successfully.')
-    return redirect('attendance_list_view')
+    return redirect('attendance_list_adminview')
 
 # project list view
 @login_required
@@ -419,7 +417,7 @@ def admin_project_summary_view(request, project_id):
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
-        "project_manager": project.manager,
+        "project_manager": project.manager.user.username,
         "code": project.code,
         "category": project.category,
         "purchase_and_expenses": project.purchase_and_expenses,
@@ -454,11 +452,11 @@ def add_project(request):
         form = ProjectForm(request.POST)
         if form.is_valid():
             form.save()
+            messages.success(request, "Project added successfully!")
             return redirect('project-list')
         else:
-            form = ProjectForm()
+            messages.error(request, "There was an error adding the project. Please check the form.") 
 
-    # No pagination code; simply render the form
     return render(request, 'Admin/add_project.html', {'form': form})
 
 @login_required
@@ -469,17 +467,21 @@ def edit_project(request, project_id):
         form = ProjectForm(request.POST, instance=project)  # Bind form with existing project
         if form.is_valid():
             form.save()
+            messages.success(request, "Project updated successfully!") 
             return redirect('project-list')
         else:
-            form = ProjectForm(instance=project)
+            messages.error(request, "There was an error updating the project. Please check the form.")
+    else:
+        form = ProjectForm(instance=project)
 
     # For GET request, render the form pre-filled with the project's data
-    return render(request, 'Admin/project_edit.html', {'form': ProjectForm(instance=project)})
+    return render(request, 'Admin/project_edit.html', {'form': form, 'project': project})
 
 @login_required
 def delete_project(request, project_id):
-    project = get_object_or_404(Project, id=project_id) 
-    project.delete() 
+    project = get_object_or_404(Project, id=project_id)  
+    project.delete()
+    messages.success(request, "Project deleted successfully!")
     return redirect('project-list')
 
 # project_assignment_list

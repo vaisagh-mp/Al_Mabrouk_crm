@@ -1,0 +1,91 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="apply-leave-wraper">
+    <div class="pg-title">
+        <h1>Apply Leave</h1>
+    </div>
+
+
+    <div class="leave-tab-wrapper">
+        <a href="{% url 'hr_apply_leave' %}" class="active">Apply</a>
+        <a href="{% url 'hr_leave_status' %}">My Leave</a>
+        <a href="{% url 'hr_leave_records' %}">Leave Records</a>
+    </div>
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>Add Leave Request</h4>
+        </div>
+
+        <!-- Django Form -->
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label for="{{ form.leave_type.id_for_label }}">Leave Type</label>
+                {{ form.leave_type }}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.from_date.id_for_label }}">From</label>
+                {{ form.from_date }}
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.to_date.id_for_label }}">To</label>
+                {{ form.to_date }}
+            </div>
+
+            <div class="form-group">
+                <label for="noOfDays">No of Days</label>
+                <input type="number" id="noOfDays" name="no_of_days" required readonly>
+            </div>
+
+            <!-- Medical Certificate Upload -->
+            <div class="form-group">
+                <label for="{{ form.medical_certificate.id_for_label }}">Medical Certificate</label>
+                {{ form.medical_certificate }}  <!-- This will render the file input field -->
+            </div>
+
+            <div class="form-group">
+                <label for="{{ form.reason.id_for_label }}">Reason</label>
+                {{ form.reason }}
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="submit-btn">Add Leave</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var fromDate = document.getElementById("id_from_date");
+        var toDate = document.getElementById("id_to_date");
+        var noOfDays = document.getElementById("noOfDays");
+
+        function calculateDays() {
+            if (fromDate.value && toDate.value) {
+                var start = new Date(fromDate.value);
+                var end = new Date(toDate.value);
+                var diff = (end - start) / (1000 * 60 * 60 * 24); // Convert milliseconds to days
+                
+                if (diff >= 0) {
+                    noOfDays.value = diff + 1;  // +1 to include both dates
+                } else {
+                    noOfDays.value = 0;
+                    alert("To Date cannot be before From Date.");
+                }
+            }
+        }
+
+        fromDate.addEventListener("change", calculateDays);
+        toDate.addEventListener("change", calculateDays);
+    });
+</script>
+
+
+{% endblock %}

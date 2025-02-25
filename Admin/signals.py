@@ -43,26 +43,28 @@ def notify_employees_on_team_assignment(sender, instance, action, pk_set, **kwar
 
 # Send a notification to the manager when project status changes
 @receiver(pre_save, sender=TeamMemberStatus)
-def notify_manager_on_team_member_status_change(sender, instance, **kwargs):
-    """Notify team manager when a team member's status changes."""
+def notify_manager_and_admin_on_status_change(sender, instance, **kwargs):
+    """Notify the team manager and all administration users when a team member's status changes."""
     if instance.pk:  # Ensure this is an update, not a new creation
         old_status = TeamMemberStatus.objects.get(pk=instance.pk).status
-        if old_status != instance.status and instance.team.manager:
-            # Prevent duplicate notifications by checking if one exists
-            existing_notification = Notification.objects.filter(
-                recipient=instance.team.manager.user,
-                message=f"Employee '{instance.employee.user.username}' status in project '{instance.team.project.name}' changed from '{old_status}' to '{instance.status}'."
-            ).exists()
+        if old_status != instance.status:
+            message = f"Employee '{instance.employee.user.username}' status in project '{instance.team.project.name}' changed from '{old_status}' to '{instance.status}'."
 
-            if not existing_notification:
-                Notification.objects.create(
-                    recipient=instance.team.manager.user,
-                    message=f"Employee '{instance.employee.user.username}' status in project '{instance.team.project.name}' changed from '{old_status}' to '{instance.status}'."
-                )
+            # Notify the manager
+            if instance.team.manager:
+                manager = instance.team.manager.user
+                if not Notification.objects.filter(recipient=manager, message=message).exists():
+                    Notification.objects.create(recipient=manager, message=message)
 
+            # Notify all administration users
+            admin_users = Employee.objects.filter(is_administration=True).select_related("user")
+            for admin in admin_users:
+                if not Notification.objects.filter(recipient=admin.user, message=message).exists():
+                    Notification.objects.create(recipient=admin.user, message=message)
+                    
 @receiver(post_save, sender=Leave)
-def notify_manager_on_leave_application(sender, instance, created, **kwargs):
-    """Notify the team manager when an employee applies for leave."""
+def notify_manager_and_hr_on_leave_application(sender, instance, created, **kwargs):
+    """Notify the team manager and all HR users when an employee applies for leave."""
     if created:  # Trigger only when a new leave application is created
         # Get the employee instance
         employee = Employee.objects.get(user=instance.user)
@@ -70,19 +72,20 @@ def notify_manager_on_leave_application(sender, instance, created, **kwargs):
         # Find the team where the employee belongs (assuming one team per employee)
         user_team = Team.objects.filter(employees=employee).first()
 
-        if user_team and user_team.manager:
-            # Check if a similar notification already exists
-            existing_notification = Notification.objects.filter(
-                recipient=user_team.manager.user,
-                message=f"Employee '{instance.user.username}' has applied for {instance.leave_type} from {instance.from_date} to {instance.to_date}."
-            ).exists()
+        # Notification message
+        message = f"Employee '{instance.user.username}' has applied for {instance.leave_type} from {instance.from_date} to {instance.to_date}."
 
-            # Create notification if it doesn't already exist
-            if not existing_notification:
-                Notification.objects.create(
-                    recipient=user_team.manager.user,  # Ensure manager is a User instance
-                    message=f"Employee '{instance.user.username}' has applied for {instance.leave_type} from {instance.from_date} to {instance.to_date}."
-                )
+        # Notify the manager
+        if user_team and user_team.manager:
+            manager = user_team.manager.user  # Get manager's User instance
+            if not Notification.objects.filter(recipient=manager, message=message).exists():
+                Notification.objects.create(recipient=manager, message=message)
+
+        # Notify all HR users
+        hr_users = Employee.objects.filter(is_hr=True).select_related("user")
+        for hr in hr_users:
+            if not Notification.objects.filter(recipient=hr.user, message=message).exists():
+                Notification.objects.create(recipient=hr.user, message=message)
 
 @receiver(pre_save, sender=Leave)
 def notify_employee_on_leave_status_change(sender, instance, **kwargs):

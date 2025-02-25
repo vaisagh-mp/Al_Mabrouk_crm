@@ -1,0 +1,121 @@
+{% extends 'hr/hrbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Attendance Status</h1>
+    </div>
+
+    <!-- Employs List -->
+    <div class="widget-box table-wdgt">
+        <table id="employeeTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Login</th>
+                    <th>Logout</th>
+                    <th>Working Hours</th>
+                    <th>Travel Time</th>
+                    <th>Admin Approval</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td>{{ record.login_time|date:"d/m/Y" }}</td>
+                    <td>{{ record.login_time|time:"h:i A" }}</td>
+                    <td>
+                        {% if record.log_out_time %}
+                        {{ record.log_out_time|time:"h:i A" }}
+                        {% else %}
+                        <span class="text-danger">Not logged out</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.total_hours_of_work %}
+                        {{ record.total_hours_of_work|format_work_duration }}
+                        {% else %}
+                        0 hrs
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.total_travel_time and record.total_travel_time != 'None' %}
+                            {{ record.total_travel_time|format_work_duration }}
+                        {% else %}
+                            --:--
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.status %}
+                            <span class="status {% if record.status == 'PENDING' %}leave{% elif record.status == 'APPROVED' %}present{% elif record.status == 'REJECTED' %}sick-leave{% endif %}">
+                                {{ record.get_status_display }}
+                            </span>
+                        {% else %}
+                            <span class="status absent">No Status</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.attendance_status %}
+                            {% if record.status == 'APPROVED' %}
+                                <span class="status 
+                                    {% if record.attendance_status == 'PRESENT' %}present
+                                    {% elif record.attendance_status == 'LEAVE' %}leave
+                                    {% elif record.attendance_status == 'WORK FROM HOME' %}work-from-home
+                                    {% elif record.attendance_status == 'SICK LEAVE' %}sick-leave
+                                    {% elif record.attendance_status == 'ANNUAL LEAVE' %}annual-leave
+                                    {% elif record.attendance_status == 'CASUAL LEAVE' %}casual-leave
+                                    {% endif %}
+                                ">
+                                    {{ record.get_attendance_status_display }}
+                                </span>
+                            {% else %}
+                                <span class="status absent">No Status</span>
+                            {% endif %}
+                        {% else %}
+                            <span class="status absent">No Status</span>
+                        {% endif %}
+                    </td>
+                    <!-- <td>
+                        <a href="{% url 'manager_update_travel_time' record.id %}" class="apply-btn" style="color: azure;height: auto;">Update</a>
+                    </td> -->
+                    <td class="list-action-col">
+                        <a href="{% url 'hr_update_travel_time' record.id %}"><i class="far fa-edit"></i></a>
+                    </td>
+
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">No attendance records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+    </div>
+    <div class="pagination" id="pagination">
+        <!-- {% if attendance_records.has_previous %}
+            <a href="?page=1">&laquo; First</a>
+            <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
+        {% endif %} -->
+    
+        {% for num in attendance_records.paginator.page_range %}
+            {% if num == attendance_records.number %}
+                <button class="active">{{ num }}</button>
+            {% else %}
+                <a href="?page={{ num }}"><button>{{ num }}</button></a>
+            {% endif %}
+        {% endfor %}
+    
+        <!-- {% if attendance_records.has_next %}
+            <a href="?page={{ attendance_records.next_page_number }}">Next</a>
+            <a href="?page={{ attendance_records.paginator.num_pages }}">Last &raquo;</a>
+        {% endif %} -->
+    </div>
+</div>
+
+{% endblock %}

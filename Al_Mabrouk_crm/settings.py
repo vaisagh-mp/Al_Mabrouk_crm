@@ -43,6 +43,8 @@ INSTALLED_APPS = [
     'Admin',
     'Authentication',
     'manager',
+    'administration',
+    'hr',
 ]
 
 MIDDLEWARE = [

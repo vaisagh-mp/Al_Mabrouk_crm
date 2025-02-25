@@ -101,7 +101,16 @@ def employee_dashboard(request):
             projects = TeamMemberStatus.objects.filter(employee=employee).select_related('team__project')
             total_projects = projects.count()
             pending_projects = projects.exclude(team__project__status='COMPLETED').count()
-            completed_projects = assigned_work.filter(team__project__status='COMPLETED').count()
+            completed_projects = projects.filter(team__project__status='COMPLETED').count()
+            print('assigned_work:', assigned_work)
+            print('projects:', projects)
+            print('total_projects:', total_projects)
+            print('pending_projects:', pending_projects)
+            print('completed_projects:', completed_projects)
+            print('worked_days:', worked_days)
+            print('loss_of_pay_days:', loss_of_pay_days)
+            print('user_attendance:', today_attendance)
+            print('current_time:', now.strftime('%I:%M %p, %d %b %Y'))
 
             context = {
                 'employee': employee,
@@ -349,7 +358,7 @@ def projects(request):
     employee = current_user.employee_profile
 
     # Fetch the employee's assigned projects through TeamMemberStatus
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
+    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee).order_by('-team__project__created_at')
 
     # Prepare the project data
     project_data = [
@@ -629,7 +638,7 @@ def apply_leave(request):
             leave_application.save()
 
             messages.success(request, "Leave request submitted successfully.")
-            return redirect('employee_dashboard')  # Redirect after success
+            return redirect('my_leave')  # Redirect after success
 
     else:
         form = LeaveForm()

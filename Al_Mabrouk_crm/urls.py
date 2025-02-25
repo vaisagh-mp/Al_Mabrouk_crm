@@ -25,5 +25,7 @@ urlpatterns = [
     path('admin-panel/', include('Admin.urls')),  
     path('employee/', include('employee_data.urls')),  
     path('manager/', include('manager.urls')),
+    path('administration/', include('administration.urls')),
+    path('hr/', include('hr.urls')),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

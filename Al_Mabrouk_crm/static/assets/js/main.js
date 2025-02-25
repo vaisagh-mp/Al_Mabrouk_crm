@@ -37,3 +37,19 @@ window.addEventListener("resize", () => {
 window.dispatchEvent(new Event("resize"));
 
 
+// Side bar collapsed Logo Chane
+function toggleSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  const content = document.getElementById("content");
+  const logo = document.querySelector(".sidebar-brand img");
+
+  sidebar.classList.toggle("collapsed");
+  content.classList.toggle("collapsed");
+
+  // Change logo when sidebar is collapsed
+  if (sidebar.classList.contains("collapsed")) {
+    logo.src = "/static/assets/images/collapsed-logo.webp"; // Change this to your collapsed logo
+  } else {
+    logo.src = "/static/assets/images/almabrouk-logo.webp";
+  }
+}

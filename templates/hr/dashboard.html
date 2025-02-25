@@ -1,0 +1,257 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="dashbrd-wraper">
+  <div class="pg-title">
+      <h1>HR Dashboard</h1>
+  </div>
+  <!-- TATP -->
+  <div class="row status-card-row">
+      <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-green">
+              <h5>Total Employees</h5>
+              <h6>{{ total_employees }}</h6>
+              <p>
+                  <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
+                  month
+              </p>
+
+              <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
+          </div>
+      </div>
+      <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-blue">
+              <h5>Total Leave Requests</h5>
+              <h6>{{ total_leave_requests }}</h6>
+              <p>
+                  <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
+              </p>
+
+              <div class="wdgt-bg-icons"><i class="fas fa-spinner"></i></div>
+          </div>
+      </div>
+      <div class="col-lg-3 col-md-6">
+          <div class="status-wdgt card-bg-violet">
+              <h5>Pending Leaves</h5>
+              <h6>{{ pending_leaves }}</h6>
+              <p>
+                  <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
+                  month
+              </p>
+
+              <div class="wdgt-bg-icons">
+                  <i class="fas fa-tasks"></i>
+              </div>
+          </div>
+      </div>
+      <div class="col-lg-3 col-md-6 m-b-20">
+          <div class="status-wdgt card-bg-orange">
+              <h5>Attendance</h5>
+              <h6>{{ attendance_percentage|floatformat:0 }}%</h6>
+              <p>
+                  <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
+              </p>
+
+              <div class="wdgt-bg-icons"><i class="fas fa-percentage"></i></div>
+          </div>
+      </div>
+  </div>
+  <!-- End TATP -->
+  <div class="row mt-4 mb-4">
+      <!-- Punch In Card -->
+      <div class="col-lg-4 col-md-6">
+          <div class="widget-box">
+              <div class="attendance-card">
+                  <h3>Attendance</h3>
+                  <!-- Display current date and time -->
+                  <div class="date">{{ current_time }}</div>
+
+                  <div id="Puncinchart"></div>
+
+                  {% if last_punch_out != "Not Punched Out" %}
+                  <!-- Display punch out time if available -->
+                  <div class="info punch-out">
+                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
+                      Punch Out at <span>{{ last_punch_out }}</span>
+                  </div>
+                        {% elif last_punch_in != "Not Punched In" %}
+                            <!-- Otherwise, display punch in time -->
+                            <div class="info punch-in">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
+                                Punch In at <span>{{ last_punch_in }}</span>
+                            </div>
+                        {% else %}
+                            <!-- If no punch in or out recorded, display a message -->
+                            <div class="info">
+                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="No Punch">
+                                Click the button below to punchin.
+                            </div>
+                        {% endif %}
+              
+
+                  <a href="{% url 'hr_attendance_dashboard' %}" id="punchButton">
+                      {% if last_punch_in == "Not Punched In" %}
+                      Punch In
+                      {% else %}
+                      Punch Out
+                      {% endif %}
+                  </a>
+              </div>
+          </div>
+      </div>
+
+
+      <!-- Leave Details Card -->
+      <div class="col-lg-4 col-md-6">
+          <div class="widget-box leave-card-widget">
+              <div class="leave-card">
+                  <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
+                  <div class="widget-title">
+                      <h4>Leave Details</h4>
+                  </div>
+                  <div class="leave-details">
+                      <div>
+                          <span class="label">Total Leaves</span>
+                          <span class="value">{{ total_leaves }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Taken</span>
+                          <span class="value">{{ leaves_taken }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Annual Leave</span>
+                          <span class="value">{{ annual_leave_taken }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Casual Leave</span>
+                          <span class="value">{{ casual_leave_taken }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Sick Leave</span>
+                          <span class="value">{{ sick_leave_taken }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Request</span>
+                          <span class="value">{{ leave_requests }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Worked Days</span>
+                          <span class="value">{{ worked_days }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Loss of Pay</span>
+                          <span class="value">{{ loss_of_pay_days }}</span>
+                      </div>
+                  </div>
+                  <div class="aply-lv-btn">
+                      <a href="{% url 'hr_apply_leave' %}" class="apply-btn">Apply New Leave</a>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <!-- Leave Details Chart Card -->
+      <div class="col-lg-4 col-md-6 lv-chrt-col">
+          <div class="widget-box leave-card-widget">
+              <div class="widget-title">
+                  <h4>Leave Details</h4>
+              </div>
+              <div id="leaveChart"></div>
+          </div>
+      </div>
+
+      <!-- Today's Attendance Table -->
+        <div class="widget-box mt-4 table-wdgt">
+    <div class="widget-title">
+        <h4>Today's Attendance</h4>
+    </div>
+    <table class="prjtc-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Login</th>
+                <th>Logout</th>
+                <th>Total Working Hours</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for attendance in today_attendance_records %}
+            <tr>
+                <td>{{ attendance.employee.user.username }}</td>
+                <td>{{ attendance.employee.rank }}</td>
+                <td>
+                    {% if attendance.attendance_status %}
+                    {% if attendance.status == 'APPROVED' %}
+                        <span class="status 
+                            {% if record.attendance_status == 'PRESENT' %}present
+                            {% elif record.attendance_status == 'LEAVE' %}leave
+                            {% elif record.attendance_status == 'WORK FROM HOME' %}work-from-home
+                            {% elif record.attendance_status == 'SICK LEAVE' %}sick-leave
+                            {% elif record.attendance_status == 'ANNUAL LEAVE' %}annual-leave
+                            {% elif record.attendance_status == 'CASUAL LEAVE' %}casual-leave
+                            {% endif %}
+                        ">
+                            {{ attendance.get_attendance_status_display }}
+                        </span>
+                    {% else %}
+                        <span class="status absent">No Status</span>
+                    {% endif %}
+                {% else %}
+                    <span class="status absent">No Status</span>
+                {% endif %}
+                </td>
+                <td>{{ attendance.login_time|date:"d M Y" }}</td>
+                <td>
+                    {% if attendance.login_time %}
+                        {{ attendance.login_time|time:"h:i A" }}
+                    {% else %}
+                        Not Punched In
+                    {% endif %}
+                </td>
+                <td>
+                    {% if attendance.log_out_time %}
+                        {{ attendance.log_out_time|time:"h:i A" }}
+                    {% else %}
+                        Not Punched Out
+                    {% endif %}
+                </td>
+                <td>
+                    {% if attendance.total_hours_of_work %}
+                        {{ attendance.total_hours_of_work }} hrs
+                    {% else %}
+                        0 hrs
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" style="text-align: center;">No attendance records found for today.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+        </div>
+  </div>
+</div>
+
+
+<script>
+  function updateCurrentTime() {
+      let now = new Date();
+      let options = {
+          hour: '2-digit', minute: '2-digit', second: '2-digit',
+          day: '2-digit', month: 'short', year: 'numeric'
+      };
+      document.querySelector('.date').innerText = now.toLocaleString('en-US', options);
+  }
+
+  // Update the time every second
+  setInterval(updateCurrentTime, 1000);
+  updateCurrentTime();
+</script>
+
+{% endblock %}

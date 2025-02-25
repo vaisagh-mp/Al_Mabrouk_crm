@@ -1,0 +1,54 @@
+{% extends 'administration/administrationbase.html' %}
+{% load static %}
+
+{% block content %}
+
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Leave Records</h1>
+    </div>
+
+    <!-- {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %} -->
+
+    <div class="leave-tab-wrapper">
+        <a href="{% url 'admstrn_apply_leave' %}">Apply</a>
+        <a href="{% url 'admstrn_leave_status' %}">My Leave</a>
+        <a href="{% url 'admstrn_leave_records' %}" class="active">Leave Records</a>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <table id="leaveRecordTable">
+            <thead>
+                <tr>
+                    <th>Leave Type</th>
+                    <th>Leave Pending Approval (Days)</th>
+                    <th>Leave Taken (Days)</th>
+                    <th>Leave Balance (Days)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leave_type, stats in leave_summary.items %}
+                <tr>
+                    <td><a href="#">{{ leave_type }}</a></td>
+                    <td>{{ stats.pending }}</td>
+                    <td>{{ stats.taken }}</td>
+                    <td>{{ stats.balance }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">No leave records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}

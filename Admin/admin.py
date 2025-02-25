@@ -26,7 +26,7 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ('user', 'is_employee', 'is_manager', 'rank', 'salary', 'phone_number', 'date_of_join')
+    list_display = ('user', 'is_employee', 'is_manager', 'is_administration', 'is_hr', 'rank', 'phone_number', 'date_of_join')
     search_fields = ('user__username', 'rank', 'phone_number')
     list_filter = ('is_employee', 'is_manager')
 

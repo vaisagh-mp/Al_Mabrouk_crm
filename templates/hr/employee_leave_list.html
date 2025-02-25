@@ -1,0 +1,106 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Leave Records</h1>
+    </div>
+    <!-- Leave Table with Search and Action Controls -->
+    <div class="widget-box table-wdgt">
+        <table id="leaveTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th>
+                        <div class="add-new-emply">
+                            <div class="table-searchbar">
+                                <div class="sidebar-search">
+                                    <form method="get" action="">
+                                        <div class="input-group">
+                                            <input type="text" name="search" class="form-control search-menu"
+                                                value="{{ search_query }}" placeholder="Search by Employee Name" />
+                                            <div class="input-group-append">
+                                                <button class="srh-btn" type="submit" class="btn btn-primary">
+                                                    <i class="fa fa-search" aria-hidden="true"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>                            
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Leave Type</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>No. of Days</th>
+                    <th>Reason</th>
+                    <th>Status</th>
+                    <th>Attachments</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leave in leave_records %}
+                <tr>
+                    <td>{{ leave.user.get_full_name }}</td>
+                    <td>{{ leave.get_leave_type_display }}</td>
+                    <td>{{ leave.from_date|date:"d/M/Y" }}</td>
+                    <td>{{ leave.to_date|date:"d/M/Y" }}</td>
+                    <td>{{ leave.no_of_days }}</td>
+                    <td>{{ leave.reason }}</td>
+                    <td>
+                        <span class="status 
+                            {% if leave.approval_status == 'APPROVED' %}completed
+                            {% elif leave.approval_status == 'PENDING' %}pending
+                            {% else %}cancelled{% endif %}">
+                            {{ leave.get_approval_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if leave.medical_certificate %}
+                            <a style="color: #6777ef;" href="{{ leave.medical_certificate.url }}">View</a>
+                        {% else %}
+                            <span style="font-size: 12px; font-style: italic;">No such medical certificate</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+    </div>
+    <!-- Pagination -->
+    <div class="pagination" id="pagination">
+        {% if leave_records.has_previous %}
+            <a href="?search={{ search_query }}&page={{ leave_records.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+
+        {% for num in leave_records.paginator.page_range %}
+            <a href="?search={{ search_query }}&page={{ num }}">
+                <button class="{% if num == leave_records.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endfor %}
+
+        {% if leave_records.has_next %}
+            <a href="?search={{ search_query }}&page={{ leave_records.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

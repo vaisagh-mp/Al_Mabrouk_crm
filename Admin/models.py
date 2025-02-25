@@ -188,8 +188,12 @@ def create_team_member_status(sender, instance, action, reverse, model, pk_set, 
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
+    
     is_employee = models.BooleanField(default=False)
     is_manager = models.BooleanField(default=False)
+    is_administration = models.BooleanField(default=False)
+    is_hr = models.BooleanField(default=False)
+
     rank = models.CharField(max_length=255, blank=True, null=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     work_days = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True)
@@ -202,9 +206,7 @@ class Employee(models.Model):
     profile_picture = models.ImageField(upload_to="profile_pictures/", null=True, blank=True)
 
     def calculate_work_days(self):
-        """
-        Automatically calculate total work days based on attendance records.
-        """
+        """Automatically calculate total work days based on attendance records."""
         total_hours = sum(
             attendance.total_hours_of_work or 0 for attendance in self.attendance_set.all()
         )
@@ -212,15 +214,20 @@ class Employee(models.Model):
         self.save()
 
     def get_role(self):
-        """Returns the role based on is_employee and is_manager flags."""
+        """Returns the role based on boolean flags."""
         if self.is_manager:
             return "Manager"
-        elif self.is_employee:
+        if self.is_employee:
             return "Employee"
+        if self.is_administration:
+            return "Administration"
+        if self.is_hr:
+            return "HR"
         return "Unknown"
 
     def __str__(self):
-        return f"{self.user.username} - {self.rank}"
+        return f"{self.user.username} - {self.get_role()} - {self.rank}"
+
 
 class ProjectAssignment(models.Model):
     """

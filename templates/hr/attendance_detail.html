@@ -1,0 +1,79 @@
+{% extends 'hr/hrbase.html' %}
+{% load custom_filters %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    
+    <div class="pg-title">
+        <h1>Attendance Details</h1>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <table class="vertical-table">
+            <tbody>
+                <tr>
+                    <th>Employee</th>
+                    <td>{{ attendance.employee.user.get_full_name }}</td>
+                </tr>
+                <tr>
+                    <th>Project</th>
+                    <td>{{ attendance.project }}</td>
+                </tr>
+                <tr>
+                    <th>Login Time</th>
+                    <td>{{ attendance.login_time }}</td>
+                </tr>
+                <tr>
+                    <th>Log Out Time</th>
+                    <td>{{ attendance.log_out_time }}</td>
+                </tr>
+                <tr>
+                    <th>Total Hours of Work</th>
+                    <td>{{ attendance.total_hours_of_work|format_work_duration }}</td>
+                </tr>
+                <tr>
+                    <th>Location</th>
+                    <td>{{ attendance.get_location_display }}</td>
+                </tr>
+                <tr>
+                    <th>Attendance Status</th>
+                    <td>{{ attendance.get_attendance_status_display }}</td>
+                </tr>
+                <tr>
+                    <th>Status</th>
+                    <td>{{ attendance.get_status_display }}</td>
+                </tr>
+                <tr>
+                    <th>Rejection Reason</th>
+                    <td>{{ attendance.rejection_reason }}</td>
+                </tr>
+                <tr>
+                    <th>Rejected By</th>
+                    <td>{{ attendance.rejected_by.get_full_name }}</td>
+                </tr>
+                <tr>
+                    <th>Travel In Time</th>
+                    <td>{{ attendance.travel_in_time }}</td>
+                </tr>
+                <tr>
+                    <th>Travel Out Time</th>
+                    <td>{{ attendance.travel_out_time }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

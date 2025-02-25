@@ -1,0 +1,124 @@
+{% extends 'hr/hrbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>Attendance</h1>
+    </div>
+
+    <!-- Attendance Table with Search and Action Controls -->
+    <div class="widget-box table-wdgt">
+
+        <div class="container mt-3">
+            {% if messages %}
+              {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                  {{ message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+              {% endfor %}
+            {% endif %}
+        </div>
+
+        
+        <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th>
+                        <div class="add-new-emply">
+                            <div class="table-searchbar">
+                                <div class="sidebar-search">
+                                    <form method="get" action="">
+                                        <div class="input-group">
+                                            <input type="text" name="search" class="form-control search-menu"
+                                                value="{{ search_query }}" placeholder="Search by Employee Name" />
+                                            <button class="srh-btn" type="submit">
+                                                <div class="input-group-append">
+                                                        <i class="fa fa-search" aria-hidden="true"></i>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <!-- <a class="badge bg-warning" href="#">Add <i class="fas fa-plus"></i></a>
+                            <div class="dwnld-dropdown">
+                                <a href="#" title="Download"><i class="fas fa-download"></i></a>
+                                <div class="dwnld-dropdown-content">
+                                    <a href="#" title="Download XLSX">XLSX</a>
+                                    <a href="#" title="Download CSV">CSV</a>
+                                </div>
+                            </div> -->
+                        </div>
+                    </th>
+                </tr>
+                       
+            </thead>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Rank</th>
+                    <th>Status</th>
+                    <th>Date</th>
+                    <th>Login</th>
+                    <th>Logout</th>
+                    <th>Total Working Hour</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td><a href="{% url 'hr_attendance_detail' record.pk %}">{{ record.employee.user.get_full_name }}</a>
+                    </td>
+                    <td>{{ record.employee.get_role}}</td>
+                    <td>{{ record.get_status_display }}</td>
+                    <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
+                    <td>{{ record.login_time|time:"g:ia" }}</td>
+                    <td>{{ record.log_out_time|time:"g:ia" }}</td>
+                    <td>{{ record.total_hours_of_work|format_work_duration }}</td>
+                    <td class="list-action-col">
+                        <a href="{% url 'hr_edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
+                        <a href="{% url 'hr_delete_attendance' record.id %}"
+                            onclick="return confirm('Are you sure you want to delete this attendance?');">
+                            <i class="far fa-trash-alt"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <!-- Pagination Controls -->
+        
+    </div>
+    <div class="pagination" id="pagination">
+        {% if attendance_records.has_previous %}
+            <a href="?page={{ attendance_records.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+    
+        {% for num in attendance_records.paginator.page_range %}
+            <a href="?page={{ num }}">
+                <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endfor %}
+    
+        {% if attendance_records.has_next %}
+            <a href="?page={{ attendance_records.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
