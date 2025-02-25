@@ -1,6 +1,5 @@
 from django.urls import path
-from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time
-
+from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile
 
 urlpatterns = [
     path('dashboard/', dashboard, name='hr-dashboard'),
@@ -30,5 +29,8 @@ urlpatterns = [
 
     path('manager-fetch-notifications/', hr_fetch_notifications, name='hr_fetch_notifications'),
     path('manager-mark-notifications-as-read', hr_mark_notifications_as_read, name='hr_mark_notifications_as_read'),
+
+    path('profile/', hr_profile, name='hr_profile_view'),
+    path("update-profile/", hr_update_profile, name="hr_update_profile"),
 
     ]

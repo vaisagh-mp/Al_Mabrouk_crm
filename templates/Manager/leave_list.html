@@ -66,7 +66,14 @@
                 {% for leave in leave_records %}
                 <tr>
                     <td>{{ leave.user.get_full_name }}</td>
-                    <td>{{ leave.get_leave_type_display }}</td>
+                    <td>
+                        <span class="status 
+                            {% if leave.leave_type == 'SICK LEAVE' %}sick-leave
+                            {% elif leave.leave_type == 'ANNUAL LEAVE' %}annual-leave
+                            {% else %}casual-leave{% endif %}">
+                            {{ leave.get_leave_type_display }}
+                        </span>
+                    </td>
                     <td>{{ leave.from_date|date:"d/M/Y" }}</td>
                     <td>{{ leave.to_date|date:"d/M/Y" }}</td>
                     <td>{{ leave.no_of_days }}</td>

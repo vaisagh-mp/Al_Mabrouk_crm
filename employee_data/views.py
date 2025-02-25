@@ -102,18 +102,10 @@ def employee_dashboard(request):
             total_projects = projects.count()
             pending_projects = projects.exclude(team__project__status='COMPLETED').count()
             completed_projects = projects.filter(team__project__status='COMPLETED').count()
-            print('assigned_work:', assigned_work)
-            print('projects:', projects)
-            print('total_projects:', total_projects)
-            print('pending_projects:', pending_projects)
-            print('completed_projects:', completed_projects)
-            print('worked_days:', worked_days)
-            print('loss_of_pay_days:', loss_of_pay_days)
-            print('user_attendance:', today_attendance)
-            print('current_time:', now.strftime('%I:%M %p, %d %b %Y'))
 
             context = {
                 'employee': employee,
+                'assigned_work': assigned_work,
                 'attendance_records': attendance_records,
                 'attendance_percentage': attendance_percentage,
                 'current_time': now.strftime('%I:%M %p, %d %b %Y'),

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import admstrn_add_project, admstrn_project_list_view, admstrn_edit_project, admstrn_delete_project,admstrn_project_summary_view, dashboard, attendance,admstrn_log_in, admstrn_log_off, admstrn_render_attendance_page, admstrn_update_travel_time, admstrn_apply_leave, admstrn_leave_status, admstrn_leave_records, admstrn_upload_medical_certificate, admstrn_fetch_notifications, admstrn_mark_notifications_as_read
+from .views import admstrn_add_project, admstrn_project_list_view, admstrn_edit_project, admstrn_delete_project,admstrn_project_summary_view, dashboard, attendance,admstrn_log_in, admstrn_log_off, admstrn_render_attendance_page, admstrn_update_travel_time, admstrn_apply_leave, admstrn_leave_status, admstrn_leave_records, admstrn_upload_medical_certificate, admstrn_fetch_notifications, admstrn_mark_notifications_as_read, admstrn_update_profile, admstrn_profile
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admstrn-dashboard'),
@@ -23,5 +23,8 @@ urlpatterns = [
 
     path('manager-fetch-notifications/', admstrn_fetch_notifications, name='admstrn_fetch_notifications'),
     path('manager-mark-notifications-as-read', admstrn_mark_notifications_as_read, name='admstrn_mark_notifications_as_read'),
+
+    path('profile/', admstrn_profile, name='admstrn_profile_view'),
+    path("update-profile/", admstrn_update_profile, name="admstrn_update_profile"),
     
     ]

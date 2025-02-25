@@ -17,7 +17,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from Admin.forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
-from employee_data.forms import LeaveForm
+from employee_data.forms import LeaveForm, EmployeeUpdateForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from Admin.models import Attendance, Employee, LeaveBalance, Project, TeamMemberStatus, Leave, ActivityLog, Notification, Team
@@ -759,3 +759,117 @@ def hr_mark_notifications_as_read(request):
         notifications.update(is_read=True)  # Bulk update for efficiency
     
     return JsonResponse({"message": "Notifications marked as read"})
+
+
+@login_required
+def hr_profile(request):
+    # Fetch the employee
+    employee = get_object_or_404(Employee, user=request.user)
+    teams = employee.teams_assigned.all()
+
+    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
+
+    # Count statuses for the employee's projects
+    completed_projects = team_member_statuses.filter(
+        status='COMPLETED').count()
+    pending_projects = team_member_statuses.exclude(
+        Q(status='COMPLETED') | Q(status='ONGOING')).count()
+    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
+
+    # Get the related projects from the team member status
+    all_projects = [
+        {
+            'project': status.team.project,
+            'manager': status.team.project.manager,
+            'status': status.status
+        }
+        for status in team_member_statuses
+    ]
+
+    # Calculate attendance percentage
+    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
+    # approved_attendance_records = Attendance.objects.filter(
+    #     employee=employee, status='APPROVED'
+    # ).count()
+    # attendance_percentage = (
+    #     (approved_attendance_records / 30) * 100
+    #     if total_attendance_records > 0
+    #     else 0
+    # )
+
+    # Get the current year and month
+    current_year = date.today().year
+    current_month = date.today().month
+
+    # Get the total number of days in the current month
+    total_days_in_month = monthrange(current_year, current_month)[1]
+
+    # Calculate total and approved attendance records for the current month
+    total_attendance_records = Attendance.objects.filter(
+        employee=employee,
+        login_time__year=current_year,
+        login_time__month=current_month
+    ).count()
+
+    approved_attendance_records = Attendance.objects.filter(
+        employee=employee,
+        status='APPROVED',
+        login_time__year=current_year,
+        login_time__month=current_month
+    ).count()
+
+    # Calculate attendance percentage
+    attendance_percentage = (
+        (approved_attendance_records / total_days_in_month) * 100
+        if total_attendance_records > 0
+        else 0
+    )
+
+    # Count total projects and pending projects
+    total_projects = completed_projects + pending_projects + assigned_projects
+    total_pending_projects = total_projects - completed_projects
+
+    # Context for template
+    context = {
+        'employee': employee,
+        'teams': teams,
+        'all_projects': all_projects,
+        'attendance_percentage': round(attendance_percentage, 1),
+        'total_projects': total_projects,
+        'completed_projects': completed_projects,
+        'pending_projects': total_pending_projects,
+    }
+
+    return render(request, 'hr/profile.html', context)
+
+
+@login_required
+def hr_update_profile(request):
+    employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
+
+    if request.method == "POST":
+        form = EmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        if form.is_valid():
+            user = request.user
+            user.first_name = form.cleaned_data["first_name"]
+            user.last_name = form.cleaned_data["last_name"]
+            user.email = form.cleaned_data["email"]
+
+            # Save new password if provided
+            if form.cleaned_data["password"]:
+                user.set_password(form.cleaned_data["password"])
+
+            user.save()
+            form.save()
+
+            messages.success(request, "Your profile has been updated successfully.")
+            return redirect("hr_profile_view")
+
+    else:
+        form = EmployeeUpdateForm(instance=employee, initial={
+            "first_name": request.user.first_name,
+            "last_name": request.user.last_name,
+            "email": request.user.email,
+        })
+
+    return render(request, "hr/updateprofile.html", {"form": form})

@@ -52,8 +52,8 @@
                   <span>{{ request.user.username }}</span>
               </button>
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
-              <li><a class="dropdown-item" href="#">Profile</a></li>
-              <li><a class="dropdown-item" href="{% url 'project-list' %}">Task</a></li>
+              <li><a class="dropdown-item" href="{% url 'admstrn_profile_view' %}">Profile</a></li>
+              <li><a class="dropdown-item" href="{% url 'admstrn_project_list_view' %}">Task</a></li>
               <li><a class="dropdown-item" href="{% url 'custom_logout' %}">Log out</a></li>
             </ul>
           </div>

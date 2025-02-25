@@ -788,19 +788,17 @@ header .dropdown-menu {
 }
 
 .status.ongoing {
-  background-color: #ff8548;
-  color: var(--primary-font-color);
+  background-color: #ffc299;
+  color: #8b4f00;
 }
 
 .status.cancelled {
-  background-color: #e2362f;
-  color: var(--primary-font-color);
+  background-color: #f8d7da;
+  color: #721c24;
 }
-
 .status.present {
-  background-color: #28a745;
-  /* Green */
-  color: white;
+  background-color: #c3e6cb;
+  color: #155724;
 }
 
 .status.leave {
@@ -810,27 +808,23 @@ header .dropdown-menu {
 }
 
 .status.work-from-home {
-  background-color: #17a2b8;
-  /* Teal */
-  color: white;
+  background-color: #b3e0ff;
+  color: #004085;
 }
 
 .status.sick-leave {
-  background-color: #dc3545;
-  /* Red */
-  color: white;
+  background-color: #d4c4fc;
+  color: #4b0082;
 }
 
 .status.annual-leave {
-  background-color: #007bff;
-  /* Blue */
-  color: white;
+  background-color: #ffeb99;
+  color: #856404;
 }
 
 .status.casual-leave {
-  background-color: #6c757d;
-  /* Gray */
-  color: white;
+  background-color: #ffc299;
+  color: #a45c00;
 }
 
 .status.absent {

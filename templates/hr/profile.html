@@ -1,0 +1,187 @@
+{% extends 'hr/hrbase.html' %}{% load custom_filters %} {% load static %} {% block content %}
+
+<div class="emply-profile-wraper">
+  <div class="pg-title">
+    <h1>Employee Details</h1>
+  </div>
+
+  <div class="row">
+    <div class="col-lg-4">
+      <div class="emp-info-wrapper">
+        <div class="emp-info-hdr">
+          <div class="emp-prfl-img">
+            {% if employee.profile_picture %}
+            <img src="{{ employee.profile_picture.url }}" alt="Employee Profile Pic">
+            {% else %}
+            <img src="{% static 'assets/images/user-pro.webp' %}" alt="Default Profile Pic">
+            {% endif %}
+          </div>
+          <h5>{{ employee.user.first_name }} {{ employee.user.last_name }}</h5>
+          <span>{{ employee.rank }}</span>
+          <!-- <span style="color: #3b7080">10+ years of Experience</span> -->
+        </div>
+
+        <div class="emp-details">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-id-card"></i>
+              EMB ID
+            </span>
+            <p class="text-dark">ALM-0{{ employee.pk }}</p>
+          </div>
+          <!-- <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-star"></i>
+              Team
+            </span>
+            {% for team in teams %}
+            <p class="text-dark">{{ team.name }}</p>
+            {% endfor %}
+          </div> -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-calendar-check"></i>
+              Date Of Join
+            </span>
+            <p class="text-dark">
+              {{ employee.date_of_join|date:"d-m-Y" }}
+            </p>
+          </div>
+
+
+        </div>
+        <hr />
+
+        <div class="p-3 emp-basic-info border-bottom">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6>Basic information</h6>
+
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-mobile-alt"></i>
+              Phone
+            </span>
+            <p class="text-dark">{{ employee.phone_number }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-envelope"></i>
+              Email
+            </span>
+            <a href="maito:{{ employee.user.email }}" style="
+                color: #3b7080 !important;
+                font-size: 14px;
+                text-decoration: none;
+              " class="text-info d-inline-flex align-items-center">{{ employee.user.email }}<i
+                class="ti ti-copy text-dark ms-2"></i></a>
+          </div>
+          <!-- <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-mars-stroke"></i>
+              Gender
+            </span>
+            <p class="text-dark text-end">Male</p>
+          </div> -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-birthday-cake"></i>
+              Birdthday
+            </span>
+            <p class="text-dark text-end">{{ employee.date_of_birth }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-map-marker-alt"></i>
+              Address
+            </span>
+            <p class="text-dark text-end">
+              {{ employee.address }}
+            </p>
+          </div>
+          <div class="row gx-2 mt-3">
+            <div class="col-6"></div>
+            <div class="col-6">
+              <div>
+                <!-- Button to trigger modal -->
+                <a href="{% url 'hr_update_profile' %}" class="btn btn-dark w-100"><i class="fas fa-edit"></i> Edit
+                  Info</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="emp-status-col">
+        <div class="row mb-4">
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Attendance</h5>
+              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Projects Completed</h5>
+              <h6 style="color: #65a986">{{ completed_projects }}</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Projects Pending</h5>
+              <h6 style="color: #4f8bb7">{{ pending_projects }}</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project Table -->
+        <div class="widget-box table-wdgt">
+          <h3>Projects</h3>
+          <table id="employee-prjct-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Project Code</th>
+                <th>Employee</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for project_data in all_projects %}
+              <tr>
+                <td><a href="#">{{ project_data.project.name }}</a></td>
+                <td>{{ project_data.project.code }}</td>
+                <td>{{ employee.user.get_full_name }}</td>
+                <td>
+                  {% if project_data.status == 'ONGOING' %}
+                  <span class="status ongoing">Ongoing</span>
+                  {% elif project_data.status == 'COMPLETED' %}
+                  <span class="status completed">Completed</span>
+                  {% elif project_data.status == 'HOLD' %}
+                  <span class="status hold">Hold</span>
+                  {% elif project_data.status == 'PENDING' %}
+                  <span class="status pending">Pending</span>
+                  {% elif project_data.status == 'CANCELLED' %}
+                  <span class="status cancelled">Cancelled</span>
+                  {% elif project_data.status == 'ASSIGN' %}
+                  <span class="status Assign">Assign</span>
+                  {% else %}
+                  <span class="status unknown">Unknown</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

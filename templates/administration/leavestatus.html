@@ -4,9 +4,11 @@
 {% block content %}
 
 <style>
+    .modal{ padding: 20px;}
     /* Modal Background */
 .modal-backdrop {
     background-color: rgba(0, 0, 0, 0.5); /* Slightly darken the background */
+   
 }
 
 /* Modal Container */
@@ -17,14 +19,14 @@
 
 /* Modal Header */
 .modal-header {
-    background-color: #2c3e50; /* Dark background */
+    background-color: #3f6d95 !important; /* Dark background */
     color: white; /* White text color */
     border-bottom: 2px solid #ecf0f1; /* Light border under header */
     padding: 15px 20px; /* Padding inside header */
 }
 
 .modal-header .btn-close {
-    background-color: #e74c3c; /* Red close button */
+ /* Red close button */
     border-radius: 50%; /* Round close button */
     width: 35px;
     height: 35px;
@@ -74,7 +76,7 @@
 
 /* Submit Button */
 .submit-btn {
-    background-color: #2980b9; /* Blue background */
+    background-color:#3f6d95; /* Blue background */
     color: white; /* White text */
     padding: 10px 20px;
     border: none;
@@ -86,7 +88,7 @@
 }
 
 .submit-btn:hover {
-    background-color: #1f6f91; /* Darker blue on hover */
+    background-color: #3f6d95; /* Darker blue on hover */
 }
 
 /* Modal Footer */
@@ -156,7 +158,14 @@
                 {% for leave in leaves %}
                 <tr>
                     <td><a href="#">{{ leave.user.username }}</a></td>
-                    <td>{{ leave.leave_type }}</td>
+                    <td>
+                        <span class="status 
+                            {% if leave.leave_type == 'SICK LEAVE' %}sick-leave
+                            {% elif leave.leave_type == 'ANNUAL LEAVE' %}annual-leave
+                            {% else %}casual-leave{% endif %}">
+                            {{ leave.get_leave_type_display }}
+                        </span>
+                    </td>
                     <td>{{ leave.from_date|date:"d/m/Y" }}</td>
                     <td>{{ leave.to_date|date:"d/m/Y" }}</td>
                     <td>{{ leave.no_of_days }}</td>

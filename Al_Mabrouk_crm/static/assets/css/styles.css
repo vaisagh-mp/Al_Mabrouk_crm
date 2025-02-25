@@ -935,3 +935,89 @@ header .dropdown-menu{width: 100px !important;min-width: unset !important;}
   .login-container{width: 100%;}
 }
   /*================ End Loging Page ================*/
+
+
+
+/* Task Statuses */
+.status.pending {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.status.assign {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.status.ongoing {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status.hold {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status.cancelled {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.status.completed {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+/* Priority Levels */
+.status.high {
+  background-color: #f5c6cb;
+  color: #721c24;
+}
+
+.status.medium {
+  background-color: #ffeeba;
+  color: #856404;
+}
+
+.status.low {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+/* Approval Statuses */
+.status.approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status.rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+/* Leave Statuses */
+.status.present {
+  background-color: #c3e6cb;
+  color: #155724;
+}
+
+.status.work-from-home {
+  background-color: #b3e0ff;
+  color: #004085;
+}
+
+.status.sick-leave {
+  background-color: #d4c4fc;
+  color: #4b0082;
+}
+
+.status.annual-leave {
+  background-color: #ffeb99;
+  color: #856404;
+}
+
+.status.casual-leave {
+  background-color: #ffc299;
+  color: #a45c00;
+}

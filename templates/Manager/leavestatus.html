@@ -4,9 +4,11 @@
 {% block content %}
 
 <style>
+    .modal{ padding: 20px;}
     /* Modal Background */
 .modal-backdrop {
     background-color: rgba(0, 0, 0, 0.5); /* Slightly darken the background */
+   
 }
 
 /* Modal Container */
@@ -17,14 +19,14 @@
 
 /* Modal Header */
 .modal-header {
-    background-color: #2c3e50; /* Dark background */
+    background-color: #3f6d95 !important; /* Dark background */
     color: white; /* White text color */
     border-bottom: 2px solid #ecf0f1; /* Light border under header */
     padding: 15px 20px; /* Padding inside header */
 }
 
 .modal-header .btn-close {
-    background-color: #e74c3c; /* Red close button */
+ /* Red close button */
     border-radius: 50%; /* Round close button */
     width: 35px;
     height: 35px;
@@ -74,7 +76,7 @@
 
 /* Submit Button */
 .submit-btn {
-    background-color: #2980b9; /* Blue background */
+    background-color:#3f6d95; /* Blue background */
     color: white; /* White text */
     padding: 10px 20px;
     border: none;
@@ -86,7 +88,7 @@
 }
 
 .submit-btn:hover {
-    background-color: #1f6f91; /* Darker blue on hover */
+    background-color: #3f6d95; /* Darker blue on hover */
 }
 
 /* Modal Footer */
@@ -190,10 +192,10 @@
                             No Certificate
                         {% endif %}
                     </td> -->
-                    <td>
+                    <td >
                         <!-- Trigger Modal -->
-                        <button class="apply-btn" style="color: azure;" data-bs-toggle="modal" data-bs-target="#uploadModal{{ leave.id }}">
-                            Upload Certificate
+                        <button title="Upload Medical Certificate" class="certi-upld-btn" data-bs-toggle="modal" data-bs-target="#uploadModal{{ leave.id }}">
+                            <i class="fas fa-upload"></i>
                         </button>
 
                     </td>
@@ -201,24 +203,26 @@
                     <!-- Modal for Uploading Medical Certificate -->
                     {% for leave in leaves %}
                     <div class="modal fade" id="uploadModal{{ leave.id }}" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
-                        <div class="modal-dialog">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title" id="uploadModalLabel">Upload Medical Certificate for {{ leave.user.username }}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content shadow-lg rounded-3">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title" id="uploadModalLabel">
+                                        Upload Medical Certificate for {{ leave.user.username }}
+                                    </h5>
+                                    <button type="button" class="btn-close text-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
-                                <div class="modal-body">
+                                <div class="modal-body p-4">
                                     <form method="POST" enctype="multipart/form-data" action="{% url 'manager_upload_medical_certificate' leave.id %}">
                                         {% csrf_token %}
-                                        <div class="form-group">
-                                            <label for="medical_certificate">Medical Certificate</label>
-                                            <input type="file" class="form-control" id="medical_certificate" name="medical_certificate" {% if leave.medical_certificate %} disabled {% endif %} required>
+                                        <div class="mb-3">
+                                            <label for="medical_certificate" class="form-label fw-bold">Medical Certificate</label>
+                                            <input type="file" class="form-control border-2 rounded" id="medical_certificate" name="medical_certificate" {% if leave.medical_certificate %} disabled {% endif %} required>
                                         </div>
-                                        <div class="form-actions">
+                                        <div class="text-center mt-4">
                                             {% if leave.medical_certificate %}
-                                                <button type="button" class="btn btn-success" disabled>Uploaded</button>
+                                                <button type="button" class="btn btn-success w-100" disabled>✔ Uploaded</button>
                                             {% else %}
-                                                <button type="submit" class="submit-btn">Upload</button>
+                                                <button type="submit" class="btn btn-primary submit-btn w-100 fw-bold shadow-sm">Upload</button>
                                             {% endif %}
                                         </div>
                                     </form>
