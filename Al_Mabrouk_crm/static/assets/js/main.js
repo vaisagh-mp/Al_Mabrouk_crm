@@ -53,3 +53,20 @@ function toggleSidebar() {
     logo.src = "/static/assets/images/almabrouk-logo.webp";
   }
 }
+
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/assets/js/service-worker.js').then(reg => {
+      reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          installingWorker.onstatechange = () => {
+              if (installingWorker.state === 'installed') {
+                  if (navigator.serviceWorker.controller) {
+                      console.log('New content is available; refreshing the page...');
+                      window.location.reload(); // Refresh to load the latest version
+                  }
+              }
+          };
+      };
+  });
+}

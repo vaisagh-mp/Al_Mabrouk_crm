@@ -1,0 +1,20 @@
+{
+    "name": "Almabrouk CRM",
+    "short_name": "CRM",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#3f6d95",
+    "icons": [
+        {
+            "src": "/static/assets/images/pwa-logo.webp",
+            "sizes": "192x192",
+            "type": "image/webp"
+        },
+        {
+            "src": "/static/assets/images/pwa-logo.webp",
+            "sizes": "192x192",
+            "type": "image/webp"
+        }
+    ]
+}
