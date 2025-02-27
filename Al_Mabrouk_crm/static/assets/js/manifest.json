@@ -1,7 +1,7 @@
 {
     "name": "Almabrouk CRM",
     "short_name": "CRM",
-    "start_url": "http://crm.blessedmarineautomation.com/",
+    "start_url": "crm.blessedmarineautomation.com/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#3f6d95",
