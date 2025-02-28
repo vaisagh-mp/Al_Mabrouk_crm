@@ -28,7 +28,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-CSRF_TRUSTED_ORIGINS = ['http://crm.blessedmarineautomation.com']
+CSRF_TRUSTED_ORIGINS = ['http://crm-almabrouk.com']
 
 
 # Application definition
