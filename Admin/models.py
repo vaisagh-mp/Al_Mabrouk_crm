@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models.signals import post_save, m2m_changed, pre_save
+from django.db.models.signals import post_save, m2m_changed, pre_save, post_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import User
 from datetime import datetime
@@ -305,6 +305,11 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f"Attendance for {self.employee.user.username} - {self.status}"
+    
+@receiver(post_delete, sender=Attendance)
+def update_work_days_after_delete(sender, instance, **kwargs):
+    """Recalculate work_days when an Attendance record is deleted."""
+    instance.employee.calculate_work_days()
 
 class Leave(models.Model):
     LEAVE_TYPE_CHOICES = [
