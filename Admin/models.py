@@ -224,6 +224,11 @@ class Employee(models.Model):
         if self.is_hr:
             return "HR"
         return "Unknown"
+    
+    def delete(self, *args, **kwargs):
+        user = self.user  # Get associated user
+        super().delete(*args, **kwargs)  # Delete employee
+        user.delete()  # Delete user manually
 
     def __str__(self):
         return f"{self.user.username} - {self.get_role()} - {self.rank}"

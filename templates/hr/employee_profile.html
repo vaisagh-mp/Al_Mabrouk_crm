@@ -107,7 +107,7 @@
               </div>
               <div class="col-6">
                 <div>
-                    <form action="{% url 'admin_delete_employee' employee.id %}" method="POST" 
+                    <form action="{% url 'hr_delete_employee' employee.id %}" method="POST" 
         onsubmit="return confirmDelete();">
         {% csrf_token %}
                   

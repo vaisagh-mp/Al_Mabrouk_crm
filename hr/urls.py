@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile
+from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_delete_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile
 
 urlpatterns = [
     path('dashboard/', dashboard, name='hr-dashboard'),
@@ -21,6 +21,7 @@ urlpatterns = [
 
     path('employee/<int:employee_id>/', hr_employee_profile, name='hr_employee_profile'),
     path('employee/edit/<int:employee_id>/', hr_edit_employee, name='hr_edit_employee'),
+    path('employee/delete/<int:employee_id>/', hr_delete_employee, name='hr_delete_employee'),
 
     path('apply-leave/', hr_apply_leave, name='hr_apply_leave'),
     path("my-leave/", hr_leave_status, name="hr_leave_status"),

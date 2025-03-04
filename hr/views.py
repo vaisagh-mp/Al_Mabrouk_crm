@@ -289,17 +289,17 @@ def dashboard(request):
 # create employee
 @login_required
 def hr_create_employee(request):
-    employee = request.user.employee_profile 
+    employee = request.user.employee_profile  
     if not employee.is_hr:
-        return redirect('dashboard')
-    
+        return redirect('custom-login')  # Ensure 'custom-login' exists in urls.py
+
     if request.method == 'POST':
         form = EmployeeCreationForm(request.POST, request.FILES)
         if form.is_valid():
             try:
                 form.save()
                 messages.success(request, 'Employee created successfully!')
-                return redirect('create-employee')
+                return redirect('hr_create_employee')  # 🔹 Ensure this matches urls.py
             except Exception as e:
                 messages.error(request, f'There was an error creating the employee: {e}')
         else:
@@ -309,6 +309,7 @@ def hr_create_employee(request):
         form = EmployeeCreationForm()
 
     return render(request, 'hr/create_employee.html', {'form': form})
+
 
 @login_required
 def hr_employee_list(request):
@@ -645,6 +646,17 @@ def hr_edit_employee(request, employee_id):
 
     return render(request, "hr/edit_employee.html", {"form": form, "employee": employee})
 
+
+def hr_delete_employee(request, employee_id):
+    employee = get_object_or_404(Employee, id=employee_id)
+    # Process deletion on POST request
+    if request.method == 'POST':
+        employee.delete()
+        messages.success(request, 'Employee deleted successfully!')
+        return redirect('hr_employee_list')
+
+    # Redirect back if accessed via GET (optional)
+    return redirect('hr_employee_list')
 
 @login_required
 def hr_apply_leave(request):
