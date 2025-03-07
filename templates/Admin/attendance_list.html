@@ -96,6 +96,7 @@
         <!-- Pagination Controls -->
         
     </div>
+
     <div class="pagination" id="pagination">
         {% if attendance_records.has_previous %}
             <a href="?page={{ attendance_records.previous_page_number }}">
@@ -115,6 +116,7 @@
             </a>
         {% endif %}
     </div>
+    
 </div>
 
 {% endblock %}

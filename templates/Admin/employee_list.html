@@ -104,19 +104,25 @@
      <!-- Pagination -->
      <div class="pagination" id="pagination">
         {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            <a href="?page={{ page_obj.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
         {% endif %}
+    
         {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-        <button class="active">{{ num }}</button>
-        {% else %}
-        <a href="?page={{ num }}">{{ num }}</a>
-        {% endif %}
+            <a href="?page={{ num }}">
+                <button class="{% if num == page_obj.number %}active{% endif %}">{{ num }}</button>
+            </a>
         {% endfor %}
+    
         {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?page={{ page_obj.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
         {% endif %}
     </div>
+    
+
 </div>
 
 
