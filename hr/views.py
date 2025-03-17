@@ -599,6 +599,7 @@ def hr_edit_employee(request, employee_id):
         form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
         if form.is_valid():
             # Update User fields
+            user.username = form.cleaned_data["username"]
             user.first_name = form.cleaned_data["first_name"]
             user.last_name = form.cleaned_data["last_name"]
             user.email = form.cleaned_data["email"]
@@ -630,6 +631,7 @@ def hr_edit_employee(request, employee_id):
 
     else:
         form = ManagerEmployeeUpdateForm(instance=employee, initial={
+            "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "email": user.email,

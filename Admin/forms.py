@@ -130,6 +130,11 @@ class ProjectAssignmentForm(forms.ModelForm):
 
 
 class ManagerEmployeeUpdateForm(forms.ModelForm):
+    username = forms.CharField(max_length=150, required=True)
+    current_password = forms.CharField(widget=forms.PasswordInput, required=False)
+    password = forms.CharField(widget=forms.PasswordInput, required=False)
+    confirm_password = forms.CharField(widget=forms.PasswordInput, required=False)
+
     first_name = forms.CharField(max_length=30, required=True)
     last_name = forms.CharField(max_length=30, required=False)
     email = forms.EmailField(required=True)
@@ -142,14 +147,12 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
     holidays = forms.IntegerField(required=False)
     overseas_days = forms.IntegerField(required=False)
     address = forms.CharField(widget=forms.Textarea, required=False)
-    password = forms.CharField(widget=forms.PasswordInput, required=False)
-    confirm_password = forms.CharField(widget=forms.PasswordInput, required=False)
     profile_picture = forms.ImageField(required=False)
 
     class Meta:
         model = Employee
         fields = [
-            "first_name", "last_name", "email", "phone_number", "rank", 
+            "username", "first_name", "last_name", "email", "phone_number", "rank", 
             "salary", "date_of_birth", "date_of_join", "work_days", 
             "holidays", "overseas_days", "address", "profile_picture"
         ]

@@ -639,28 +639,28 @@ def is_admin(user):
 def admin_edit_employee(request, employee_id):
     """Admin can edit an employee's profile"""
     
-    # Ensure we are fetching an Employee instance, NOT a User
     try:
         employee = Employee.objects.select_related("user").get(id=employee_id)
     except Employee.DoesNotExist:
         messages.error(request, "Employee not found.")
         return redirect("employee_list")
 
-    # Ensure employee has a related user
     if not employee.user:
         messages.error(request, "This employee does not have a linked user account.")
         return redirect("employee_list")
 
-    user = employee.user  # Safely access related User instance
+    user = employee.user
 
     if request.method == "POST":
         form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
         if form.is_valid():
             # Update User fields
+            user.username = form.cleaned_data["username"]
             user.first_name = form.cleaned_data["first_name"]
             user.last_name = form.cleaned_data["last_name"]
             user.email = form.cleaned_data["email"]
 
+            # Handle password change
             if form.cleaned_data.get("password"):
                 user.set_password(form.cleaned_data["password"])
 
@@ -688,6 +688,7 @@ def admin_edit_employee(request, employee_id):
 
     else:
         form = ManagerEmployeeUpdateForm(instance=employee, initial={
+            "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "email": user.email,

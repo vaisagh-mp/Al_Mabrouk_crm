@@ -233,7 +233,6 @@ class Employee(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.get_role()} - {self.rank}"
 
-
 class ProjectAssignment(models.Model):
     """
     Intermediate model to manage Employee-to-Project assignments.
@@ -357,7 +356,6 @@ class LeaveBalance(models.Model):
     def __str__(self):
         return f"{self.user.username} - Leave Balance"
     
-
 class TeamMemberStatus(models.Model):
     STATUS_CHOICES = [
         ('ASSIGN', 'Assign'),
