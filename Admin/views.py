@@ -654,6 +654,7 @@ def admin_edit_employee(request, employee_id):
     if request.method == "POST":
         form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
         if form.is_valid():
+            print("Form is valid")  # Debugging
             # Update User fields
             user.username = form.cleaned_data["username"]
             user.first_name = form.cleaned_data["first_name"]
@@ -681,12 +682,39 @@ def admin_edit_employee(request, employee_id):
             if "profile_picture" in request.FILES:
                 employee.profile_picture = request.FILES["profile_picture"]
 
+            # Reset all role fields before setting the new role
+            employee.is_employee = False
+            employee.is_manager = False
+            employee.is_administration = False
+            employee.is_hr = False
+
+            # Update role based on form input
+            selected_role = request.POST.get("role")
+            if selected_role == "employee":
+                employee.is_employee = True
+            elif selected_role == "manager":
+                employee.is_manager = True
+            elif selected_role == "administration":
+                employee.is_administration = True
+            elif selected_role == "hr":
+                employee.is_hr = True
+
             employee.save()
 
             messages.success(request, "Employee profile updated successfully.")
             return redirect("employee_list")
 
     else:
+        initial_role = None  # Default to None
+        if employee.is_employee:
+            initial_role = "employee"
+        elif employee.is_manager:
+            initial_role = "manager"
+        elif employee.is_administration:
+            initial_role = "administration"
+        elif employee.is_hr:
+            initial_role = "hr"
+    
         form = ManagerEmployeeUpdateForm(instance=employee, initial={
             "username": user.username,
             "first_name": user.first_name,
@@ -701,7 +729,9 @@ def admin_edit_employee(request, employee_id):
             "holidays": employee.holidays,
             "overseas_days": employee.overseas_days,
             "address": employee.address,
+            "role": initial_role  # Ensure role is set
         })
+
 
     return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee})
 

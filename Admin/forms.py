@@ -130,6 +130,19 @@ class ProjectAssignmentForm(forms.ModelForm):
 
 
 class ManagerEmployeeUpdateForm(forms.ModelForm):
+    ROLE_CHOICES = [
+        ('employee', 'Employee'),
+        ('manager', 'Manager'),
+        ('administration', 'Administration'),
+        ('hr', 'HR'),
+    ]
+
+    role = forms.ChoiceField(
+        choices=ROLE_CHOICES,
+        widget=forms.RadioSelect,
+        required=True
+    )
+
     username = forms.CharField(max_length=150, required=True)
     current_password = forms.CharField(widget=forms.PasswordInput, required=False)
     password = forms.CharField(widget=forms.PasswordInput, required=False)
@@ -149,12 +162,13 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
     address = forms.CharField(widget=forms.Textarea, required=False)
     profile_picture = forms.ImageField(required=False)
 
+
     class Meta:
         model = Employee
         fields = [
             "username", "first_name", "last_name", "email", "phone_number", "rank", 
             "salary", "date_of_birth", "date_of_join", "work_days", 
-            "holidays", "overseas_days", "address", "profile_picture"
+            "holidays", "overseas_days", "address", "profile_picture", "role"
         ]
 
     def clean(self):
@@ -166,3 +180,27 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
             self.add_error("confirm_password", "Passwords do not match.")
 
         return cleaned_data
+    
+    def save(self, commit=True):
+        employee = super().save(commit=False)
+        role = self.cleaned_data.get("role")
+
+        # Reset all role fields
+        employee.is_employee = False
+        employee.is_manager = False
+        employee.is_administration = False
+        employee.is_hr = False
+
+        # Set the selected role
+        if role == "employee":
+            employee.is_employee = True
+        elif role == "manager":
+            employee.is_manager = True
+        elif role == "administration":
+            employee.is_administration = True
+        elif role == "hr":
+            employee.is_hr = True
+
+        if commit:
+            employee.save()
+        return employee
