@@ -74,13 +74,13 @@
                     {% for choice in form.fields.role.choices %}
                     <div class="form-check form-check-inline">
                         <input
-    type="radio"
-    class="form-check-input"
-    id="role_{{ choice.0 }}"
-    name="role"
-    value="{{ choice.0 }}"
-    {% if form.role.value == choice.0 or employee.get_role_display == choice.1 %}checked{% endif %}
-/>
+                            type="radio"
+                            class="form-check-input"
+                            id="role_{{ choice.0 }}"
+                            name="role"
+                            value="{{ choice.0 }}"
+                            {% if form.role.value == choice.0 or employee.get_role_display == choice.1 %}checked{% endif %}
+                        />
 
                         <label class="form-check-label" for="role_{{ choice.0 }}">{{ choice.1 }}</label>
                     </div>
