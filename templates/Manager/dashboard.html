@@ -219,18 +219,23 @@
 
 
 <script>
-  function updateCurrentTime() {
-      let now = new Date();
-      let options = {
-          hour: '2-digit', minute: '2-digit', second: '2-digit',
-          day: '2-digit', month: 'short', year: 'numeric'
-      };
-      document.querySelector('.date').innerText = now.toLocaleString('en-US', options);
-  }
+    function updateCurrentTime() {
+        let now = new Date();
+        let options = {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            timeZone: 'Asia/Dubai'  // Set the timezone to Asia/Dubai
+        };
+        document.querySelector('.date').innerText = now.toLocaleString('en-US', options);
+    }
 
-  // Update the time every second
-  setInterval(updateCurrentTime, 1000);
-  updateCurrentTime();
+    // Update the time every second
+    setInterval(updateCurrentTime, 1000);
+    updateCurrentTime();
 </script>
 
 {% endblock %}

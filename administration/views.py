@@ -186,7 +186,7 @@ def dashboard(request):
         ).first()
 
         # Set Punch In & Punch Out times
-        local_tz = pytz.timezone('Asia/Kolkata')
+        local_tz = pytz.timezone('Asia/Dubai')
 
         last_punch_in = (
             localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p')

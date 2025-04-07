@@ -29,7 +29,7 @@ def employee_dashboard(request):
             today_attendance = attendance_records.filter(login_time__date=today).first()
 
             # Convert to local timezone (Asia/Kolkata)
-            local_tz = pytz.timezone('Asia/Kolkata')
+            local_tz = pytz.timezone('Asia/Dubai')
             now = timezone.now().astimezone(local_tz)
 
             # Punch In/Out Details
