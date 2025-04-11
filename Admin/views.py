@@ -3,6 +3,7 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
 from datetime import date
+from datetime import timedelta
 from django.db.models import Q, F, Sum
 from django.utils.timezone import now
 from django.db.models import Prefetch
@@ -20,11 +21,51 @@ from .models import Attendance, Employee, ProjectAssignment, Project, TeamMember
 @login_required
 def dashboard(request):
     if request.user.is_superuser:  # Admin users
+
+        today = now().date()
+        first_day_this_month = today.replace(day=1)
+        last_day_last_month = first_day_this_month - timedelta(days=1)
+        first_day_last_month = last_day_last_month.replace(day=1)
+
         # Get total projects
         total_projects = Project.objects.count()
+
+        # Project count last month
+        projects_last_month = Project.objects.filter(
+            created_at__date__gte=first_day_last_month,
+            created_at__date__lte=last_day_last_month
+        ).count()
+
+        # Project count this month
+        projects_this_month = Project.objects.filter(
+            created_at__date__gte=first_day_this_month
+        ).count()
+
+        # Change percentage
+        if projects_last_month > 0:
+            change_percentage = ((projects_this_month - projects_last_month) / projects_last_month) * 100
+        else:
+            change_percentage = 100 if projects_this_month > 0 else 0
+
+        today = now().date()
+        start_of_this_month = today.replace(day=1)
+        start_of_last_month = (start_of_this_month - timedelta(days=1)).replace(day=1)
+        end_of_last_month = start_of_this_month - timedelta(days=1)
         
         # Active Employees
         active_employees = Employee.objects.filter(user__is_active=True).count()
+
+        # Employees added last month
+        employees_last_month = Employee.objects.filter(
+            user__date_joined__date__gte=start_of_last_month,
+            user__date_joined__date__lte=end_of_last_month
+        ).count()
+
+        # Calculate change percentage
+        if employees_last_month > 0:
+            emp_change_percent = ((active_employees - employees_last_month) / employees_last_month) * 100
+        else:
+            emp_change_percent = 0  # or set to None to handle "new this month"
         
         # Total Revenue (Invoice Amount Sum)
         total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
@@ -34,7 +75,37 @@ def dashboard(request):
         
         # Total Profit = Revenue - Expenses
         total_profit = total_revenue - total_expenses
-        
+
+        # Current Month Revenue and Expenses
+        current_revenue = Project.objects.filter(
+            created_at__date__gte=start_of_this_month
+        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+
+        current_expenses = Project.objects.filter(
+            created_at__date__gte=start_of_this_month
+        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+
+        current_profit = current_revenue - current_expenses
+
+        # Last Month Revenue and Expenses
+        last_revenue = Project.objects.filter(
+            created_at__date__gte=start_of_last_month,
+            created_at__date__lte=end_of_last_month
+        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+
+        last_expenses = Project.objects.filter(
+            created_at__date__gte=start_of_last_month,
+            created_at__date__lte=end_of_last_month
+        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+
+        last_profit = last_revenue - last_expenses
+
+        # Profit Change %
+        if last_profit != 0:
+            profit_change_percent = ((current_profit - last_profit) / last_profit) * 100
+        else:
+            profit_change_percent = 0
+
         # Pending Invoices (Projects where invoice_amount is 0)
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
         
@@ -55,10 +126,17 @@ def dashboard(request):
 
         context = {
             'total_projects': total_projects,
+            'change_percentage': round(change_percentage, 2),
+            'change_percentage_abs': abs(round(change_percentage, 2)),
+            'emp_change_percent': round(emp_change_percent, 2),
+            'emp_change_percent_abs': abs(round(emp_change_percent, 2)),
             'active_employees': active_employees,
             'total_revenue': round(total_revenue, 2),
             'total_expenses': round(total_expenses, 2),
             'total_profit': round(total_profit, 2),
+            'current_profit': round(current_profit, 2),
+            'profit_change_percent': round(profit_change_percent, 2),
+            'profit_change_percent_abs': abs(round(profit_change_percent, 2)),
             'pending_invoices': pending_invoices,
             'project_details': project_details,
             'ongoing_projects': ongoing_projects,
@@ -179,7 +257,7 @@ def manager_attendance_list_view(request):
 @login_required
 def attendance_list_view(request):
     search_query = request.GET.get('search', '')
-    attendance_records = Attendance.objects.select_related('employee')
+    attendance_records = Attendance.objects.select_related('employee').order_by('-login_time')
 
     if search_query:
         attendance_records = attendance_records.filter(
