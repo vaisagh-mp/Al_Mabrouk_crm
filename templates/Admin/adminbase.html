@@ -566,37 +566,28 @@
           chart2.render();
         </script>
 
-<script>
+<script> 
   document.addEventListener("DOMContentLoaded", function () {
       const adminNotificationCount = document.getElementById("admin-notification-count");
 
-      // Function to Fetch Unread Notification Count
       function fetchAdminNotificationCount() {
           fetch("{% url 'fetch-notifications' %}")
               .then(response => response.json())
               .then(data => {
                   if (data.unread_count === 0) {
-                      adminNotificationCount.style.display = "none";  // Hide badge if no unread notifications
+                      adminNotificationCount.style.display = "none";
                   } else {
-                      adminNotificationCount.textContent = data.unread_count;  // Update count
-                      adminNotificationCount.style.display = "inline-block";  // Show badge
+                      adminNotificationCount.textContent = data.unread_count > 99 ? "99+" : data.unread_count;
+                      adminNotificationCount.style.display = "inline-block";
                   }
               });
       }
 
-      // Auto Fetch Unread Count Every 10 Seconds
       setInterval(fetchAdminNotificationCount, 10000);
       fetchAdminNotificationCount();
   });
 </script>
 
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    const countElement = document.getElementById("admin-notification-count");
-    const count = parseInt(countElement.getAttribute("data-count")) || 0;
-    countElement.textContent = count > 99 ? "99+" : count;
-  });
-</script>
 
 </body>
 
