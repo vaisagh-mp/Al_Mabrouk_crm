@@ -25,13 +25,17 @@
         <a href="{% url 'admin-notifications' %}">
             <button type="button" class="btn btn-primary position-relative">
                 <i class="fas fa-bell"></i>
-                <span id="admin-notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                <span 
+                    id="admin-notification-count"
+                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                    data-count="{{ unread_notifications|add:'0' }}">
                     0
                     <span class="visually-hidden">unread messages</span>
                 </span>
             </button>
         </a>
     </div>
+    
     
 
         <div class="hdr-user">
@@ -583,6 +587,14 @@
       // Auto Fetch Unread Count Every 10 Seconds
       setInterval(fetchAdminNotificationCount, 10000);
       fetchAdminNotificationCount();
+  });
+</script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const countElement = document.getElementById("admin-notification-count");
+    const count = parseInt(countElement.getAttribute("data-count")) || 0;
+    countElement.textContent = count > 99 ? "99+" : count;
   });
 </script>
 
