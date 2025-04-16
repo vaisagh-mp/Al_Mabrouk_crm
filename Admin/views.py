@@ -413,7 +413,7 @@ def delete_attendance(request, attendance_id):
 @login_required
 def project_list_view(request):
     # Query all projects
-    projects = Project.objects.all()
+    projects = Project.objects.all().order_by('-created_at')
 
     search_query = request.GET.get('search', '').strip()
 
@@ -770,14 +770,19 @@ def admin_edit_employee(request, employee_id):
             selected_role = request.POST.get("role")
             if selected_role == "employee":
                 employee.is_employee = True
+                user.is_staff = False  # Regular employee
             elif selected_role == "manager":
                 employee.is_manager = True
+                user.is_staff = True   # Manager is staff
             elif selected_role == "administration":
                 employee.is_administration = True
+                user.is_staff = True   # Admin is staff
             elif selected_role == "hr":
                 employee.is_hr = True
+                user.is_staff = True   # HR is staff
 
             employee.save()
+            user.save()
 
             messages.success(request, "Employee profile updated successfully.")
             return redirect("employee_list")

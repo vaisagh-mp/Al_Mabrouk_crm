@@ -58,10 +58,14 @@ def dashboard(request):
         )
 
         # Fetch projects assigned to the manager
-        assigned_projects = Project.objects.filter(manager=manager, status="ASSIGN")
+        # assigned_projects = Project.objects.filter(manager=manager, status="ASSIGN").order_by('-created_at')[:10]
         total_projects = Project.objects.filter(manager=manager).count()
         completed_projects = Project.objects.filter(status='COMPLETED').count()
-        pending_projects = assigned_projects.exclude(status='COMPLETED').count()
+        # 10 latest assigned projects
+        assigned_projects = Project.objects.filter(manager=manager, status="ASSIGN").order_by('-created_at')[:2]
+        # Count total assigned projects that are not completed
+        pending_projects = Project.objects.filter(manager=manager, status="ASSIGN").exclude(status='COMPLETED').count()
+
 
         # Fetch teams managed by the manager
         teams = Team.objects.filter(manager=manager)

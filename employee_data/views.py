@@ -97,7 +97,7 @@ def employee_dashboard(request):
             attendance_percentage = (approved_attendance_records / total_days_in_month) * 100
 
             # Fetch assigned work
-            assigned_work = TeamMemberStatus.objects.filter(employee=employee, status='ASSIGN').select_related('team__project')
+            assigned_work = TeamMemberStatus.objects.filter(employee=employee, status='ASSIGN').select_related('team__project')[:10]
             projects = TeamMemberStatus.objects.filter(employee=employee).select_related('team__project')
             total_projects = projects.count()
             pending_projects = projects.exclude(team__project__status='COMPLETED').count()

@@ -854,6 +854,7 @@ header .dropdown-menu {
   color: #fff;
   position: relative;
   overflow-x: hidden;
+  min-height: 120px !important;
 }
 
 .status-wdgt:hover {
