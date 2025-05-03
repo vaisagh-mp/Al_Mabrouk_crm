@@ -787,7 +787,9 @@ def project_list_view(request):
         # Apply search filter
         if search_query:
             projects = projects.filter(
-                name__icontains=search_query
+                Q(name__icontains=search_query) |
+                Q(code__icontains=search_query) |
+                Q(client_name__icontains=search_query)
             )
 
         # Convert to dictionary values for efficiency

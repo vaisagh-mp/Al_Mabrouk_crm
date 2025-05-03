@@ -418,9 +418,11 @@ def project_list_view(request):
     search_query = request.GET.get('search', '').strip()
 
     if search_query:
-            projects = projects.filter(
-                name__icontains=search_query
-            )
+        projects = projects.filter(
+            Q(name__icontains=search_query) |
+            Q(code__icontains=search_query) |
+            Q(client_name__icontains=search_query)
+        )
 
     # Prepare project data
     project_data = [
@@ -817,7 +819,6 @@ def admin_edit_employee(request, employee_id):
 
 
     return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee})
-
 
 @login_required
 def admin_delete_employee(request, employee_id):
