@@ -53,7 +53,7 @@
                             <select class="form-select" id="projectSelection" name="project" required>
                                 <option value="">Choose a project</option>
                                 {% for project in form.fields.project.queryset %}
-                                <option value="{{ project.id }}">{{ project.name }}</option>
+                                <option value="{{ project.id }}">{{ project.name }} {{ project.code }}</option>
                                 {% endfor %}
                             </select>
                         </div>
