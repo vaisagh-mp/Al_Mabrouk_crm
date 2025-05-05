@@ -48,7 +48,7 @@
                                 <option value="">Choose a project</option>
                                 {% for project in form.fields.project.queryset %}
                                 <option value="{{ project.id }}" {% if project.id == form.project.value %} selected {% endif %}>
-                                    {{ project.name }}
+                                    {{ project.name }} {{ project.code }}
                                 </option>
                                 {% endfor %}
                             </select>

@@ -57,7 +57,7 @@
                 {% for team in teams %}
                 <tr>
                     <td>{{ team.name }}</td>
-                    <td>{{ team.project.name }}</td>
+                    <td>{{ team.project.name }} -- {{ team.project.code }}</td>
                     <td>
                         {% for employee in team.employees.all %}
                             {{ employee.user.first_name }} {{ employee.user.last_name }}{% if not forloop.last %}, {% endif %}
