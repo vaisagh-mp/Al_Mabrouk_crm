@@ -1,6 +1,9 @@
 {% extends 'employee/employeebase.html' %}
 {% load static %}
 {% block content %}
+<!-- Add Select2 CSS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+
 
 <main class="punch-in-wrapper">
 
@@ -44,14 +47,16 @@
 
     <!-- Project Selection -->
     <section>
-        <h2>Select Project</h2>
-        <select id="project-select" name="project" form="attendance-form">
-            <option value="" disabled selected>Select a project</option>
-            {% for project in projects %}
-            <option value="{{ project.id }}">{{ project.name }}</option>
-            {% endfor %}
-        </select>
-    </section>
+    <h2>Select Project</h2>
+
+    <select id="project-select" class="searchable-select" name="project" form="attendance-form" style="width: 100%;">
+        <option value="" disabled selected>Select a project</option>
+        {% for project in projects %}
+        <option value="{{ project.id }}">{{ project.name }}</option>
+        {% endfor %}
+    </select>
+</section>
+
 
     <!-- Location Selection -->
     <section>
@@ -159,7 +164,6 @@
     });
 </script>
 
-
 <script>
     // Variables to store the travel times
     let travelStartTime = null;
@@ -221,8 +225,38 @@
     }
 </script>
 
+<!-- <script>
+    document.getElementById('project-search').addEventListener('input', function () {
+        const filter = this.value.toLowerCase();
+        const select = document.getElementById('project-select');
+        const options = select.options;
 
-  
+        for (let i = 0; i < options.length; i++) {
+            const text = options[i].text.toLowerCase();
+            options[i].style.display = text.includes(filter) || i === 0 ? 'block' : 'none';
+        }
+    });
+</script> -->
+
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<!-- Select2 Init -->
+<script>
+    $(document).ready(function () {
+        $('#project-select').select2({
+            placeholder: "Select a project",
+            allowClear: true
+        });
+    });
+</script>
+
+
+
 
 
 {% endblock %}

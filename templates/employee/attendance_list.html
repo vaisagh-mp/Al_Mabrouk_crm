@@ -74,6 +74,7 @@
                     <th>Login</th>
                     <th>Logout</th>
                     <th>Working Hours</th>
+                    <th>Location</th>
                     <th>Travel Time</th>
                     <th>Manager Approval</th>
                     <th>Status</th>
@@ -97,6 +98,13 @@
                         {{ record.total_hours_of_work|format_work_duration }}
                         {% else %}
                         00:00:00 hrs
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.location %}
+                            {{ record.get_location_display }}
+                        {% else %}
+                            <span class="text-muted">Not specified</span>
                         {% endif %}
                     </td>
                     <td>

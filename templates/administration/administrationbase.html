@@ -16,6 +16,8 @@
     <!-- Style.css -->
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
+    <!-- Add Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
 </head>
 
 <body>
@@ -598,6 +600,22 @@
         });
       </script>
 
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<!-- Select2 Init -->
+<script>
+    $(document).ready(function () {
+        $('#project-select').select2({
+            placeholder: "Select a project",
+            allowClear: true
+        });
+    });
+</script>
 </body>
 
 </html>

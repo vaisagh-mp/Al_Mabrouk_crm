@@ -256,6 +256,7 @@ class ProjectAssignment(models.Model):
 class Attendance(models.Model):
     LOCATION_CHOICES = [
         ('DMC', 'DMC Warehouse'),
+        ('DMC_PRT', 'DMC Port'),
         ('FUJ', 'FUJ'),
         ('KFK', 'KFK'),
         ('ABU', 'Abu Dhabi'),

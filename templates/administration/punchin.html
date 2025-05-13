@@ -58,7 +58,8 @@
     <!-- Project Selection -->
     <section>
         <h2>Select Project</h2>
-        <select id="project-select" name="project" form="attendance-form">
+
+        <select id="project-select" class="searchable-select" name="project" form="attendance-form" style="width: 100%;">
             <option value="" disabled selected>Select a project</option>
             {% for project in projects %}
             <option value="{{ project.id }}">{{ project.name }}</option>
@@ -231,6 +232,22 @@
         var locationText = selectedLocation ? selectedLocation : "Not Selected";
         document.getElementById("selected-location").innerHTML = "Location: <span class='font-bold text-blue-500'>" + locationText + "</span>";
     }
+</script>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Select2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+
+<!-- Select2 Init -->
+<script>
+    $(document).ready(function () {
+        $('#project-select').select2({
+            placeholder: "Select a project",
+            allowClear: true
+        });
+    });
 </script>
 
 {% endblock %}
