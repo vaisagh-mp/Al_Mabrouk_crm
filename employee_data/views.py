@@ -434,6 +434,7 @@ def project_details(request, project_id):
     # Prepare data for the project
     project_data = {
         "project_name": project.name,
+        "client_name": project.client_name,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
@@ -458,6 +459,7 @@ def project_details(request, project_id):
         "project_id": project.id,
         "status_choices": status_choices,
         "attachment_url": project.attachment.url if project.attachment else None,
+        "job_card": project.job_card.url if project.job_card else None,
     }
 
     # Pass the data to the template

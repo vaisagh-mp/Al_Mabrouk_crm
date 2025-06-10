@@ -30,6 +30,15 @@
                   <span style="color: #1a1a1a"><b>{{ project_data.category }}</b></span>
                 </div>
                 <div class="pjct-info-item">
+                  <h6>Job Card:</h6>
+                  {% if project_data.job_card %}
+                    <a href="{{ project_data.job_card }}" target="_blank" class="btn btn-sm btn-primary">View Job Card</a>
+                  {% else %}
+                    <span style="color: #888;">No file uploaded</span>
+                  {% endif %}
+                </div>
+
+                <div class="pjct-info-item">
                   <h6>Cost:</h6>
                   <span class="cost">{{ project_data.invoice_amount }} AED</span>
                 </div>
@@ -37,10 +46,18 @@
                   <h6>Created:</h6>
                   <span class="created">{{ project_data.project_create | date:"d-m-Y" }}</span>
                 </div>
-                <div class="pjct-info-item">
-                  <h6>Deadline:</h6>
-                  <span class="deadline">{{ project_data.deadline_date | date:"d-m-Y" }}</span>
-                </div>
+                {% if project_data.deadline_date %}
+                  <div class="pjct-info-item">
+                    <h6>Deadline:</h6>
+                    <span class="deadline">{{ project_data.deadline_date|date:"d-m-Y" }}</span>
+                  </div>
+                {% else %}
+                  <div class="pjct-info-item">
+                    <h6>Deadline:</h6>
+                    <span class="deadline">No deadline set</span>
+                  </div>
+                {% endif %}
+
                 <div class="pjct-info-item">
                   <h6>Priority:</h6>
                   {% if project_data.category == 'ANCHORAGE' %}

@@ -22,7 +22,7 @@
 
   <div class="widget-box table-wdgt">
     <div class="add-project-wrapper">
-      <form id="edit-project-form" method="POST" action="">
+      <form id="edit-project-form" method="POST" action="" enctype="multipart/form-data">
         {% csrf_token %}
         
         <!-- Project Name -->
@@ -125,6 +125,28 @@
           <input type="date" class="form-control" id="id_deadline_date" name="deadline_date" value="{{ form.deadline_date.value|default_if_none:'' }}" />
         </div>
 
+        <!-- Job Card File Upload -->
+        <div class="mb-3">
+          <label for="id_job_card" class="form-label">Upload Job Card</label>
+        
+          {% if form.instance.job_card %}
+            <p>
+              Current File: 
+              <a href="{{ form.instance.job_card.url }}" target="_blank">
+                {{ form.instance.job_card.name}}
+              </a>
+            </p>
+          {% endif %}
+          
+          <input
+            type="file"
+            class="form-control"
+            id="id_job_card"
+            name="job_card"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          />
+        </div>
+        
         <div class="create-btn mt-4">
           <button class="prmry-btn" type="submit">Save Changes</button>
         </div>

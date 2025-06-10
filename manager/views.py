@@ -879,7 +879,8 @@ def project_summary_view(request, project_id):
         "logs": logs,  # Now includes both manager & team member logs
         "project_id": project.id,
         "status_choices": status_choices,
-        "attachment_url": project.attachment.url if project.attachment else None,   
+        "attachment_url": project.attachment.url if project.attachment else None,
+        "job_card": project.job_card.url if project.job_card else None,   
     }
 
     context = {"project_data": project_data}

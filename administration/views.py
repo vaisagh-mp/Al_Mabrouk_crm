@@ -289,10 +289,10 @@ def admstrn_add_project(request):
     form = ProjectForm()
 
     if request.method == 'POST':
-        form = ProjectForm(request.POST)
+        form = ProjectForm(request.POST, request.FILES)
         if form.is_valid():
             form.save()
-            return redirect('project-list')
+            return redirect('admstrn_project_list_view')
         else:
             form = ProjectForm()
 
@@ -408,6 +408,7 @@ def admstrn_project_summary_view(request, project_id):
         "logs": logs,
         "project_id": project.id,
         "status_choices": status_choices,
+        "job_card": project.job_card.url if project.job_card else None,
     }
 
     context = {"project_data": project_data}
@@ -419,10 +420,10 @@ def admstrn_edit_project(request, project_id):
     project = get_object_or_404(Project, id=project_id)  # Fetch the project or return 404
 
     if request.method == 'POST':
-        form = ProjectForm(request.POST, instance=project)  # Bind form with existing project
+        form = ProjectForm(request.POST, request.FILES, instance=project)  # Bind form with existing project
         if form.is_valid():
             form.save()
-            return redirect('project-list')
+            return redirect('admstrn_project_list_view')
         else:
             form = ProjectForm(instance=project)
 
@@ -434,7 +435,7 @@ def admstrn_edit_project(request, project_id):
 def admstrn_delete_project(request, project_id):
     project = get_object_or_404(Project, id=project_id) 
     project.delete() 
-    return redirect('project-list')
+    return redirect('admstrn_project_list_view')
 
 
 @login_required

@@ -51,6 +51,8 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     deadline_date = models.DateField(null=True, blank=True)
     attachment = models.FileField(upload_to='project_attachments/', blank=True, null=True)
+    job_card = models.FileField(upload_to='job_cards/', blank=True, null=True)
+
 
     def save(self, *args, **kwargs):
         # Automatically set status to 'ASSIGN' if a manager is assigned

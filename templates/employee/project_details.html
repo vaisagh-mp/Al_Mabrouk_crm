@@ -15,7 +15,7 @@
                 <div class="pjct-info-item">
                   <h6>Client:</h6>
                   <span style="color: #1a1a1a"
-                    ><b> Splendour Marine LLC</b></span
+                    ><b> {{ project_data.client_name }}</b></span
                   >
                 </div>
                 <div class="pjct-info-item">
@@ -25,17 +25,31 @@
                   </span>
                 </div>
                 <div class="pjct-info-item">
+                  <h6>Job Card:</h6>
+                  {% if project_data.job_card %}
+                    <a href="{{ project_data.job_card }}" class="btn btn-outline-success btn-sm" target="_blank">View Job Card</a>
+                  {% else %}
+                    <span class="text-muted">No job card uploaded</span>
+                  {% endif %}
+                </div>
+                <div class="pjct-info-item">
                   <h6>Created:</h6>
                   <span class="created"
                     >{{ project_data.project_create |date:"d-m-Y" }}</span
                   >
                 </div>
-                <div class="pjct-info-item">
-                  <h6>Deadline:</h6>
-                  <span class="deadline"
-                    >{{ project_data.deadline_date|date:"d-m-Y"}}</span
-                  >
-                </div>
+                {% if project_data.deadline_date %}
+                  <div class="pjct-info-item">
+                    <h6>Deadline:</h6>
+                    <span class="deadline">{{ project_data.deadline_date|date:"d-m-Y" }}</span>
+                  </div>
+                {% else %}
+                  <div class="pjct-info-item">
+                    <h6>Deadline:</h6>
+                    <span class="deadline">No deadline set</span>
+                  </div>
+                {% endif %}
+
                 <div class="pjct-info-item">
                   <h6>Priority:</h6>
                   {% if project_data.category == 'ANCHORAGE' %}

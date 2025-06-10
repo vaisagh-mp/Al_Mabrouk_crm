@@ -93,7 +93,7 @@ class ProjectForm(forms.ModelForm):
         fields = [
             'name', 'code', 'client_name', 'purchase_and_expenses',
             'invoice_amount', 'currency_code', 'status', 'category',
-            'manager', 'deadline_date', 'priority','job_description',
+            'manager', 'deadline_date', 'priority','job_description','job_card',
         ]
         widgets = {
             'priority': forms.RadioSelect(choices=Project.PRIORITY_CHOICES),
