@@ -820,17 +820,43 @@ def project_summary_view(request, project_id):
 
     # Fetch logs from team members
     team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
-    
+    print("team_logs :", team_logs)
     # Fetch logs where the manager updated the project status
     manager_logs = ActivityLog.objects.filter(project=project)
-    
+    print("manager_logs :", manager_logs)
     client_name = project.client_name
     # Merge both logs and order by `changed_at`
-    logs = (team_logs | manager_logs).order_by('-changed_at')
+    logs = (team_logs | manager_logs).distinct().order_by('-changed_at')
 
     # Handle File Upload
     if request.method == "POST" and request.FILES.get("attachment"):
-        project.attachment = request.FILES["attachment"]
+        uploaded_file = request.FILES["attachment"]
+        old_attachment = project.attachment
+    
+        project.attachment = uploaded_file
+        project.save()
+    
+        # Determine the log message
+        if old_attachment:
+            log_note = f"Attachment replaced with {uploaded_file.name} by manager."
+            prev_status = "Attachment Exists"
+        else:
+            log_note = f"{uploaded_file.name} uploaded by manager."
+            prev_status = "No Attachment"
+            
+    
+        # ActivityLog.objects.create(
+        #     project=project,
+        #     previous_status=prev_status,
+        #     new_status="Attachment Uploaded",
+        #     notes=log_note,
+        #     changed_by=employee
+        # )
+
+    # Handle Job Card Upload (NO logging)
+    elif request.FILES.get("job_card"):
+        job_card_file = request.FILES["job_card"]
+        project.job_card = job_card_file
         project.save()
 
     statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')

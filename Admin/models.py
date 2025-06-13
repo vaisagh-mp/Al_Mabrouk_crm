@@ -62,16 +62,45 @@ class Project(models.Model):
         super().save(*args, **kwargs)
 
     def save(self, *args, **kwargs):
+        log_entries = []
+    
         if self.pk:
             old_project = Project.objects.get(pk=self.pk)
+    
+            # 1. Log status change
             if old_project.status != self.status:
-                ActivityLog.objects.create(
+                log_entries.append(ActivityLog(
                     project=self,
                     previous_status=old_project.status,
                     new_status=self.status,
+                    notes=f"Project status changed to {self.status}",
                     changed_by=self.manager
+                ))
+    
+            # 2. Log attachment change
+            if old_project.attachment != self.attachment:
+                prev_status = "Attachment Exists" if old_project.attachment else "No Attachment"
+                new_status = "Attachment Uploaded"
+                notes = (
+                    f"Attachment replaced with {self.attachment.name} by manager."
+                    if old_project.attachment else
+                    f"{self.attachment.name} uploaded by manager."
                 )
+                log_entries.append(ActivityLog(
+                    project=self,
+                    previous_status=prev_status,
+                    new_status=new_status,
+                    notes=notes,
+                    changed_by=self.manager
+                ))
+    
+        # Save the project first
         super().save(*args, **kwargs)
+    
+        # Save logs after saving the project (so foreign key is valid)
+        if log_entries:
+            ActivityLog.objects.bulk_create(log_entries)
+    
 
 
     def __str__(self):

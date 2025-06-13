@@ -128,6 +128,28 @@
         <div class="emp-pjct-status-box" style="margin-top: 20px;">
           <div class="widget-box">
             <div class="widget-title">
+              <h4>Upload Job Card</h4>
+            </div>
+            <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              <input class="upload-inpt" type="file" name="job_card" accept=".pdf,.doc,.docx,.jpg,.png">
+              <button type="submit" class="btn">Upload</button>
+            </form>
+          
+            {% if project_data.job_card %}
+              <p><strong>Current Job Card:</strong> 
+                <a href="{{ project_data.job_card }}" target="_blank">View File</a>
+              </p>
+            {% else %}
+              <p>No job card uploaded yet.</p>
+            {% endif %}
+          </div>
+        </div>
+
+
+        <div class="emp-pjct-status-box" style="margin-top: 20px;">
+          <div class="widget-box">
+            <div class="widget-title">
               <h4>Update Status</h4>
             </div>
             <form
@@ -170,7 +192,6 @@
             <div class="widget-title">
               <h4>Projects Status</h4>
             </div>
-
             <div class="project-timeline">
               <div class="time-line-vertical"></div>
               {% for log in project_data.logs %}

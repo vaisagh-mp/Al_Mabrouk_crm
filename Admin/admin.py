@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog
 
 
 @admin.register(Project)
@@ -100,3 +100,6 @@ class NotificationAdmin(admin.ModelAdmin):
     def mark_as_read(self, request, queryset):
         queryset.update(is_read=True)
     mark_as_read.short_description = "Mark selected notifications as read"
+
+
+admin.site.register(ActivityLog)

@@ -387,8 +387,34 @@ def project_details(request, project_id):
 
     # Handle File Upload
     if request.method == "POST" and request.FILES.get("attachment"):
-        project.attachment = request.FILES["attachment"]
+        uploaded_file = request.FILES["attachment"]
+        old_attachment = project.attachment
+    
+        project.attachment = uploaded_file
         project.save()
+    
+        # Determine the log message
+        if old_attachment:
+            log_note = f"Attachment replaced with {uploaded_file.name} by employee."
+            prev_status = "Attachment Exists"
+        else:
+            log_note = f"{uploaded_file.name} uploaded by employee."
+            prev_status = "No Attachment"
+    
+        # Find the matching TeamMemberStatus for logging
+        tms = TeamMemberStatus.objects.filter(
+            team__project=project,
+            employee=employee
+        ).first()
+    
+        ActivityLog.objects.create(
+            project=project,
+            team_member_status=tms,
+            previous_status=prev_status,
+            new_status="Attachment Uploaded",
+            notes=log_note,
+            changed_by=employee
+        )
    
     statuses = TeamMemberStatus.objects.filter(
         team__project__id=project_id,
