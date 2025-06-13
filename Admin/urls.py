@@ -1,5 +1,7 @@
 from django.urls import path
-from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification
+from django.views.generic import TemplateView
+from django.contrib.auth import views as auth_views
+from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification,change_password
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
@@ -47,4 +49,8 @@ urlpatterns = [
     path("admin-notifications/", admin_notifications, name="admin-notifications"),
     path("admin-mark-all-notifications/", admin_mark_all_notifications, name="admin-mark-all-notifications"),
     path("admin-mark-single-notification/<int:notification_id>/", admin_mark_single_notification, name="admin-mark-single-notification"),
+
+
+    path('change-password/', change_password, name='change_password'),
+    path('change-password/done/', TemplateView.as_view(template_name='password_change_done.html'),  name='password_change_done'),
 ]

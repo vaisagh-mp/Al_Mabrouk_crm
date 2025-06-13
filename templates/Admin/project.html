@@ -39,6 +39,16 @@
                 </div>
 
                 <div class="pjct-info-item">
+                  <h6>Attachment:</h6>
+                  {% if project_data.attachment_file %}
+                    <a href="{{ project_data.attachment_file }}" target="_blank" class="btn btn-sm btn-secondary">View Attachment</a>
+                  {% else %}
+                    <span style="color: #888;">No attachment uploaded</span>
+                  {% endif %}
+                </div>
+
+
+                <div class="pjct-info-item">
                   <h6>Cost:</h6>
                   <span class="cost">{{ project_data.invoice_amount }} AED</span>
                 </div>

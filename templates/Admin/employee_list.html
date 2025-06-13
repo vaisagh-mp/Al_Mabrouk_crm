@@ -74,14 +74,11 @@
                     <td>{{ employee.work_days }}</td>
                     <td>
                         {% if employee.assigned_projects %}
-                            {% for project_assignment in employee.assigned_projects %}
-                                <span>{{ project_assignment.team.project.name }}</span>
-                                {% if not forloop.last %}, {% endif %}
-                            {% endfor %}
+                            <span>{{ employee.ongoing_project_count }}</span>
                         {% else %}
                             No projects Ongoing
                         {% endif %}
-                    </td>                    
+                    </td>
                     <td class="list-action-col">
                         <a href="{% url 'admin_edit_employee' employee.id %}"><i class="far fa-edit"></i></a>
                         <a href="{% url 'admin_delete_employee' employee.id %}"><i class="far fa-trash-alt"></i></a>

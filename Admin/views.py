@@ -2,9 +2,12 @@ from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.http import HttpResponseForbidden
 from datetime import date
 from datetime import timedelta
-from django.db.models import Q, F, Sum
+from django.db.models import Q, F, Sum, Count
 from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
@@ -182,17 +185,17 @@ def employee_list(request):
     if not request.user.is_staff:
         return redirect('custom-login')
 
-    # Filter ongoing project assignments
-    ongoing_project_assignments = TeamMemberStatus.objects.filter(
-        status='ONGOING'
-    ).select_related('team__project')
-
-    # Exclude managers and prefetch ongoing project assignments
-    employees = Employee.objects.select_related('user').prefetch_related(
+    # Annotate each employee with a count of ongoing projects
+    employees = Employee.objects.select_related('user').annotate(
+        ongoing_project_count=Count(
+            'project_statuses',
+            filter=Q(project_statuses__status='ONGOING')
+        )
+    ).prefetch_related(
         Prefetch(
-            'project_statuses',  # This matches the `related_name` in TeamMemberStatus
-            queryset=ongoing_project_assignments,
-            to_attr='assigned_projects'  # Prefetch results stored as 'assigned_projects'
+            'project_statuses',
+            queryset=TeamMemberStatus.objects.filter(status='ONGOING').select_related('team__project'),
+            to_attr='assigned_projects'
         )
     ).order_by('-user__date_joined')
 
@@ -200,7 +203,9 @@ def employee_list(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'Admin/employee_list.html', {'page_obj': page_obj})
+    return render(request, 'Admin/employee_list.html', {
+        'page_obj': page_obj
+    })
 
 @login_required
 def manager_list(request):
@@ -520,6 +525,7 @@ def admin_project_summary_view(request, project_id):
         "project_id": project.id,
         "status_choices": status_choices,
         "job_card": project.job_card.url if project.job_card else None,
+        "attachment_file": project.attachment.url if project.attachment else None,
     }
 
     context = {"project_data": project_data}
@@ -1128,3 +1134,20 @@ def fetch_notifications(request):
 def mark_notifications_as_read(request):
     request.user.notifications.update(is_read=True)
     return JsonResponse({"message": "Notifications marked as read"})
+
+
+@login_required
+def change_password(request):
+    if not request.user.is_superuser:
+        return HttpResponseForbidden("You are not authorized to change the password.")
+
+    if request.method == 'POST':
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            return redirect('admin-dashboard')
+    else:
+        form = PasswordChangeForm(user=request.user)
+    
+    return render(request, 'Admin/change_password.html', {'form': form})
