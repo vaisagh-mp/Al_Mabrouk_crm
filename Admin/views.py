@@ -185,17 +185,29 @@ def employee_list(request):
     if not request.user.is_staff:
         return redirect('custom-login')
 
-    # Annotate each employee with a count of ongoing projects
+    # Annotate both team-based and manager-based ongoing projects
     employees = Employee.objects.select_related('user').annotate(
-        ongoing_project_count=Count(
+        team_ongoing_count=Count(
             'project_statuses',
-            filter=Q(project_statuses__status='ONGOING')
-        )
+            filter=Q(project_statuses__status='ONGOING'),
+            distinct=True
+        ),
+        manager_ongoing_count=Count(
+            'managed_projects',
+            filter=Q(managed_projects__status='ONGOING'),
+            distinct=True
+        ),
+        ongoing_project_count=F('team_ongoing_count') + F('manager_ongoing_count')
     ).prefetch_related(
         Prefetch(
             'project_statuses',
             queryset=TeamMemberStatus.objects.filter(status='ONGOING').select_related('team__project'),
             to_attr='assigned_projects'
+        ),
+        Prefetch(
+            'managed_projects',
+            queryset=Project.objects.filter(status='ONGOING'),
+            to_attr='ongoing_managed_projects'
         )
     ).order_by('-user__date_joined')
 
