@@ -129,7 +129,10 @@ def employee_dashboard(request):
         completed_growth_percentage = calculate_growth(completed_projects_this_month, completed_projects_last_month)
 
         # === Updated Current Month Attendance Calculation ===
-        attendance_start_date = max(employee.date_of_join, first_day_this_month)
+        if employee.date_of_join:
+            attendance_start_date = max(employee.date_of_join, first_day_this_month)
+        else:
+            attendance_start_date = first_day_this_month
         attendance_this_month = approved_attendance.filter(login_time__date__gte=attendance_start_date)
 
         all_days = [attendance_start_date + timedelta(days=i) for i in range((today - attendance_start_date).days + 1)]

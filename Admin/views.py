@@ -16,7 +16,7 @@ from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
 from django.contrib.auth.views import LoginView
-from django.core.paginator import Paginator
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team
 
 
@@ -67,8 +67,9 @@ def dashboard(request):
         # Calculate change percentage
         if employees_last_month > 0:
             emp_change_percent = ((active_employees - employees_last_month) / employees_last_month) * 100
+            emp_change_percent = min(emp_change_percent, 100)  # Cap at 100%
         else:
-            emp_change_percent = 0  # or set to None to handle "new this month"
+            emp_change_percent = 100 if active_employees > 0 else 0
         
         # Total Revenue (Invoice Amount Sum)
         total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
@@ -374,32 +375,41 @@ def admin_required(user):
 @user_passes_test(admin_required)
 def admin_manage_project_status(request):
     # Get all pending statuses
-    pending_statuses = TeamMemberStatus.objects.filter(
+    pending_status_list = TeamMemberStatus.objects.filter(
         manager_approval_status='PENDING'
     ).select_related('employee', 'team', 'team__project').order_by('-last_updated')
 
+    # PAGINATION: Show 10 per page
+    paginator = Paginator(pending_status_list, 10)  # Show 10 per page
+    page = request.GET.get('page')
+
+    try:
+        pending_statuses = paginator.page(page)
+    except PageNotAnInteger:
+        pending_statuses = paginator.page(1)
+    except EmptyPage:
+        pending_statuses = paginator.page(paginator.num_pages)
+
+    # Handle POST (approve/reject)
     if request.method == 'POST':
         tms_id = request.POST.get('tms_id')
-        action = request.POST.get('action')  # APPROVE or REJECT
+        action = request.POST.get('action')
         rejection_reason = request.POST.get('rejection_reason', '')
 
         try:
             tms = TeamMemberStatus.objects.get(id=tms_id)
-
             if action == 'APPROVE':
                 tms.manager_approval_status = 'APPROVED'
                 messages.success(request, f"Status for {tms.employee.user.username} approved.")
             elif action == 'REJECT':
                 tms.manager_approval_status = 'REJECTED'
                 tms.rejection_reason = rejection_reason
-                tms.status = 'ONGOING'  # Reset or rollback status
+                tms.status = 'ONGOING'
                 messages.success(request, f"Status for {tms.employee.user.username} rejected.")
             else:
                 messages.error(request, "Invalid action.")
-
             tms.save()
 
-            # Notify employee
             Notification.objects.create(
                 recipient=tms.employee.user,
                 message=f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin."
