@@ -20,6 +20,10 @@ body {
   font-size: 0.9rem;
   background-color: #f2f5fa;
   font-family: "Poppins", serif !important;
+  overflow-x: hidden;
+}
+html{
+  overflow-x: hidden;
 }
 
 th,
@@ -1077,6 +1081,10 @@ header .dropdown-menu {
   overflow-x: scroll;
 }
 
+.mangr-prof-pro-tbl{
+  height: 565px;
+}
+
 /*================ Add Employee Page ================*/
 .widget-box.add-emply-pg {
   padding: 50px 15px;
@@ -1325,7 +1333,7 @@ header .dropdown-menu {
   width: 80px;
   height: 80px;
   object-fit: cover;
-  border: 2px solid #ddd;
+  /* border: 2px solid #ddd; */
 }
 
 @media (max-width: 767px) {
@@ -2035,10 +2043,14 @@ table .fa-times {
   width: 20px;
 }
 
-
-
-
 /*--- Leave Card ----*/
+.leave-card{
+  border: 1px solid var(--bs-orange) !important;
+  height: 320px !important;
+  border-radius: 10px !important;
+  padding: 30px 20px !important;
+}
+
 .leave-card-widget {
   min-height: 351px;
 }
@@ -2065,10 +2077,10 @@ table .fa-times {
 .leave-details {
   margin: 10px 0 20px;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* grid-template-columns: 1fr 1fr; */
   gap: 10px;
   font-size: 14px;
-  row-gap: 30px;
+  row-gap: 20px;
 }
 
 .leave-details div {
@@ -2136,7 +2148,7 @@ table .fa-times {
 
 /* Employee Project Dtails Page  */
 .emp-pjct-status-box form {
-  max-width: 400px;
+  max-width: 75%;
   background: #ffffff;
   margin-top: 25px;
   border-radius: 10px;
@@ -2191,6 +2203,21 @@ table .fa-times {
   transition: background-color 0.3s ease;
 }
 
+.allattachments .btn{
+  padding: 10px 15px;
+  background-color: var(--secondary-bg);
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+
+}
+
+.allattachments .btn:hover {
+  background-color: #0056b3;
+}
 .emp-pjct-status-box .btn:hover {
   background-color: #0056b3;
 }
@@ -2640,4 +2667,13 @@ width: 13px;
 .certi-upld-btn{background-color: transparent;border: none;}
 .certi-upld-btn{
   color: var(--edit-icon);
+}
+
+.employee-prjct-table {
+  position: relative;
+
+}
+.employee-prjct-table thead {
+  position: sticky;
+  top: -15px;
 }

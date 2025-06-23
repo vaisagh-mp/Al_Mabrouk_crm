@@ -101,24 +101,27 @@
 
      <!-- Pagination -->
      <div class="pagination" id="pagination">
-        {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}">
-                <button>&laquo; Prev</button>
-            </a>
-        {% endif %}
-    
-        {% for num in page_obj.paginator.page_range %}
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if num >= page_obj.number|add:'-2' and num <= page_obj.number|add:'2' %}
             <a href="?page={{ num }}">
                 <button class="{% if num == page_obj.number %}active{% endif %}">{{ num }}</button>
             </a>
-        {% endfor %}
-    
-        {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">
-                <button>Next &raquo;</button>
-            </a>
         {% endif %}
-    </div>
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
     
 
 </div>

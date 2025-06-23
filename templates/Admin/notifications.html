@@ -59,24 +59,27 @@
     </div>
     <!-- Pagination -->
     <div class="pagination" id="pagination">
-        {% if notifications.has_previous %}
-            <a href="?search={{ search_query }}&page={{ notifications.previous_page_number }}">
-                <button>&laquo; Prev</button>
-            </a>
-        {% endif %}
+    {% if notifications.has_previous %}
+        <a href="?search={{ search_query }}&page={{ notifications.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
 
-        {% for num in notifications.paginator.page_range %}
+    {% for num in notifications.paginator.page_range %}
+        {% if num >= notifications.number|add:'-2' and num <= notifications.number|add:'2' %}
             <a href="?search={{ search_query }}&page={{ num }}">
                 <button class="{% if num == notifications.number %}active{% endif %}">{{ num }}</button>
             </a>
-        {% endfor %}
-
-        {% if notifications.has_next %}
-            <a href="?search={{ search_query }}&page={{ notifications.next_page_number }}">
-                <button>Next &raquo;</button>
-            </a>
         {% endif %}
-    </div>
+    {% endfor %}
+
+    {% if notifications.has_next %}
+        <a href="?search={{ search_query }}&page={{ notifications.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
 </div>
 
 {% endblock %}

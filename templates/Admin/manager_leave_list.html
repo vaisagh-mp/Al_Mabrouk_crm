@@ -80,24 +80,27 @@
 
         <!-- Pagination -->
         <div class="pagination" id="pagination">
-            {% if leave_records.has_previous %}
-                <a href="?search={{ search_query }}&page={{ leave_records.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
+    {% if leave_records.has_previous %}
+        <a href="?search={{ search_query }}&page={{ leave_records.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
 
-            {% for num in leave_records.paginator.page_range %}
-                <a href="?search={{ search_query }}&page={{ num }}">
-                    <button class="{% if num == leave_records.number %}active{% endif %}">{{ num }}</button>
-                </a>
-            {% endfor %}
+    {% for num in leave_records.paginator.page_range %}
+        {% if num >= leave_records.number|add:'-2' and num <= leave_records.number|add:'2' %}
+            <a href="?search={{ search_query }}&page={{ num }}">
+                <button class="{% if num == leave_records.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endif %}
+    {% endfor %}
 
-            {% if leave_records.has_next %}
-                <a href="?search={{ search_query }}&page={{ leave_records.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
+    {% if leave_records.has_next %}
+        <a href="?search={{ search_query }}&page={{ leave_records.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
     </div>
 </div>
 

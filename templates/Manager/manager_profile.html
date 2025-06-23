@@ -16,7 +16,7 @@
                 {% if manager.profile_picture %}
                 <img src="{{ manager.profile_picture.url }}" alt="Manager Profile Pic">
                 {% else %}
-                <img src="https://via.placeholder.com/150" alt="Default Profile Pic">
+                <img src="{% static 'assets/images/user-pro.webp' %}" alt="Default Profile Pic">
                 {% endif %}
             </div>
             <h5>{{ manager.user.first_name }} {{ manager.user.last_name }}</h5>
@@ -122,7 +122,7 @@
             <div class="col-lg-4 col-md-4">
               <div class="status-wdgt">
                 <h5>Attendance</h5>
-                <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+                <h6 style="color: #c554bc">{{ manager_attendance_percentage|floatformat:0 }}%</h6>
                 <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
               </div>
             </div>
@@ -143,9 +143,9 @@
           </div>
   
           <!-- Project Table -->
-          <div class="widget-box table-wdgt">
+          <div class="widget-box table-wdgt mangr-prof-pro-tbl">
             <h3>Managed Projects</h3>
-            <table id="employee-prjct-table">
+            <table id="employee-prjct-table" class="employee-prjct-table">
               <thead>
                 <tr>
                   <th>Project</th>

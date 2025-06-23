@@ -32,6 +32,8 @@
                     <th></th>
                     <th></th>
                     <th></th>
+                    <th></th>
+                    <th></th>
                     <th>
                         <div class="add-new-emply">
                             <div class="table-searchbar">
@@ -66,12 +68,14 @@
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Status</th>
+                    <th>Status</th> <!-- (Work from Home / Present / ...) -->
                     <th>Date</th>
                     <th>Login</th>
                     <th>Logout</th>
-                    <th>Total Working Hour</th>
-                    <th>Team(s)</th> <!-- Added column for team(s) -->
+                    <th>Working Hour</th>
+                    <th>Login Location</th>
+                    <th>Project</th>
+                    <th>Team(s)</th> <!-- current project team -->
                     <th>Action</th>
                 </tr>
             </thead>
@@ -79,17 +83,19 @@
                 {% for record in attendance_records %}
                 <tr>
                     <td><a href="{% url 'attendance_detail_view' record.pk %}">{{ record.employee.user.get_full_name }}</a></td>
-                    <td>{{ record.get_status_display }}</td>
+                    <td>{{ record.get_attendance_status_display }}</td>
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
                     <td>{{ record.log_out_time|time:"g:ia" }}</td>
                     <td>{{ record.total_hours_of_work|format_work_duration }}</td>
+                    <td>{{ record.get_location_display|default:"N/A" }}</td>
+                    <td>{{ record.project.name|default:"No Project" }}</td>
                     <td>
                         {% with record.employee.teams_assigned.all as teams %}
                             {% if teams %}
                                 {% for team in teams %}
-                                    {% if team.project.status == "ASSIGN" %}
-                                        <span>{{ team.name }}</span>{% if not forloop.last %}, {% endif %}
+                                    {% if team.project == record.project %}
+                                        {{ team.name }}
                                     {% endif %}
                                 {% endfor %}
                             {% else %}
@@ -97,12 +103,11 @@
                             {% endif %}
                         {% endwith %}
                     </td>
-                    
                     <td class="list-action-col">
                         <a href="{% url 'manager_edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
                         <a href="{% url 'manager_delete_attendance' record.id %}"
-                            onclick="return confirm('Are you sure you want to delete this attendance?');">
-                            <i class="far fa-trash-alt"></i>
+                           onclick="return confirm('Are you sure you want to delete this attendance?');">
+                           <i class="far fa-trash-alt"></i>
                         </a>
                     </td>
                 </tr>
@@ -110,25 +115,31 @@
             </tbody>
         </table>
     </div>
+
     <div class="pagination" id="pagination">
-        {% if attendance_records.has_previous %}
-            <a href="?page={{ attendance_records.previous_page_number }}">
-                <button>&laquo; Prev</button>
-            </a>
-        {% endif %}
-    
+    {% if attendance_records.has_previous %}
+        <a href="?page={{ attendance_records.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with attendance_records.number as current %}
         {% for num in attendance_records.paginator.page_range %}
-            <a href="?page={{ num }}">
-                <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
-            </a>
+            {% if num >= current|add:'-1' and num <= current|add:'1' %}
+                <a href="?page={{ num }}">
+                    <button class="{% if num == current %}active{% endif %}">{{ num }}</button>
+                </a>
+            {% endif %}
         {% endfor %}
-    
-        {% if attendance_records.has_next %}
-            <a href="?page={{ attendance_records.next_page_number }}">
-                <button>Next &raquo;</button>
-            </a>
-        {% endif %}
-    </div>
+    {% endwith %}
+
+    {% if attendance_records.has_next %}
+        <a href="?page={{ attendance_records.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
 </div>
 
 {% endblock %}

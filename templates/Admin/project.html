@@ -41,7 +41,7 @@
                 <div class="pjct-info-item">
                   <h6>Attachment:</h6>
                   {% if project_data.attachment_file %}
-                    <a href="{{ project_data.attachment_file }}" target="_blank" class="btn btn-sm btn-secondary">View Attachment</a>
+                    <a href="{% url 'admin_project_attachments_view' project_data.project_id %}" class="btn btn-sm btn-secondary">All Attachments</a>
                   {% else %}
                     <span style="color: #888;">No attachment uploaded</span>
                   {% endif %}
@@ -119,7 +119,7 @@
       <!-- Project Status Updates -->
       <div class="col-lg-7">
         <div class="prjct-time-line-box admin">
-          <div class="widget-box">
+          <div class="widget-box" style="height:790px;">
             <div class="widget-title">
               <h4>Project Timeline</h4>
             </div>

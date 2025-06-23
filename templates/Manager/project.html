@@ -108,22 +108,28 @@
       <div class="col-lg-7">
         <div class="emp-pjct-status-box">
           <div class="widget-box">
-              <div class="widget-title">
-                  <h4>Upload Attachment</h4>
+            <div class="widget-title">
+              <h4>Upload Attachment</h4>
+            </div>
+            <form method="POST" enctype="multipart/form-data">
+              {% csrf_token %}
+              <input class="upload-inpt" type="file" name="attachments" accept=".pdf,.doc,.docx,.jpg,.png,.zip" multiple>
+              <div style="margin-top: 15px; margin-bottom: 5px;">
+                <button type="submit" class="btn">Upload</button>
+              <a href="{% url 'project_attachments_view' project_data.project_id %}" class="btn btn-secondary">View All</a>
               </div>
-              <form method="POST" enctype="multipart/form-data">
-                  {% csrf_token %}
-                  <input class="upload-inpt" type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.png">
-                  <button type="submit" class="btn">Upload</button>
-              </form>
-  
-              {% if project_data.attachment_url %}
-                  <p><strong>Current Attachment:</strong> <a href="{{ project_data.attachment_url }}" target="_blank">View File</a></p>
-              {% else %}
-                  <p>No attachment uploaded yet.</p>
-              {% endif %}
+              
+            </form>
+
+            {% if project_data.attachments %}
+              <p><strong>Total Uploaded Files:</strong> {{ project_data.attachments|length }}</p>
+            {% else %}
+              <p>No attachments uploaded yet.</p>
+            {% endif %}
+
           </div>
         </div>
+
 
         <div class="emp-pjct-status-box" style="margin-top: 20px;">
           <div class="widget-box">
@@ -133,7 +139,7 @@
             <form method="POST" enctype="multipart/form-data">
               {% csrf_token %}
               <input class="upload-inpt" type="file" name="job_card" accept=".pdf,.doc,.docx,.jpg,.png">
-              <button type="submit" class="btn">Upload</button>
+              <button type="submit" class="btn" style="margin:10px 0;">Upload</button>
             </form>
           
             {% if project_data.job_card %}
@@ -152,18 +158,11 @@
             <div class="widget-title">
               <h4>Update Status</h4>
             </div>
-            <form
-              method="POST"
-              action="{% url 'update_team_manager_status' project_id=project_data.project_id %}"
-            >
+          
+            <form method="POST" action="{% url 'update_team_manager_status' project_id=project_data.project_id %}" id="statusForm">
               {% csrf_token %}
               <div class="prjct-status-updt-box">
-                <select
-                  id="status"
-                  name="status"
-                  onchange="toggleRemarkBox()"
-                  required
-                >
+                <select id="status" name="status" onchange="toggleRemarkBox()" required>
                   <option value="" disabled selected>Select Status</option>
                   <option value="ASSIGN">Assign</option>
                   <option value="ONGOING">Ongoing</option>
@@ -172,20 +171,47 @@
                   <option value="COMPLETED">Completed</option>
                 </select>
                 <div class="button-row">
-                  <button type="submit" class="btn">Update</button>
+                  <button type="button" class="btn" onclick="handleStatusSubmit()">Update</button>
                 </div>
               </div>
+            
               <div id="remarkBox" class="remark-box" style="display: none">
-                <textarea
-                  id="remark"
-                  name="remark"
-                  rows="4"
-                  placeholder="Enter note here"
-                ></textarea>
+                <textarea id="remark" name="remark" rows="4" placeholder="Enter note here"></textarea>
               </div>
+            
+              <!-- Hidden fields for invoice info -->
+              <input type="hidden" name="invoice_amount" id="invoice_amount_field">
+              <input type="hidden" name="currency_code" id="currency_code_field">
             </form>
           </div>
         </div>
+        
+        <!-- Modal for invoice info -->
+        <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="invoiceModalLabel">Purchase & Expenses Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="invoice_amount" class="form-label">Purchase & Expenses Amount</label>
+                  <input type="number" class="form-control" id="invoice_amount" step="0.01" required>
+                </div>
+                <div class="mb-3">
+                  <label for="currency_code" class="form-label">Currency Code</label>
+                  <input type="text" class="form-control" id="currency_code" value="AED" maxlength="10" required>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitStatusFormWithInvoice()">Submit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
 
         <div class="prjct-time-line-box employee">
           <div class="widget-box">
@@ -236,5 +262,59 @@
     </div>
   </section>
 </div>
+
+
+<script>
+document.querySelector('input[type="file"]').addEventListener('change', function (e) {
+    const maxSize = 49 * 1024 * 1024; // 49 MB
+    for (const file of this.files) {
+        if (file.size > maxSize) {
+            alert(`${file.name} is too large! Max size is 49MB.`);
+            this.value = ""; // Clear the input
+            break;
+        }
+    }
+});
+</script>
+
+
+<script>
+function toggleRemarkBox() {
+    const selectedStatus = document.getElementById("status").value;
+    const remarkBox = document.getElementById("remarkBox");
+    remarkBox.style.display = selectedStatus ? "block" : "none";
+}
+
+function handleStatusSubmit() {
+    const status = document.getElementById("status").value;
+    if (status === "COMPLETED") {
+        // Show modal
+       new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+    } else {
+        // Submit form normally
+        document.getElementById("statusForm").submit();
+    }
+}
+
+function submitStatusFormWithInvoice() {
+    const amount = document.getElementById("invoice_amount").value;
+    const currency = document.getElementById("currency_code").value;
+
+    if (!amount || !currency) {
+        alert("Please fill in both invoice amount and currency.");
+        return;
+    }
+
+    // Set hidden inputs and submit
+    document.getElementById("invoice_amount_field").value = amount;
+    document.getElementById("currency_code_field").value = currency;
+
+    document.getElementById("statusForm").submit();
+}
+
+function closeInvoiceModal() {
+    document.getElementById("invoiceModal").style.display = "none";
+}
+</script>
 
 {% endblock %}

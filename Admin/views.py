@@ -17,7 +17,7 @@ from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team
 
 
 # Home
@@ -117,7 +117,7 @@ def dashboard(request):
         completed_projects = Project.objects.filter(status='COMPLETED').count()
         
         # Overdue Projects (where deadline_date has passed but status is not completed)
-        overdue_projects = Project.objects.filter(deadline_date__lt=now().date(), status__in=['ONGOING', 'PENDING']).count()
+        overdue_projects = Project.objects.filter(deadline_date__lt=now().date(), status__in=['ONGOING', 'PENDING','HOLD','ASSIGN']).count()
         
         # Project Completion Percentage
         completion_percentage = (completed_projects / total_projects * 100) if total_projects > 0 else 0
@@ -126,6 +126,26 @@ def dashboard(request):
         project_details = Project.objects.annotate(
             leader_name=F('manager__user__username')
         ).values('id', 'name', 'leader_name', 'status', 'category', 'priority').order_by('-created_at')[:5]
+
+        # Unique client count (ignores empty values)
+        client_count = Project.objects.exclude(client_name="").values('client_name').distinct().count()
+
+        # Client count this month
+        clients_this_month = Project.objects.filter(
+            created_at__date__gte=first_day_this_month
+        ).exclude(client_name="").values('client_name').distinct().count()
+
+        # Client count last month
+        clients_last_month = Project.objects.filter(
+            created_at__date__gte=first_day_last_month,
+            created_at__date__lte=last_day_last_month
+        ).exclude(client_name="").values('client_name').distinct().count()
+
+        # Calculate client growth %
+        if clients_last_month > 0:
+            client_change_percent = ((clients_this_month - clients_last_month) / clients_last_month) * 100
+        else:
+            client_change_percent = 100 if clients_this_month > 0 else 0
 
         context = {
             'total_projects': total_projects,
@@ -146,6 +166,9 @@ def dashboard(request):
             'completed_projects': completed_projects,
             'overdue_projects': overdue_projects,
             'completion_percentage': round(completion_percentage, 2),
+            'client_count': client_count,
+            'client_change_percent': round(client_change_percent, 2),
+            'client_change_percent_abs': abs(round(client_change_percent, 2)),
             "now": now()
         }
         return render(request, 'Admin/dashboard.html', context)
@@ -341,6 +364,56 @@ def manage_attendance(request):
             messages.error(request, "Attendance record not found!")
 
     return render(request, 'Admin/manage_attendance.html', {'requests': pending_requests})
+
+
+# Only allow superusers (admins)
+def admin_required(user):
+    return user.is_authenticated and user.is_superuser
+
+@login_required
+@user_passes_test(admin_required)
+def admin_manage_project_status(request):
+    # Get all pending statuses
+    pending_statuses = TeamMemberStatus.objects.filter(
+        manager_approval_status='PENDING'
+    ).select_related('employee', 'team', 'team__project').order_by('-last_updated')
+
+    if request.method == 'POST':
+        tms_id = request.POST.get('tms_id')
+        action = request.POST.get('action')  # APPROVE or REJECT
+        rejection_reason = request.POST.get('rejection_reason', '')
+
+        try:
+            tms = TeamMemberStatus.objects.get(id=tms_id)
+
+            if action == 'APPROVE':
+                tms.manager_approval_status = 'APPROVED'
+                messages.success(request, f"Status for {tms.employee.user.username} approved.")
+            elif action == 'REJECT':
+                tms.manager_approval_status = 'REJECTED'
+                tms.rejection_reason = rejection_reason
+                tms.status = 'ONGOING'  # Reset or rollback status
+                messages.success(request, f"Status for {tms.employee.user.username} rejected.")
+            else:
+                messages.error(request, "Invalid action.")
+
+            tms.save()
+
+            # Notify employee
+            Notification.objects.create(
+                recipient=tms.employee.user,
+                message=f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin."
+            )
+
+        except TeamMemberStatus.DoesNotExist:
+            messages.error(request, "Team member status not found.")
+
+        return redirect('admin_manage_project_status')
+
+    return render(request, 'Admin/manage_project_status.html', {
+        'pending_statuses': pending_statuses
+    })
+
 
 def manage_manager_attendance(request):
     # Ensure the user is a superuser (or manager)
@@ -543,6 +616,18 @@ def admin_project_summary_view(request, project_id):
     context = {"project_data": project_data}
     return render(request, 'Admin/project.html', context)
 
+
+@login_required
+def admin_project_attachments_view(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+    attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
+
+    context = {
+        'project': project,
+        'attachments': attachments,
+    }
+    return render(request, 'Admin/project_attachments.html', context)
+
 # add project
 @login_required
 def add_project(request):
@@ -636,31 +721,19 @@ def project_assignment_delete(request, pk):
 
 @login_required
 def employee_profile(request, employee_id):
-    # Fetch the employee
+    # Get the employee
     employee = get_object_or_404(Employee, pk=employee_id)
     teams = employee.teams_assigned.all()
 
-    
-    manager_projects = [] 
-
-    if employee.is_manager:
-        # Fetch projects managed by the manager
-        manager_projects = Project.objects.filter(manager=employee).select_related('manager')
-
     team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
-    manager_statuses = TeamMemberStatus.objects.filter(employee=employee.is_manager)
 
-    # Count statuses for the employee's projects
+    # Project status counts (as team member)
     completed_projects = team_member_statuses.filter(status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count()   
+    pending_projects = team_member_statuses.exclude(status='COMPLETED').count()
     assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
-    
-    # Count statuses for the employee's projects
-    manager_completed_projects = Project.objects.filter(manager=employee, status='COMPLETED').count()
-    manager_pending_projects =  Project.objects.filter(manager=employee).exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count() 
-    manager_assigned_projects = manager_statuses.filter(status='ASSIGN').count()
+    total_projects = completed_projects + pending_projects + assigned_projects
 
-    # Get the related projects from the team member status
+    # All assigned projects for display
     all_projects = [
         {
             'project': status.team.project,
@@ -670,59 +743,69 @@ def employee_profile(request, employee_id):
         for status in team_member_statuses
     ]
 
-    # Calculate attendance percentage
-    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    # approved_attendance_records = Attendance.objects.filter(
-    #     employee=employee, status='APPROVED'
-    # ).count()
-    # attendance_percentage = (
-    #     (approved_attendance_records / 30) * 100
-    #     if total_attendance_records > 0
-    #     else 0
-    # )
+    # ---- Attendance % Calculation ----
+    today = date.today()
+    first_day_this_month = today.replace(day=1)
+    
+    # Safely determine work start date
+    if employee.date_of_join:
+        work_start_date = max(employee.date_of_join, first_day_this_month)
+    else:
+        work_start_date = first_day_this_month
 
-    # Get the current year and month
-    current_year = date.today().year
-    current_month = date.today().month
+    # Get all weekdays (Mon-Sat) between work_start_date and today
+    all_days = [work_start_date + timedelta(days=i) for i in range((today - work_start_date).days + 1)]
+    weekdays = [d for d in all_days if d.weekday() < 6]
 
-    # Get the total number of days in the current month
-    total_days_in_month = monthrange(current_year, current_month)[1]
+    # Remove holidays
+    holidays = Holiday.objects.filter(date__range=(work_start_date, today)).values_list('date', flat=True)
+    working_days_this_month = [d for d in weekdays if d not in holidays]
+    total_working_days = len(working_days_this_month)
 
-    # Calculate total and approved attendance records for the current month
-    total_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
+    # Attendance records
+    approved_attendance = Attendance.objects.filter(employee=employee, status="APPROVED", login_time__date__gte=work_start_date)
 
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        status='APPROVED',
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
+    # Working hours
+    full_day_hours = 10
+    half_day_min_hours = 5
 
-    # Calculate attendance percentage
+    full_days = approved_attendance.filter(total_hours_of_work__gte=full_day_hours).values('login_time__date').distinct().count()
+    half_days = approved_attendance.filter(
+        total_hours_of_work__gte=half_day_min_hours,
+        total_hours_of_work__lt=full_day_hours
+    ).values('login_time__date').distinct().count()
+
     attendance_percentage = (
-        (approved_attendance_records / total_days_in_month) * 100
-        if total_attendance_records > 0
-        else 0
+        ((full_days + 0.5 * half_days) / total_working_days * 100)
+        if total_working_days > 0 else 0
     )
 
-    # Count total projects and pending projects
-    total_projects = completed_projects + pending_projects + assigned_projects
-    total_pending_projects = total_projects - completed_projects
+    # ---- Manager Projects ----
+    manager_projects = []
+    manager_completed_projects = 0
+    manager_pending_projects = 0
+    manager_assigned_projects = 0
 
-    # Context for template
+    if employee.is_manager:
+        manager_projects = Project.objects.filter(manager=employee)
+        manager_completed_projects = manager_projects.filter(status='COMPLETED').count()
+        manager_pending_projects = manager_projects.exclude(status__in=['COMPLETED']).count()
+        manager_assigned_projects = manager_projects.filter(status='ASSIGN').count()
+
+    # Context
     context = {
         'employee': employee,
         'teams': teams,
         'all_projects': all_projects,
-        'manager_projects': manager_projects,
         'attendance_percentage': round(attendance_percentage, 1),
+
+        # Team member stats
         'total_projects': total_projects,
         'completed_projects': completed_projects,
-        'pending_projects': total_pending_projects,
+        'pending_projects': pending_projects,
+
+        # Manager stats
+        'manager_projects': manager_projects,
         'manager_completed_projects': manager_completed_projects,
         'manager_pending_projects': manager_pending_projects,
         'manager_assigned_projects': manager_assigned_projects,
@@ -859,41 +942,91 @@ def admin_delete_employee(request, employee_id):
 
 @login_required
 def manager_profile(request, manager_id):
-    employee = get_object_or_404(Employee, pk=manager_id)
+    # Get manager object by ID
+    manager = get_object_or_404(Employee, pk=manager_id, is_manager=True)
+    today = date.today()
 
-    if employee.is_manager:
-        # Fetch projects managed by the manager
-        all_projects = Project.objects.filter(manager=employee).select_related('manager')
-    else:
-        pass
+    # --- TEAMS AND EMPLOYEES ---
+    teams = Team.objects.filter(manager=manager).prefetch_related('employees')
+    total_employees = sum(team.employees.count() for team in teams)
 
-    total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee, status='APPROVED'
-    ).count()
-    attendance_percentage = (
-        (approved_attendance_records / total_attendance_records) * 100
-        if total_attendance_records > 0
-        else 0
+    # --- PROJECTS ---
+    projects = Project.objects.filter(manager=manager)
+    completed_projects = projects.filter(status='COMPLETED').count()
+    pending_projects = projects.exclude(status='COMPLETED').count()
+    managed_projects = [
+        {"name": p.name, "code": p.code, "status": p.status, "team": p.teams.first()}
+        for p in projects
+    ]
+
+    # --- DATE RANGE ---
+    current_year = today.year
+    current_month = today.month
+    first_day_of_month = today.replace(day=1)
+    last_day_of_month = today.replace(day=monthrange(current_year, current_month)[1])
+
+    # --- HELPER: WORKING DAYS ---
+    def get_working_days(start, end):
+        all_days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+        weekdays = [d for d in all_days if d.weekday() < 6]
+        holidays = set(Holiday.objects.filter(date__range=(start, end)).values_list('date', flat=True))
+        return [d for d in weekdays if d not in holidays]
+
+    # --- TEAM ATTENDANCE ---
+    team_attendance_qs = Attendance.objects.filter(
+        employee__teams_assigned__manager=manager,
+        status='APPROVED',
+        login_time__date__range=(first_day_of_month, last_day_of_month)
+    ).distinct()
+
+    full_day_hours = 10
+    half_day_min_hours = 5
+
+    team_full_days = team_attendance_qs.filter(total_hours_of_work__gte=full_day_hours).values('employee', 'login_time__date').distinct().count()
+    team_half_days = team_attendance_qs.filter(
+        total_hours_of_work__gte=half_day_min_hours,
+        total_hours_of_work__lt=full_day_hours
+    ).values('employee', 'login_time__date').distinct().count()
+
+    working_days = get_working_days(first_day_of_month, last_day_of_month)
+    team_expected_days = len(working_days) * total_employees
+    team_total_attendance = team_full_days + 0.5 * team_half_days
+
+    team_attendance_percentage = round((team_total_attendance / team_expected_days) * 100, 2) if team_expected_days > 0 else 0
+
+    # --- MANAGER'S PERSONAL ATTENDANCE ---
+    work_start_date = max(manager.date_of_join, first_day_of_month)
+    working_days_manager = get_working_days(work_start_date, today)
+    total_working_days_manager = len(working_days_manager)
+
+    manager_attendance_qs = Attendance.objects.filter(
+        employee=manager,
+        status='APPROVED',
+        login_time__date__gte=work_start_date
     )
-    # Count total projects and pending projects
-    completed_projects = Project.objects.filter(manager=employee, status='COMPLETED').count()
-    pending_projects = Project.objects.filter(manager=employee).exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count()
-    total_projects = completed_projects + pending_projects
-    total_pending_projects = total_projects - completed_projects
 
+    manager_full_days = manager_attendance_qs.filter(total_hours_of_work__gte=full_day_hours).values('login_time__date').distinct().count()
+    manager_half_days = manager_attendance_qs.filter(
+        total_hours_of_work__gte=half_day_min_hours,
+        total_hours_of_work__lt=full_day_hours
+    ).values('login_time__date').distinct().count()
+
+    manager_attendance_percentage = round(((manager_full_days + 0.5 * manager_half_days) / total_working_days_manager) * 100, 2) if total_working_days_manager > 0 else 0
+
+    # --- CONTEXT ---
     context = {
-        'employee': employee,
-        'all_projects': all_projects,
-        'attendance_percentage': round(attendance_percentage, 1),
-        'total_projects': total_projects,
-        'completed_projects': completed_projects,
-        'pending_projects': total_pending_projects,
-        'is_manager': employee.is_manager,  # Check if the employee is a manager or not
+        "manager": manager,
+        "teams": teams,
+        "total_employees": total_employees,
+        "completed_projects": completed_projects,
+        "pending_projects": pending_projects,
+        "managed_projects": managed_projects,
+        "attendance_percentage_current_month": team_attendance_percentage,
+        "manager_attendance_percentage": manager_attendance_percentage,
+        "is_manager": True,
     }
 
     return render(request, 'Admin/manager_profile.html', context)
-
 @login_required
 def admin_edit_manager(request, manager_id):
     """Admin can edit employee details"""

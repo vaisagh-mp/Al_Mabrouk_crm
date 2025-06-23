@@ -20,27 +20,30 @@
                         <div class="add-new-emply">
                             <div class="table-searchbar">
                                 <div class="sidebar-search">
-                                    <form method="get" action="">
-                                        <div class="input-group">
-                                            <input type="text" name="search" class="form-control search-menu"
-                                                value="{{ search_query }}" placeholder="Search by Team Name..." />
-                                            <button type="submit" class="btn btn-primary">
-                                                <i class="fa fa-search" aria-hidden="true"></i>
-                                            </button>
-                                        </div>
-                                    </form>
+                                  <div>
+                                    <div class="input-group">
+                                      <form method="GET" action="" class="d-flex">
+                                          <input type="text" name="search" class="form-control search-menu" placeholder="Search projects..."
+                                                 value="{{ search_query }}" />
+                                          <button class="srh-btn" type="submit" class="btn btn-primary">
+                                              <i class="fa fa-search" aria-hidden="true"></i>
+                                          </button>
+                                      </form>
+                                  </div>
+                                  
+                                  </div>
                                 </div>
-                            </div>
+                              </div>
                             <a class="badge bg-warning" href="{% url 'team-create' %}">
                                 Add <i class="fas fa-plus"></i>
                             </a>
-                            <div class="dwnld-dropdown">
+                            <!-- <div class="dwnld-dropdown">
                                 <a href="#" title="Download"><i class="fas fa-download"></i></a>
                                 <div class="dwnld-dropdown-content">
                                     <a href="#" title="Download XLSX">XLSX</a>
                                     <a href="#" title="Download CSV">CSV</a>
                                 </div>
-                            </div>
+                            </div> -->
                         </div>
                     </th>
                 </tr>
@@ -60,7 +63,7 @@
                     <td>{{ team.project.name }} -- {{ team.project.code }}</td>
                     <td>
                         {% for employee in team.employees.all %}
-                            {{ employee.user.first_name }} {{ employee.user.last_name }}{% if not forloop.last %}, {% endif %}
+                            {{ employee.user.first_name }} {{ employee.user.last_name }}{% if not forloop.last %}, {% endif %}<br>
                         {% endfor %}
                     </td>
                     <td class="list-action-col">

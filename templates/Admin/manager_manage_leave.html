@@ -78,8 +78,12 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <p class="text-center">No Pending Leave Requests</p>
+        {% endif %}
 
-        <!-- Pagination -->
+    </div>   
+    <!-- Pagination -->
         <div class="pagination" id="pagination">
             {% if leaves.has_previous %}
                 <a href="?page={{ leaves.previous_page_number }}">
@@ -99,10 +103,6 @@
                 </a>
             {% endif %}
         </div>
-        {% else %}
-        <p class="text-center">No Pending Leave Requests</p>
-        {% endif %}
-    </div>
 </div>
 
 {% endblock %}

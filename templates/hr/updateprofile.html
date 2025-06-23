@@ -20,7 +20,7 @@
                         {% if request.user.employee_profile.profile_picture %}
                             <img src="{{ request.user.employee_profile.profile_picture.url }}" alt="Profile" class="rounded-circle" id="profilePreview" />
                         {% else %}
-                            <img src="https://via.placeholder.com/100" alt="Profile" class="rounded-circle" id="profilePreview" />
+                            <img src="{% static 'assets/images/user-pro.webp' %}" alt="Default Profile Pic">
                         {% endif %}
                     </div>
                     <!-- Upload Section -->

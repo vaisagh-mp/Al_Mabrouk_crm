@@ -78,21 +78,21 @@ class Project(models.Model):
                 ))
     
             # 2. Log attachment change
-            if old_project.attachment != self.attachment:
-                prev_status = "Attachment Exists" if old_project.attachment else "No Attachment"
-                new_status = "Attachment Uploaded"
-                notes = (
-                    f"Attachment replaced with {self.attachment.name} by manager."
-                    if old_project.attachment else
-                    f"{self.attachment.name} uploaded by manager."
-                )
-                log_entries.append(ActivityLog(
-                    project=self,
-                    previous_status=prev_status,
-                    new_status=new_status,
-                    notes=notes,
-                    changed_by=self.manager
-                ))
+            # if old_project.attachment != self.attachment:
+            #     prev_status = "Attachment Exists" if old_project.attachment else "No Attachment"
+            #     new_status = "Attachment Uploaded"
+            #     notes = (
+            #         f"Attachment replaced with {self.attachment.name} by manager."
+            #         if old_project.attachment else
+            #         f"{self.attachment.name} uploaded by manager."
+            #     )
+            #     log_entries.append(ActivityLog(
+            #         project=self,
+            #         previous_status=prev_status,
+            #         new_status=new_status,
+            #         notes=notes,
+            #         changed_by=self.manager
+            #     ))
     
         # Save the project first
         super().save(*args, **kwargs)
@@ -178,6 +178,7 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
+
 class Team(models.Model):
     name = models.CharField(max_length=255)
     manager = models.ForeignKey(
@@ -237,11 +238,15 @@ class Employee(models.Model):
     profile_picture = models.ImageField(upload_to="profile_pictures/", null=True, blank=True)
 
     def calculate_work_days(self):
-        """Automatically calculate total work days based on attendance records."""
+        """
+        Calculates total work days as total_hours / 10,
+        allowing for fractional values (e.g., 0.5 for half day).
+        """
         total_hours = sum(
-            attendance.total_hours_of_work or 0 for attendance in self.attendance_set.all()
+            attendance.total_hours_of_work or 0
+            for attendance in self.attendance_set.filter(status="APPROVED")
         )
-        self.work_days = total_hours / 10  # assuming 10 hours = 1 workday
+        self.work_days = round(total_hours / 10, 2)  # Keep 2 decimal places for precision
         self.save()
 
     def get_role(self):
@@ -338,19 +343,31 @@ class Attendance(models.Model):
     total_travel_time = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        """Calculate total travel time before saving."""
+        """Calculate total travel time and total work time before saving."""
+        # Total Travel Time
         if self.travel_in_time and self.travel_out_time:
             if isinstance(self.travel_in_time, str):
                 self.travel_in_time = datetime.strptime(self.travel_in_time, '%Y-%m-%dT%H:%M')
             if isinstance(self.travel_out_time, str):
                 self.travel_out_time = datetime.strptime(self.travel_out_time, '%Y-%m-%dT%H:%M')
-            
+
             travel_duration = self.travel_out_time - self.travel_in_time
-            self.total_travel_time = round(travel_duration.total_seconds() / 3600, 2)  # Convert to hours
+            self.total_travel_time = round(travel_duration.total_seconds() / 3600, 2)
         else:
-            self.total_travel_time = None  # Reset if travel_out_time is not set
+            self.total_travel_time = None
+
+        # Total Work Hours
+        if self.login_time and self.log_out_time:
+            work_duration = self.log_out_time - self.login_time
+            self.total_hours_of_work = round(work_duration.total_seconds() / 3600, 2)
+        else:
+            self.total_hours_of_work = None
 
         super().save(*args, **kwargs)
+
+        # Recalculate work_days only if attendance is approved
+        if self.status == "APPROVED":
+            self.employee.calculate_work_days()
 
     def __str__(self):
         return f"Attendance for {self.employee.user.username} - {self.status}"
@@ -364,7 +381,6 @@ class Leave(models.Model):
     LEAVE_TYPE_CHOICES = [
         ('SICK LEAVE', 'Sick Leave'),
         ('ANNUAL LEAVE', 'Annual Leave'),
-        ('CASUAL LEAVE', 'Casual Leave'),
     ]
 
     STATUS_CHOICES = [
@@ -394,9 +410,8 @@ class Leave(models.Model):
 
 class LeaveBalance(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="leave_balance")
-    annual_leave = models.IntegerField(default=24)
-    sick_leave = models.IntegerField(default=12) 
-    casual_leave = models.IntegerField(default=6)
+    annual_leave = models.IntegerField(default=30)
+    sick_leave = models.IntegerField(default=12)
 
     def __str__(self):
         return f"{self.user.username} - Leave Balance"
@@ -410,11 +425,20 @@ class TeamMemberStatus(models.Model):
         ('COMPLETED', 'Completed'),
     ]
 
+    APPROVAL_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+
     team = models.ForeignKey('Team', on_delete=models.CASCADE, related_name='team_members_status')
     employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='project_statuses')
     status = models.CharField(max_length=100, choices=STATUS_CHOICES, default='ASSIGN')
     notes = models.TextField(max_length=2000, null=True, blank=True)
     last_updated = models.DateTimeField(auto_now=True)
+
+    manager_approval_status = models.CharField(max_length=10, choices=APPROVAL_CHOICES, default='PENDING')
+    rejection_reason = models.TextField(null=True, blank=True)
 
     class Meta:
         unique_together = ('team', 'employee')
@@ -466,6 +490,14 @@ class ActivityLog(models.Model):
         return f"{self.changed_by.user.username if self.changed_by else 'Unknown'} changed {self.previous_status} → {self.new_status}"
 
 
+class ProjectAttachment(models.Model):
+    project = models.ForeignKey(Project, related_name='attachments', on_delete=models.CASCADE)
+    file = models.FileField(upload_to='project_attachments/')
+    uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+
 # Signal to update the employee's work_days after saving an attendance record
 @receiver(post_save, sender=Attendance)
 def update_employee_work_days(sender, instance, **kwargs):
@@ -485,4 +517,11 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification for {self.recipient.username} - {self.message[:20]}"
     
-    
+
+class Holiday(models.Model):
+    date = models.DateField(unique=True)
+    description = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"{self.date} - {self.description}"
+   

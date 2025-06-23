@@ -24,7 +24,7 @@
           <!-- <span style="color: #3b7080">{{ employee.experience_years }} years of Experience</span> -->
         </div>
 
-        <div class="emp-details">
+              <div class="emp-details">
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
               <i class="fas fa-id-card"></i>
@@ -53,10 +53,10 @@
             </span>
             <p class="text-dark">{{ employee.overseas_days }}</p>
           </div>
-        </div>
-        <hr />
-
-        <div class="p-3 emp-basic-info border-bottom">
+              </div>
+              <hr />
+            
+              <div class="p-3 emp-basic-info border-bottom">
           <h6>Basic Information</h6>
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
@@ -119,25 +119,33 @@
               </div>
 
           </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-lg-8">
+              </div>
+            </div>
+          </div>
+        
+          <div class="col-lg-8">
       <div class="emp-status-col">
         <div class="row mb-4">
           <div class="col-lg-4">
             <div class="status-wdgt">
               <h5>Attendance</h5>
-              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
+              <h6 style="color: #c554bc">
+                {% if manager_attendance_percentage is defined %}
+                  {{ manager_attendance_percentage|floatformat:0 }}%
+                {% else %}
+                  {{ attendance_percentage|floatformat:0 }}%
+                {% endif %}
+              </h6>
             </div>
           </div>
+        
           <div class="col-lg-4">
             <div class="status-wdgt">
               <h5>Projects Completed</h5>
               <h6 style="color: #65a986">{{ completed_projects }}</h6>
             </div>
           </div>
+        
           <div class="col-lg-4">
             <div class="status-wdgt">
               <h5>Projects Pending</h5>
@@ -145,6 +153,8 @@
             </div>
           </div>
         </div>
+      </div>
+          </div>
 
         <div class="widget-box table-wdgt">
           <h3>Projects</h3>

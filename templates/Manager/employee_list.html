@@ -29,9 +29,9 @@
                     <th>Employee ID</th>
                     <th>Rank</th>
                     <th>Email</th>
+                    <th>Team</th>
                     <th>Total Work Days</th>
                     <th>On-Going Projects</th>
-                    <!-- <th>Action</th> -->
                 </tr>
             </thead>
             <tbody>
@@ -44,6 +44,13 @@
                         <a href="mailto:{{ employee.user.email }}">
                             <i class="far fa-envelope"></i> {{ employee.user.email }}
                         </a>
+                    </td>
+                    <td>
+                        {% for team in employee.teams_assigned.all %}
+                            {{ team.name }}{% if not forloop.last %}, {% endif %}<br>
+                        {% empty %}
+                            No team assigned
+                        {% endfor %}
                     </td>
                     <td>{{ employee.work_days }}</td>
                     <td>
@@ -76,20 +83,33 @@
     </div>
     <!-- Pagination -->
     <div class="pagination" id="pagination">
-        {% if page_obj.has_previous %}
-        <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
-        {% endif %}
+    {% if page_obj.has_previous %}
+        <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with page_obj.number as current %}
         {% for num in page_obj.paginator.page_range %}
-        {% if page_obj.number == num %}
-        <button class="active">{{ num }}</button>
-        {% else %}
-        <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ num }}">{{ num }}</a>
-        {% endif %}
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
         {% endfor %}
-        {% if page_obj.has_next %}
-        <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
-        {% endif %}
-    </div>
+    {% endwith %}
+
+    {% if page_obj.has_next %}
+        <a href="?{% if request.GET.manager %}manager={{ request.GET.manager }}&{% endif %}page={{ page_obj.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
 </div>
 
 

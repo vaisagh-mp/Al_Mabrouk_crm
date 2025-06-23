@@ -190,6 +190,9 @@
                         <li>
                           <a href="{% url 'project_list' %}">All Projects </a>
                         </li>
+                        <li>
+                          <a href="{% url 'manage_project_status' %}">Manage Projects</a>
+                        </li>
                         <!-- <li>
                           <a href="{% url 'project-assignment-list' %}">Project Assigns</a>
                         </li> -->
@@ -453,31 +456,48 @@
   
   <!-- Leave Details Chart -->
   <script>
-    var optionsChartOne = {
-      series: [1254, 32, 658, 14, 68],
-      chart: {
-        type: 'donut',
-      },
-      labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
-      legend: {
-        position: 'bottom', // Moves the legend (labels) below the chart
-        horizontalAlign: 'center', // Centers the legend
-      },
-      responsive: [{
-        breakpoint: 480,
-        options: {
-
-          legend: {
-            position: 'bottom'
-          }
-        }
-      }]
-    };
-
-    var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
-    chartOne.render();
-  </script>
-
+      const chartData = {{ chart_data|safe }};
+        
+      var optionsChartOne = {
+        series: [
+          chartData.on_time,
+          chartData.late,
+          chartData.wfh,
+          chartData.absent,
+          chartData.sick,
+        ],
+        chart: {
+          type: "donut",
+        },
+        labels: [
+          chartData.on_time + " On Time",
+          chartData.late + " Late Attendance",
+          chartData.wfh + " Work From Home",
+          chartData.absent + " Absent",
+          chartData.sick + " Sick Leave",
+        ],
+        legend: {
+          position: "bottom",
+          horizontalAlign: "center",
+        },
+        responsive: [
+          {
+            breakpoint: 480,
+            options: {
+              legend: {
+                position: "bottom",
+              },
+            },
+          },
+        ],
+      };
+    
+      var chartOne = new ApexCharts(
+        document.querySelector("#leaveChart"),
+        optionsChartOne
+      );
+      chartOne.render();
+    </script>
 
 <script>
   function toggleRemarkBox() {

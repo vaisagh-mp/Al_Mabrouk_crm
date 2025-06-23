@@ -17,7 +17,7 @@
                   {% if employee.profile_picture %}
                   <img src="{{ employee.profile_picture.url }}" alt="Employee Profile Pic">
                   {% else %}
-                  <img src="https://via.placeholder.com/150" alt="Default Profile Pic">
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="Default Profile Pic">
                   {% endif %}
                 </div>
                 <h5>{{ employee.user.first_name }} {{ employee.user.last_name }}</h5>

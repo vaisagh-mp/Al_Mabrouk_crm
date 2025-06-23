@@ -20,6 +20,22 @@
                     <td>{{ attendance.project }}</td>
                 </tr>
                 <tr>
+                    <th>Team</th>
+                    <td>
+                        {% with attendance.employee.teams_assigned.all as teams %}
+                            {% if teams %}
+                                {% for team in teams %}
+                                    {% if team.project == attendance.project %}
+                                        {{ team.name }}
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                No team assigned
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                </tr>
+                <tr>
                     <th>Login Time</th>
                     <td>{{ attendance.login_time }}</td>
                 </tr>

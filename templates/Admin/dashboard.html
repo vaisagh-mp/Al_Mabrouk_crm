@@ -37,7 +37,7 @@
       <div class="status-wdgt card-bg-green">
         <h5>Total Projects</h5>
         <h6>{{ total_projects }}</h6>
-        <!-- <p>
+        <p>
           {% if change_percentage >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
             <span>{{ change_percentage }}%</span> Since last month
@@ -45,7 +45,7 @@
             <i class="fas fa-arrow-down text-danger"></i>
             <span>{{ change_percentage|absolute }}%</span> Decrease since last month
           {% endif %}
-        </p> -->
+        </p>
         <div class="wdgt-bg-icons"><i class="far fa-file-alt"></i></div>
       </div>
     </div>
@@ -53,19 +53,26 @@
     <div class="col-lg-3 col-md-6">
       <div class="status-wdgt card-bg-blue">
         <h5>Total Clients</h5>
-        <h6>0</h6>
-        <!-- <p>
-          <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
-        </p> -->
-
+        <h6>{{ client_count }}</h6>
+        <p>
+          {% if client_change_percent >= 0 %}
+            <i class="fas fa-arrow-up text-success"></i>
+            <span>{{ client_change_percent }}%</span> Since last month
+          {% else %}
+            <i class="fas fa-arrow-down text-danger"></i>
+            <span>{{ client_change_percent_abs }}%</span> Decrease since last month
+          {% endif %}
+        </p>
         <div class="wdgt-bg-icons"><i class="far fa-clock"></i></div>
       </div>
     </div>
+
+
     <div class="col-lg-3 col-md-6">
       <div class="status-wdgt card-bg-violet">
         <h5>Total Employees</h5>
         <h6>{{ active_employees }}</h6>
-        <!-- <p>
+        <p>
           {% if emp_change_percent >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
             <span>{{ emp_change_percent }}%</span> Since last month
@@ -73,18 +80,18 @@
             <i class="fas fa-arrow-down text-danger"></i>
             <span>{{ emp_change_percent_abs }}%</span> Decrease since last month
           {% endif %}
-        </p> -->
-
+        </p>
         <div class="wdgt-bg-icons">
           <i class="fas fa-tasks"></i>
         </div>
       </div>
     </div>
+
     <div class="col-lg-3 col-md-6 m-b-20">
       <div class="status-wdgt card-bg-orange">
         <h5>Net Profit</h5>
         <h6>{{ total_profit|floatformat:0 }} AED</h6>
-        <!-- <p>
+        <p>
           {% if profit_change_percent >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
             <span>{{ profit_change_percent|floatformat:2 }}%</span> Since last month
@@ -92,7 +99,7 @@
             <i class="fas fa-arrow-down text-danger"></i>
             <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> Decrease since last month
           {% endif %}
-        </p> -->
+        </p>
         <div class="wdgt-bg-icons">
           <i class="fas fa-hourglass-start"></i>
         </div>

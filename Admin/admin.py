@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday
 
 
 @admin.register(Project)
@@ -56,23 +56,29 @@ class TeamAdmin(admin.ModelAdmin):
 
 @admin.register(TeamMemberStatus)
 class TeamMemberStatusAdmin(admin.ModelAdmin):
-    list_display = ('team', 'employee', 'status', 'notes', 'last_updated')  # Added 'notes'
-    list_filter = ('status', 'team__project', 'team', 'last_updated')
-    search_fields = ('employee__name', 'team__name', 'team__project__name')
+    list_display = (
+        'team', 'employee', 'status', 'notes', 'manager_approval_status', 'last_updated'
+    )
+    list_filter = (
+        'status', 'manager_approval_status', 'team__project', 'team', 'last_updated'
+    )
+    search_fields = (
+        'employee__user__username', 'team__name', 'team__project__name'
+    )
     ordering = ('team', 'employee')
-    readonly_fields = ('last_updated',)  # Make the field read-only in the admin interface
+    readonly_fields = ('last_updated',)
 
     def get_readonly_fields(self, request, obj=None):
-        """
-        Add `last_updated` as read-only. Also, make `team` and `employee` read-only for existing objects.
-        """
-        if obj:  # If the object exists
+        if obj:
             return ('team', 'employee', 'last_updated')
         return ('last_updated',)
 
     fieldsets = (
         (None, {
-            'fields': ('team', 'employee', 'status', 'notes')  # Added 'notes' field
+            'fields': (
+                'team', 'employee', 'status', 'notes', 
+                'manager_approval_status', 'rejection_reason'  # Add here
+            )
         }),
     )
 
@@ -85,7 +91,7 @@ admin.site.register(Leave, LeaveAdmin)
 
 @admin.register(LeaveBalance)
 class LeaveBalanceAdmin(admin.ModelAdmin):
-    list_display = ("user", "annual_leave", "sick_leave", "casual_leave")
+    list_display = ("user", "annual_leave", "sick_leave")
     search_fields = ("user__username",)
 
 
@@ -103,3 +109,16 @@ class NotificationAdmin(admin.ModelAdmin):
 
 
 admin.site.register(ActivityLog)
+
+@admin.register(ProjectAttachment)
+class ProjectAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('project', 'file', 'uploaded_by', 'uploaded_at')
+    list_filter = ('uploaded_at', 'uploaded_by')
+    search_fields = ('project__name', 'file')
+
+
+@admin.register(Holiday)
+class HolidayAdmin(admin.ModelAdmin):
+    list_display = ('date', 'description')
+    list_filter = ('date',)
+    ordering = ('-date',)

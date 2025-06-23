@@ -1,0 +1,35 @@
+{% extends 'Manager/managerbase.html' %}
+{% block content %}
+<div class="container mt-4">
+  <h2>All Attachments for Project: {{ project.name }}</h2>
+  {% if attachments %}
+    <div style="overflow-x: auto;">
+      <table class="table allattachments table-bordered mt-3">
+        <thead>
+          <tr>
+            <th>File Name</th>
+            <th>Uploaded By</th>
+            <th>Uploaded At</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for file in attachments %}
+            <tr>
+              <td>{{ file.file.name|cut:'project_attachments/' }}</td>
+              <td>{{ file.uploaded_by.user.get_full_name }}</td>
+              <td>{{ file.uploaded_at|date:"d M Y H:i" }}</td>
+              <td>
+                <a href="{{ file.file.url }}" target="_blank" class="btn">View File</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  {% else %}
+    <p>No attachments available.</p>
+  {% endif %}
+</div>
+{% endblock %}

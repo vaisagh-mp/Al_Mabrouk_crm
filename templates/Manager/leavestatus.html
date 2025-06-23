@@ -242,24 +242,33 @@
         </table> 
     </div>
     <div class="pagination" id="pagination">
-        {% if leaves.has_previous %}
-            <a href="?page={{ leaves.previous_page_number }}">
-                <button>&laquo; Prev</button>
-            </a>
-        {% endif %}
-    
+    {% if leaves.has_previous %}
+        <a href="?page={{ leaves.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with current=leaves.number %}
         {% for num in leaves.paginator.page_range %}
-            <a href="?page={{ num }}">
-                <button class="{% if num == leaves.number %}active{% endif %}">{{ num }}</button>
-            </a>
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
         {% endfor %}
-    
-        {% if leaves.has_next %}
-            <a href="?page={{ leaves.next_page_number }}">
-                <button>Next &raquo;</button>
-            </a>
-        {% endif %}
-    </div>
+    {% endwith %}
+
+    {% if leaves.has_next %}
+        <a href="?page={{ leaves.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
 </div>
 
 

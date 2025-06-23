@@ -75,8 +75,8 @@
                     <th>Logout</th>
                     <th>Working Hours</th>
                     <th>Location</th>
+                    <th>Project</th>
                     <th>Travel Time</th>
-                    <th>Manager Approval</th>
                     <th>Status</th>
                     <th>Action</th>
                 </tr>
@@ -97,7 +97,7 @@
                         {% if record.total_hours_of_work %}
                         {{ record.total_hours_of_work|format_work_duration }}
                         {% else %}
-                        00:00:00 hrs
+                        00:00 hrs
                         {% endif %}
                     </td>
                     <td>
@@ -108,21 +108,21 @@
                         {% endif %}
                     </td>
                     <td>
+                        {% if record.project %}
+                            {{ record.project.name }}
+                        {% else %}
+                            <span class="text-muted">No project assigned</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td>
                         {% if record.total_travel_time and record.total_travel_time != 'None' %}
                             {{ record.total_travel_time }}
                         {% else %}
                             --:--
                         {% endif %}
                     </td>
-                    <td>
-                        {% if record.status %}
-                            <span class="status {% if record.status == 'PENDING' %}leave{% elif record.status == 'APPROVED' %}present{% elif record.status == 'REJECTED' %}sick-leave{% endif %}">
-                                {{ record.get_status_display }}
-                            </span>
-                        {% else %}
-                            <span class="status absent">No Status</span>
-                        {% endif %}
-                    </td>
+                    
                     <td>
                         {% if record.attendance_status %}
                             {% if record.status == 'APPROVED' %}
@@ -158,24 +158,33 @@
         
     </div>
     <div class="pagination" id="pagination">
-        <!-- {% if attendance_records.has_previous %}
-            <a href="?page=1">&laquo; First</a>
-            <a href="?page={{ attendance_records.previous_page_number }}">Previous</a>
-        {% endif %} -->
-    
+    {% if attendance_records.has_previous %}
+        <a href="?page={{ attendance_records.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with current=attendance_records.number %}
         {% for num in attendance_records.paginator.page_range %}
-            {% if num == attendance_records.number %}
-                <button class="active">{{ num }}</button>
-            {% else %}
-                <a href="?page={{ num }}"><button>{{ num }}</button></a>
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
             {% endif %}
         {% endfor %}
-    
-        <!-- {% if attendance_records.has_next %}
-            <a href="?page={{ attendance_records.next_page_number }}">Next</a>
-            <a href="?page={{ attendance_records.paginator.num_pages }}">Last &raquo;</a>
-        {% endif %} -->
-    </div>
+    {% endwith %}
+
+    {% if attendance_records.has_next %}
+        <a href="?page={{ attendance_records.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
 </div>
 
 {% endblock %}

@@ -9,6 +9,8 @@ urlpatterns = [
     path('update-project-status/<int:project_id>/', views.update_project_status, name='update_project_status_emp'),
     path('projects/', views.projects, name='projects'),
     path('project/<int:project_id>/', views.project_details, name='project_details'),
+    path('resubmit-project-status/', views.resubmit_project_status, name='resubmit_project_status'),
+    path('project/<int:project_id>/attachments/', views.emp_project_attachments_view, name='emp_project_attachments_view'),
 
     path('profile/', views.profile, name='profile_view'),
     path("update-profile/", views.update_profile, name="update_profile"),

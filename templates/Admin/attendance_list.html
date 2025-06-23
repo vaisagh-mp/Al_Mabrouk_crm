@@ -98,24 +98,27 @@
     </div>
 
     <div class="pagination" id="pagination">
-        {% if attendance_records.has_previous %}
-            <a href="?page={{ attendance_records.previous_page_number }}">
-                <button>&laquo; Prev</button>
-            </a>
-        {% endif %}
-    
-        {% for num in attendance_records.paginator.page_range %}
+    {% if attendance_records.has_previous %}
+        <a href="?page={{ attendance_records.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% for num in attendance_records.paginator.page_range %}
+        {% if num >= attendance_records.number|add:'-2' and num <= attendance_records.number|add:'2' %}
             <a href="?page={{ num }}">
                 <button class="{% if num == attendance_records.number %}active{% endif %}">{{ num }}</button>
             </a>
-        {% endfor %}
-    
-        {% if attendance_records.has_next %}
-            <a href="?page={{ attendance_records.next_page_number }}">
-                <button>Next &raquo;</button>
-            </a>
         {% endif %}
-    </div>
+    {% endfor %}
+
+    {% if attendance_records.has_next %}
+        <a href="?page={{ attendance_records.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+
     
 </div>
 

@@ -4,19 +4,27 @@
 {% block content %}
 
 <div class="dashbrd-wraper">
-    <div class="pg-title">
-        <h1>Dashboard</h1>
+    <div class="pg-title text-dark fw-semibold fs-2 d-flex">
+    <i class="fas fa-cogs me-2 text-primary fs-3"></i>
+    <div>
+        <h1 class="mb-1">Engineer Dashboard</h1>
+        <p class="text-muted fs-6">Your engineering operations, simplified.</p>
     </div>
+</div>
     <!-- TATP -->
     <div class="row status-card-row">
         <div class="col-lg-3 col-md-6">
             <div class="status-wdgt card-bg-green">
                 <h5>Total Projects</h5>
                 <h6>{{ total_projects }}</h6>
-                <!-- <p>
-                    <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
-                    month
-                </p> -->
+                <p>
+                    {% if project_growth_percentage >= 0 %}
+                        <i class="fas fa-arrow-up text-success"></i>
+                    {% else %}
+                        <i class="fas fa-arrow-down text-danger"></i>
+                    {% endif %}
+                    <span>{{ project_growth_percentage|abs_value }}%</span> Since last month
+                </p>
 
                 <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
             </div>
@@ -25,9 +33,12 @@
             <div class="status-wdgt card-bg-blue">
                 <h5>Pending Projects</h5>
                 <h6>{{ pending_projects }}</h6>
-                <!-- <p>
-                    <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
-                </p> -->
+                {% if pending_growth_percentage >= 0 %}
+                    <i class="fas fa-arrow-up text-success"></i>
+                {% else %}
+                    <i class="fas fa-arrow-down text-danger"></i>
+                {% endif %}
+                <span>{{ pending_growth_percentage }}%</span> Since last month
 
                 <div class="wdgt-bg-icons"><i class="fas fa-spinner"></i></div>
             </div>
@@ -36,10 +47,14 @@
             <div class="status-wdgt card-bg-violet">
                 <h5>Completed Projects</h5>
                 <h6>{{ completed_projects }}</h6>
-                <!-- <p>
-                    <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
-                    month
-                </p> -->
+                <p>
+                  {% if completed_growth_percentage < 0 %}
+                    <i class="fas fa-arrow-down text-danger"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-up text-success"></i>
+                  {% endif %}
+                  <span>{{ completed_growth_percentage|abs_value }}%</span> Since last month
+                </p>
 
                 <div class="wdgt-bg-icons">
                     <i class="fas fa-tasks"></i>
@@ -49,11 +64,15 @@
         <div class="col-lg-3 col-md-6 m-b-20">
             <div class="status-wdgt card-bg-orange">
                 <h5>Attendance</h5>
-                <h6>{{ attendance_percentage|floatformat:0 }}%</h6>
-                <!-- <p>
-                    <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
-                </p> -->
-
+                <h6>{{ attendance_percentage_current_month|default:"0"|floatformat:0 }}%</h6>
+                <p>
+                  {% if attendance_growth_positive %}
+                    <i class="fas fa-arrow-up text-success"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-down text-danger"></i>
+                  {% endif %}
+                  <span>{{ attendance_growth_percentage }}%</span> Since last month
+                </p>
                 <div class="wdgt-bg-icons"><i class="fas fa-percentage"></i></div>
             </div>
         </div>
@@ -64,7 +83,7 @@
         <div class="col-lg-4 col-md-6">
             <div class="widget-box">
                 <div class="attendance-card">
-                    <h3>Attendance</h3>
+                    <h4>Attendance</h4>
                     <!-- Display current date and time -->
                     <div class="date">{{ current_time }}</div>
 
@@ -111,37 +130,37 @@
                     </div>
                     <div class="leave-details">
                         <div>
-                            <span class="label">Total Leaves</span>
-                            <span class="value">{{ total_leaves }}</span>
+                            <span class="label">Annual Leave</span>
+                            <span class="value">{{ balance_annual_leave }}</span>
                         </div>
+                        <!-- <div>
+                            <span class="label">Taken</span>
+                            <span class="value">{{ leaves_taken }}</span>
+                        </div> -->
+                        <div>
+                            <span class="label">Sick Leave</span>
+                            <span class="value">{{ balance_sick_leave }}</span>
+                        </div>
+                        <!-- <div>
+                            <span class="label">Casual Leave</span>
+                            <span class="value">{{ casual_leave_taken }}</span>
+                        </div> -->
                         <div>
                             <span class="label">Taken</span>
                             <span class="value">{{ leaves_taken }}</span>
                         </div>
-                        <div>
-                            <span class="label">Annual Leave</span>
-                            <span class="value">{{ annual_leave_taken }}</span>
-                        </div>
-                        <div>
-                            <span class="label">Casual Leave</span>
-                            <span class="value">{{ casual_leave_taken }}</span>
-                        </div>
-                        <div>
-                            <span class="label">Sick Leave</span>
-                            <span class="value">{{ sick_leave_taken }}</span>
-                        </div>
-                        <div>
+                        <!-- <div>
                             <span class="label">Request</span>
                             <span class="value">{{ leave_requests }}</span>
-                        </div>
+                        </div> -->
                         <div>
                             <span class="label">Worked Days</span>
                             <span class="value">{{ worked_days }}</span>
                         </div>
-                        <div>
+                        <!-- <div>
                             <span class="label">Loss of Pay</span>
                             <span class="value">{{ loss_of_pay_days }}</span>
-                        </div>
+                        </div> -->
                     </div>
                     <div class="aply-lv-btn">
                         <a href="{% url 'apply_leave' %}" class="apply-btn">Apply New Leave</a>
@@ -153,10 +172,12 @@
         <!-- Leave Details Chart Card -->
         <div class="col-lg-4 col-md-6 lv-chrt-col">
             <div class="widget-box leave-card-widget">
+                <div class="leave-card">
                 <div class="widget-title">
-                    <h4>Leave Details</h4>
+                    <h4>Presence Overview</h4>
                 </div>
                 <div id="leaveChart"></div>
+                </div>
             </div>
         </div>
 

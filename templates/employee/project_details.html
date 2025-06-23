@@ -115,16 +115,20 @@
                   <h4>Upload Attachment</h4>
               </div>
               <form method="POST" enctype="multipart/form-data">
-                  {% csrf_token %}
-                  <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.png">
+              {% csrf_token %}
+              <input class="upload-inpt" type="file" name="attachments" accept=".pdf,.doc,.docx,.jpg,.png,.zip" multiple>
+              <div style="margin-top: 15px; margin-bottom: 5px;">
                   <button type="submit" class="btn">Upload</button>
-              </form>
-  
-              {% if project_data.attachment_url %}
-                  <p><strong>Current Attachment:</strong> <a href="{{ project_data.attachment_url }}" target="_blank">View File</a></p>
-              {% else %}
-                  <p>No attachment uploaded yet.</p>
-              {% endif %}
+                  <a href="{% url 'emp_project_attachments_view' project_data.project_id %}" class="btn btn-secondary">View All</a>
+              </div>
+              
+            </form>
+
+            {% if project_data.attachments %}
+              <p><strong>Total Uploaded Files:</strong> {{ project_data.attachments|length }}</p>
+            {% else %}
+              <p>No attachments uploaded yet.</p>
+            {% endif %}
           </div>
         </div>
 
@@ -208,7 +212,71 @@
         </div>
       </div>
     </div>
+
+     <div class="emp-pjct-status-box" style="margin-top: 20px;">
+          <div class="widget-box">
+            <div class="widget-title">
+              <h4>Manager Review & Resubmit</h4>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered resubmit-status-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Manager Approval</th>
+                    <th>Rejection Reason</th>
+                    <!-- <th>Action</th> -->
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for status in project_data.statuses %}
+                  <tr>
+                    <td>{{ status.status }}</td>
+                    <td>{{ status.manager_approval_status }}</td>
+                    <td>
+                      {% if status.manager_approval_status == 'REJECTED' %}
+                        {{ status.rejection_reason }}
+                      {% else %}
+                        —
+                      {% endif %}
+                    </td>
+                    <!-- <td>
+                      {% if status.manager_approval_status == 'REJECTED' %}
+                      <form method="POST" action="{% url 'resubmit_project_status' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="status_id" value="{{ status.id }}">
+                        <select name="status" required>
+                          {% for value, label in project_data.status_choices %}
+                          <option value="{{ value }}">{{ label }}</option>
+                          {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary">Resubmit</button>
+                      </form>
+                      {% else %}
+                      <span class="text-muted">No action</span>
+                      {% endif %}
+                    </td> -->
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
   </section>
 </div>
+
+<script>
+document.querySelector('input[type="file"]').addEventListener('change', function (e) {
+    const maxSize = 49 * 1024 * 1024; // 49 MB
+    for (const file of this.files) {
+        if (file.size > maxSize) {
+            alert(`${file.name} is too large! Max size is 49MB.`);
+            this.value = ""; // Clear the input
+            break;
+        }
+    }
+});
+</script>
 
 {% endblock %}

@@ -82,11 +82,19 @@
         </a>
     {% endif %}
 
-    {% for num in projects.paginator.page_range %}
-        <a href="?page={{ num }}">
-            <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
-        </a>
-    {% endfor %}
+    {% with current=projects.number %}
+        {% for num in projects.paginator.page_range %}
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endwith %}
 
     {% if projects.has_next %}
         <a href="?page={{ projects.next_page_number }}">
@@ -94,6 +102,7 @@
         </a>
     {% endif %}
 </div>
+
 </div>
 
 <!-- Edit-Form-Modal -->

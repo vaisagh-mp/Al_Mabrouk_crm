@@ -27,7 +27,7 @@
           <th></th>
           <th></th>
           <th></th>
-          <th></th>
+          <!-- <th></th> -->
           <!-- <th></th> -->
           <th></th>
           <th></th>
@@ -119,7 +119,7 @@
           <th>category</th>
           <th>Code</th>
           <th>Purchase & Expenses</th>
-          <th>Invoice Amount</th>
+          <!-- <th>Invoice Amount</th> -->
           <th>Currency</th>
           <th>Status</th>
           <!-- <th>Action</th> -->
@@ -132,7 +132,7 @@
             <td>{{ project.category }}</td>
             <td>{{ project.code }}</td>
             <td>{{ project.purchase_and_expenses }}</td>
-            <td>{{ project.invoice_amount }}</td>  <!-- Fixed Field Name -->
+            <!-- <td>{{ project.invoice_amount }}</td>  -->
             <td>{{ project.currency_code }}</td>  <!-- Fixed Field Name -->
             <td>
                 <span class="status
@@ -163,11 +163,19 @@
         </a>
     {% endif %}
 
-    {% for num in projects.paginator.page_range %}
-        <a href="?search={{ search_query }}&page={{ num }}">
-            <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
-        </a>
-    {% endfor %}
+    {% with current=projects.number %}
+        {% for num in projects.paginator.page_range %}
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?search={{ search_query }}&page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endwith %}
 
     {% if projects.has_next %}
         <a href="?search={{ search_query }}&page={{ projects.next_page_number }}">
@@ -175,6 +183,7 @@
         </a>
     {% endif %}
 </div>
+
 </div>
 
 <!-- Edit-Form-Modal -->
