@@ -76,20 +76,26 @@
 
     <!-- Pagination -->
     <div class="pagination" id="pagination">
-    {% if pending_statuses.has_previous %}
-        <a href="?page={{ pending_statuses.previous_page_number }}"><button>&laquo; Prev</button></a>
-    {% endif %}
-
-    {% for page in pending_statuses.paginator.page_range %}
-        <a href="?page={{ page }}" class="{% if pending_statuses.number == page %}active{% endif %}">
-            <button>{{ page }}</button>
-        </a>
-    {% endfor %}
-
-    {% if pending_statuses.has_next %}
-        <a href="?page={{ pending_statuses.next_page_number }}"><button>Next &raquo;</button></a>
-    {% endif %}
-</div>
+        {% if pending_statuses.has_previous %}
+            <a href="?search={{ search_query }}&page={{ pending_statuses.previous_page_number }}">
+                <button>&laquo; Prev</button>
+            </a>
+        {% endif %}
+        
+        {% for num in pending_statuses.paginator.page_range %}
+            {% if num >= pending_statuses.number|add:'-1' and num <= pending_statuses.number|add:'1' %}
+                <a href="?search={{ search_query }}&page={{ num }}">
+                    <button class="{% if num == pending_statuses.number %}active{% endif %}">{{ num }}</button>
+                </a>
+            {% endif %}
+        {% endfor %}
+            
+        {% if pending_statuses.has_next %}
+            <a href="?search={{ search_query }}&page={{ pending_statuses.next_page_number }}">
+                <button>Next &raquo;</button>
+            </a>
+        {% endif %}
+    </div>
 
 </div>
 {% endblock %}
