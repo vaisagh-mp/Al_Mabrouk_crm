@@ -5,6 +5,7 @@
 <div class="container mt-4">
   <h2>All Attachments for Project: {{ project.name }}</h2>
   {% if attachments %}
+  <div style="overflow-x: auto;">
     <table class="table allattachments table-bordered mt-3">
       <thead>
         <tr>
@@ -35,6 +36,8 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+    
   {% else %}
     <p>No attachments available.</p>
   {% endif %}

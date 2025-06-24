@@ -200,7 +200,7 @@ def dashboard(request):
         leave_balances = LeaveBalance.objects.aggregate(
             total_annual_leave=Sum('annual_leave'),
             total_sick_leave=Sum('sick_leave'),
-            total_casual_leave=Sum('casual_leave')
+            # total_casual_leave=Sum('casual_leave')
         )
 
         # Set Punch In & Punch Out times
@@ -233,11 +233,11 @@ def dashboard(request):
         attendance_percentage = (approved_attendance_records / total_days_in_month) * 100 if total_days_in_month else 0
         leave_requests = Leave.objects.filter(user=user, approval_status="PENDING").count()
         leave_balance = LeaveBalance.objects.filter(user=user).first()
-        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave + leave_balance.casual_leave if leave_balance else 0
+        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave if leave_balance else 0
         leaves_taken = Leave.objects.filter(user=user, approval_status='APPROVED').count()
         annual_leave_taken = Leave.objects.filter(user=user, leave_type='ANNUAL', approval_status='APPROVED').count()
         sick_leave_taken = Leave.objects.filter(user=user, leave_type='SICK', approval_status='APPROVED').count()
-        casual_leave_taken = Leave.objects.filter(user=user, leave_type='CASUAL', approval_status='APPROVED').count()
+        # casual_leave_taken = Leave.objects.filter(user=user, leave_type='CASUAL', approval_status='APPROVED').count()
 
         # Fetching Workdays
         worked_days = hr.work_days
@@ -270,7 +270,7 @@ def dashboard(request):
             'leaves_taken': leaves_taken,
             'annual_leave_taken': annual_leave_taken,
             'sick_leave_taken': sick_leave_taken,
-            'casual_leave_taken': casual_leave_taken,
+            # 'casual_leave_taken': casual_leave_taken,
             'leave_requests': leave_requests,
             'worked_days': worked_days,
             'absent_days': absent_days,
@@ -739,7 +739,7 @@ def hr_leave_records(request):
     leave_balances = {
         "ANNUAL LEAVE": leave_balance.annual_leave,
         "SICK LEAVE": leave_balance.sick_leave,
-        "CASUAL LEAVE": leave_balance.casual_leave,
+        # "CASUAL LEAVE": leave_balance.casual_leave,
     }
 
     # Initialize summary dictionary

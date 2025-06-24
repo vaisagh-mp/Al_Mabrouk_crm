@@ -1,4 +1,5 @@
 {% extends 'administration/administrationbase.html' %}
+{% load custom_filters %}
 {% load static %}
 {% block content %}
 
@@ -25,9 +26,13 @@
               <h5>Total Projects</h5>
               <h6>{{ total_projects }}</h6>
               <p>
-                  <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
-                  month
-              </p>
+                    {% if project_growth_percentage >= 0 %}
+                        <i class="fas fa-arrow-up text-success"></i>
+                    {% else %}
+                        <i class="fas fa-arrow-down text-danger"></i>
+                    {% endif %}
+                    <span>{{ project_growth_percentage|abs_value }}%</span> Since last month
+                </p>
 
               <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
           </div>
@@ -37,8 +42,13 @@
               <h5>Ongoing Projects</h5>
               <h6>{{ pending_projects }}</h6>
               <p>
-                  <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
-              </p>
+                  {% if ongoing_growth_percentage < 0 %}
+                    <i class="fas fa-arrow-down text-danger"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-up text-success"></i>
+                  {% endif %}
+                  <span>{{ ongoing_growth_percentage|abs_value }}%</span> Since last month
+                </p>
 
               <div class="wdgt-bg-icons"><i class="fas fa-spinner"></i></div>
           </div>
@@ -48,9 +58,13 @@
               <h5>Completed Projects</h5>
               <h6>{{ completed_projects }}</h6>
               <p>
-                  <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
-                  month
-              </p>
+                  {% if completed_growth_percentage < 0 %}
+                    <i class="fas fa-arrow-down text-danger"></i>
+                  {% else %}
+                    <i class="fas fa-arrow-up text-success"></i>
+                  {% endif %}
+                  <span>{{ completed_growth_percentage|abs_value }}%</span> Since last month
+                </p>
 
               <div class="wdgt-bg-icons">
                   <i class="fas fa-tasks"></i>
@@ -60,7 +74,7 @@
       <div class="col-lg-3 col-md-6 m-b-20">
           <div class="status-wdgt card-bg-orange">
               <h5>Attendance</h5>
-              <h6>{{ attendance_percentage|floatformat:0 }}%</h6>
+              <h6>{{ attendance_percentage_current_month|floatformat:0 }}%</h6>
               <p>
                   <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
               </p>
@@ -116,62 +130,64 @@
 
       <!-- Leave Details Card -->
       <div class="col-lg-4 col-md-6">
-          <div class="widget-box leave-card-widget">
-              <div class="leave-card">
-                  <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
-                  <div class="widget-title">
-                      <h4>Leave Details</h4>
-                  </div>
-                  <div class="leave-details">
-                      <!-- <div>
-                          <span class="label">Total Leaves</span>
-                          <span class="value">{{ total_leaves }}</span>
-                      </div> -->
-                      <div>
-                          <span class="label">Taken</span>
-                          <span class="value">{{ leaves_taken }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Annual Leave</span>
-                          <span class="value">{{ annual_leave_taken }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Casual Leave</span>
-                          <span class="value">{{ casual_leave_taken }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Sick Leave</span>
-                          <span class="value">{{ sick_leave_taken }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Request</span>
-                          <span class="value">{{ leave_requests }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Worked Days</span>
-                          <span class="value">{{ worked_days }}</span>
-                      </div>
-                      <!-- <div>
-                          <span class="label">Loss of Pay</span>
-                          <span class="value">{{ loss_of_pay_days }}</span>
-                      </div> -->
-                  </div>
-                  <!-- <div class="aply-lv-btn">
-                      <a href="{% url 'admstrn_apply_leave' %}" class="apply-btn">Apply New Leave</a>
-                  </div> -->
-              </div>
-          </div>
-      </div>
+            <div class="widget-box leave-card-widget">
+                <div class="leave-card">
+                    <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
+                    <div class="widget-title">
+                        <h4>Leave Details</h4>
+                    </div>
+                    <div class="leave-details">
+                        <div>
+                            <span class="label">Annual Leave</span>
+                            <span class="value">{{ balance_annual_leave }}</span>
+                        </div>
+                        <!-- <div>
+                            <span class="label">Taken</span>
+                            <span class="value">{{ leaves_taken }}</span>
+                        </div> -->
+                        <div>
+                            <span class="label">Sick Leave</span>
+                            <span class="value">{{ balance_sick_leave }}</span>
+                        </div>
+                        <!-- <div>
+                            <span class="label">Casual Leave</span>
+                            <span class="value">{{ casual_leave_taken }}</span>
+                        </div> -->
+                        <div>
+                            <span class="label">Taken</span>
+                            <span class="value">{{ leaves_taken }}</span>
+                        </div>
+                        <!-- <div>
+                            <span class="label">Request</span>
+                            <span class="value">{{ leave_requests }}</span>
+                        </div> -->
+                        <div>
+                            <span class="label">Worked Days</span>
+                            <span class="value">{{ worked_days }}</span>
+                        </div>
+                        <!-- <div>
+                            <span class="label">Loss of Pay</span>
+                            <span class="value">{{ loss_of_pay_days }}</span>
+                        </div> -->
+                    </div>
+                    <div class="aply-lv-btn">
+                        <a href="{% url 'admstrn_apply_leave' %}" class="apply-btn">Apply New Leave</a>
+                    </div>
+                </div>
+            </div>
+        </div>
 
       <!-- Leave Details Chart Card -->
       <div class="col-lg-4 col-md-6 lv-chrt-col">
-          <div class="widget-box leave-card-widget">
-              <div class="widget-title">
-                  <h4>Leave Details</h4>
-              </div>
-              <div id="leaveChart"></div>
-          </div>
-      </div>
+            <div class="widget-box leave-card-widget">
+                <div class="leave-card">
+                <div class="widget-title">
+                    <h4>Presence Overview</h4>
+                </div>
+                <div id="leaveChart"></div>
+                </div>
+            </div>
+        </div>
 
       <!-- Project Table -->
       <div class="widget-box mt-4 table-wdgt">
