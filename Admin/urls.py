@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
-from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification,change_password,admin_manage_project_status, admin_project_attachments_view
+from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification,change_password,admin_manage_project_status, admin_project_attachments_view, admin_delete_project_attachment
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
@@ -34,6 +34,7 @@ urlpatterns = [
     path('project/delete/<int:project_id>/', delete_project, name='delete_project'),
     path('manage-project-status/', admin_manage_project_status, name='admin_manage_project_status'),
     path('project/<int:project_id>/attachments/', admin_project_attachments_view, name='admin_project_attachments_view'),
+    path('attachment/<int:attachment_id>/delete/', admin_delete_project_attachment, name='admin_delete_project_attachment'),
 
     path('project-assignments/', project_assignment_list, name='project-assignment-list'),
     path('project-assignments/create/', project_assignment_create, name='project-assignment-create'),

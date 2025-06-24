@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
-from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave
+from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment
 from django.contrib.auth.models import User
 
 
@@ -100,3 +100,42 @@ def notify_employee_on_leave_status_change(sender, instance, **kwargs):
                 )
         except Leave.DoesNotExist:
             pass  # If the leave does not exist yet, skip
+
+
+@receiver(post_save, sender=ProjectAttachment)
+def notify_on_project_attachment_upload(sender, instance, created, **kwargs):
+    if not created or not instance.uploaded_by:
+        return
+
+    uploaded_by = instance.uploaded_by
+    project = instance.project
+    manager = project.manager if project else None
+
+    # Notification message
+    message = f"A file has been uploaded to the project '{project.name}' by {uploaded_by.user.get_full_name()}."
+
+    # Notify Admins
+    admin_users = User.objects.filter(is_superuser=True)
+    for admin in admin_users:
+        Notification.objects.create(
+            recipient=admin,
+            message=message
+        )
+
+    # If uploaded by employee, notify manager
+    if uploaded_by.is_employee and manager:
+        Notification.objects.create(
+            recipient=manager.user,
+            message=message
+        )
+
+    # If uploaded by manager, notify team employees
+    elif uploaded_by.is_manager:
+        teams = project.teams.all()
+        employees = Employee.objects.filter(teams_assigned__in=teams, is_employee=True).distinct()
+
+        for emp in employees:
+            Notification.objects.create(
+                recipient=emp.user,
+                message=message
+            )

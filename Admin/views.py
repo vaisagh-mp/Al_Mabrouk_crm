@@ -638,6 +638,29 @@ def admin_project_attachments_view(request, project_id):
     }
     return render(request, 'Admin/project_attachments.html', context)
 
+@login_required
+def admin_delete_project_attachment(request, attachment_id):
+    attachment = get_object_or_404(ProjectAttachment, id=attachment_id)
+    user = request.user
+
+    # Allow only admin or project manager to delete
+    is_admin = user.is_superuser
+    is_manager = (
+        hasattr(user, 'employee_profile') and 
+        attachment.project.manager == user.employee_profile
+    )
+
+    if not (is_admin or is_manager):
+        messages.error(request, "You do not have permission to delete this file.")
+        return redirect('admin_project_attachments_view', project_id=attachment.project.id)
+
+    # Perform deletion
+    project_id = attachment.project.id
+    attachment.file.delete()
+    attachment.delete()
+    messages.success(request, "Attachment deleted successfully.")
+    return redirect('admin_project_attachments_view', project_id=project_id)
+
 # add project
 @login_required
 def add_project(request):

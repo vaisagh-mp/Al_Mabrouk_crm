@@ -32,6 +32,8 @@ urlpatterns = [
     path('update-status/<int:project_id>/', views.update_team_manager_status, name='update_team_manager_status'),
     path('manage-project-status/', views.manage_project_status, name='manage_project_status'),
     path('project/<int:project_id>/attachments/', views.project_attachments_view, name='project_attachments_view'),
+    path('attachment/<int:attachment_id>/delete/', views.delete_project_attachment, name='delete-project-attachment'),
+
 
     path('attendance/', views.manager_render_attendance_page, name='manager_attendance_dashboard'),
 
