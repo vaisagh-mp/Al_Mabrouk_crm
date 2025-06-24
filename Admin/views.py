@@ -149,6 +149,7 @@ def dashboard(request):
             client_change_percent = 100 if clients_this_month > 0 else 0
 
         context = {
+            "role": "Admin",
             'total_projects': total_projects,
             'change_percentage': round(change_percentage, 2),
             'change_percentage_abs': abs(round(change_percentage, 2)),
@@ -197,11 +198,10 @@ def create_employee(request):
                 messages.error(request, f'There was an error creating the employee: {e}')
         else:
             messages.error(request, 'Please correct the errors below.')
-            print(form.errors)
     else:
         form = EmployeeCreationForm()
 
-    return render(request, 'Admin/create_employee.html', {'form': form})
+    return render(request, 'Admin/create_employee.html', {'form': form, 'role': 'Admin'})
 
 # employee list
 @login_required
@@ -240,7 +240,7 @@ def employee_list(request):
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'Admin/employee_list.html', {
-        'page_obj': page_obj
+        'page_obj': page_obj, 'role': 'Admin'
     })
 
 @login_required
@@ -271,7 +271,7 @@ def manager_list(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'Admin/manager_list.html', {'page_obj': page_obj})
+    return render(request, 'Admin/manager_list.html', {'page_obj': page_obj, 'role': 'Admin'})
 
 @login_required
 def manager_attendance_list_view(request):
@@ -288,6 +288,7 @@ def manager_attendance_list_view(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        'role': 'Admin',
         'attendance_records': page_obj,
         'search_query': search_query,
     }
@@ -310,6 +311,7 @@ def attendance_list_view(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        'role': 'Admin',
         'attendance_records': page_obj,
         'search_query': search_query,
     }
@@ -317,7 +319,7 @@ def attendance_list_view(request):
 
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
-    return render(request, 'Admin/attendance_detail.html', {'attendance': attendance})
+    return render(request, 'Admin/attendance_detail.html', {'attendance': attendance, 'role': 'Admin'})
 
 # Manage attendance
 def manage_attendance(request):
@@ -364,7 +366,7 @@ def manage_attendance(request):
         except Attendance.DoesNotExist:
             messages.error(request, "Attendance record not found!")
 
-    return render(request, 'Admin/manage_attendance.html', {'requests': pending_requests})
+    return render(request, 'Admin/manage_attendance.html', {'requests': pending_requests, 'role': 'Admin'})
 
 
 # Only allow superusers (admins)
@@ -421,7 +423,7 @@ def admin_manage_project_status(request):
         return redirect('admin_manage_project_status')
 
     return render(request, 'Admin/manage_project_status.html', {
-        'pending_statuses': pending_statuses
+        'pending_statuses': pending_statuses, 'role': 'Admin'
     })
 
 
@@ -469,7 +471,7 @@ def manage_manager_attendance(request):
         except Attendance.DoesNotExist:
             messages.error(request, "Attendance record not found!")
 
-    return render(request, 'Admin/manage_manager_attendance.html', {'requests': pending_requests})
+    return render(request, 'Admin/manage_manager_attendance.html', {'requests': pending_requests, 'role': 'Admin'})
 
 # Edit attendance
 @login_required
@@ -495,6 +497,7 @@ def edit_attendance(request, attendance_id):
     employees = Employee.objects.all()
     projects = Project.objects.all()
     return render(request, 'Admin/edit_attendance.html', {
+        'role': 'Admin',
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
@@ -512,17 +515,23 @@ def delete_attendance(request, attendance_id):
 # project list view
 @login_required
 def project_list_view(request):
-    # Query all projects
     projects = Project.objects.all().order_by('-created_at')
 
+    # Get filters
     search_query = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '')
 
+    # Apply search filter
     if search_query:
         projects = projects.filter(
             Q(name__icontains=search_query) |
             Q(code__icontains=search_query) |
             Q(client_name__icontains=search_query)
         )
+
+    # Apply status filter
+    if status_filter:
+        projects = projects.filter(status=status_filter)
 
     # Prepare project data
     project_data = [
@@ -535,22 +544,21 @@ def project_list_view(request):
             "invoice": project.invoice_amount,
             "currency": project.currency_code,
             "purchase_and_expenses": project.purchase_and_expenses,
-            
         }
         for project in projects
     ]
 
-    # Pagination (10 projects per page)
     paginator = Paginator(project_data, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # Pass the data to the template
     context = {
+        'role': 'Admin',
         "projects": page_obj,
         "search_query": search_query,
+        "status_filter": status_filter,
+        "status_choices": Project.STATUS_CHOICES,
     }
-
     return render(request, 'Admin/project_list.html', context)
 
 
@@ -623,7 +631,7 @@ def admin_project_summary_view(request, project_id):
         "attachment_file": project.attachment.url if project.attachment else None,
     }
 
-    context = {"project_data": project_data}
+    context = {"project_data": project_data, 'role': 'Admin'}
     return render(request, 'Admin/project.html', context)
 
 
@@ -633,6 +641,7 @@ def admin_project_attachments_view(request, project_id):
     attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
 
     context = {
+        'role': 'Admin',
         'project': project,
         'attachments': attachments,
     }
@@ -675,7 +684,7 @@ def add_project(request):
         else:
             messages.error(request, "There was an error adding the project. Please check the form.") 
 
-    return render(request, 'Admin/add_project.html', {'form': form})
+    return render(request, 'Admin/add_project.html', {'form': form,'role': 'Admin'})
 
 @login_required
 def edit_project(request, project_id):
@@ -693,7 +702,7 @@ def edit_project(request, project_id):
         form = ProjectForm(instance=project)
 
     # For GET request, render the form pre-filled with the project's data
-    return render(request, 'Admin/project_edit.html', {'form': form, 'project': project})
+    return render(request, 'Admin/project_edit.html', {'form': form, 'project': project, 'role': 'Admin'})
 
 @login_required
 def delete_project(request, project_id):
@@ -716,7 +725,7 @@ def project_assignment_list(request):
     projects = Project.objects.filter(status='PENDING')
     employees = Employee.objects.all()
 
-    return render(request, 'Admin/project_assignment_list.html', {'assignments': assignments, 'projects': projects,'employees': employees})
+    return render(request, 'Admin/project_assignment_list.html', {'assignments': assignments, 'projects': projects,'employees': employees, 'role': 'Admin'})
 
 # project_assignment_create
 @login_required
@@ -827,6 +836,7 @@ def employee_profile(request, employee_id):
 
     # Context
     context = {
+        'role': 'Admin',
         'employee': employee,
         'teams': teams,
         'all_projects': all_projects,
@@ -954,7 +964,7 @@ def admin_edit_employee(request, employee_id):
         })
 
 
-    return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee})
+    return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee, 'role': 'Admin'})
 
 @login_required
 def admin_delete_employee(request, employee_id):
@@ -1048,6 +1058,7 @@ def manager_profile(request, manager_id):
 
     # --- CONTEXT ---
     context = {
+        'role': 'Admin',
         "manager": manager,
         "teams": teams,
         "total_employees": total_employees,
@@ -1099,7 +1110,7 @@ def admin_edit_manager(request, manager_id):
             "address": employee.address,
         })
 
-    return render(request, "Admin/edit_manager.html", {"form": form, "employee": employee})
+    return render(request, "Admin/edit_manager.html", {"form": form, "employee": employee, 'role': 'Admin'})
 
 
 @login_required
@@ -1139,6 +1150,7 @@ def employee_leave_list(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        'role': 'Admin',
         'leave_records': page_obj,
         'search_query': search_query,
     }
@@ -1165,6 +1177,7 @@ def manager_leave_list(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        'role': 'Admin',
         'leave_records': page_obj,
         'search_query': search_query,
     }
@@ -1216,7 +1229,7 @@ def employee_manage_leave(request):
         except Leave.DoesNotExist:
             messages.error(request, "Leave request not found!")
 
-    return render(request, 'Admin/employee_manage_leave.html', {'leaves': page_obj})
+    return render(request, 'Admin/employee_manage_leave.html', {'leaves': page_obj, 'role': 'Admin'})
 
 
 @login_required
@@ -1263,7 +1276,7 @@ def manager_manage_leave(request):
         except Leave.DoesNotExist:
             messages.error(request, "Leave request not found!")
 
-    return render(request, 'Admin/manager_manage_leave.html', {'leaves': page_obj})
+    return render(request, 'Admin/manager_manage_leave.html', {'leaves': page_obj, 'role': 'Admin'})
 
 
 @login_required
@@ -1284,6 +1297,7 @@ def admin_notifications(request):
     return render(request, "Admin/notifications.html", {
         "notifications": page_obj,
         "search_query": search_query,
+        'role': 'Admin'
     })
 
 @login_required
@@ -1328,4 +1342,4 @@ def change_password(request):
     else:
         form = PasswordChangeForm(user=request.user)
     
-    return render(request, 'Admin/change_password.html', {'form': form})
+    return render(request, 'Admin/change_password.html', {'form': form, 'role': 'Admin'})

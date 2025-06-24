@@ -224,7 +224,8 @@ def dashboard(request):
 
         # Manager's Leave Stats
         leave_balance = LeaveBalance.objects.filter(user=user).first()
-        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave + leave_balance.casual_leave if leave_balance else 0
+        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave if leave_balance else 0
+
 
         # Leaves Taken
         annual_leave_taken = Leave.objects.filter(
@@ -518,7 +519,7 @@ def admstrn_leave_records(request):
     leave_balances = {
         "ANNUAL LEAVE": leave_balance.annual_leave,
         "SICK LEAVE": leave_balance.sick_leave,
-        "CASUAL LEAVE": leave_balance.casual_leave,
+        # "CASUAL LEAVE": leave_balance.casual_leave,
     }
 
     # Initialize summary dictionary

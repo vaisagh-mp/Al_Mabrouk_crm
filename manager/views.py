@@ -149,6 +149,7 @@ def dashboard(request):
         loss_of_pay_days = leaves_taken - total_leaves if leaves_taken > total_leaves else 0
 
         context = {
+            "role": "Manager",
             'manager': manager,
             'assigned_projects': assigned_projects,
             'total_projects': total_projects,
@@ -255,6 +256,7 @@ def manager_profile(request):
 
     # --- CONTEXT ---
     context = {
+        "role": "Manager",
         "manager": manager,
         "teams": teams,
         "total_employees": total_employees,
@@ -302,7 +304,7 @@ def update_manager_profile(request):
             "email": request.user.email,
         })
 
-    return render(request, "Manager/manager_profile_update.html", {"form": form})
+    return render(request, "Manager/manager_profile_update.html", {"form": form,"role": "Manager",})
 
 @login_required
 def update_project_status(request, project_id):
@@ -339,14 +341,15 @@ def team_list(request):
 
     return render(request, 'team/team_list.html', {
         'teams': page_obj,
-        'search_query': search_query
+        'search_query': search_query,
+        "role": "Manager"
     })
 
 # Show details of a team
 @login_required
 def team_detail(request, pk):
     team = get_object_or_404(Team, pk=pk)
-    return render(request, 'team/team_detail.html', {'team': team})
+    return render(request, 'team/team_detail.html', {'team': team, "role": "Manager",})
 
 # Create a new team
 @login_required
@@ -359,7 +362,7 @@ def team_create(request):
     else:
         form = TeamForm(user=request.user)
 
-    return render(request, 'team/add_team.html', {'form': form})
+    return render(request, 'team/add_team.html', {'form': form, "role": "Manager",})
 
 # Update an existing team
 @login_required
@@ -373,7 +376,7 @@ def team_update(request, pk):
             return redirect('team-list')
     else:
         form = TeamForm(instance=team)
-    return render(request, 'team/update_team.html', {'form': form})
+    return render(request, 'team/update_team.html', {'form': form, "role": "Manager",})
 
 # Delete an existing team
 @login_required
@@ -417,7 +420,7 @@ def manage_attendance_requests(request):
         except Attendance.DoesNotExist:
             messages.error(request, "Attendance record not found!")
 
-    return render(request, 'Manager/manage_attendance_requests.html', {'requests': pending_requests})
+    return render(request, 'Manager/manage_attendance_requests.html', {'requests': pending_requests,"role": "Manager",})
 
 @login_required
 def project_assignment_create(request):
@@ -428,7 +431,7 @@ def project_assignment_create(request):
             return redirect('manager-dashboard')
     else:
         form = ProjectAssignmentForm()
-    return render(request, 'Manager/project_assignment_form.html', {'form': form})
+    return render(request, 'Manager/project_assignment_form.html', {'form': form, "role": "Manager",})
 
 # Employee List
 @login_required
@@ -470,7 +473,7 @@ def manager_employee_list(request):
         page_number = request.GET.get('page')
         page_obj = paginator.get_page(page_number)
 
-        return render(request, 'Manager/employee_list.html', {'page_obj': page_obj, 'teams': teams})
+        return render(request, 'Manager/employee_list.html', {'page_obj': page_obj, 'teams': teams, "role": "Manager",})
     else:
         # Redirect non-staff users or superusers
         return render(request, 'error.html', {'message': 'Access denied.'})
@@ -542,6 +545,7 @@ def attendance_list(request):
 
     # Render the template with the filtered and paginated attendance records
     context = {
+        "role": "Manager",
         'attendance_records': page_obj,
         'search_query': search_query,
     }
@@ -558,6 +562,7 @@ def attendance(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        "role": "Manager",
         'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
     }
     return render(request, 'Manager/attendance.html', context)
@@ -566,7 +571,7 @@ def attendance(request):
 @login_required
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
-    return render(request, 'Manager/attendance_detail.html', {'attendance': attendance})
+    return render(request, 'Manager/attendance_detail.html', {'attendance': attendance, "role": "Manager",})
 
 # Manage attendance
 @login_required
@@ -645,7 +650,7 @@ def manage_attendance(request):
         except Attendance.DoesNotExist:
             messages.error(request, "Attendance record not found!")
 
-    return render(request, 'Manager/manage_attendance.html', {'requests': pending_requests})
+    return render(request, 'Manager/manage_attendance.html', {'requests': pending_requests,"role": "Manager",})
 
 # Manage Leave
 @login_required
@@ -703,7 +708,7 @@ def manage_leave(request):
         except Leave.DoesNotExist:
             messages.error(request, "Leave request not found!")
 
-    return render(request, 'Manager/manage_leave.html', {'leaves': page_obj})
+    return render(request, 'Manager/manage_leave.html', {'leaves': page_obj, "role": "Manager",})
 
 # Leave list
 @login_required
@@ -744,6 +749,7 @@ def leave_list(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        "role": "Manager",
         'leave_records': page_obj,
         'search_query': search_query,
     }
@@ -822,6 +828,7 @@ def employee_profile(request, employee_id):
 
     # Context for template
     context = {
+        "role": "Manager",
         'employee': employee,
         'teams': teams,
         'all_projects': all_projects,
@@ -841,6 +848,7 @@ def project_list_view(request):
 
     # Get search query
     search_query = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '')
 
     # Filter projects only if the user is a manager
     if employee.is_manager:
@@ -853,6 +861,10 @@ def project_list_view(request):
                 Q(code__icontains=search_query) |
                 Q(client_name__icontains=search_query)
             )
+
+        # Apply status filter
+        if status_filter:
+            projects = projects.filter(status=status_filter)
 
         # Convert to dictionary values for efficiency
         projects = projects.values(
@@ -868,8 +880,11 @@ def project_list_view(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        "role": "Manager",
         "projects": page_obj,
         "search_query": search_query,  # Send search query back to template
+        "status_filter": status_filter,
+        "status_choices": Project.STATUS_CHOICES,
     }
 
     return render(request, 'Manager/project_list.html', context)
@@ -973,7 +988,7 @@ def project_summary_view(request, project_id):
         "job_card": project.job_card.url if project.job_card else None,
     }
 
-    context = {"project_data": project_data}
+    context = {"project_data": project_data, "role": "Manager",}
     return render(request, 'Manager/project.html', context)
 
 # project attachments
@@ -983,6 +998,7 @@ def project_attachments_view(request, project_id):
     attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
 
     context = {
+        "role": "Manager",
         'project': project,
         'attachments': attachments,
     }
@@ -1068,7 +1084,7 @@ def manage_project_status(request):
         return redirect('manage_project_status')
 
     return render(request, 'Manager/manage_project_status.html', {
-        'pending_statuses': pending_statuses
+        'pending_statuses': pending_statuses, "role": "Manager",
     })
 
 @login_required
@@ -1157,6 +1173,7 @@ def manager_edit_attendance(request, attendance_id):
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
+        "role": "Manager"
     })
 
 def manager_update_travel_time(request, attendance_id):
@@ -1202,6 +1219,7 @@ def manager_update_travel_time(request, attendance_id):
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
+        "role": "Manager"
     })
 
 # Delete attendance
@@ -1236,7 +1254,7 @@ def manager_apply_leave(request):
     else:
         form = LeaveForm()
 
-    return render(request, 'Manager/leave.html', {'form': form})
+    return render(request, 'Manager/leave.html', {'form': form, "role": "Manager",})
 
 @login_required
 def manager_upload_medical_certificate(request, leave_id):
@@ -1276,7 +1294,7 @@ def manager_leave_status(request):
     page_number = request.GET.get("page")
     leaves = paginator.get_page(page_number)
 
-    return render(request, "Manager/leavestatus.html", {"leaves": leaves})
+    return render(request, "Manager/leavestatus.html", {"leaves": leaves,"role": "Manager",})
 
 @login_required
 def manager_leave_records(request):
@@ -1309,7 +1327,7 @@ def manager_leave_records(request):
                 leave_summary[leave.leave_type]["taken"] += leave.no_of_days
                 leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
 
-    return render(request, "Manager/leaverecords.html", {"leave_summary": leave_summary})
+    return render(request, "Manager/leaverecords.html", {"leave_summary": leave_summary, "role": "Manager",})
 
 
 @login_required
@@ -1392,6 +1410,7 @@ def manager_render_attendance_page(request):
         "location_choices": location_choices,
         "projects": projects,
         "user_attendance": user_attendance,
+        "role": "Manager"
     })
 
 

@@ -5,18 +5,19 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Almabrouk CRM</title>
+    <title>Almabrouk CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
     <!-- Bootstrap -->
     <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
     <!-- Fontawesome -->
     <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
     <!-- Apex Chart css -->
     <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
-    <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+    
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
     <!-- Add Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+    <!-- Style.css -->
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
 </head>
 
 <body>

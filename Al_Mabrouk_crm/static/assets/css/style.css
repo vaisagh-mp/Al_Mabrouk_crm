@@ -19,7 +19,7 @@
 body {
   font-size: 0.9rem;
   background-color: #f2f5fa;
-  font-family: "Poppins", serif !important;
+  font-family: "Poppins", sans-serif !important;
   overflow-x: hidden;
 }
 html{
@@ -938,6 +938,10 @@ header .dropdown-menu {
   text-align: center;
 }
 
+.widget-box th select{
+  float: right;
+}
+
 .widget-box td a {
   text-decoration: none;
   color: var(--secondary-font-color);
@@ -1033,7 +1037,7 @@ header .dropdown-menu {
 .add-new-emply {
   display: flex;
   gap: 15px;
-  justify-content: end;
+  justify-content: start;
   align-items: center;
 }
 

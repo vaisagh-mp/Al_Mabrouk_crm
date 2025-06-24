@@ -175,6 +175,7 @@ def employee_dashboard(request):
 
         # Final Context
         context = {
+            "role": "Engineer",
             'employee': employee,
             'assigned_work': assigned_work,
             'attendance_records': attendance_records,
@@ -268,6 +269,7 @@ def submit_attendance_request(request):
 
     # Add context for location, attendance status, and project choices
     context = {
+        "role": "Engineer",
         'location_choices': Attendance.LOCATION_CHOICES,
         'attendance_status_choices': Attendance.ATTENDANCE_STATUS,
         'projects': assigned_projects,  # Pass projects for the form dropdown
@@ -310,6 +312,7 @@ def attendance_list(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        "role": "Engineer",
         'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
     }
     return render(request, 'employee/attendance_list.html', context)
@@ -370,6 +373,7 @@ def profile(request):
     attendance_percentage = ((full_days + 0.5 * half_days) / total_working_days_this_month * 100) if total_working_days_this_month > 0 else 0
 
     context = {
+        "role": "Engineer",
         'employee': employee,
         'teams': teams,
         'all_projects': all_projects,
@@ -410,20 +414,28 @@ def update_profile(request):
             "email": request.user.email,
         })
 
-    return render(request, "employee/updateprofile.html", {"form": form})
+    return render(request, "employee/updateprofile.html", {"form": form, "role": "Engineer",})
 
 @login_required
 def projects(request):
-    # Get the currently logged-in user
     current_user = request.user
+    status_filter = request.GET.get('status', '')
 
-    # Retrieve the related employee object
     employee = current_user.employee_profile
 
-    # Fetch the employee's assigned projects through TeamMemberStatus
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee).order_by('-team__project__created_at')
+    # Base queryset
+    team_member_statuses = TeamMemberStatus.objects.filter(
+        employee=employee
+    ).order_by('-team__project__created_at')
 
-    # Prepare the project data
+    # Apply status filter
+    if status_filter:
+        if status_filter == 'PENDING':
+            team_member_statuses = team_member_statuses.filter(manager_approval_status='PENDING')
+        else:
+            team_member_statuses = team_member_statuses.filter(status=status_filter)
+
+    # Prepare project data
     project_data = [
         {
             "id": status.team.project.id,
@@ -438,14 +450,16 @@ def projects(request):
         for status in team_member_statuses
     ]
 
-    # Paginate the projects (Show 5 projects per page)
-    paginator = Paginator(project_data, 5)  
+    # Pagination
+    paginator = Paginator(project_data, 5)
     page_number = request.GET.get('page')
     paginated_projects = paginator.get_page(page_number)
 
-    # Context for the template
     context = {
+        "role": "Engineer",
         "projects": paginated_projects,
+        "status_filter": status_filter,
+        "status_choices": Project.STATUS_CHOICES,
     }
 
     return render(request, 'employee/project_list.html', context)
@@ -575,6 +589,7 @@ def project_details(request, project_id):
 
     # Pass the data to the template
     context = {
+        "role": "Engineer",
         "project_data": project_data
     }
 
@@ -588,6 +603,7 @@ def emp_project_attachments_view(request, project_id):
     attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
 
     context = {
+        "role": "Engineer",
         'project': project,
         'attachments': attachments,
     }
@@ -741,6 +757,7 @@ def render_attendance_page(request):
         "location_choices": location_choices,
         "projects": projects,
         "user_attendance": user_attendance,
+        "role": "Engineer"
     })
 
 @login_required
@@ -787,6 +804,7 @@ def employee_update_travel_time(request, attendance_id):
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
+        "role": "Engineer"
     })
 
 @login_required
@@ -805,7 +823,7 @@ def apply_leave(request):
     else:
         form = LeaveForm()
 
-    return render(request, 'employee/leave.html', {'form': form})
+    return render(request, 'employee/leave.html', {'form': form, "role": "Engineer",})
 
 @login_required
 def employee_upload_medical_certificate(request, leave_id):
@@ -846,7 +864,7 @@ def my_leave_status(request):
     page_number = request.GET.get("page")
     leaves = paginator.get_page(page_number)
 
-    return render(request, "employee/leavestatus.html", {"leaves": leaves})
+    return render(request, "employee/leavestatus.html", {"leaves": leaves, "role": "Engineer",})
 
 @login_required
 def leave_records(request):
@@ -879,7 +897,7 @@ def leave_records(request):
                 leave_summary[leave.leave_type]["taken"] += leave.no_of_days
                 leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
 
-    return render(request, "employee/leaverecords.html", {"leave_summary": leave_summary})
+    return render(request, "employee/leaverecords.html", {"leave_summary": leave_summary, "role": "Engineer",})
 
 
 @login_required

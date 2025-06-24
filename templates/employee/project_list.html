@@ -29,7 +29,14 @@
           <th></th>
           <th></th>
           <th></th>
-          <th></th>
+          <th>
+            <select id="status-filter" class="form-select w-auto">
+                <option value="">All Statuses</option>
+                {% for code, label in status_choices %}
+                <option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+          </th>
         </tr>
       </thead>
       <thead>
@@ -184,5 +191,20 @@
   function confirmDelete() {
     return confirm("Are you sure you want to delete this assignment?");
   }
+</script>
+
+<script>
+  document.getElementById("status-filter").addEventListener("change", function () {
+    const selectedStatus = this.value;
+    const urlParams = new URLSearchParams(window.location.search);
+
+    if (selectedStatus) {
+      urlParams.set("status", selectedStatus);
+    } else {
+      urlParams.delete("status");
+    }
+
+    window.location.search = urlParams.toString();
+  });
 </script>
 {% endblock %}
