@@ -44,6 +44,15 @@
                 </div>
 
                 <div class="pjct-info-item">
+                  <h6>Attachment:</h6>
+                  {% if project_data.attachment_file %}
+                    <a href="{% url 'admstrn_project_attachments_view' project_data.project_id %}" class="btn btn-sm btn-secondary">All Attachments</a>
+                  {% else %}
+                    <span style="color: #888;">No attachment uploaded</span>
+                  {% endif %}
+                </div>
+
+                <div class="pjct-info-item">
                   <h6>Created:</h6>
                   <span class="created">{{ project_data.project_create | date:"d-m-Y" }}</span>
                 </div>

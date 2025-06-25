@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import admstrn_add_project, admstrn_project_list_view, admstrn_edit_project, admstrn_delete_project,admstrn_project_summary_view, dashboard, attendance,admstrn_log_in, admstrn_log_off, admstrn_render_attendance_page, admstrn_update_travel_time, admstrn_apply_leave, admstrn_leave_status, admstrn_leave_records, admstrn_upload_medical_certificate, admstrn_fetch_notifications, admstrn_mark_notifications_as_read, admstrn_update_profile, admstrn_profile
+from .views import admstrn_add_project, admstrn_project_list_view, admstrn_edit_project, admstrn_delete_project,admstrn_project_summary_view, dashboard, attendance,admstrn_log_in, admstrn_log_off, admstrn_render_attendance_page, admstrn_update_travel_time, admstrn_apply_leave, admstrn_leave_status, admstrn_leave_records, admstrn_upload_medical_certificate, admstrn_fetch_notifications, admstrn_mark_notifications_as_read, admstrn_update_profile, admstrn_profile, admstrn_project_attachments_view,admstrn_delete_project_attachment
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admstrn-dashboard'),
@@ -8,6 +8,8 @@ urlpatterns = [
     path('project/<int:project_id>/', admstrn_project_summary_view, name='admstrn_project_summary_view'),
     path('project/edit/<int:project_id>/', admstrn_edit_project, name='admstrn_edit_project'),
     path('project/delete/<int:project_id>/', admstrn_delete_project, name='admstrn_delete_project'),
+    path('project/<int:project_id>/attachments/', admstrn_project_attachments_view, name='admstrn_project_attachments_view'),
+    path('attachment/<int:attachment_id>/delete/', admstrn_delete_project_attachment, name='admstrn_delete_project_attachment'),
 
     path('attendance-status/', attendance, name='admstrn_attendance_status'),
     path('attendance/log-in/', admstrn_log_in, name='admstrn_log_in'),

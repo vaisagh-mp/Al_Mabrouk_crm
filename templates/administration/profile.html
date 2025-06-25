@@ -118,18 +118,20 @@
         <div class="row mb-4">
           <div class="col-lg-4 col-md-4">
             <div class="status-wdgt">
-              <h5>Attendance</h5>
-              <h6 style="color: #c554bc">{{ attendance_percentage|floatformat:0 }}%</h6>
-              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
-            </div>
-          </div>
-          <div class="col-lg-4 col-md-4">
-            <div class="status-wdgt">
               <h5>Projects Completed</h5>
               <h6 style="color: #65a986">{{ completed_projects }}</h6>
               <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
             </div>
           </div>
+          
+          <div class="col-lg-4 col-md-4">
+            <div class="status-wdgt">
+              <h5>Projects OnGoing</h5>
+              <h6 style="color: #ff5200">{{ ongoing_projects }}</h6>
+              <div class="wdgt-bg-icons"><i class="fas fa-users"></i></div>
+            </div>
+          </div>
+          
           <div class="col-lg-4 col-md-4">
             <div class="status-wdgt">
               <h5>Projects Pending</h5>
@@ -140,35 +142,35 @@
         </div>
 
         <!-- Project Table -->
-        <div class="widget-box table-wdgt">
+        <div class="widget-box table-wdgt mangr-prof-pro-tbl">
           <h3>Projects</h3>
-          <table id="employee-prjct-table">
+          <table id="employee-prjct-table" class="employee-prjct-table">
             <thead>
               <tr>
                 <th>Project</th>
                 <th>Project Code</th>
-                <th>Employee</th>
+                <th>Manager</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {% for project_data in all_projects %}
+              {% for project in all_projects %}
               <tr>
-                <td><a href="#">{{ project_data.project.name }}</a></td>
-                <td>{{ project_data.project.code }}</td>
-                <td>{{ employee.user.get_full_name }}</td>
+                <td><a href="#">{{ project.name }}</a></td>
+                <td>{{ project.code }}</td>
+                <td>{{ project.manager.user.username }}</td>
                 <td>
-                  {% if project_data.status == 'ONGOING' %}
+                  {% if project.status == 'ONGOING' %}
                   <span class="status ongoing">Ongoing</span>
-                  {% elif project_data.status == 'COMPLETED' %}
+                  {% elif project.status == 'COMPLETED' %}
                   <span class="status completed">Completed</span>
-                  {% elif project_data.status == 'HOLD' %}
+                  {% elif project.status == 'HOLD' %}
                   <span class="status hold">Hold</span>
-                  {% elif project_data.status == 'PENDING' %}
+                  {% elif project.status == 'PENDING' %}
                   <span class="status pending">Pending</span>
-                  {% elif project_data.status == 'CANCELLED' %}
+                  {% elif project.status == 'CANCELLED' %}
                   <span class="status cancelled">Cancelled</span>
-                  {% elif project_data.status == 'ASSIGN' %}
+                  {% elif project.status == 'ASSIGN' %}
                   <span class="status Assign">Assign</span>
                   {% else %}
                   <span class="status unknown">Unknown</span>
@@ -177,6 +179,7 @@
               </tr>
               {% endfor %}
             </tbody>
+
           </table>
         </div>
       </div>

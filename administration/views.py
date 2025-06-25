@@ -18,7 +18,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.core.paginator import Paginator
 from Admin.forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
-from Admin.models import Project, TeamMemberStatus, ActivityLog, Attendance,Employee,LeaveBalance, Team, Leave, Notification, Holiday
+from Admin.models import Project, TeamMemberStatus, ActivityLog, Attendance,Employee,LeaveBalance, Team, Leave, Notification, Holiday, ProjectAttachment
 
 
 @login_required
@@ -97,6 +97,7 @@ def admstrn_render_attendance_page(request):
     projects = Project.objects.all()
 
     return render(request, "administration/punchin.html", {
+        'role': 'Administration',
         "attendance_status_choices": attendance_status_choices,
         "location_choices": location_choices,
         "projects": projects,
@@ -115,6 +116,7 @@ def attendance(request):
     page_obj = paginator.get_page(page_number)
 
     context = {
+        'role': 'Administration',
         'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
     }
     return render(request, 'administration/attendance.html', context)
@@ -159,6 +161,7 @@ def admstrn_update_travel_time(request, attendance_id):
     employees = Employee.objects.all()
     projects = Project.objects.all()
     return render(request, 'administration/update_travel_time.html', {
+        'role': 'Administration',
         'attendance': attendance,
         'employees': employees,
         'projects': projects,
@@ -333,6 +336,7 @@ def dashboard(request):
         balance_sick_leave = leave_balance.sick_leave if leave_balance else 0
         
         context = {
+            'role': 'Administration',
             'manager': manager,
             'project_details': project_details,
             'assigned_projects': assigned_projects,
@@ -391,7 +395,7 @@ def admstrn_add_project(request):
             form = ProjectForm()
 
     # No pagination code; simply render the form
-    return render(request, 'administration/add_project.html', {'form': form})
+    return render(request, 'administration/add_project.html', {'form': form, 'role': 'Administration',})
 
 
 # project list view
@@ -401,11 +405,15 @@ def admstrn_project_list_view(request):
     projects = Project.objects.all().order_by('-created_at')
 
     search_query = request.GET.get('search', '').strip()
+    status_filter = request.GET.get('status', '')
 
     if search_query:
             projects = projects.filter(
                 name__icontains=search_query
             )
+
+    if status_filter:
+        projects = projects.filter(status=status_filter)
 
     # Prepare project data
     project_data = [
@@ -429,8 +437,11 @@ def admstrn_project_list_view(request):
 
     # Pass the data to the template
     context = {
+        'role': 'Administration',
         "projects": page_obj,
         "search_query": search_query,
+        "status_filter": status_filter,
+        "status_choices": Project.STATUS_CHOICES,
     }
 
     return render(request, 'administration/project_list.html', context)
@@ -503,11 +514,46 @@ def admstrn_project_summary_view(request, project_id):
         "project_id": project.id,
         "status_choices": status_choices,
         "job_card": project.job_card.url if project.job_card else None,
+        "attachment_file": project.attachment.url if project.attachment else None,
     }
 
-    context = {"project_data": project_data}
+    context = {"project_data": project_data,'role': 'Administration',}
     return render(request, 'administration/projectsummary.html', context)
 
+@login_required
+def admstrn_project_attachments_view(request, project_id):
+    project = get_object_or_404(Project, id=project_id)
+    attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
+
+    context = {
+        'role': 'Administration',
+        'project': project,
+        'attachments': attachments,
+    }
+    return render(request, 'administration/project_attachments.html', context)
+
+@login_required
+def admstrn_delete_project_attachment(request, attachment_id):
+    attachment = get_object_or_404(ProjectAttachment, id=attachment_id)
+    user = request.user
+
+    # Allow only admin or project manager to delete
+    is_admin = user.is_administration
+    is_manager = (
+        hasattr(user, 'employee_profile') and 
+        attachment.project.manager == user.employee_profile
+    )
+
+    if not (is_admin or is_manager):
+        messages.error(request, "You do not have permission to delete this file.")
+        return redirect('admstrn_project_attachments_view', project_id=attachment.project.id)
+
+    # Perform deletion
+    project_id = attachment.project.id
+    attachment.file.delete()
+    attachment.delete()
+    messages.success(request, "Attachment deleted successfully.")
+    return redirect('admstrn_project_attachments_view', project_id=project_id)
 
 @login_required
 def admstrn_edit_project(request, project_id):
@@ -522,7 +568,7 @@ def admstrn_edit_project(request, project_id):
             form = ProjectForm(instance=project)
 
     # For GET request, render the form pre-filled with the project's data
-    return render(request, 'administration/project_edit.html', {'form': ProjectForm(instance=project)})
+    return render(request, 'administration/project_edit.html', {'form': ProjectForm(instance=project),'role': 'Administration',})
 
 
 @login_required
@@ -555,7 +601,7 @@ def admstrn_apply_leave(request):
     else:
         form = LeaveForm()
 
-    return render(request, 'administration/leave.html', {'form': form})
+    return render(request, 'administration/leave.html', {'form': form, 'role': 'Administration',})
 
 @login_required
 def admstrn_upload_medical_certificate(request, leave_id):
@@ -629,7 +675,7 @@ def admstrn_leave_records(request):
                 leave_summary[leave.leave_type]["taken"] += leave.no_of_days
                 leave_summary[leave.leave_type]["balance"] -= leave.no_of_days  # Deduct from balance
 
-    return render(request, "administration/leaverecords.html", {"leave_summary": leave_summary})
+    return render(request, "administration/leaverecords.html", {"leave_summary": leave_summary, 'role': 'Administration',})
 
 @login_required
 def admstrn_fetch_notifications(request):
@@ -649,53 +695,25 @@ def admstrn_mark_notifications_as_read(request):
 
 @login_required
 def admstrn_profile(request):
-    # Fetch the employee
     employee = get_object_or_404(Employee, user=request.user)
     teams = employee.teams_assigned.all()
 
+    # TeamMemberStatuses related to this employee
     team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
 
-    # Count statuses for the employee's projects
-    completed_projects = team_member_statuses.filter(
-        status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(
-        Q(status='COMPLETED') | Q(status='ONGOING')).count()
-    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
+    # Projects related to the employee's teams
+    all_projects = Project.objects.all()
 
-    # Get the related projects from the team member status
-    all_projects = [
-        {
-            'project': status.team.project,
-            'manager': status.team.project.manager,
-            'status': status.status
-        }
-        for status in team_member_statuses
-    ]
+    # Project status counts
+    total_projects =  Project.objects.count()
+    completed_projects = Project.objects.filter(status='COMPLETED').count()
+    ongoing_projects = Project.objects.filter(status='ONGOING').count()
+    total_pending_projects =  Project.objects.exclude(status='COMPLETED').count()
 
-    # Calculate attendance percentage
-    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    # approved_attendance_records = Attendance.objects.filter(
-    #     employee=employee, status='APPROVED'
-    # ).count()
-    # attendance_percentage = (
-    #     (approved_attendance_records / 30) * 100
-    #     if total_attendance_records > 0
-    #     else 0
-    # )
-
-    # Get the current year and month
+    # Attendance percentage calculation
     current_year = date.today().year
     current_month = date.today().month
-
-    # Get the total number of days in the current month
     total_days_in_month = monthrange(current_year, current_month)[1]
-
-    # Calculate total and approved attendance records for the current month
-    total_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
 
     approved_attendance_records = Attendance.objects.filter(
         employee=employee,
@@ -704,24 +722,16 @@ def admstrn_profile(request):
         login_time__month=current_month
     ).count()
 
-    # Calculate attendance percentage
-    attendance_percentage = (
-        (approved_attendance_records / total_days_in_month) * 100
-        if total_attendance_records > 0
-        else 0
-    )
+    attendance_percentage = (approved_attendance_records / total_days_in_month) * 100 if total_days_in_month else 0
 
-    # Count total projects and pending projects
-    total_projects = completed_projects + pending_projects + assigned_projects
-    total_pending_projects = total_projects - completed_projects
-
-    # Context for template
     context = {
+        'role': 'Administration',
         'employee': employee,
         'teams': teams,
         'all_projects': all_projects,
         'attendance_percentage': round(attendance_percentage, 1),
         'total_projects': total_projects,
+        'ongoing_projects': ongoing_projects,
         'completed_projects': completed_projects,
         'pending_projects': total_pending_projects,
     }
@@ -758,4 +768,4 @@ def admstrn_update_profile(request):
             "email": request.user.email,
         })
 
-    return render(request, "administration/updateprofile.html", {"form": form})
+    return render(request, "administration/updateprofile.html", {"form": form, 'role': 'Administration',})
