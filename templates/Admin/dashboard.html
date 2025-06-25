@@ -43,7 +43,7 @@
             <span>{{ change_percentage }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ change_percentage|absolute }}%</span> Decrease since last month
+            <span>{{ change_percentage|absolute }}%</span> since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons"><i class="far fa-file-alt"></i></div>
@@ -60,7 +60,7 @@
             <span>{{ client_change_percent }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ client_change_percent_abs }}%</span> Decrease since last month
+            <span>{{ client_change_percent_abs }}%</span> since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons"><i class="far fa-clock"></i></div>
@@ -78,7 +78,7 @@
             <span>{{ emp_change_percent|floatformat:0 }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ emp_change_percent|floatformat:0|abs_value }}%</span> Decrease since last month
+            <span>{{ emp_change_percent|floatformat:0|abs_value }}%</span> since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons">
@@ -97,7 +97,7 @@
             <span>{{ profit_change_percent|floatformat:2 }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> Decrease since last month
+            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons">
@@ -112,7 +112,7 @@
 
   <!-- Project Analysis Row -->
   <div class="row mt-5 mb-4 prjct-analy-row">
-    <div class="col-lg-5 col-md-6">
+    <div class="col-lg-4 col-md-6">
       <div class="widget-box" style="height: 480px;">
         <div class="widget-title">
           <h4>Project Analysis</h4>
@@ -122,7 +122,7 @@
       </div>
     </div>
 
-    <div class="col-lg-3 col-md-6">
+    <div class="col-lg-4 col-md-6">
       <div class="widget-box" style="height: 480px;">
           <div class="widget-title" style="margin-left: 0;">
               <h4>Projects Overview</h4>
@@ -131,7 +131,7 @@
           
           <div class="prjct-overview-card-top-sec">
               <div>
-                  <p>Percentage of Project Completion</p>
+                  <p>Project Completion</p>
                   <p>
                       <i class="fas fa-arrow-up"></i> <span>{{ completion_percentage }}%</span> Since last month
                   </p>
@@ -189,11 +189,79 @@
               </div>
           </div>
       </div>
-  </div>
+    </div>
 
-  <div class="col-lg-4">
+    <div class="col-lg-4 col-md-6">
+  <div class="widget-box" style="height: 480px;">
+      <div class="widget-title" style="margin-left: 0;">
+          <h4>Clients Overview</h4>
+      </div>
+      <hr />
+
+      <div class="prjct-overview-card-top-sec">
+          <div>
+              <p>Client Growth</p>
+              <p>
+                  {% if client_growth_percentage >= 0 %}
+                      <i class="fas fa-arrow-up"></i>
+                  {% else %}
+                      <i class="fas fa-arrow-down"></i>
+                  {% endif %}
+                  <span>{{ client_growth_percentage }}%</span> Since last month
+              </p>
+          </div>
+          <div>
+              <span>{{ client_growth_percentage }}%</span>
+          </div>
+      </div>
+
+      <div class="prjct-overview-progress">
+          <div class="progress-bar progress-bar-width" id="clientProgressBar">
+              <div class="progress-bar-anim"></div>
+          </div>
+      </div>
+
+      <div class="prjct-overview-item">
+          <div>
+              <p><i class="fas fa-users" style="background-color: #007bff; color: #cce5ff"></i> Total Clients</p>
+          </div>
+          <div class="prjct-overview-item-right">
+              <p style="background-color: #cce5ff">{{ total_clients }}</p>
+          </div>
+      </div>
+
+      <div class="prjct-overview-item">
+          <div>
+              <p><i class="fas fa-user-plus" style="background-color: #28a745; color: #d4edda"></i> New This Month</p>
+          </div>
+          <div class="prjct-overview-item-right">
+              <p style="background-color: #d4edda">{{ new_clients }}</p>
+          </div>
+      </div>
+
+      <div class="prjct-overview-item">
+          <div>
+              <p><i class="fas fa-user-check" style="background-color: #ffc107; color: #fff3cd"></i> Active Clients</p>
+          </div>
+          <div class="prjct-overview-item-right">
+              <p style="background-color: #fff3cd">{{ active_clients }}</p>
+          </div>
+      </div>
+
+      <div class="prjct-overview-item">
+          <div>
+              <p><i class="fas fa-user-times" style="background-color: #dc3545; color: #f8d7da"></i> Inactive Clients</p>
+          </div>
+          <div class="prjct-overview-item-right">
+              <p style="background-color: #f8d7da">{{ inactive_clients }}</p>
+          </div>
+      </div>
+  </div>
+</div>
+
+
+  <!-- <div class="col-lg-4">
     <div class="row admin-invo-row">
-        <!-- Total Invoice Amount -->
         <div class="col-lg-12 col-md-6">
             <div class="widget-box">
                 <div class="widget-title" style="margin-left:0;">
@@ -205,7 +273,6 @@
             </div>
         </div>
 
-        <!-- Pending Invoice Amount -->
         <div class="col-lg-12 col-md-6">
             <div class="widget-box">
                 <div class="widget-title" style="margin-left: 0;">
@@ -216,12 +283,10 @@
             </div>
         </div>
     </div>
-</div>
+</div> -->
  
   </div>
   </div>
-
-
   <!-- End Project Analysis Row -->
 
 

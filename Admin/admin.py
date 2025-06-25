@@ -4,7 +4,7 @@ from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamM
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'manager', 'purchase_and_expenses', 'invoice_amount', 'status')
+    list_display = ('name', 'code', 'manager', 'purchase_and_expenses', 'invoice_amount', 'status', 'created_at')
     search_fields = ('name', 'code', 'status')
     list_filter = ('status',)
     readonly_fields = ('calculate_expenses', 'calculate_profit')

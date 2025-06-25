@@ -148,6 +148,39 @@ def dashboard(request):
         else:
             client_change_percent = 100 if clients_this_month > 0 else 0
 
+        # Distinct clients
+        clients = Project.objects.exclude(client_name="").values_list('client_name', flat=True).distinct()
+        total_clients = clients.count()
+        
+        # New clients this month
+        new_clients = Project.objects.filter(
+            created_at__gte=first_day_this_month
+        ).exclude(client_name="").values_list('client_name', flat=True).distinct().count()
+        
+        # Clients last month
+        clients_last_month = Project.objects.filter(
+            created_at__gte=first_day_last_month,
+            created_at__lt=first_day_this_month
+        ).exclude(client_name="").values_list('client_name', flat=True).distinct().count()
+        
+        # Active clients (with at least one ongoing project)
+        active_clients = Project.objects.exclude(
+            client_name=""
+        ).filter(
+            ~Q(status='COMPLETED')
+        ).values_list('client_name', flat=True).distinct().count()
+        
+        # Inactive = total - active
+        inactive_clients = total_clients - active_clients
+        
+        # Growth % calculation
+        def calculate_growth(current, previous):
+            if previous == 0:
+                return 100 if current > 0 else 0
+            return round(((current - previous) / previous) * 100, 2)
+        
+        client_growth_percentage = calculate_growth(new_clients, clients_last_month)
+
         context = {
             "role": "Admin",
             'total_projects': total_projects,
@@ -171,7 +204,12 @@ def dashboard(request):
             'client_count': client_count,
             'client_change_percent': round(client_change_percent, 2),
             'client_change_percent_abs': abs(round(client_change_percent, 2)),
-            "now": now()
+            "now": now(),
+            'total_clients': total_clients,
+            'new_clients': new_clients,
+            'active_clients': active_clients,
+            'inactive_clients': inactive_clients,
+            'client_growth_percentage': client_growth_percentage,
         }
         return render(request, 'Admin/dashboard.html', context)
     
