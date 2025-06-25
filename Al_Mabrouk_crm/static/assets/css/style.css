@@ -2458,7 +2458,7 @@ table .fa-times {
 
 /* Progress Color */
 .prjct-overview-progress .progress-bar {
-  background: #00e396;
+  background-color: #00e396;
   height: inherit;
   border-radius: 10px;
   transition: width 1s ease-in-out;
