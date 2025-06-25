@@ -353,16 +353,18 @@
   </script>
 <script>
   document.addEventListener("DOMContentLoaded", function() {
-      // Ensure completion_percentage is safely rendered as a number
-      let completionPercentage = parseFloat("{{ client_growth_percentage|default:0 }}") || 0;
-      
+      let clientGrowthPercentage = parseFloat("{{ client_growth_percentage|default:0 }}") || 0;
       let progressBar = document.getElementById("clientProgressBar");
-  
+
       if (progressBar) {
-          progressBar.style.width = completionPercentage + "%";
+          const isPositive = clientGrowthPercentage >= 0;
+          const safePercentage = Math.max(0, Math.min(clientGrowthPercentage, 100));
+          progressBar.style.width = safePercentage + "%";
+          progressBar.style.backgroundColor = isPositive ? "#00e396" : "#dc3545"; // green for up, red for down
       }
   });
-  </script>
+</script>
+
   
 
 {% endblock %}
