@@ -351,6 +351,18 @@
       }
   });
   </script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+      // Ensure completion_percentage is safely rendered as a number
+      let completionPercentage = parseFloat("{{ client_growth_percentage|default:0 }}") || 0;
+      
+      let progressBar = document.getElementById("clientProgressBar");
+  
+      if (progressBar) {
+          progressBar.style.width = completionPercentage + "%";
+      }
+  });
+  </script>
   
 
 {% endblock %}
