@@ -26,11 +26,13 @@ html{
   overflow-x: hidden;
 }
 
-th,
-td {
-  white-space: nowrap !important;
+th, td {
+  min-width: 250px;
+  max-width: 250px;
+  white-space: normal !important;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
-
 /*--- Global Style ---*/
 p {
   font-size: 14px;
@@ -641,7 +643,7 @@ header .dropdown-menu {
   }
 }
 
-@media (min-width: 991px) {
+@media (min-width: 992px) {
   .sidebar-wrapper {
     width: 20%;
   }
@@ -935,7 +937,7 @@ header .dropdown-menu {
 .widget-box th,
 .widget-box td {
   padding: 25px 10px;
-  text-align: center;
+  text-align: left;
 }
 
 .widget-box th select{
@@ -2050,14 +2052,30 @@ table .fa-times {
 /*--- Leave Card ----*/
 .leave-card{
   border: 1px solid var(--bs-orange) !important;
-  height: 320px !important;
+
   border-radius: 10px !important;
   padding: 30px 20px !important;
 }
 
+
+@media(min-width:992px) and (max-width:1365px){
+.leave-card{  height: 350px !important;}
+.leave-card-widget {
+  min-height: 370px;
+}
+}
+
+@media(min-width:1366px){
+.leave-card{  height: 320px !important;}
 .leave-card-widget {
   min-height: 351px;
 }
+}
+
+@media(min-width:1531px){
+#leaveChart{width: 70% !important; }
+}
+
 
 .leave-card-widget .widget-title {
   margin: 0 0 25px 0;
