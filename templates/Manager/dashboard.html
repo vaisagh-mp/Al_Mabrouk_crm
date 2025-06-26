@@ -208,7 +208,7 @@
                         </a>
                     </td>
                     <td>
-                        <div class="avatars" style="width: max-content; margin: auto;">
+                        <div class="avatars">
                             {% for team in work.teams.all %}
                                 {% for member in team.employees.all %}
                                     <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" />
