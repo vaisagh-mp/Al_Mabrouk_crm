@@ -3,15 +3,26 @@ from django.contrib.auth.decorators import login_required
 from calendar import monthrange
 from django.utils.timezone import now,localdate
 from django.utils.dateparse import parse_datetime
+from django.forms import modelformset_factory
+from django.template.loader import render_to_string
+from django.http import HttpResponse
+from weasyprint import HTML
+import json
+from django.contrib.staticfiles import finders
+import base64
+from django.core.serializers.json import DjangoJSONEncoder
 from django.http import JsonResponse, HttpResponseForbidden
 from django.core.paginator import Paginator
 from .forms import LeaveForm, EmployeeUpdateForm
+from django.utils.dateparse import parse_date, parse_time
+from django.db import transaction
+from Admin.forms import EngineerWorkOrderDetailForm, SpareForm, ToolForm, DocumentForm
 from datetime import date, timedelta,time
 from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
@@ -556,6 +567,12 @@ def project_details(request, project_id):
     work_days = project.calculate_total_work_days()
 
     attachments = ProjectAttachment.objects.filter(project=project)
+
+    try:
+        work_order = WorkOrder.objects.get(project=project)
+    except WorkOrder.DoesNotExist:
+        work_order = None
+
     # Prepare data for the project
     project_data = {
         "project_name": project.name,
@@ -582,6 +599,7 @@ def project_details(request, project_id):
         "statuses": statuses,
         'logs': logs,
         "project_id": project.id,
+        "work_order": work_order,
         "status_choices": status_choices,
         "attachments": attachments,
         "job_card": project.job_card.url if project.job_card else None,
@@ -916,3 +934,125 @@ def employee_mark_notifications_as_read(request):
     
     return JsonResponse({"message": "Notifications marked as read"})
 
+
+@login_required
+def employee_view_work_order(request, pk):
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    # Ensure the logged-in employee is assigned to this work order
+    if request.user not in work_order.job_assigned_to.all():
+        return render(request, '403.html', status=403)  # Or redirect with warning
+
+    return render(request, 'employee/view_work_order.html', {
+        'work_order': work_order
+    })
+
+@login_required
+def employee_update_work_order_view(request, pk):
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    # Security check
+    if request.user not in work_order.job_assigned_to.all():
+        messages.error(request, "You are not authorized to update this work order.")
+        return redirect('employee-dashboard')
+
+    work_order_detail, _ = WorkOrderDetail.objects.get_or_create(work_order=work_order)
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                # Update WorkOrderDetail fields
+                work_order_detail.start_date = parse_date(request.POST.get('start_date'))
+                work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
+                work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
+                work_order_detail.start_time = parse_time(request.POST.get('start_time')) or None
+                work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
+                work_order_detail.save()
+
+                # Clear existing related data
+                Spare.objects.filter(work_order=work_order).delete()
+                Tool.objects.filter(work_order=work_order).delete()
+                Document.objects.filter(work_order=work_order).delete()
+
+                # Save Spares
+                spare_names = request.POST.getlist('spare_name[]')
+                spare_units = request.POST.getlist('spare_unit[]')
+                spare_quantities = request.POST.getlist('spare_quantity[]')
+
+                for name, unit, qty in zip(spare_names, spare_units, spare_quantities):
+                    if name.strip():
+                        Spare.objects.create(
+                            work_order=work_order,
+                            name=name.strip(),
+                            unit=unit.strip(),
+                            quantity=int(qty or 0)
+                        )
+
+                # Save Tools
+                tool_names = request.POST.getlist('tool_name[]')
+                tool_quantities = request.POST.getlist('tool_quantity[]')
+
+                for name, qty in zip(tool_names, tool_quantities):
+                    if name.strip():
+                        Tool.objects.create(
+                            work_order=work_order,
+                            name=name.strip(),
+                            quantity=int(qty or 0)
+                        )
+
+                # Save Documents
+                doc_names = request.POST.getlist('doc_name[]')
+                doc_statuses = request.POST.getlist('doc_status[]')
+
+                for name, status in zip(doc_names, doc_statuses):
+                    if name.strip():
+                        Document.objects.create(
+                            work_order=work_order,
+                            name=name.strip(),
+                            status=status.strip()
+                        )
+
+                messages.success(request, "Work order updated successfully.")
+                return redirect('employee-view-work-order', pk=pk)
+
+        except Exception as e:
+            messages.error(request, f"Error saving work order: {str(e)}")
+
+    # For initial population (if needed later for JS prefill)
+    spares = Spare.objects.filter(work_order=work_order)
+    tools = Tool.objects.filter(work_order=work_order)
+    documents = Document.objects.filter(work_order=work_order)
+
+    context = {
+    'work_order': work_order,
+    'work_order_detail': work_order_detail,
+    'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+    'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+    'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+}
+
+    return render(request, 'employee/update_work_order.html', context)
+
+
+# @login_required
+# def eng_download_work_order_pdf(request, pk):
+#     work_order = get_object_or_404(WorkOrder, pk=pk)
+
+#     # Get the full static file path
+#     logo_path = finders.find('assets/images/reportlogo.webp')
+
+#     # Optionally encode to base64 (better compatibility)
+#     with open(logo_path, 'rb') as img_file:
+#         logo_data = base64.b64encode(img_file.read()).decode()
+
+#     html_string = render_to_string('Manager/work_order_pdf.html', {
+#         'work_order': work_order,
+#         'logo_base64': logo_data,
+#     })
+
+#     html = HTML(string=html_string)
+#     pdf = html.write_pdf()
+
+#     response = HttpResponse(pdf, content_type='application/pdf')
+#     response['Content-Disposition'] = f'attachment; filename="work_order_{work_order.pk}.pdf"'
+#     return response

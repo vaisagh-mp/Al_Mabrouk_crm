@@ -3,10 +3,41 @@
 {% load static %}
 {% block content %}
 
+<style>
+  .emply-list-wraper .btn {
+  padding: 10px 15px;
+  background-color: var(--secondary-bg);
+  color: #ffffff;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.emply-list-wraper  .btn:hover {
+  background-color: #0056b3;
+}
+
+</style>
+
+
 <div class="emply-list-wraper">
-  <div class="pg-title">
-    <h1>{{ project_data.project_name }}</h1>
+  <div class="d-flex justify-content-between">
+    <div class="pg-title">
+     <h1>{{ project_data.project_name }}</h1>
+   </div>
+   <div style="margin-bottom: 25px;">
+     {% if project_data.work_order %}
+     <a href="{% url 'admin_view_work_order' project_data.work_order.id %}" class="btn btn-primary">
+       <i class="fas fa-eye"></i> View Work Order
+     </a>
+   {% else %}
+     <a href="{% url 'admin-create-work-order' project_data.project_id %}" class="btn btn-success">
+       <i class="fas fa-file-alt"></i> Create Work Order
+     </a>
+   {% endif %}
   </div>
+</div>
 
   <section class="prjct-dtls-top">
     <div class="row">

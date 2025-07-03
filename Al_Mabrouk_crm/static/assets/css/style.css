@@ -40,6 +40,13 @@ p {
   color: var(--primary-font-color);
 }
 
+pre {
+  font-family: "Poppins", sans-serif !important;
+  font-size: 14px;
+  font-size: 400;
+  color: var(--primary-font-color);
+}
+
 h1 {
   font-size: 22px;
   font-weight: 500;
@@ -2679,7 +2686,7 @@ width: 13px;
 
 @media(min-width:767px){
   .pjct-info-dtls-box .widget-box{
-  height: 300px;
+  height: 330px;
 }
 }
 .pjct-info-dtls-box.admin .widget-box{
@@ -2699,3 +2706,120 @@ width: 13px;
   position: sticky;
   top: -15px;
 }
+
+
+  .wrk-rprt-frm {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 960px;
+    margin: 40px auto;
+    padding: 30px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .wrk-rprt-frm h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 24px;
+    color: #333;
+  }
+
+  .wrk-rprt-frm form {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+  }
+
+  .wrk-rprt-frm label {
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: block;
+    color: #333;
+  }
+
+  .wrk-rprt-frm input,
+  .wrk-rprt-frm textarea,
+  .wrk-rprt-frm select {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    box-sizing: border-box;
+  }
+
+  .wrk-rprt-frm textarea {
+    resize: vertical;
+  }
+
+  .wrk-rprt-frm .grid-2,
+  .wrk-rprt-frm .grid-3 {
+    display: grid;
+    gap: 20px;
+  }
+
+  .wrk-rprt-frm .grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .wrk-rprt-frm .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .wrk-rprt-frm table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .wrk-rprt-frm th,
+  .wrk-rprt-frm td {
+    padding: 8px 10px;
+    border: 1px solid #ddd;
+    vertical-align: middle;
+  }
+
+  .wrk-rprt-frm td input {
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+
+  .wrk-rprt-frm .add-btn {
+    margin-top: 8px;
+    padding: 8px 14px;
+    font-size: 14px;
+    background-color: var(--bs-blue);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .wrk-rprt-frm .add-btn:hover {
+    background-color: var(--bs-blue);
+  }
+
+  .wrk-rprt-frm button[type="submit"] {
+    background-color: var(--bs-blue);
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    width: 150px;
+  }
+
+  .wrk-rprt-frm button[type="submit"]:hover {
+    background-color: var(--bs-blue);
+    width: 150px;
+  }
+
+  @media (max-width: 768px) {
+    .wrk-rprt-frm .grid-2,
+    .wrk-rprt-frm .grid-3 {
+      grid-template-columns: 1fr;
+    }
+  }

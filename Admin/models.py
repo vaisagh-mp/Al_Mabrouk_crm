@@ -178,7 +178,6 @@ class Project(models.Model):
     def __str__(self):
         return self.name
 
-
 class Team(models.Model):
     name = models.CharField(max_length=255)
     manager = models.ForeignKey(
@@ -489,14 +488,11 @@ class ActivityLog(models.Model):
     def __str__(self):
         return f"{self.changed_by.user.username if self.changed_by else 'Unknown'} changed {self.previous_status} → {self.new_status}"
 
-
 class ProjectAttachment(models.Model):
     project = models.ForeignKey(Project, related_name='attachments', on_delete=models.CASCADE)
     file = models.FileField(upload_to='project_attachments/')
     uploaded_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-
 
 # Signal to update the employee's work_days after saving an attendance record
 @receiver(post_save, sender=Attendance)
@@ -517,11 +513,49 @@ class Notification(models.Model):
     def __str__(self):
         return f"Notification for {self.recipient.username} - {self.message[:20]}"
     
-
 class Holiday(models.Model):
     date = models.DateField(unique=True)
     description = models.CharField(max_length=255)
 
     def __str__(self):
         return f"{self.date} - {self.description}"
-   
+
+
+
+class WorkOrder(models.Model):
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='workorder', null=True, blank=True)
+    work_order_number = models.CharField(max_length=100, unique=True)
+    vessel = models.CharField(max_length=100)
+    client = models.CharField(max_length=100)
+    imo_no = models.CharField(max_length=50)
+    location = models.CharField(max_length=100)
+    assigned_date = models.DateField()
+    job_scope = models.TextField()
+    job_instructions = models.TextField(blank=True, null=True)
+    job_assigned_to = models.ManyToManyField(User, related_name='assigned_work_orders')
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_work_orders')
+
+class WorkOrderDetail(models.Model):
+    work_order = models.OneToOneField(WorkOrder, on_delete=models.CASCADE, related_name='detail')
+    start_date = models.DateField(null=True, blank=True)
+    completion_date = models.DateField(null=True, blank=True)
+    estimated_hours = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    finish_time = models.TimeField(null=True, blank=True)
+    
+
+class Spare(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='spares')
+    name = models.CharField(max_length=100)
+    unit = models.CharField(max_length=50)
+    quantity = models.IntegerField()
+
+class Tool(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='tools')
+    name = models.CharField(max_length=100)
+    quantity = models.IntegerField()
+
+class Document(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='documents')
+    name = models.CharField(max_length=100)
+    status = models.CharField(max_length=100)

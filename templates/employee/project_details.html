@@ -1,9 +1,20 @@
 {% extends 'employee/employeebase.html' %} {% load static %} {% block content %}
 
 <div class="emply-list-wraper">
-  <div class="pg-title">
-    <h1>{{ project_data.project_name }}</h1>
+  <div class="d-flex justify-content-between">
+    <div class="pg-title">
+      <h1>{{ project_data.project_name }}</h1>
+    </div>
+
+    {% if project_data.work_order %}
+      <div style="margin-bottom: 25px;">
+        <a href="{% url 'employee-view-work-order' project_data.work_order.id %}" class="btn btn-success">
+          View Work Order
+        </a>
+      </div>
+    {% endif %}
   </div>
+ 
   <section class="prjct-dtls-top">
     <div class="row">
       <div class="col-lg-5">

@@ -1,0 +1,110 @@
+{% extends 'employee/employeebase.html' %}
+{% block content %}
+
+<h2>Update Work Order: {{ work_order.work_order_number }}</h2>
+
+<div class="wrk-rprt-frm">
+  <form id="workOrderForm" method="post">{% csrf_token %}
+    <div>
+      <label>Spares Required</label>
+      <table id="sparesTable">
+        <thead>
+        <tr>
+          <th>Spare Name</th>
+          <th>Unit</th>
+          <th>Quantity</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addSpareRow()">Add Spare</button>
+    </div>
+
+    <div>
+      <label>Tools Required</label>
+      <table id="toolsTable">
+        <thead>
+        <tr>
+          <th>Tool Name</th>
+          <th>Quantity</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addToolRow()">Add Tool</button>
+    </div>
+
+    <div>
+      <label>Documents</label>
+      <table id="docsTable">
+        <thead>
+        <tr>
+          <th>Document Name</th>
+          <th>Status</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addDocRow()">Add Document</button>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label>Start Date</label>
+        <input type="date" name="start_date" value="{{ work_order_detail.start_date|date:'Y-m-d' }}">
+      </div>
+      <div>
+        <label>Completion Date</label>
+        <input type="date" name="completion_date" value="{{ work_order_detail.completion_date|date:'Y-m-d' }}">
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div>
+        <label>Estimated Hours</label>
+        <input type="number" name="estimated_hours" value="{{ work_order_detail.estimated_hours|default_if_none:'' }}">
+      </div>
+      <div>
+        <label>Start Time</label>
+        <input type="time" name="start_time" value="{{ work_order_detail.start_time|time:'H:i' }}">
+      </div>
+      <div>
+        <label>Finish Time</label>
+        <input type="time" name="finish_time" value="{{ work_order_detail.finish_time|time:'H:i' }}">
+      </div>
+    </div>
+
+    <button type="submit">Submit</button>
+  </form>
+</div>
+
+
+
+<script>
+  function addSpareRow() {
+    const table = document.querySelector('#sparesTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="spare_name[]"></td>
+      <td><input type="text" name="spare_unit[]"></td>
+      <td><input type="number" name="spare_quantity[]"></td>`;
+  }
+
+  function addToolRow() {
+    const table = document.querySelector('#toolsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="tool_name[]"></td>
+      <td><input type="number" name="tool_quantity[]"></td>`;
+  }
+
+  function addDocRow() {
+    const table = document.querySelector('#docsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="doc_name[]"></td>
+      <td><input type="text" name="doc_status[]"></td>`;
+  }
+</script>
+
+{% endblock %}

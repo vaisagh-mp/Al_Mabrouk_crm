@@ -1,0 +1,151 @@
+{% extends 'Manager/managerbase.html' %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+
+  {% if messages %}
+  <div class="container mt-3">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="emply-list-wraper">
+  <div class="pg-title">
+    <h1>Create Work Order</h1>
+  </div>
+
+  <div class="widget-box table-wdgt">
+    <div class="add-project-wrapper">
+      <form method="post">
+        {% csrf_token %}
+
+        <!-- Work Order Number -->
+        <div class="mb-3">
+          <label for="id_work_order_number" class="form-label">Work Order Number*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_work_order_number"
+            name="work_order_number"
+            required
+            placeholder="Enter work order number"
+            value="{{ form.work_order_number.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Vessel -->
+        <div class="mb-3">
+          <label for="id_vessel" class="form-label">Vessel*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_vessel"
+            name="vessel"
+            required
+            placeholder="Enter vessel name"
+            value="{{ form.vessel.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Client -->
+        <div class="mb-3">
+          <label for="id_client" class="form-label">Client*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_client"
+            name="client"
+            required
+            placeholder="Enter client"
+            value="{{ form.client.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- IMO No -->
+        <div class="mb-3">
+          <label for="id_imo_no" class="form-label">IMO No*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_imo_no"
+            name="imo_no"
+            required
+            placeholder="Enter IMO number"
+            value="{{ form.imo_no.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Location -->
+        <div class="mb-3">
+          <label for="id_location" class="form-label">Location*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_location"
+            name="location"
+            required
+            placeholder="Enter location"
+            value="{{ form.location.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Assigned Date -->
+        <div class="mb-3">
+          <label for="id_assigned_date" class="form-label">Assigned Date*</label>
+          <input
+            type="date"
+            class="form-control"
+            id="id_assigned_date"
+            name="assigned_date"
+            required
+            value="{{ form.assigned_date.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Job Scope -->
+        <div class="mb-3">
+          <label for="id_job_scope" class="form-label">Job Scope*</label>
+          <textarea
+            class="form-control"
+            id="id_job_scope"
+            name="job_scope"
+            rows="3"
+            placeholder="Enter job scope"
+          >{{ form.job_scope.value|default_if_none:'' }}</textarea>
+        </div>
+
+        <!-- Job Instructions -->
+        <div class="mb-3">
+          <label for="id_job_instructions" class="form-label">Job Instructions*</label>
+          <textarea
+            class="form-control"
+            id="id_job_instructions"
+            name="job_instructions"
+            rows="3"
+            placeholder="Enter instructions"
+          >{{ form.job_instructions.value|default_if_none:'' }}</textarea>
+        </div>
+
+        <!-- Job Assigned To (Multiple Select) -->
+        <!-- <div class="mb-3">
+          <label for="id_job_assigned_to" class="form-label">Assign Job To*</label>
+          {{ form.job_assigned_to }}
+        </div> -->
+
+        <!-- Submit Button -->
+        <div class="create-btn mt-4">
+          <button class="prmry-btn" type="submit">Create Work Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+</div>
+
+{% endblock %}

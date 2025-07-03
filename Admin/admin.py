@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document
 
 
 @admin.register(Project)
@@ -122,3 +122,52 @@ class HolidayAdmin(admin.ModelAdmin):
     list_display = ('date', 'description')
     list_filter = ('date',)
     ordering = ('-date',)
+
+
+class SpareInline(admin.TabularInline):
+    model = Spare
+    extra = 1
+
+class ToolInline(admin.TabularInline):
+    model = Tool
+    extra = 1
+
+class DocumentInline(admin.TabularInline):
+    model = Document
+    extra = 1
+
+class WorkOrderDetailInline(admin.StackedInline):
+    model = WorkOrderDetail
+    can_delete = False
+    max_num = 1
+    extra = 0
+
+@admin.register(WorkOrder)
+class WorkOrderAdmin(admin.ModelAdmin):
+    list_display = ['work_order_number', 'client', 'vessel', 'assigned_date', 'get_assigned_users']
+    def get_assigned_users(self, obj):
+        return ", ".join([user.get_full_name() or user.username for user in obj.job_assigned_to.all()])
+    get_assigned_users.short_description = 'Assigned Engineers'
+    
+    search_fields = ['work_order_number', 'client', 'vessel', 'imo_no']
+    list_filter = ['assigned_date', 'client']
+    inlines = [WorkOrderDetailInline, SpareInline, ToolInline, DocumentInline]
+
+@admin.register(Spare)
+class SpareAdmin(admin.ModelAdmin):
+    list_display = ['work_order', 'name', 'unit', 'quantity']
+    search_fields = ['name']
+
+@admin.register(Tool)
+class ToolAdmin(admin.ModelAdmin):
+    list_display = ['work_order', 'name', 'quantity']
+    search_fields = ['name']
+
+@admin.register(Document)
+class DocumentAdmin(admin.ModelAdmin):
+    list_display = ['work_order', 'name', 'status']
+    search_fields = ['name']
+
+@admin.register(WorkOrderDetail)
+class WorkOrderDetailAdmin(admin.ModelAdmin):
+    list_display = ['work_order', 'start_date', 'completion_date', 'estimated_hours']

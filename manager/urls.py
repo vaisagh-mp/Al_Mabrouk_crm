@@ -34,6 +34,12 @@ urlpatterns = [
     path('project/<int:project_id>/attachments/', views.project_attachments_view, name='project_attachments_view'),
     path('attachment/<int:attachment_id>/delete/', views.delete_project_attachment, name='delete-project-attachment'),
 
+    path('work-order/create/<int:project_id>/', views.create_work_order_view, name='create_work_order'),
+    path('work-order/view/<int:pk>/', views.view_work_order, name='view_work_order'),
+    path('work-order/update/<int:pk>/', views.manager_update_work_order_view, name='manager-update-work-order'),
+    path('work-order/<int:pk>/download/', views.download_work_order_pdf, name='download-work-order-pdf'),
+
+
 
     path('attendance/', views.manager_render_attendance_page, name='manager_attendance_dashboard'),
 

@@ -1,0 +1,182 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<style>
+  .wo-table,
+  .wo-table th,
+  .wo-table td {
+    border: 1px solid black;
+    border-collapse: collapse;
+    padding: 6px;
+    font-size: 14px;
+    color: rgb(48, 47, 47);
+  }
+
+  .wo-section {
+    margin-bottom: 25px;
+  }
+
+  .wo-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  .work_order_btn .wrp{
+    padding: 10px 15px;
+    background-color: var(--secondary-bg);
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  .work_order_btn  .wrp:hover {
+  background-color: #0056b3;
+}
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div class="pg-title">
+    <h1>Work Order Sheet</h1>
+  </div>
+
+  <div class="d-flex gap-2">
+      <a href="{% url 'download-work-order-pdf' work_order.id %}" class="btn btn-outline-primary">
+        <i class="bi bi-file-earmark-pdf-fill"></i> PDF
+      </a>
+
+      <a href="{% url 'admin-update-work-order' work_order.id %}" class="btn btn-outline-success">
+        <i class="bi bi-pencil-square"></i> Edit
+      </a>
+  </div>
+</div>
+
+
+
+<div class="widget-box table-wdgt">
+
+  <!-- Main Work Order Info -->
+  <table class="wo-table" style="width: 100%; margin-bottom: 30px;">
+    <tr>
+      <td><strong>Work Order Number:</strong> {{ work_order.work_order_number }}</td>
+      <td><strong>Vessel:</strong> {{ work_order.vessel }}</td>
+    </tr>
+    <tr>
+      <td><strong>CLIENT:</strong> {{ work_order.client }}</td>
+      <td><strong>IMO No:</strong> {{ work_order.imo_no }}</td>
+    </tr>
+    <tr>
+      <td><strong>Location:</strong> {{ work_order.location }}</td>
+      <td><strong>ASSIGNED DATE:</strong> {{ work_order.assigned_date }}</td>
+    </tr>
+  </table>
+
+  <!-- Job Scope & Assignment -->
+  <div class="wo-section">
+    <div class="wo-title">JOB SCOPE:</div>
+    <div>{{ work_order.job_scope }}</div>
+  </div>
+
+  <div class="wo-section">
+    <div class="wo-title">JOB ASSIGNED TO:</div>
+    <ul>
+      {% for user in work_order.job_assigned_to.all %}
+      <li>{{ user.get_full_name|default:user.username }}</li>
+      {% empty %}
+      <li>No one assigned.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Work Details Table -->
+  <table class="wo-table" style="width: 100%; margin-bottom: 30px;">
+    <tr>
+      <th>WORK DETAILS:</th>
+      <td colspan="3">{{ work_order.job_scope }}</td>
+    </tr>
+    <tr>
+      <th>START DATE:</th>
+      <td colspan="3">{{ work_order.detail.start_date }}</td>
+    </tr>
+    <tr>
+      <th>COMPLETION DATE:</th>
+      <td colspan="3">{{ work_order.detail.completion_date |default:"--/--/--" }}</td>
+    </tr>
+    <tr>
+      <th>ESTIMATED HOURS:</th>
+      <td colspan="3">{{ work_order.detail.estimated_hours|default:"00:00" }}</td>
+    </tr>
+    <tr>
+      <th>START TIME: <span> &nbsp; {{ work_order.detail.start_time|default:"00:00" }}</span></th>
+
+      <th>FINISH TIME: <span> &nbsp; {{ work_order.detail.finish_time|default:"00:00" }}</span></th>
+    </tr>
+
+  </table>
+
+  <!-- Job Instructions -->
+  <div class="wo-section">
+    <div class="wo-title">JOB INSTRUCTIONS:</div>
+    <pre>{{ work_order.job_instructions }}</pre>
+  </div>
+
+  <!-- Spares Required Table -->
+  <div class="wo-section">
+    <div class="wo-title">SPARES REQUIRED</div>
+    <table class="wo-table" style="width: 100%;">
+      <tr>
+        <th>NAME</th>
+        <th>UNIT</th>
+        <th>QTY</th>
+      </tr>
+      {% for spare in work_order.spares.all %}
+      <tr>
+        <td>{{ spare.name }}</td>
+        <td>{{ spare.unit }}</td>
+        <td>{{ spare.quantity }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <!-- Tools Required Table -->
+  <div class="wo-section">
+    <div class="wo-title">Tools Required</div>
+    <table class="wo-table" style="width: 100%;">
+      <tr>
+        <th>Tools Name</th>
+        <th>Quantity</th>
+      </tr>
+      {% for tool in work_order.tools.all %}
+      <tr>
+        <td>{{ tool.name }}</td>
+        <td>{{ tool.quantity }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <!-- Documents Table -->
+  <div class="wo-section">
+    <div class="wo-title">Documents</div>
+    <table class="wo-table" style="width: 100%;">
+      <tr>
+        <th>Docs Name</th>
+        <th>Status</th>
+      </tr>
+      {% for doc in work_order.documents.all %}
+      <tr>
+        <td>{{ doc.name }}</td>
+        <td>{{ doc.status }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="mt-4 work_order_btn">
+    <a href="{% url 'project-summary' work_order.project.id %}" class="btn wrp">Back to Project</a>
+  </div>
+</div>
+
+{% endblock %}

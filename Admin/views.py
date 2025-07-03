@@ -7,17 +7,22 @@ from django.contrib.auth import update_session_auth_hash
 from django.http import HttpResponseForbidden
 from datetime import date
 from datetime import timedelta
+from django.db import transaction
 from django.db.models import Q, F, Sum, Count
 from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
+from django.utils.dateparse import parse_date, parse_time
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
-from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
+from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm
+from django.core.serializers.json import DjangoJSONEncoder
+import json
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document
 
 
 # Home
@@ -641,6 +646,11 @@ def admin_project_summary_view(request, project_id):
     profit_percent = project.calculate_profit_percentage()
     work_days = project.calculate_total_work_days()
 
+    try:
+        work_order = project.workorder  # OneToOne relation via related_name
+    except WorkOrder.DoesNotExist:
+        work_order = None
+
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
@@ -664,6 +674,7 @@ def admin_project_summary_view(request, project_id):
         "statuses": statuses,
         "logs": logs,
         "project_id": project.id,
+        "work_order": work_order,
         "status_choices": status_choices,
         "job_card": project.job_card.url if project.job_card else None,
         "attachment_file": project.attachment.url if project.attachment else None,
@@ -1381,3 +1392,139 @@ def change_password(request):
         form = PasswordChangeForm(user=request.user)
     
     return render(request, 'Admin/change_password.html', {'form': form, 'role': 'Admin'})
+
+
+
+@login_required
+def create_work_order_view_admin(request, project_id):
+    user = request.user
+    if not user.is_superuser:
+        return redirect('custom-login')
+
+    project = get_object_or_404(Project, id=project_id)
+
+    if request.method == 'POST':
+        form = WorkOrderForm(request.POST, user=user, project=project)
+        if form.is_valid():
+            work_order = form.save(commit=False)
+            work_order.created_by = user
+            work_order.project = project
+            work_order.save()
+
+            # Assign team members to job
+            teams = Team.objects.filter(project=project)
+            team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
+            work_order.job_assigned_to.set(User.objects.filter(employee_profile__in=team_members))
+
+            messages.success(request, "Work Order created successfully by Superadmin.")
+            return redirect('admin_view_work_order', pk=work_order.pk)
+    else:
+        form = WorkOrderForm(user=user, project=project)
+
+    return render(request, 'Admin/create_work_order.html', {
+        'form': form,
+        'project': project
+    })
+
+
+@login_required
+def admin_view_work_order(request, pk):
+    if not request.user.is_superuser:
+        messages.error(request, "You are not authorized to view this page.")
+        return redirect('custom-login')
+
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+
+    return render(request, 'Admin/view_work_order.html', {
+        'work_order': work_order
+    })
+
+
+def is_superadmin(user):
+    return user.is_superuser or (hasattr(user, 'employee_profile') and user.employee_profile.role == 'superadmin')
+
+@login_required
+@user_passes_test(is_superadmin)
+def admin_update_work_order_view(request, pk):
+    work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order_detail, _ = WorkOrderDetail.objects.get_or_create(work_order=work_order)
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                form = WorkOrderForm(request.POST, instance=work_order)
+                if form.is_valid():
+                    work_order = form.save()
+
+                    # Update detail
+                    work_order_detail.start_date = parse_date(request.POST.get('start_date'))
+                    work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
+                    work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
+                    work_order_detail.start_time = parse_time(request.POST.get('start_time')) or None
+                    work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
+                    work_order_detail.save()
+
+                    # Clear related
+                    Spare.objects.filter(work_order=work_order).delete()
+                    Tool.objects.filter(work_order=work_order).delete()
+                    Document.objects.filter(work_order=work_order).delete()
+
+                    # Save new
+                    for name, unit, qty in zip(
+                        request.POST.getlist('spare_name[]'),
+                        request.POST.getlist('spare_unit[]'),
+                        request.POST.getlist('spare_quantity[]')
+                    ):
+                        if name.strip():
+                            Spare.objects.create(
+                                work_order=work_order,
+                                name=name.strip(),
+                                unit=unit.strip(),
+                                quantity=int(qty or 0)
+                            )
+
+                    for name, qty in zip(
+                        request.POST.getlist('tool_name[]'),
+                        request.POST.getlist('tool_quantity[]')
+                    ):
+                        if name.strip():
+                            Tool.objects.create(
+                                work_order=work_order,
+                                name=name.strip(),
+                                quantity=int(qty or 0)
+                            )
+
+                    for name, status in zip(
+                        request.POST.getlist('doc_name[]'),
+                        request.POST.getlist('doc_status[]')
+                    ):
+                        if name.strip():
+                            Document.objects.create(
+                                work_order=work_order,
+                                name=name.strip(),
+                                status=status.strip()
+                            )
+
+                    messages.success(request, "Work order updated successfully.")
+                    return redirect('admin_view_work_order', pk=pk)
+
+                else:
+                    messages.error(request, "Work Order form has errors.")
+        except Exception as e:
+            messages.error(request, f"Error saving work order: {str(e)}")
+
+    else:
+        form = WorkOrderForm(instance=work_order)
+
+    context = {
+        'form': form,
+        'work_order': work_order,
+        'work_order_detail': work_order_detail,
+        'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+        'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+        'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+    }
+
+    return render(request, 'Admin/update_work_order.html', context)
+
+

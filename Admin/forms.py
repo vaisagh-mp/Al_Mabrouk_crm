@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.timezone import now
 from django.contrib.auth.models import User
-from .models import Project, ProjectAssignment, Employee, Leave
+from .models import Project, ProjectAssignment, Employee, Leave, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Team
 
 class EmployeeCreationForm(forms.ModelForm):
     ROLE_CHOICES = [
@@ -83,7 +83,6 @@ class EmployeeCreationForm(forms.ModelForm):
             )
 
         return user
-
 
 
 # Define a form for the Project model
@@ -204,3 +203,49 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
         if commit:
             employee.save()
         return employee
+
+
+class WorkOrderForm(forms.ModelForm):
+    assigned_date = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}),
+        input_formats=['%Y-%m-%d'],
+    )
+
+    class Meta:
+        model = WorkOrder
+        fields = [
+            'work_order_number', 'vessel', 'client', 'imo_no',
+            'location', 'assigned_date', 'job_scope', 'job_instructions'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        self.project = kwargs.pop('project', None) 
+        super().__init__(*args, **kwargs)
+
+        
+
+class WorkOrderDetailForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrderDetail
+        fields = '__all__'
+
+class EngineerWorkOrderDetailForm(forms.ModelForm):
+    class Meta:
+        model = WorkOrderDetail
+        fields = ['start_time', 'finish_time']
+
+class SpareForm(forms.ModelForm):
+    class Meta:
+        model = Spare
+        fields = ['name', 'unit', 'quantity']
+
+class ToolForm(forms.ModelForm):
+    class Meta:
+        model = Tool
+        fields = ['name', 'quantity']
+
+class DocumentForm(forms.ModelForm):
+    class Meta:
+        model = Document
+        fields = ['name', 'status']

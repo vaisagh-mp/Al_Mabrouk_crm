@@ -1,0 +1,130 @@
+{% extends 'Manager/managerbase.html' %}
+{% load static %}
+
+{% block content %}
+<div class="wrk-rprt-frm">
+  <h2>Update Work Order</h2>
+
+  <form id="workOrderForm" method="post">
+    {% csrf_token %}
+
+    {{ form.non_field_errors }}
+
+    <div class="grid-2">
+      <div>
+        <label for="{{ form.work_order_number.id_for_label }}">Work Order Number</label>
+        {{ form.work_order_number }}
+      </div>
+      <div>
+        <label for="{{ form.vessel.id_for_label }}">Vessel</label>
+        {{ form.vessel }}
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label for="{{ form.client.id_for_label }}">Client</label>
+        {{ form.client }}
+      </div>
+      <div>
+        <label for="{{ form.imo_no.id_for_label }}">IMO Number</label>
+        {{ form.imo_no }}
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label for="{{ form.location.id_for_label }}">Location</label>
+        {{ form.location }}
+      </div>
+      <div>
+        <label for="{{ form.assigned_date.id_for_label }}">Assigned Date</label>
+        {{ form.assigned_date }}
+      </div>
+    </div>
+
+    <div>
+      <label for="{{ form.job_scope.id_for_label }}">Job Scope</label>
+      {{ form.job_scope }}
+    </div>
+
+    <div>
+      <label for="{{ form.job_instructions.id_for_label }}">Job Instruction</label>
+      {{ form.job_instructions }}
+    </div>
+
+    <div>
+      <label>Spares Required</label>
+      <table id="sparesTable">
+        <thead>
+          <tr>
+            <th>Spare Name</th>
+            <th>Unit</th>
+            <th>Quantity</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addSpareRow()">Add Spare</button>
+    </div>
+
+    <div>
+      <label>Tools Required</label>
+      <table id="toolsTable">
+        <thead>
+          <tr>
+            <th>Tool Name</th>
+            <th>Quantity</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addToolRow()">Add Tool</button>
+    </div>
+
+    <div>
+      <label>Documents</label>
+      <table id="docsTable">
+        <thead>
+          <tr>
+            <th>Document Name</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="add-btn" onclick="addDocRow()">Add Document</button>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <label>Start Date</label>
+        <input type="date" name="start_date" value="{{ work_order_detail.start_date|date:'Y-m-d' }}">
+      </div>
+      <div>
+        <label>Completion Date</label>
+        <input type="date" name="completion_date" value="{{ work_order_detail.completion_date|date:'Y-m-d' }}">
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div>
+        <label>Estimated Hours</label>
+        <input type="number" name="estimated_hours" value="{{ work_order_detail.estimated_hours|default_if_none:'' }}">
+      </div>
+      <div>
+        <label>Start Time</label>
+        <input type="time" name="start_time" value="{{ work_order_detail.start_time|time:'H:i' }}">
+      </div>
+      <div>
+        <label>Finish Time</label>
+        <input type="time" name="finish_time" value="{{ work_order_detail.finish_time|time:'H:i' }}">
+      </div>
+    </div>
+
+    <button type="submit">Submit</button>
+  </form>
+</div>
+
+
+{% endblock %}

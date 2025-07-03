@@ -1,0 +1,224 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Work Order PDF</title>
+<style>
+  @page {
+    size: A4;
+    margin: 100px 50px 100px 50px;
+    border: 1px solid black;
+
+    @top-center {
+      content: element(header);
+    }
+
+    @bottom-center {
+      content: element(footer);
+    }
+
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 10px;
+      color: #555;
+    }
+  }
+
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    color: #333;
+    margin-top: 15px;
+    
+  }
+
+  header {
+    position: running(header);
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  footer {
+    position: running(footer);
+    text-align: center;
+    font-size: 10px;
+    border-top: 1px solid #444;
+    padding-top: 5px;
+  }
+
+  .wo-title {
+    font-weight: bold;
+    margin: 10px 0 5px 0;
+    font-size: 14px;
+  }
+
+  .wo-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+
+  .wo-table, .wo-table th, .wo-table td {
+    border: 1px solid #000;
+    padding: 6px;
+    text-align: left;
+  }
+
+  .section {
+    margin-bottom: 25px;
+  }
+
+  pre {
+    white-space: pre-wrap;
+    font-family: inherit;
+  }
+
+  .content {
+    padding: 30px;
+    box-sizing: border-box;
+  }
+</style>
+
+</head>
+<body>
+
+
+<header>
+  <img src="data:image/png;base64,{{ logo_base64 }}" alt="Company Logo" />
+</header>
+
+
+<footer>
+  Dubai Maritime City, Warehouse No: 310, P.O. Box: 19276<br>
+  Tel: +971 507349177 &nbsp;|&nbsp; Email: automation@blessedmarineautomation.com
+</footer>
+
+<h4 style="text-align: center; color: #3d6999;">WORK ORDER REPORT</h4>
+<div class="content">
+  
+  <!-- Work Order Basic Info -->
+  <table class="wo-table">
+    <tr>
+      <td><strong>Work Order Number:</strong> {{ work_order.work_order_number }}</td>
+      <td><strong>Vessel:</strong> {{ work_order.vessel }}</td>
+    </tr>
+    <tr>
+      <td><strong>Client:</strong> {{ work_order.client }}</td>
+      <td><strong>IMO No:</strong> {{ work_order.imo_no }}</td>
+    </tr>
+    <tr>
+      <td><strong>Location:</strong> {{ work_order.location }}</td>
+      <td><strong>Assigned Date:</strong> {{ work_order.assigned_date }}</td>
+    </tr>
+  </table>
+
+  <div class="section">
+    <div class="wo-title">JOB SCOPE:</div>
+    <div>{{ work_order.job_scope }}</div>
+  </div>
+
+  <div class="section">
+    <div class="wo-title">JOB ASSIGNED TO:</div>
+    <ul>
+      {% for user in work_order.job_assigned_to.all %}
+        <li>{{ user.get_full_name|default:user.username }}</li>
+      {% empty %}
+        <li>No one assigned.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <table class="wo-table">
+    <tr>
+      <th>WORK DETAILS</th>
+      <td>{{ work_order.job_scope }}</td>
+    </tr>
+    <tr>
+      <th>START DATE</th>
+      <td>{{ work_order.detail.start_date|default:"--/--/--" }}</td>
+    </tr>
+    <tr>
+      <th>COMPLETION DATE</th>
+      <td>{{ work_order.detail.completion_date|default:"--/--/--" }}</td>
+    </tr>
+    <tr>
+      <th>ESTIMATED HOURS</th>
+      <td>{{ work_order.detail.estimated_hours|default:"00:00" }}</td>
+    </tr>
+    <tr>
+      <th>START TIME</th>
+      <td>{{ work_order.detail.start_time|default:"00:00" }}</td>
+    </tr>
+    <tr>
+      <th>FINISH TIME</th>
+      <td>{{ work_order.detail.finish_time|default:"00:00" }}</td>
+    </tr>
+  </table>
+
+  <div class="section">
+    <div class="wo-title">JOB INSTRUCTIONS:</div>
+    <pre>{{ work_order.job_instructions }}</pre>
+  </div>
+
+  <div class="section">
+    <div class="wo-title">SPARES REQUIRED</div>
+    <table class="wo-table">
+      <tr>
+        <th>Name</th>
+        <th>Unit</th>
+        <th>Quantity</th>
+      </tr>
+      {% for spare in work_order.spares.all %}
+      <tr>
+        <td>{{ spare.name }}</td>
+        <td>{{ spare.unit }}</td>
+        <td>{{ spare.quantity }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="3">No spares listed.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="wo-title">TOOLS REQUIRED</div>
+    <table class="wo-table">
+      <tr>
+        <th>Tool Name</th>
+        <th>Quantity</th>
+      </tr>
+      {% for tool in work_order.tools.all %}
+      <tr>
+        <td>{{ tool.name }}</td>
+        <td>{{ tool.quantity }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2">No tools listed.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="wo-title">DOCUMENTS</div>
+    <table class="wo-table">
+      <tr>
+        <th>Document Name</th>
+        <th>Status</th>
+      </tr>
+      {% for doc in work_order.documents.all %}
+      <tr>
+        <td>{{ doc.name }}</td>
+        <td>{{ doc.status }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="2">No documents listed.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+</body>
+</html>
+

@@ -12,6 +12,7 @@
     <!-- Fontawesome -->
     <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
@@ -599,6 +600,44 @@
   });
 </script>
 
+
+<script>
+  const spares = {{ spares|safe }};
+  const tools = {{ tools|safe }};
+  const documents = {{ documents|safe }};
+
+  function addSpareRow(name = '', unit = '', quantity = '') {
+    const table = document.querySelector('#sparesTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="spare_name[]" value="${name}"></td>
+      <td><input type="text" name="spare_unit[]" value="${unit}"></td>
+      <td><input type="number" name="spare_quantity[]" value="${quantity}"></td>`;
+  }
+
+  function addToolRow(name = '', quantity = '') {
+    const table = document.querySelector('#toolsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="tool_name[]" value="${name}"></td>
+      <td><input type="number" name="tool_quantity[]" value="${quantity}"></td>`;
+  }
+
+  function addDocRow(name = '', status = '') {
+    const table = document.querySelector('#docsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="doc_name[]" value="${name}"></td>
+      <td><input type="text" name="doc_status[]" value="${status}"></td>`;
+  }
+
+  // Prepopulate existing data
+  window.onload = function () {
+    spares.forEach(spare => addSpareRow(spare.name, spare.unit, spare.quantity));
+    tools.forEach(tool => addToolRow(tool.name, tool.quantity));
+    documents.forEach(doc => addDocRow(doc.name, doc.status));
+  }
+</script>
 
 </body>
 
