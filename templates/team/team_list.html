@@ -15,8 +15,7 @@
                 <tr style="border-bottom: 1px solid #ccc">
                     <th></th>
                     <th></th>
-                    <th></th>
-                    <th>
+                    <th style="justify-items: center;">
                         <div class="add-new-emply">
                             <div class="table-searchbar">
                                 <div class="sidebar-search">
@@ -30,21 +29,17 @@
                                           </button>
                                       </form>
                                   </div>
-                                  
                                   </div>
                                 </div>
-                              </div>
-                            <a class="badge bg-warning" href="{% url 'team-create' %}">
-                                Add <i class="fas fa-plus"></i>
-                            </a>
-                            <!-- <div class="dwnld-dropdown">
-                                <a href="#" title="Download"><i class="fas fa-download"></i></a>
-                                <div class="dwnld-dropdown-content">
-                                    <a href="#" title="Download XLSX">XLSX</a>
-                                    <a href="#" title="Download CSV">CSV</a>
-                                </div>
-                            </div> -->
+                            </div>
                         </div>
+                    </th>
+                    <th style="justify-items: normal;">  
+                        <div class="add-new-emply">
+                        <a class="badge bg-warning" href="{% url 'team-create' %}">
+                                Add <i class="fas fa-plus"></i>
+                        </a>
+                    </div>   
                     </th>
                 </tr>
             </thead>
@@ -77,33 +72,40 @@
                 </tr>
                 {% endfor %}
             </tbody>
-        </table>
-
-        <!-- Dynamic Pagination -->
-        {% if teams.has_other_pages %}
-        <div class="pagination" id="pagination">
-            {% if teams.has_previous %}
-                <a href="?search={{ search_query }}&page={{ teams.previous_page_number }}">
-                    <button>&laquo; Prev</button>
-                </a>
-            {% endif %}
-
-            {% for num in teams.paginator.page_range %}
-                <a href="?search={{ search_query }}&page={{ num }}">
-                    <button class="{% if num == teams.number %}active{% endif %}">{{ num }}</button>
-                </a>
-            {% endfor %}
-
-            {% if teams.has_next %}
-                <a href="?search={{ search_query }}&page={{ teams.next_page_number }}">
-                    <button>Next &raquo;</button>
-                </a>
-            {% endif %}
-        </div>
-        {% endif %}
-        <!-- Pagination Ends -->
-        
+        </table> 
     </div>
+
+    {% if teams.has_other_pages %}
+<div class="pagination" id="pagination">
+    {% if teams.has_previous %}
+        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ teams.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with teams.number as current %}
+        {% for num in teams.paginator.page_range %}
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endwith %}
+
+    {% if teams.has_next %}
+        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ teams.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+{% endif %}
+
+
 </div>
 
 {% endblock %}

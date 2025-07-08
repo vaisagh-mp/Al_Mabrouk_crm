@@ -75,10 +75,10 @@
         <p>
           {% if emp_change_percent >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
-            <span>{{ emp_change_percent|floatformat:0 }}%</span> Since last month
+            <span>{{ emp_change_percent|absolute }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ emp_change_percent|floatformat:0|abs_value }}%</span> since last month
+            <span>{{ emp_change_percent|absolute }}%</span> Since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons">
@@ -133,7 +133,13 @@
               <div>
                   <p>Project Completion</p>
                   <p>
-                      <i class="fas fa-arrow-up"></i> <span>{{ completion_percentage }}%</span> Since last month
+                    {% if completion_percentage_this_month >= 0 %}
+                      <i class="fas fa-arrow-up text-success"></i>
+                      <span>{{ completion_percentage_this_month }}%</span> Since last month
+                    {% else %}
+                      <i class="fas fa-arrow-down text-danger"></i>
+                      <span>{{ completion_percentage_this_month|absolute }}%</span> Since last month
+                    {% endif %}
                   </p>
               </div>
               <div>
@@ -202,12 +208,13 @@
           <div>
               <p>Client Growth</p>
               <p>
-                  {% if client_growth_percentage >= 0 %}
-                      <i class="fas fa-arrow-up"></i>
-                  {% else %}
-                      <i class="fas fa-arrow-down"></i>
-                  {% endif %}
+                {% if client_growth_percentage >= 0 %}
+                  <i class="fas fa-arrow-up text-success"></i>
                   <span>{{ client_growth_percentage }}%</span> Since last month
+                {% else %}
+                  <i class="fas fa-arrow-down text-danger"></i>
+                  <span>{{ client_growth_percentage|absolute }}%</span> Since last month
+                {% endif %}
               </p>
           </div>
           <div>

@@ -63,6 +63,10 @@ def dashboard(request):
         # Active Employees
         active_employees = Employee.objects.filter(user__is_active=True).count()
 
+        employees_this_month = Employee.objects.filter(
+            user__date_joined__date__gte=start_of_this_month
+        ).count()
+
         # Employees added last month
         employees_last_month = Employee.objects.filter(
             user__date_joined__date__gte=start_of_last_month,
@@ -71,10 +75,9 @@ def dashboard(request):
 
         # Calculate change percentage
         if employees_last_month > 0:
-            emp_change_percent = ((active_employees - employees_last_month) / employees_last_month) * 100
-            emp_change_percent = min(emp_change_percent, 100)  # Cap at 100%
+            emp_change_percent = ((employees_this_month - employees_last_month) / employees_last_month) * 100
         else:
-            emp_change_percent = 100 if active_employees > 0 else 0
+            emp_change_percent = 100 if employees_this_month > 0 else 0
         
         # Total Revenue (Invoice Amount Sum)
         total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
@@ -125,6 +128,22 @@ def dashboard(request):
         # Overdue Projects (where deadline_date has passed but status is not completed)
         overdue_projects = Project.objects.filter(deadline_date__lt=now().date(), status__in=['ONGOING', 'PENDING','HOLD','ASSIGN']).count()
         
+        # Projects created this month
+        projects_this_month_total = Project.objects.filter(
+            created_at__date__gte=first_day_this_month
+        ).count()
+
+        # Completed projects this month
+        completed_this_month = Project.objects.filter(
+            created_at__date__gte=first_day_this_month,
+            status='COMPLETED'
+        ).count()
+
+        # Completion percentage for this month
+        completion_percentage_this_month = (
+            (completed_this_month / projects_this_month_total) * 100
+        ) if projects_this_month_total > 0 else 0
+
         # Project Completion Percentage
         completion_percentage = (completed_projects / total_projects * 100) if total_projects > 0 else 0
         
@@ -206,6 +225,7 @@ def dashboard(request):
             'completed_projects': completed_projects,
             'overdue_projects': overdue_projects,
             'completion_percentage': round(completion_percentage, 2),
+            'completion_percentage_this_month': round(completion_percentage_this_month, 2),
             'client_count': client_count,
             'client_change_percent': round(client_change_percent, 2),
             'client_change_percent_abs': abs(round(client_change_percent, 2)),
