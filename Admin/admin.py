@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
 
 
 @admin.register(Project)
@@ -171,3 +171,9 @@ class DocumentAdmin(admin.ModelAdmin):
 @admin.register(WorkOrderDetail)
 class WorkOrderDetailAdmin(admin.ModelAdmin):
     list_display = ['work_order', 'start_date', 'completion_date', 'estimated_hours']
+
+
+@admin.register(Vessel)
+class VesselAdmin(admin.ModelAdmin):
+    list_display = ('id', 'name')
+    search_fields = ('name',)

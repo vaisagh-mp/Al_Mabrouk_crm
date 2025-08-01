@@ -18,7 +18,7 @@ from datetime import datetime
 from django.contrib import messages
 from django.core.paginator import Paginator
 from Admin.forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
-from Admin.models import Project, TeamMemberStatus, ActivityLog, Attendance,Employee,LeaveBalance, Team, Leave, Notification, Holiday, ProjectAttachment
+from Admin.models import Project, TeamMemberStatus, ActivityLog, Attendance,Employee,LeaveBalance, Team, Leave, Notification, Holiday, ProjectAttachment, Vessel
 
 
 @login_required
@@ -28,6 +28,7 @@ def admstrn_log_in(request):
         project_id = request.POST.get("project")
         location = request.POST.get("location")
         attendance_status = request.POST.get("attendance_status")
+        vessel_id = request.POST.get("vessel")
 
         # Retrieve the travel times from the POST data
         travel_in_time_str = request.POST.get("travel_in_time")
@@ -41,6 +42,7 @@ def admstrn_log_in(request):
             log_out_time__isnull=True,  # Prevent multiple active punch-ins
             defaults={
                 "location": location,
+                "vessel_id": vessel_id,
                 "attendance_status": attendance_status,
                 "login_time": now(),
                 "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
@@ -95,6 +97,7 @@ def admstrn_render_attendance_page(request):
     attendance_status_choices = Attendance.ATTENDANCE_STATUS
     location_choices = Attendance.LOCATION_CHOICES
     projects = Project.objects.all()
+    vessels = Vessel.objects.all()
 
     return render(request, "administration/punchin.html", {
         'role': 'Administration',
@@ -102,6 +105,7 @@ def admstrn_render_attendance_page(request):
         "location_choices": location_choices,
         "projects": projects,
         "user_attendance": user_attendance,
+        "vessels": vessels,
     })
 
 

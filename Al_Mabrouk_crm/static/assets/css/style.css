@@ -679,6 +679,11 @@ header .dropdown-menu {
   .page-wrapper.collapsed {
     margin-left: 70px;
   }
+
+  .sidebar-wrapper.sidebar.collapsed .sidebar-search{
+    display: none;
+
+  }
 }
 
 @media (max-width: 992px) {

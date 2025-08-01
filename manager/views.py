@@ -8,6 +8,8 @@ from django.utils.timezone import now
 from django.utils.timezone import localtime
 from django.template.loader import get_template
 from django.template.loader import render_to_string
+from django.views.decorators.csrf import csrf_exempt
+from django.urls import reverse
 from django.http import HttpResponse
 from weasyprint import HTML
 from django.utils import timezone
@@ -25,12 +27,12 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils.dateparse import parse_date, parse_time
 from django.forms import modelformset_factory
-from Admin.forms import ProjectAssignmentForm, WorkOrderForm, WorkOrderForm, WorkOrderDetailForm, SpareForm, ToolForm, DocumentForm
+from Admin.forms import ProjectAssignmentForm, WorkOrderForm, WorkOrderForm, WorkOrderDetailForm, SpareForm, ToolForm, DocumentForm, VesselForm
 from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel  
 
 
 # Home
@@ -1352,8 +1354,9 @@ def manager_log_in(request):
         project_id = request.POST.get("project")
         location = request.POST.get("location")
         attendance_status = request.POST.get("attendance_status")
+        vessel_id = request.POST.get("vessel")  # Get selected vessel ID
 
-        # Retrieve the travel times from the POST data
+        # Retrieve travel times
         travel_in_time_str = request.POST.get("travel_in_time")
         travel_out_time_str = request.POST.get("travel_out_time")
         travel_in_time = parse_datetime(travel_in_time_str) if travel_in_time_str else None
@@ -1362,15 +1365,16 @@ def manager_log_in(request):
         attendance, created = Attendance.objects.get_or_create(
             employee=employee,
             project_id=project_id,
-            log_out_time__isnull=True,  # Prevent multiple active punch-ins
+            log_out_time__isnull=True,
             defaults={
                 "location": location,
                 "attendance_status": attendance_status,
                 "login_time": now(),
-                "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
+                "travel_in_time": travel_in_time,
                 "travel_out_time": travel_out_time,
                 "status": "APPROVED",
-                "total_hours_of_work": 0,  # Default value
+                "total_hours_of_work": 0,
+                "vessel_id": vessel_id  # Store selected vessel
             },
         )
 
@@ -1419,11 +1423,13 @@ def manager_render_attendance_page(request):
     attendance_status_choices = Attendance.ATTENDANCE_STATUS
     location_choices = Attendance.LOCATION_CHOICES
     projects = Project.objects.all()
+    vessels = Vessel.objects.all()
 
     return render(request, "Manager/punchin.html", {
         "attendance_status_choices": attendance_status_choices,
         "location_choices": location_choices,
         "projects": projects,
+        "vessels": vessels,
         "user_attendance": user_attendance,
         "role": "Manager"
     })
@@ -1593,3 +1599,110 @@ def download_work_order_pdf(request, pk):
     response['Content-Disposition'] = f'attachment; filename="work_order_{work_order.work_order_number}.pdf"'
     return response
 
+
+
+# Main view for list + forms
+def manager_vessel_list(request):
+    vessels = Vessel.objects.all()
+    search_query = request.GET.get('search', '')
+    if search_query:
+        vessels = vessels.filter(name__icontains=search_query)
+
+    paginator = Paginator(vessels, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    form = VesselForm()
+    return render(request, 'Manager/vessel.html', {
+        'vessels': page_obj,
+        'projects': page_obj,
+        'form': form,
+        'search_query': search_query,
+    })
+
+
+# Create vessel (AJAX)
+def manager_vessel_create(request):
+    if request.method == 'POST':
+        form = VesselForm(request.POST)
+        if form.is_valid():
+            vessel = form.save()
+            return JsonResponse({'success': True, 'id': vessel.id, 'name': vessel.name})
+        else:
+            return JsonResponse({'success': False, 'errors': form.errors})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+# Update vessel (AJAX)
+def manager_vessel_update(request, pk):
+    vessel = get_object_or_404(Vessel, pk=pk)
+    if request.method == 'POST':
+        form = VesselForm(request.POST, instance=vessel)
+        if form.is_valid():
+            vessel = form.save()
+            return JsonResponse({'success': True, 'id': vessel.id, 'name': vessel.name})
+        else:
+            return JsonResponse({'success': False, 'errors': form.errors})
+    else:
+        form = VesselForm(instance=vessel)
+        return JsonResponse({'name': vessel.name})
+
+
+# Delete vessel (AJAX)
+@csrf_exempt
+def manager_vessel_delete(request, pk):
+    if request.method == 'POST':
+        vessel = get_object_or_404(Vessel, pk=pk)
+        vessel.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+def manager_search_redirect_view(request):
+    search_query = request.GET.get('search', '').strip()
+
+    if not search_query:
+        return redirect('project_list')  # fallback
+
+    # 1. Search Project (name, code, client_name)
+    matching_projects = Project.objects.filter(
+        Q(name__icontains=search_query) |
+        Q(code__icontains=search_query) |
+        Q(client_name__icontains=search_query)
+    )
+
+    if matching_projects.count() == 1:
+        return redirect('project-summary-view', project_id=matching_projects.first().id)
+    elif matching_projects.exists():
+        # optionally pass query param to filter project list
+        return redirect(f"{reverse('project_list')}?search={search_query}")
+
+    # 2. Search Vessel by name
+    matching_vessels = Vessel.objects.filter(
+        name__icontains=search_query
+    )
+
+    if matching_vessels.exists():
+        return redirect(f"{reverse('manager_vessel_list')}?search={search_query}")
+    # 3. Search Vessel by name
+    matching_vessels = Team.objects.filter(
+        name__icontains=search_query
+    )
+
+    if matching_vessels.exists():
+        return redirect(f"{reverse('team-list')}?search={search_query}")
+
+    # 4. Search Attendance by location or vessel name or project code
+    matching_attendance = Attendance.objects.filter(
+        Q(location__icontains=search_query) |
+        Q(vessel__name__icontains=search_query) |
+        Q(project__name__icontains=search_query) |
+        Q(project__code__icontains=search_query)
+    ).distinct()
+
+    if matching_attendance.exists():
+        return redirect(f"{reverse('attendance_list')}?search={search_query}")
+
+    # Default fallback
+    return redirect('project_list')    

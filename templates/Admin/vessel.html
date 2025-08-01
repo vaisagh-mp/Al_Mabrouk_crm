@@ -1,0 +1,288 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+<style>
+  #vesselTable {
+    width: 100%;
+    border-collapse: collapse; /* Removes spacing between cells */
+  }
+
+  #vesselTable th,
+  #vesselTable td {
+    padding: 15px 8px;           /* Less padding */
+    font-size: 14px;
+    vertical-align: middle;
+    min-width: unset !important;
+    max-width: unset !important;
+  }
+
+  #vesselTable th:nth-child(1),
+  #vesselTable td:nth-child(1) {
+    width: 50px;
+    text-align: center;
+  }
+
+  #vesselTable th:nth-child(2),
+  #vesselTable td:nth-child(2) {
+    width: 250px;
+  }
+
+  #vesselTable th:nth-child(3),
+  #vesselTable td:nth-child(3) {
+    width: 100px;
+    text-align: center;
+  }
+
+  .table-header-tools {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .search-menu {
+    height: 32px;
+    font-size: 14px;
+    padding: 4px 8px;
+  }
+
+  .srh-btn {
+    height: 32px;
+    padding: 0 10px;
+    background-color: #e9e9ed;
+    color: #000;
+    border: none;
+    font-size: 14px;
+  }
+
+  .add-new-emply a {
+    padding: 10px 10px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .widget-box.vessel{width: 70%;margin: auto;}
+  @media(max-width:767px){
+     .widget-box.vessel{width: 100%;}
+  }
+</style>
+
+
+<div class="emply-list-wraper">
+
+  {% if messages %}
+    <div class="container mt-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="pg-title">
+    <h1>All Vessels</h1>
+  </div>
+
+  <div class="widget-box table-wdgt vessel">
+  <div class="table-header-tools">
+    <form method="GET" action="" class="d-flex">
+      <input type="text" name="search" class="form-control search-menu" placeholder="Search projects..." value="{{ search_query }}" />
+      <button class="srh-btn" type="submit">
+        <i class="fa fa-search" aria-hidden="true"></i>
+      </button>
+    </form>
+    <div class="add-new-emply">
+      <a class="badge bg-warning" data-bs-toggle="modal" data-bs-target="#formModal">
+        Add <i class="fas fa-plus"></i>
+      </a>
+    </div>
+  </div>
+
+  <table id="vesselTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Vessel Name</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for vessel in vessels %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ vessel.name }}</td>
+        <td>
+          <a href="#" onclick="openEditModal({{ vessel.id }})">
+            <i class="far fa-edit text-primary"></i>
+          </a>
+          <a href="#" onclick="return confirmDelete({{ vessel.id }});">
+            <i class="far fa-trash-alt text-danger ms-2"></i>
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+  <div class="pagination mt-3" id="pagination">
+    {% if projects.has_previous %}
+      <a href="?page={{ projects.previous_page_number }}&search={{ search_query }}">
+        <button>&laquo; Prev</button>
+      </a>
+    {% endif %}
+
+    {% for num in projects.paginator.page_range %}
+      {% if num >= projects.number|add:'-1' and num <= projects.number|add:'1' %}
+        <a href="?page={{ num }}&search={{ search_query }}">
+          <button class="{% if num == projects.number %}active{% endif %}">{{ num }}</button>
+        </a>
+      {% endif %}
+    {% endfor %}
+
+    {% if projects.has_next %}
+      <a href="?page={{ projects.next_page_number }}&search={{ search_query }}">
+        <button>Next &raquo;</button>
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Create Modal -->
+<div class="modal fade" id="formModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="projectForm" method="POST">
+      {% csrf_token %}
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add New Vessel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="id_name" class="form-label">{{ form.name.label }}</label>
+            {{ form.name }}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="editForm" method="POST">
+      {% csrf_token %}
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Edit Vessel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="edit-name" class="form-label">Vessel Name</label>
+            <input type="text" name="name" id="edit-name" class="form-control" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- JS: AJAX CRUD -->
+<script>
+  // Create
+  document.getElementById('projectForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const form = e.target;
+    const csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch("{% url 'vessel_create' %}", {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new FormData(form)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert("Vessel added successfully");
+        location.reload();
+      } else {
+        alert("Error: " + JSON.stringify(data.errors));
+      }
+    });
+  });
+
+  // Edit
+  function openEditModal(id) {
+    fetch(`/admin-panel/vessel-update/${id}/`)
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('edit-name').value = data.name;
+        document.getElementById('editForm').action = `/admin-panel/vessel-update/${id}/`;
+        const modal = new bootstrap.Modal(document.getElementById('editModal'));
+        modal.show();
+      });
+  }
+
+  // Update
+  document.getElementById('editForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const form = e.target;
+    const csrf = form.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch(form.action, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf,
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: new FormData(form)
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        alert("Vessel updated");
+        location.reload();
+      } else {
+        alert("Error: " + JSON.stringify(data.errors));
+      }
+    });
+  });
+
+  // Delete
+  function confirmDelete(id) {
+    if (confirm("Are you sure you want to delete this vessel?")) {
+      fetch(`/admin-panel/delete/${id}/`, {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          alert("Vessel deleted");
+          location.reload();
+        } else {
+          alert("Delete failed");
+        }
+      });
+    }
+    return false;
+  }
+</script>
+
+{% endblock %}

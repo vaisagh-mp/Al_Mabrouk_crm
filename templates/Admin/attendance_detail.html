@@ -36,6 +36,10 @@
                     <td>{{ attendance.get_location_display }}</td>
                 </tr>
                 <tr>
+                    <th>Vessel</th>
+                    <td>{{ attendance.vessel| default:'N/A' }}</td>
+                </tr>
+                <tr>
                     <th>Attendance Status</th>
                     <td>{{ attendance.get_attendance_status_display }}</td>
                 </tr>
@@ -49,7 +53,7 @@
                 </tr>
                 <tr>
                     <th>Rejected By</th>
-                    <td>{{ attendance.rejected_by.get_full_name }}</td>
+                    <td>{{ attendance.rejected_by.get_full_name|default:'N/A'}}</td>
                 </tr>
                 <tr>
                     <th>Travel In Time</th>

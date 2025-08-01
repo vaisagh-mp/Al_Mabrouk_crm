@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.timezone import now
 from django.contrib.auth.models import User
-from .models import Project, ProjectAssignment, Employee, Leave, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Team
+from .models import Project, ProjectAssignment, Employee, Leave, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Team, Vessel
 
 class EmployeeCreationForm(forms.ModelForm):
     ROLE_CHOICES = [
@@ -249,3 +249,9 @@ class DocumentForm(forms.ModelForm):
     class Meta:
         model = Document
         fields = ['name', 'status']
+
+
+class VesselForm(forms.ModelForm):
+    class Meta:
+        model = Vessel
+        fields = ['name']

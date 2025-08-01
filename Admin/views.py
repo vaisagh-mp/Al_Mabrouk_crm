@@ -2,8 +2,10 @@ from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
+from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
+from django.urls import reverse
 from django.http import HttpResponseForbidden
 from datetime import date
 from datetime import timedelta
@@ -17,12 +19,12 @@ from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.contrib import messages
 from django.contrib.auth.forms import UserCreationForm
-from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm
+from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm, VesselForm
 from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
 
 
 # Home
@@ -205,8 +207,25 @@ def dashboard(request):
         
         client_growth_percentage = calculate_growth(new_clients, clients_last_month)
 
+        search_query = request.GET.get('search', '')
+        projects = Project.objects.all()
+
+        if search_query:
+            filtered_projects = projects.filter(
+                Q(name__icontains=search_query) |
+                Q(client_name__icontains=search_query)
+            )
+
+            if filtered_projects.count() == 1:
+                # Redirect to the project summary view
+                return redirect('project-summary', project_id=filtered_projects.first().id)
+            else:
+                projects = filtered_projects
+
         context = {
             "role": "Admin",
+            'projects': projects,
+            'search_query': search_query,
             'total_projects': total_projects,
             'change_percentage': round(change_percentage, 2),
             'change_percentage_abs': abs(round(change_percentage, 2)),
@@ -1548,3 +1567,101 @@ def admin_update_work_order_view(request, pk):
     return render(request, 'Admin/update_work_order.html', context)
 
 
+# Main view for list + forms
+def vessel_list(request):
+    vessels = Vessel.objects.all()
+    search_query = request.GET.get('search', '')
+    if search_query:
+        vessels = vessels.filter(name__icontains=search_query)
+
+    paginator = Paginator(vessels, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    form = VesselForm()
+    return render(request, 'Admin/vessel.html', {
+        'vessels': page_obj,
+        'projects': page_obj,
+        'form': form,
+        'search_query': search_query,
+    })
+
+
+# Create vessel (AJAX)
+def vessel_create(request):
+    if request.method == 'POST':
+        form = VesselForm(request.POST)
+        if form.is_valid():
+            vessel = form.save()
+            return JsonResponse({'success': True, 'id': vessel.id, 'name': vessel.name})
+        else:
+            return JsonResponse({'success': False, 'errors': form.errors})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+# Update vessel (AJAX)
+def vessel_update(request, pk):
+    vessel = get_object_or_404(Vessel, pk=pk)
+    if request.method == 'POST':
+        form = VesselForm(request.POST, instance=vessel)
+        if form.is_valid():
+            vessel = form.save()
+            return JsonResponse({'success': True, 'id': vessel.id, 'name': vessel.name})
+        else:
+            return JsonResponse({'success': False, 'errors': form.errors})
+    else:
+        form = VesselForm(instance=vessel)
+        return JsonResponse({'name': vessel.name})
+
+
+# Delete vessel (AJAX)
+@csrf_exempt
+def vessel_delete(request, pk):
+    if request.method == 'POST':
+        vessel = get_object_or_404(Vessel, pk=pk)
+        vessel.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+def search_redirect_view(request):
+    search_query = request.GET.get('search', '').strip()
+
+    if not search_query:
+        return redirect('project-list')  # fallback
+
+    # 1. Search Project (name, code, client_name)
+    matching_projects = Project.objects.filter(
+        Q(name__icontains=search_query) |
+        Q(code__icontains=search_query) |
+        Q(client_name__icontains=search_query)
+    )
+
+    if matching_projects.count() == 1:
+        return redirect('project-summary', project_id=matching_projects.first().id)
+    elif matching_projects.exists():
+        # optionally pass query param to filter project list
+        return redirect(f"{reverse('project-list')}?search={search_query}")
+
+    # 2. Search Vessel by name
+    matching_vessels = Vessel.objects.filter(
+        name__icontains=search_query
+    )
+
+    if matching_vessels.exists():
+        return redirect(f"{reverse('vessel_list')}?search={search_query}")
+
+    # 3. Search Attendance by location or vessel name or project code
+    matching_attendance = Attendance.objects.filter(
+        Q(location__icontains=search_query) |
+        Q(vessel__name__icontains=search_query) |
+        Q(project__name__icontains=search_query) |
+        Q(project__code__icontains=search_query)
+    ).distinct()
+
+    if matching_attendance.exists():
+        return redirect(f"{reverse('attendance_list_adminview')}?search={search_query}")
+
+    # Default fallback
+    return redirect('project-list')

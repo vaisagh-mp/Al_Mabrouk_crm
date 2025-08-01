@@ -288,6 +288,14 @@ class ProjectAssignment(models.Model):
     def __str__(self):
         return f"{self.employee.user.username} on {self.project.name}"
 
+
+class Vessel(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Attendance(models.Model):
     LOCATION_CHOICES = [
         ('DMC', 'DMC Warehouse'),
@@ -333,6 +341,8 @@ class Attendance(models.Model):
     log_out_time = models.DateTimeField(null=True, blank=True)
     total_hours_of_work = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     location = models.CharField(max_length=20, choices=LOCATION_CHOICES, null=True, blank=True)
+    vessel = models.ForeignKey(
+    Vessel, on_delete=models.SET_NULL, null=True, blank=True, related_name='attendance_records')
     attendance_status = models.CharField(max_length=20, choices=ATTENDANCE_STATUS, null=True, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
     rejection_reason = models.TextField(null=True, blank=True)

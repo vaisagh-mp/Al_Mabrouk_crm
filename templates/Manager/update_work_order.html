@@ -1,6 +1,27 @@
 {% extends 'Manager/managerbase.html' %}
 {% load static %}
 
+<style>
+  .table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-responsive table {
+  width: 100%;
+  min-width: 500px; /* Or whatever minimum width your table requires */
+  border-collapse: collapse;
+}
+
+.table-responsive th,
+.table-responsive td {
+  white-space: nowrap;
+  padding: 8px;
+  text-align: left;
+}
+
+</style>
+
 {% block content %}
 <div class="wrk-rprt-frm">
   <h2>Update Work Order</h2>
@@ -53,24 +74,28 @@
       {{ form.job_instructions }}
     </div>
 
-    <div>
+    <div class="wr-ordr-tbl">
       <label>Spares Required</label>
-      <table id="sparesTable">
-        <thead>
-          <tr>
-            <th>Spare Name</th>
-            <th>Unit</th>
-            <th>Quantity</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="table-responsive">
+        <table id="sparesTable">
+          <thead>
+            <tr>
+              <th>Spare Name</th>
+              <th>Unit</th>
+              <th>Quantity</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
       <button type="button" class="add-btn" onclick="addSpareRow()">Add Spare</button>
     </div>
 
-    <div>
+
+    <div class="wr-ordr-tbl">
       <label>Tools Required</label>
-      <table id="toolsTable">
+      <div class="table-responsive">
+        <table id="toolsTable">
         <thead>
           <tr>
             <th>Tool Name</th>
@@ -79,12 +104,14 @@
         </thead>
         <tbody></tbody>
       </table>
+      </div>
       <button type="button" class="add-btn" onclick="addToolRow()">Add Tool</button>
     </div>
 
-    <div>
+    <div class="wr-ordr-tbl">
       <label>Documents</label>
-      <table id="docsTable">
+      <div class="table-responsive">
+        <table id="docsTable">
         <thead>
           <tr>
             <th>Document Name</th>
@@ -93,6 +120,8 @@
         </thead>
         <tbody></tbody>
       </table>
+      </div>
+      
       <button type="button" class="add-btn" onclick="addDocRow()">Add Document</button>
     </div>
 

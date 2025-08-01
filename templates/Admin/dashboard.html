@@ -92,12 +92,12 @@
         <h5>Net Profit</h5>
         <h6>{{ total_profit|floatformat:0 }} AED</h6>
         <p>
-          {% if profit_change_percent >= 0 %}
+          {% if total_profit >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
             <span>{{ profit_change_percent|floatformat:2 }}%</span> Since last month
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> since last month
+            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> Since last month
           {% endif %}
         </p>
         <div class="wdgt-bg-icons">

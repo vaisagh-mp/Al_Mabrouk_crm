@@ -1,9 +1,10 @@
 from django.urls import path
 from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
-from .views import create_employee, employee_list, attendance_list_view, dashboard, admin_project_summary_view, add_project, project_list_view, project_assignment_list, project_assignment_create, project_assignment_update, project_assignment_delete, manage_attendance, employee_profile,attendance_detail, edit_project, delete_project, edit_attendance, delete_attendance, manager_list, manager_profile, manager_attendance_list_view, manage_manager_attendance, employee_leave_list, manager_leave_list, employee_manage_leave, manager_manage_leave, admin_edit_employee, admin_delete_employee, admin_edit_manager, admin_delete_manager, fetch_notifications, mark_notifications_as_read, admin_notifications, admin_mark_all_notifications, admin_mark_single_notification,change_password,admin_manage_project_status, admin_project_attachments_view, admin_delete_project_attachment, create_work_order_view_admin, admin_view_work_order, admin_update_work_order_view
+from .views import *
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
+    path('search/', search_redirect_view, name='search_redirect'),
     
     path('employees/', employee_list, name='employee_list'),
     path('managers/', manager_list, name='manager_list'),
@@ -50,6 +51,11 @@ urlpatterns = [
     path('manager-leave-list/', manager_leave_list, name='manager_leave_list'),
     path('employee-manage-leave/', employee_manage_leave, name='employee_manage_leave'),
     path('manager-manage-leave/', manager_manage_leave, name='manager_manage_leave'),
+
+    path('vessel-list', vessel_list, name='vessel_list'),
+    path('vessel-create/', vessel_create, name='vessel_create'),
+    path('vessel-update/<int:pk>/',vessel_update, name='vessel_update'),
+    path('delete/<int:pk>/', vessel_delete, name='vessel_delete'),
 
     path('fetch-notifications/', fetch_notifications, name='fetch-notifications'),
     path('mark-notifications-as-read/', mark_notifications_as_read, name='mark-notifications-as-read'),

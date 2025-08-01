@@ -168,7 +168,7 @@
                     </div>
                   </li> -->
                   
-                  <li class="sidebar-dropdown">
+                  <!-- <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-tasks"></i>
                       <span>Projects</span>
@@ -180,6 +180,23 @@
                         </li>
                         <li>
                           <a href="{% url 'admstrn_add_project' %}">Add Project</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li> -->
+                  <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fas fa-tasks"></i>
+                      <span>Projects</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'admstrn_project_list_view' %}">All Projects </a>
+                        </li>
+                        <!-- <li>
+                          <a href="{% url 'admstrn_add_project' %}">Add Project</a>
+                        </li> -->
                         </li>
                       </ul>
                     </div>

@@ -19,6 +19,7 @@
                     <th>Logout</th>
                     <th>Working Hours</th>
                     <th>Location</th>
+                    <th>Vessel</th>
                     <th>Travel Time</th>
                     <th>Admin Approval</th>
                     <th>Status</th>
@@ -49,6 +50,13 @@
                             {{ record.get_location_display }}
                         {% else %}
                             <span class="text-muted">Not specified</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if record.vessel %}
+                            {{ record.vessel }}
+                        {% else %}
+                            <span class="text-muted">N/A</span>
                         {% endif %}
                     </td>
                     <td>

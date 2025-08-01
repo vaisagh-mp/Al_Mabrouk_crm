@@ -2,6 +2,27 @@
 {% load static %}
 {% block content %}
 
+<style>
+  .table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-responsive table {
+  width: 100%;
+  min-width: 500px; /* Or whatever minimum width your table requires */
+  border-collapse: collapse;
+}
+
+.table-responsive th,
+.table-responsive td {
+  white-space: nowrap;
+  padding: 8px;
+  text-align: left;
+}
+
+</style>
+
 <div class="wrk-rprt-frm">
   <h2>Update Work Order</h2>
 
@@ -55,7 +76,8 @@
 
     <div>
       <label>Spares Required</label>
-      <table id="sparesTable">
+      <div class="table-responsive">
+        <table id="sparesTable">
         <thead>
           <tr>
             <th>Spare Name</th>
@@ -65,12 +87,15 @@
         </thead>
         <tbody></tbody>
       </table>
+      </div>
+      
       <button type="button" class="add-btn" onclick="addSpareRow()">Add Spare</button>
     </div>
 
     <div>
       <label>Tools Required</label>
-      <table id="toolsTable">
+      <div class="table-responsive">
+        <table id="toolsTable">
         <thead>
           <tr>
             <th>Tool Name</th>
@@ -79,12 +104,15 @@
         </thead>
         <tbody></tbody>
       </table>
+      </div>
+      
       <button type="button" class="add-btn" onclick="addToolRow()">Add Tool</button>
     </div>
 
     <div>
       <label>Documents</label>
-      <table id="docsTable">
+      <div class="table-responsive">
+        <table id="docsTable">
         <thead>
           <tr>
             <th>Document Name</th>
@@ -93,6 +121,8 @@
         </thead>
         <tbody></tbody>
       </table>
+      </div>
+      
       <button type="button" class="add-btn" onclick="addDocRow()">Add Document</button>
     </div>
 

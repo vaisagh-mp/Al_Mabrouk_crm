@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     path('dashboard/', views.dashboard, name='manager-dashboard'),
+    path('search/', views.manager_search_redirect_view, name='manager_search_redirect'),
     path('manage-attendance/', views.manage_attendance_requests, name='manage_attendance_requests'),
     path('manage-leave/', views.manage_leave, name='manage_leave'),
     path('leave-list/', views.leave_list, name='leave_list'),
@@ -38,6 +39,11 @@ urlpatterns = [
     path('work-order/view/<int:pk>/', views.view_work_order, name='view_work_order'),
     path('work-order/update/<int:pk>/', views.manager_update_work_order_view, name='manager-update-work-order'),
     path('work-order/<int:pk>/download/', views.download_work_order_pdf, name='download-work-order-pdf'),
+
+    path('vessel-list', views.manager_vessel_list, name='manager_vessel_list'),
+    path('vessel-create/', views.manager_vessel_create, name='manager_vessel_create'),
+    path('vessel-update/<int:pk>/',views.manager_vessel_update, name='manager_vessel_update'),
+    path('delete/<int:pk>/', views.manager_vessel_delete, name='manager_vessel_delete'),
 
 
 

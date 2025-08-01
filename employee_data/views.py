@@ -5,6 +5,7 @@ from django.utils.timezone import now,localdate
 from django.utils.dateparse import parse_datetime
 from django.forms import modelformset_factory
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.http import HttpResponse
 from weasyprint import HTML
 import json
@@ -22,7 +23,7 @@ from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
@@ -430,23 +431,32 @@ def update_profile(request):
 @login_required
 def projects(request):
     current_user = request.user
-    status_filter = request.GET.get('status', '')
-
     employee = current_user.employee_profile
 
-    # Base queryset
+    status_filter = request.GET.get('status', '')
+    search_query = request.GET.get('search', '')
+
+    # Get all team statuses for this employee
     team_member_statuses = TeamMemberStatus.objects.filter(
         employee=employee
-    ).order_by('-team__project__created_at')
+    ).select_related('team__project').order_by('-team__project__created_at')
 
-    # Apply status filter
+    # Filter by project status if needed
     if status_filter:
         if status_filter == 'PENDING':
             team_member_statuses = team_member_statuses.filter(manager_approval_status='PENDING')
         else:
             team_member_statuses = team_member_statuses.filter(status=status_filter)
 
-    # Prepare project data
+    # Filter by search (project name or client name or code)
+    if search_query:
+        team_member_statuses = team_member_statuses.filter(
+            Q(team__project__name__icontains=search_query) |
+            Q(team__project__client_name__icontains=search_query) |
+            Q(team__project__code__icontains=search_query)
+        )
+
+    # Prepare final project data for rendering
     project_data = [
         {
             "id": status.team.project.id,
@@ -461,7 +471,7 @@ def projects(request):
         for status in team_member_statuses
     ]
 
-    # Pagination
+    # Paginate results
     paginator = Paginator(project_data, 5)
     page_number = request.GET.get('page')
     paginated_projects = paginator.get_page(page_number)
@@ -471,6 +481,7 @@ def projects(request):
         "projects": paginated_projects,
         "status_filter": status_filter,
         "status_choices": Project.STATUS_CHOICES,
+        "search_query": search_query,  # Pass for form value persistence
     }
 
     return render(request, 'employee/project_list.html', context)
@@ -697,6 +708,7 @@ def log_in(request):
         project_id = request.POST.get("project")
         location = request.POST.get("location")
         attendance_status = request.POST.get("attendance_status")
+        vessel_id = request.POST.get("vessel")  # Get vessel from form
 
         travel_in_time_str = request.POST.get("travel_in_time")
         travel_out_time_str = request.POST.get("travel_out_time")
@@ -705,7 +717,6 @@ def log_in(request):
 
         today = localdate()
 
-        # Check if employee already has an attendance record today
         already_logged_today = Attendance.objects.filter(
             employee=employee,
             login_time__date=today
@@ -715,7 +726,6 @@ def log_in(request):
             messages.error(request, "You have already submitted attendance today.")
             return redirect("attendance_list_view")
 
-        # Create new attendance record
         Attendance.objects.create(
             employee=employee,
             project_id=project_id,
@@ -726,6 +736,7 @@ def log_in(request):
             travel_out_time=travel_out_time,
             status="APPROVED",
             total_hours_of_work=0,
+            vessel_id=vessel_id if vessel_id else None
         )
 
         messages.success(request, "You have successfully logged in.")
@@ -769,11 +780,13 @@ def render_attendance_page(request):
     attendance_status_choices = Attendance.ATTENDANCE_STATUS
     location_choices = Attendance.LOCATION_CHOICES
     projects = Project.objects.all()
+    vessels = Vessel.objects.all()  # Fetch all vessels
 
     return render(request, "employee/punchin.html", {
         "attendance_status_choices": attendance_status_choices,
         "location_choices": location_choices,
         "projects": projects,
+        "vessels": vessels,
         "user_attendance": user_attendance,
         "role": "Engineer"
     })
@@ -1033,26 +1046,34 @@ def employee_update_work_order_view(request, pk):
 
     return render(request, 'employee/update_work_order.html', context)
 
+@login_required
+def engineer_search_redirect_view(request):
+    search_query = request.GET.get('search', '').strip()
 
-# @login_required
-# def eng_download_work_order_pdf(request, pk):
-#     work_order = get_object_or_404(WorkOrder, pk=pk)
+    if not search_query:
+        return redirect('projects') 
 
-#     # Get the full static file path
-#     logo_path = finders.find('assets/images/reportlogo.webp')
+    # 1. Search Project (name, code, client_name)
+    matching_projects = Project.objects.filter(
+        Q(name__icontains=search_query) |
+        Q(code__icontains=search_query) |
+        Q(client_name__icontains=search_query)
+    )
 
-#     # Optionally encode to base64 (better compatibility)
-#     with open(logo_path, 'rb') as img_file:
-#         logo_data = base64.b64encode(img_file.read()).decode()
+    if matching_projects.count() == 1:
+        return redirect('project_details', project_id=matching_projects.first().id)
+    elif matching_projects.exists():
+        return redirect(f"{reverse('projects')}?search={search_query}")
 
-#     html_string = render_to_string('Manager/work_order_pdf.html', {
-#         'work_order': work_order,
-#         'logo_base64': logo_data,
-#     })
+    # 4. Search Attendance by location, vessel name, or project code/name
+    matching_attendance = Attendance.objects.filter(
+        Q(location__icontains=search_query) |
+        Q(vessel__name__icontains=search_query) |
+        Q(project__name__icontains=search_query) |
+        Q(project__code__icontains=search_query)
+    ).distinct()
+    if matching_attendance.exists():
+        return redirect(f"{reverse('attendance_list_view')}?search={search_query}")
 
-#     html = HTML(string=html_string)
-#     pdf = html.write_pdf()
-
-#     response = HttpResponse(pdf, content_type='application/pdf')
-#     response['Content-Disposition'] = f'attachment; filename="work_order_{work_order.pk}.pdf"'
-#     return response
+    # Default fallback
+    return redirect('projects')

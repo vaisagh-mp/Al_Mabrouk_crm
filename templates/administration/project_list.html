@@ -27,7 +27,6 @@
           <th></th>
           <th></th>
           <th></th>
-          <th></th>
           <th>
             <select id="status-filter" class="form-select w-auto">
                 <option value="">All Statuses</option>
@@ -53,10 +52,6 @@
                   </div>
                 </div>
               </div>
-              <a class="badge bg-warning" href="{% url 'admstrn_add_project' %}" >
-                Add <i class="fas fa-plus"></i>
-              </a>
-
               <!-- <div class="dwnld-dropdown">
                 <a href="#" title="Download"><i class="fas fa-download"></i></a>
                 <div class="dwnld-dropdown-content">
@@ -65,6 +60,14 @@
                 </div>
               </div> -->
             </div>
+          </th>
+          <th>
+            <div class="add-new-emply">
+              <a class="badge bg-warning" href="{% url 'admstrn_add_project' %}" >
+                Add <i class="fas fa-plus"></i>
+              </a>
+            </div>
+            
           </th>
         </tr>
       </thead>

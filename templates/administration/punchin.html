@@ -91,6 +91,24 @@
         </span></p>
     </section>
 
+    <!-- Vessel Selection -->
+    <section class="mt-6">
+        <h2>Select Vessel</h2>
+        <select id="vessel-select" name="vessel" form="attendance-form">
+            <option value="" disabled selected>Select a vessel</option>
+            {% for vessel in vessels %}
+                <option value="{{ vessel.id }}"
+                    {% if user_attendance and user_attendance.vessel and vessel.id == user_attendance.vessel.id %}
+                        selected
+                    {% endif %}
+                >
+                    {{ vessel.name }}
+                </option>
+            {% endfor %}
+        </select>
+    </section>
+
+
     <!-- Punch Status -->
     <section>
         <h2>Attendance</h2>
