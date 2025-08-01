@@ -106,6 +106,15 @@
                 </option>
             {% endfor %}
         </select>
+        <p id="selected-vessel" class="mt-4 text-gray-600">Vessel:
+            <span class="font-bold text-blue-500">
+                {% if user_attendance and user_attendance.vessel %}
+                    {{ user_attendance.vessel.name }}
+                {% else %}
+                    Not Selected
+                {% endif %}
+            </span>
+        </p>
     </section>
 
 
@@ -196,7 +205,17 @@
       clearInterval(timerInterval);
     });
 </script>
+<script>
+    function updateVesselText() {
+        var select = document.getElementById("vessel-select");
+        var selectedVessel = select.options[select.selectedIndex].text;
+        var vesselText = selectedVessel && selectedVessel !== "-- Select a vessel --" ? selectedVessel : "Not Selected";
+        document.getElementById("selected-vessel").innerHTML = "Vessel: <span class='font-bold text-blue-500'>" + vesselText + "</span>";
+    }
 
+    // Optional: bind it to onchange
+    document.getElementById("vessel-select").addEventListener("change", updateVesselText);
+</script>
 <script>
     // Variables to store the travel times
     let travelStartTime = null;

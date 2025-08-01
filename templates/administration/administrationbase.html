@@ -23,7 +23,9 @@
 <body>
     <!-- Header -->
     <header>
-      <div class="hdr-notification">
+
+      <div class="mb-top-hdr">
+        <div class="hdr-notification">
         <a href="#" id="open-notification-popup">
             <button type="button" class="btn btn-primary position-relative">
                 <i class="fas fa-bell"></i>
@@ -34,7 +36,6 @@
             </button>
         </a>
     </div>
-    
 
         <div class="hdr-user">
           <div class="dropdown">
@@ -79,6 +80,28 @@
           </div>
 
         </div>
+
+      </div>
+      
+
+        <div class="sidebar-search mb"> 
+                <form method="get" action="{% url 'admstrn_search_redirect_view' %}">
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      name="search"
+                      class="form-control search-menu"
+                      placeholder="Search..."
+                      value="{{ search_query }}"
+                    />
+                    <div class="input-group-append">
+                      <button class="input-group-text" type="submit" style="border: none; background: none;">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                  </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
       </header>
     <!-- End Header -->
 
@@ -113,21 +136,23 @@
               </div>
             </div> -->
               <!-- sidebar-header  -->
-              <div class="sidebar-search">
-                <div>
+              <div class="sidebar-search"> 
+                <form method="get" action="{% url 'admstrn_search_redirect_view' %}">
                   <div class="input-group">
                     <input
                       type="text"
+                      name="search"
                       class="form-control search-menu"
                       placeholder="Search..."
+                      value="{{ search_query }}"
                     />
                     <div class="input-group-append">
-                      <span class="input-group-text">
-                        <i class="fa fa-search" aria-hidden="true"></i>
-                      </span>
+                      <button class="input-group-text" type="submit" style="border: none; background: none;">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                  </button>
                     </div>
                   </div>
-                </div>
+                </form>
               </div>
               <!-- sidebar-search  -->
               <div class="sidebar-menu">

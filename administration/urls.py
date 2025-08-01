@@ -1,8 +1,11 @@
 from django.urls import path
-from .views import admstrn_add_project, admstrn_project_list_view, admstrn_edit_project, admstrn_delete_project,admstrn_project_summary_view, dashboard, attendance,admstrn_log_in, admstrn_log_off, admstrn_render_attendance_page, admstrn_update_travel_time, admstrn_apply_leave, admstrn_leave_status, admstrn_leave_records, admstrn_upload_medical_certificate, admstrn_fetch_notifications, admstrn_mark_notifications_as_read, admstrn_update_profile, admstrn_profile, admstrn_project_attachments_view,admstrn_delete_project_attachment
+from .views import *
 
 urlpatterns = [
     path('dashboard/', dashboard, name='admstrn-dashboard'),
+
+    path('search/', admstrn_search_redirect_view, name='admstrn_search_redirect_view'),
+
     path('add-project/', admstrn_add_project, name='admstrn_add_project'),
     path('projects/', admstrn_project_list_view, name='admstrn_project_list_view'),
     path('project/<int:project_id>/', admstrn_project_summary_view, name='admstrn_project_summary_view'),

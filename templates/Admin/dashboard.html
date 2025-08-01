@@ -208,17 +208,17 @@
           <div>
               <p>Client Growth</p>
               <p>
-                {% if client_growth_percentage >= 0 %}
+                {% if client_change_percent >= 0 %}
                   <i class="fas fa-arrow-up text-success"></i>
-                  <span>{{ client_growth_percentage }}%</span> Since last month
+                  <span>{{ client_change_percent }}%</span> Since last month
                 {% else %}
                   <i class="fas fa-arrow-down text-danger"></i>
-                  <span>{{ client_growth_percentage|absolute }}%</span> Since last month
+                  <span>{{ client_change_percent|absolute }}%</span> Since last month
                 {% endif %}
               </p>
           </div>
           <div>
-              <span>{{ client_growth_percentage }}%</span>
+              <span>{{ client_change_percent }}%</span>
           </div>
       </div>
 

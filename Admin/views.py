@@ -15,6 +15,7 @@ from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.utils.dateparse import parse_date, parse_time
+from datetime import datetime
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.contrib import messages
@@ -155,57 +156,44 @@ def dashboard(request):
         ).values('id', 'name', 'leader_name', 'status', 'category', 'priority').order_by('-created_at')[:5]
 
         # Unique client count (ignores empty values)
-        client_count = Project.objects.exclude(client_name="").values('client_name').distinct().count()
-
-        # Client count this month
-        clients_this_month = Project.objects.filter(
-            created_at__date__gte=first_day_this_month
-        ).exclude(client_name="").values('client_name').distinct().count()
-
-        # Client count last month
-        clients_last_month = Project.objects.filter(
-            created_at__date__gte=first_day_last_month,
-            created_at__date__lte=last_day_last_month
-        ).exclude(client_name="").values('client_name').distinct().count()
-
-        # Calculate client growth %
-        if clients_last_month > 0:
-            client_change_percent = ((clients_this_month - clients_last_month) / clients_last_month) * 100
-        else:
-            client_change_percent = 100 if clients_this_month > 0 else 0
-
-        # Distinct clients
+       # Total distinct clients
         clients = Project.objects.exclude(client_name="").values_list('client_name', flat=True).distinct()
         total_clients = clients.count()
-        
-        # New clients this month
-        new_clients = Project.objects.filter(
-            created_at__gte=first_day_this_month
-        ).exclude(client_name="").values_list('client_name', flat=True).distinct().count()
-        
+
         # Clients last month
-        clients_last_month = Project.objects.filter(
+        clients_last_month_qs = Project.objects.filter(
             created_at__gte=first_day_last_month,
             created_at__lt=first_day_this_month
-        ).exclude(client_name="").values_list('client_name', flat=True).distinct().count()
-        
-        # Active clients (with at least one ongoing project)
+        ).exclude(client_name="").values_list('client_name', flat=True).distinct()
+        clients_last_month_list = list(clients_last_month_qs)
+        clients_last_month_count = len(clients_last_month_list)
+
+        # Clients this month
+        clients_this_month_qs = Project.objects.filter(
+            created_at__gte=first_day_this_month
+        ).exclude(client_name="").values_list('client_name', flat=True).distinct()
+        clients_this_month_list = list(clients_this_month_qs)
+
+        # New clients = in this month but not in last month
+        new_clients_list = list(set(clients_this_month_list) - set(clients_last_month_list))
+        new_clients = len(new_clients_list)
+
+        # Active clients (not COMPLETED)
         active_clients = Project.objects.exclude(
             client_name=""
         ).filter(
             ~Q(status='COMPLETED')
         ).values_list('client_name', flat=True).distinct().count()
-        
+
         # Inactive = total - active
         inactive_clients = total_clients - active_clients
-        
-        # Growth % calculation
-        def calculate_growth(current, previous):
-            if previous == 0:
-                return 100 if current > 0 else 0
-            return round(((current - previous) / previous) * 100, 2)
-        
-        client_growth_percentage = calculate_growth(new_clients, clients_last_month)
+
+        # Growth percentage = (new clients / last month's clients) * 100
+        client_change_percent = (
+            round((new_clients / clients_last_month_count) * 100, 2)
+            if clients_last_month_count > 0
+            else (100 if new_clients > 0 else 0)
+        )
 
         search_query = request.GET.get('search', '')
         projects = Project.objects.all()
@@ -245,15 +233,14 @@ def dashboard(request):
             'overdue_projects': overdue_projects,
             'completion_percentage': round(completion_percentage, 2),
             'completion_percentage_this_month': round(completion_percentage_this_month, 2),
-            'client_count': client_count,
-            'client_change_percent': round(client_change_percent, 2),
-            'client_change_percent_abs': abs(round(client_change_percent, 2)),
-            "now": now(),
+             'client_count': total_clients,
+            'client_change_percent': client_change_percent,
+            'client_change_percent_abs': abs(client_change_percent),
+            'now': now(),
             'total_clients': total_clients,
             'new_clients': new_clients,
             'active_clients': active_clients,
             'inactive_clients': inactive_clients,
-            'client_growth_percentage': client_growth_percentage,
         }
         return render(request, 'Admin/dashboard.html', context)
     
@@ -561,23 +548,43 @@ def edit_attendance(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
 
     if request.method == 'POST':
-        attendance.employee_id = request.POST.get('employee')
-        attendance.project_id = request.POST.get('project')
-        attendance.login_time = request.POST.get('login_time')
-        attendance.log_out_time = request.POST.get('log_out_time')
-        attendance.location = request.POST.get('location')
-        attendance.attendance_status = request.POST.get('attendance_status')
-        attendance.status = request.POST.get('status')
-        attendance.rejection_reason = request.POST.get('rejection_reason')
-        attendance.travel_in_time = request.POST.get('travel_in_time')
-        attendance.travel_out_time = request.POST.get('travel_out_time')
-        attendance.save()
+        try:
+            attendance.employee_id = request.POST.get('employee') or None
+            attendance.project_id = request.POST.get('project') or None
 
-        messages.success(request, 'Attendance record has been Updated successfully.')
-        return redirect('attendance_list_adminview')
+            # Handle DateTime fields safely
+            def parse_datetime_field(field_name):
+                value = request.POST.get(field_name)
+                if value:
+                    try:
+                        return datetime.strptime(value, '%Y-%m-%d %H:%M')
+                    except ValueError:
+                        try:
+                            return datetime.strptime(value, '%Y-%m-%dT%H:%M')
+                        except ValueError:
+                            return None
+                return None
+
+            attendance.login_time = parse_datetime_field('login_time')
+            attendance.log_out_time = parse_datetime_field('log_out_time')
+            attendance.travel_in_time = parse_datetime_field('travel_in_time')
+            attendance.travel_out_time = parse_datetime_field('travel_out_time')
+
+            attendance.location = request.POST.get('location') or None
+            attendance.attendance_status = request.POST.get('attendance_status') or None
+            attendance.status = request.POST.get('status') or 'PENDING'
+            attendance.rejection_reason = request.POST.get('rejection_reason') or ''
+
+            attendance.save()
+
+            messages.success(request, 'Attendance record has been updated successfully.')
+            return redirect('attendance_list_adminview')
+        except Exception as e:
+            messages.error(request, f'Error updating attendance: {e}')
 
     employees = Employee.objects.all()
     projects = Project.objects.all()
+
     return render(request, 'Admin/edit_attendance.html', {
         'role': 'Admin',
         'attendance': attendance,

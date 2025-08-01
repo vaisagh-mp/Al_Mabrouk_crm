@@ -23,7 +23,8 @@
 <body>
     <!-- Header -->
     <header>
-      <div class="hdr-notification">
+      <div class="mb-top-hdr">
+         <div class="hdr-notification">
         <a href="{% url 'admin-notifications' %}">
             <button type="button" class="btn btn-primary position-relative">
                 <i class="fas fa-bell"></i>
@@ -37,8 +38,6 @@
             </button>
         </a>
     </div>
-    
-    
 
         <div class="hdr-user">
           <div class="dropdown">
@@ -65,6 +64,28 @@
             </ul>
           </div>
         </div>
+      </div>
+     
+
+        <div class="sidebar-search mb"> 
+                <form method="get" action="{% url 'search_redirect' %}">
+                  <div class="input-group">
+                    <input
+                      type="text"
+                      name="search"
+                      class="form-control search-menu"
+                      placeholder="Search..."
+                      value="{{ search_query }}"
+                    />
+                    <div class="input-group-append">
+                      <button class="input-group-text" type="submit" style="border: none; background: none;">
+                    <i class="fa fa-search" aria-hidden="true"></i>
+                  </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+
     </header>
     <!-- End Header -->
 

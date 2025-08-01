@@ -5,6 +5,7 @@ from django.utils.timezone import now
 from calendar import monthrange
 from django.utils.timezone import localtime
 from django.utils.dateparse import parse_datetime
+from django.urls import reverse
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import datetime, timedelta, time
@@ -773,3 +774,26 @@ def admstrn_update_profile(request):
         })
 
     return render(request, "administration/updateprofile.html", {"form": form, 'role': 'Administration',})
+
+
+@login_required
+def admstrn_search_redirect_view(request):
+    search_query = request.GET.get('search', '').strip()
+
+    if not search_query:
+        return redirect('admstrn_project_list_view')  # fallback
+
+    # Search Project (name, code, client_name)
+    matching_projects = Project.objects.filter(
+        Q(name__icontains=search_query) |
+        Q(code__icontains=search_query) |
+        Q(client_name__icontains=search_query)
+    )
+
+    if matching_projects.count() == 1:
+        return redirect('admstrn_project_summary_view', project_id=matching_projects.first().id)
+    elif matching_projects.exists():
+        return redirect(f"{reverse('admstrn_project_list_view')}?search={search_query}")
+
+    # Fallback
+    return redirect('admstrn_project_list_view') 
