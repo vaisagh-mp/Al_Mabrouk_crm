@@ -13,6 +13,12 @@ urlpatterns = [
     path('manager/profile/', views.manager_profile, name='manager_profile'),
     path("manager/profile/update/", views.update_manager_profile, name="update_manager_profile"),
 
+    path('add-project/', views.manager_add_project, name='manager-add-project'),
+    path('project/<int:project_id>/edit/', views.manager_edit_project, name='manager-edit-project'),
+    path('project/<int:project_id>/delete/', views.manager_delete_project, name='manager-delete-project'),
+
+
+
     path('teams/', views.team_list, name='team-list'),
     path('team/<int:pk>/', views.team_detail, name='team-detail'),
     path('team/create/', views.team_create, name='team-create'),

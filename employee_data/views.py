@@ -23,7 +23,7 @@ from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
@@ -461,6 +461,7 @@ def projects(request):
         {
             "id": status.team.project.id,
             "name": status.team.project.name,
+            "vessel_name": status.team.project.vessel_name,
             "category": status.team.project.category,
             "code": status.team.project.code,
             "status": "PENDING" if status.manager_approval_status == "PENDING" else status.status,
@@ -579,15 +580,28 @@ def project_details(request, project_id):
 
     attachments = ProjectAttachment.objects.filter(project=project)
 
+    teams = project.teams.all()
+
+    # Check if the employee is still part of any team in the project
+    is_employee_in_team = Team.objects.filter(
+        project=project,
+        employees=employee
+    ).exists()
+    
     try:
         work_order = WorkOrder.objects.get(project=project)
     except WorkOrder.DoesNotExist:
+        work_order = None
+    
+    # Only assign work_order if employee is still in a team
+    if not is_employee_in_team:
         work_order = None
 
     # Prepare data for the project
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
+        "vessel_name": project.vessel_name,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
@@ -964,7 +978,6 @@ def employee_view_work_order(request, pk):
 def employee_update_work_order_view(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
 
-    # Security check
     if request.user not in work_order.job_assigned_to.all():
         messages.error(request, "You are not authorized to update this work order.")
         return redirect('employee-dashboard')
@@ -974,7 +987,13 @@ def employee_update_work_order_view(request, pk):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # Update WorkOrderDetail fields
+                # ✅ Update project_description
+                project_description = request.POST.get('project_description')
+                if project_description is not None:
+                    work_order.project_description = project_description
+                    work_order.save()
+
+                # ✅ Update WorkOrderDetail
                 work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                 work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                 work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
@@ -982,17 +1001,13 @@ def employee_update_work_order_view(request, pk):
                 work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                 work_order_detail.save()
 
-                # Clear existing related data
+                # ✅ Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
-                Tool.objects.filter(work_order=work_order).delete()
-                Document.objects.filter(work_order=work_order).delete()
-
-                # Save Spares
-                spare_names = request.POST.getlist('spare_name[]')
-                spare_units = request.POST.getlist('spare_unit[]')
-                spare_quantities = request.POST.getlist('spare_quantity[]')
-
-                for name, unit, qty in zip(spare_names, spare_units, spare_quantities):
+                for name, unit, qty in zip(
+                    request.POST.getlist('spare_name[]'),
+                    request.POST.getlist('spare_unit[]'),
+                    request.POST.getlist('spare_quantity[]')
+                ):
                     if name.strip():
                         Spare.objects.create(
                             work_order=work_order,
@@ -1001,11 +1016,12 @@ def employee_update_work_order_view(request, pk):
                             quantity=int(qty or 0)
                         )
 
-                # Save Tools
-                tool_names = request.POST.getlist('tool_name[]')
-                tool_quantities = request.POST.getlist('tool_quantity[]')
-
-                for name, qty in zip(tool_names, tool_quantities):
+                # ✅ Clear and save Tools
+                Tool.objects.filter(work_order=work_order).delete()
+                for name, qty in zip(
+                    request.POST.getlist('tool_name[]'),
+                    request.POST.getlist('tool_quantity[]')
+                ):
                     if name.strip():
                         Tool.objects.create(
                             work_order=work_order,
@@ -1013,11 +1029,12 @@ def employee_update_work_order_view(request, pk):
                             quantity=int(qty or 0)
                         )
 
-                # Save Documents
-                doc_names = request.POST.getlist('doc_name[]')
-                doc_statuses = request.POST.getlist('doc_status[]')
-
-                for name, status in zip(doc_names, doc_statuses):
+                # ✅ Clear and save Documents
+                Document.objects.filter(work_order=work_order).delete()
+                for name, status in zip(
+                    request.POST.getlist('doc_name[]'),
+                    request.POST.getlist('doc_status[]')
+                ):
                     if name.strip():
                         Document.objects.create(
                             work_order=work_order,
@@ -1025,24 +1042,34 @@ def employee_update_work_order_view(request, pk):
                             status=status.strip()
                         )
 
+                # ✅ Save new uploaded project images
+                files = request.FILES.getlist('project_images')
+                for f in files:
+                    WorkOrderImage.objects.create(work_order=work_order, image=f)
+
+                # ✅ Delete selected project images
+                delete_ids = request.POST.getlist('delete_image_ids')
+                if delete_ids:
+                    WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
+
                 messages.success(request, "Work order updated successfully.")
                 return redirect('employee-view-work-order', pk=pk)
 
         except Exception as e:
             messages.error(request, f"Error saving work order: {str(e)}")
 
-    # For initial population (if needed later for JS prefill)
+    # GET request
     spares = Spare.objects.filter(work_order=work_order)
     tools = Tool.objects.filter(work_order=work_order)
     documents = Document.objects.filter(work_order=work_order)
 
     context = {
-    'work_order': work_order,
-    'work_order_detail': work_order_detail,
-    'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
-    'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
-    'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
-}
+        'work_order': work_order,
+        'work_order_detail': work_order_detail,
+        'spares': json.dumps(list(spares.values()), cls=DjangoJSONEncoder),
+        'tools': json.dumps(list(tools.values()), cls=DjangoJSONEncoder),
+        'documents': json.dumps(list(documents.values()), cls=DjangoJSONEncoder),
+    }
 
     return render(request, 'employee/update_work_order.html', context)
 

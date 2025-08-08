@@ -58,7 +58,7 @@
       <thead>
         <tr>
           <th>Project Name</th>
-          <th>Code</th>
+          <th>Vessel</th>
           <th>category</th>
           <th>Priority</th>
           <th>Status</th>
@@ -69,7 +69,7 @@
         {% for project in projects %}
           <tr>
             <td><a href="{% url 'project_details' project.id %}">{{ project.name }}</a></td>
-            <td>{{ project.code }}</td>
+            <td>{{ project.vessel_name | default:"N/A"}}</td>
             <td>{{ project.category }}</td>
             <td>
               {% if project.category == 'ANCHORAGE' %}

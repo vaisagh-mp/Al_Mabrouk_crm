@@ -90,9 +90,9 @@ class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
         fields = [
-            'name', 'code', 'client_name', 'purchase_and_expenses',
+            'name', 'code', 'client_name', 'vessel_name', 'purchase_and_expenses',
             'invoice_amount', 'currency_code', 'status', 'category',
-            'manager', 'deadline_date', 'priority','job_description','job_card',
+            'manager', 'deadline_date', 'priority', 'job_description', 'job_card',
         ]
         widgets = {
             'priority': forms.RadioSelect(choices=Project.PRIORITY_CHOICES),
@@ -100,23 +100,28 @@ class ProjectForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # Pop user if passed
+        self.user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
 
-        today = now().date()  # Get the current date
+        today = now().date()
 
-        # Get managers who are **currently on approved annual leave**
         managers_on_leave = Leave.objects.filter(
             leave_type='ANNUAL LEAVE',
             approval_status='APPROVED',
-            from_date__lte=today,  # Leave starts on or before today
-            to_date__gte=today      # Leave ends on or after today
-        ).values_list('user_id', flat=True)  # Get IDs of users on leave
+            from_date__lte=today,
+            to_date__gte=today
+        ).values_list('user_id', flat=True)
 
-        # Filter the manager queryset to exclude those on leave
         self.fields['manager'].queryset = Employee.objects.filter(
             is_manager=True
         ).exclude(user__id__in=managers_on_leave)
-       
+
+        # If current user is a manager, hide the field and auto-fill
+        if self.user and hasattr(self.user, 'employee_profile') and self.user.employee_profile.is_manager:
+            self.fields['manager'].widget = forms.HiddenInput()
+            self.fields['manager'].required = False
+      
     
 class ProjectAssignmentForm(forms.ModelForm):
     class Meta:
@@ -214,16 +219,15 @@ class WorkOrderForm(forms.ModelForm):
     class Meta:
         model = WorkOrder
         fields = [
-            'work_order_number', 'vessel', 'client', 'imo_no',
-            'location', 'assigned_date', 'job_scope', 'job_instructions'
+            'vessel', 'client', 'imo_no',
+            'location', 'assigned_date', 'job_scope', 'job_instructions',
+            'project_description',
         ]
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop('user', None)
-        self.project = kwargs.pop('project', None) 
+        self.project = kwargs.pop('project', None)
         super().__init__(*args, **kwargs)
-
-        
 
 class WorkOrderDetailForm(forms.ModelForm):
     class Meta:

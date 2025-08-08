@@ -4,6 +4,7 @@ from django.dispatch import receiver
 from django.contrib.auth.models import User
 from datetime import datetime
 from datetime import timedelta
+from datetime import datetime
 from django.db.models import Q
 from decimal import Decimal
 
@@ -22,6 +23,7 @@ class Project(models.Model):
         ('OVERSEAS', 'Overseas'),
         ('ANCHORAGE', 'Anchorage'),
         ('HOLIDAY_WORKING', 'Holiday Working'),
+        ('AT_BERTH', 'At Berth'),
     ]
 
     PRIORITY_CHOICES = [
@@ -31,8 +33,9 @@ class Project(models.Model):
     ]
 
     name = models.CharField(max_length=255)
-    code = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=100, unique=True, blank=True, null=True)
     client_name = models.CharField(max_length=255, default="", blank=True)
+    vessel_name = models.CharField(max_length=255, default="", blank=True)
     purchase_and_expenses = models.DecimalField(
         max_digits=12, decimal_places=2, default=0.00)
     invoice_amount = models.DecimalField(
@@ -41,7 +44,7 @@ class Project(models.Model):
     status = models.CharField(
         max_length=100, choices=STATUS_CHOICES, default='PENDING')
     category = models.CharField(
-        max_length=50, choices=CATEGORY_CHOICES, default='OVERSEAS')
+        max_length=50, choices=CATEGORY_CHOICES, default='AT_BERTH')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='MEDIUM')
     job_description = models.TextField(blank=True, null=True)
     manager = models.ForeignKey(
@@ -206,16 +209,29 @@ class Team(models.Model):
     
 # Signal to create TeamMemberStatus for each employee when a Team is saved
 @receiver(m2m_changed, sender=Team.employees.through)
-def create_team_member_status(sender, instance, action, reverse, model, pk_set, **kwargs):
-    if action == 'post_add':  # When employees are added to the team
+def update_work_order_assignees(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action == 'post_add':
         for employee_id in pk_set:
             employee = model.objects.get(id=employee_id)
-            # Create TeamMemberStatus for the employee in the team
-            TeamMemberStatus.objects.get_or_create(
+
+            # 1. Create TeamMemberStatus
+            TeamMemberStatus.objects.update_or_create(
                 team=instance,
                 employee=employee,
-                status='ASSIGN'
+                defaults={'status': 'ASSIGN'}
             )
+
+            # 2. Add to WorkOrder
+            if hasattr(instance.project, 'workorder') and employee.user:
+                instance.project.workorder.job_assigned_to.add(employee.user)
+
+    elif action == 'post_remove':
+        for employee_id in pk_set:
+            employee = model.objects.get(id=employee_id)
+
+            # Remove from WorkOrder
+            if hasattr(instance.project, 'workorder') and employee.user:
+                instance.project.workorder.job_assigned_to.remove(employee.user)
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
@@ -534,16 +550,31 @@ class Holiday(models.Model):
 
 class WorkOrder(models.Model):
     project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='workorder', null=True, blank=True)
-    work_order_number = models.CharField(max_length=100, unique=True)
-    vessel = models.CharField(max_length=100)
-    client = models.CharField(max_length=100)
-    imo_no = models.CharField(max_length=50)
-    location = models.CharField(max_length=100)
-    assigned_date = models.DateField()
-    job_scope = models.TextField()
-    job_instructions = models.TextField(blank=True, null=True)
-    job_assigned_to = models.ManyToManyField(User, related_name='assigned_work_orders')
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_work_orders')
+    work_order_number = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    vessel = models.CharField(max_length=100, null=True, blank=True)
+    client = models.CharField(max_length=100, null=True, blank=True)
+    imo_no = models.CharField(max_length=50, null=True, blank=True)
+    location = models.CharField(max_length=100, null=True, blank=True)
+    assigned_date = models.DateField(null=True, blank=True)
+    job_scope = models.TextField(null=True, blank=True)
+    job_instructions = models.TextField(null=True, blank=True)
+    project_description = models.TextField(null=True, blank=True)
+    job_assigned_to = models.ManyToManyField(User, related_name='assigned_work_orders', blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_work_orders', null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.work_order_number:
+            year_suffix = str(datetime.now().year)[-2:]  # e.g., "25"
+            prefix = f"AMMS-{year_suffix}"
+
+            # Count how many work orders already exist this year
+            existing_count = WorkOrder.objects.filter(
+                work_order_number__startswith=prefix
+            ).count() + 1
+
+            self.work_order_number = f"{prefix}-{existing_count:03d}"  # 001, 002, etc.
+
+        super().save(*args, **kwargs)
 
 class WorkOrderDetail(models.Model):
     work_order = models.OneToOneField(WorkOrder, on_delete=models.CASCADE, related_name='detail')
@@ -569,3 +600,7 @@ class Document(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='documents')
     name = models.CharField(max_length=100)
     status = models.CharField(max_length=100)
+
+class WorkOrderImage(models.Model):
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='images')
+    image = models.ImageField(upload_to='work_order_images/')

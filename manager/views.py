@@ -27,12 +27,12 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
 from django.utils.dateparse import parse_date, parse_time
 from django.forms import modelformset_factory
-from Admin.forms import ProjectAssignmentForm, WorkOrderForm, WorkOrderForm, WorkOrderDetailForm, SpareForm, ToolForm, DocumentForm, VesselForm
+from Admin.forms import ProjectAssignmentForm, WorkOrderForm, WorkOrderForm, WorkOrderDetailForm, SpareForm, ToolForm, DocumentForm, VesselForm, ProjectForm
 from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel  
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
 
 
 # Home
@@ -331,6 +331,59 @@ def update_project_status(request, project_id):
         else:
             messages.error(request, "Invalid status selected.")
     return redirect("manager-dashboard")  # Adjust the redirect as needed
+
+@login_required
+def manager_add_project(request):
+    if not hasattr(request.user, 'employee_profile') or not request.user.employee_profile.is_manager:
+        messages.error(request, "You are not authorized to add projects.")
+        return redirect('custom-login')
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST, request.FILES, user=request.user)
+        if form.is_valid():
+            project = form.save(commit=False)
+            project.manager = request.user.employee_profile  # auto-assign
+            project.save()
+            messages.success(request, "Project added successfully!")
+            return redirect('project_list')
+        else:
+            messages.error(request, "There was an error adding the project. Please check the form.")
+    else:
+        form = ProjectForm(user=request.user)
+
+    return render(request, 'Manager/add_project.html', {'form': form, 'role': 'Manager'})
+
+# Edit project
+@login_required
+def manager_edit_project(request, project_id):
+    # Ensure project belongs to this manager
+    project = get_object_or_404(Project, id=project_id, manager=request.user.employee_profile)
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST, request.FILES, instance=project)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Project updated successfully!")
+            return redirect('project_list')
+        else:
+            messages.error(request, "There was an error updating the project. Please check the form.")
+    else:
+        form = ProjectForm(instance=project)
+
+    return render(request, 'Manager/project_edit.html', {
+        'form': form,
+        'project': project,
+        'role': 'Manager'
+    })
+
+# Delete project
+@login_required
+def manager_delete_project(request, project_id):
+    # Ensure project belongs to this manager
+    project = get_object_or_404(Project, id=project_id, manager=request.user.employee_profile)
+    project.delete()
+    messages.success(request, "Project deleted successfully!")
+    return redirect('project_list')
 
 # List all teams
 @login_required
@@ -880,7 +933,7 @@ def project_list_view(request):
 
         # Convert to dictionary values for efficiency
         projects = projects.values(
-            "id", "name", "category", "code", "status",
+            "id", "name", "category", "code", "vessel_name", "status",
             "invoice_amount", "currency_code", "purchase_and_expenses"
         )
     else:
@@ -980,6 +1033,7 @@ def project_summary_view(request, project_id):
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
+        "vessel_name": project.vessel_name,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
@@ -1460,24 +1514,45 @@ def create_work_order_view(request, project_id):
     project = get_object_or_404(Project, id=project_id)
 
     if request.method == 'POST':
-        form = WorkOrderForm(request.POST, user=user, project=project)
+        form = WorkOrderForm(request.POST, request.FILES, user=user, project=project)
         if form.is_valid():
             work_order = form.save(commit=False)
             work_order.created_by = user
             work_order.project = project
+
+            # Safe set vessel from project.vessel_name
+            try:
+                work_order.vessel = project.vessel_name if project.vessel_name else "N/A"
+            except AttributeError:
+                work_order.vessel = ""
+
             work_order.save()
 
-            
+            # Assign team members
             teams = Team.objects.filter(project=project)
             team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
             work_order.job_assigned_to.set(User.objects.filter(employee_profile__in=team_members))
+
+            # Save multiple project images
+            for image in request.FILES.getlist('project_images'):
+                WorkOrderImage.objects.create(work_order=work_order, image=image)
 
             messages.success(request, "Work Order created and assigned to all project team members.")
             return redirect('view_work_order', pk=work_order.pk)
     else:
         form = WorkOrderForm(user=user, project=project)
 
-    return render(request, 'Manager/create_work_order.html', {'form': form, 'project': project})
+        # Pre-fill vessel safely
+        try:
+            form.fields['vessel'].initial = project.vessel_name if project.vessel_name else "N/A"
+        except AttributeError:
+            form.fields['vessel'].initial = ""
+
+    return render(request, 'Manager/create_work_order.html', {
+        'form': form,
+        'project': project
+    })
+
 
 
 @login_required
@@ -1497,12 +1572,20 @@ def manager_update_work_order_view(request, pk):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # Update WorkOrder basic info
-                form = WorkOrderForm(request.POST, instance=work_order)
-                if form.is_valid():
-                    work_order = form.save()
+                form = WorkOrderForm(request.POST, request.FILES, instance=work_order)
 
-                    # Update detail
+                if form.is_valid():
+                    work_order = form.save(commit=False)
+
+                    # Auto-fill vessel from project.vessel_name
+                    try:
+                        work_order.vessel = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
+                    except AttributeError:
+                        work_order.vessel = ""
+
+                    work_order.save()
+
+                    # Update WorkOrderDetail
                     work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                     work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                     work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
@@ -1510,7 +1593,7 @@ def manager_update_work_order_view(request, pk):
                     work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                     work_order_detail.save()
 
-                    # Clear existing related data
+                    # Clear old related data
                     Spare.objects.filter(work_order=work_order).delete()
                     Tool.objects.filter(work_order=work_order).delete()
                     Document.objects.filter(work_order=work_order).delete()
@@ -1553,16 +1636,33 @@ def manager_update_work_order_view(request, pk):
                                 status=status.strip()
                             )
 
+                    # Save uploaded project images
+                    files = request.FILES.getlist('project_images')
+                    for f in files:
+                        WorkOrderImage.objects.create(work_order=work_order, image=f)
+
+                    # Delete selected images
+                    delete_ids = request.POST.getlist('delete_image_ids')
+                    if delete_ids:
+                        WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
+
                     messages.success(request, "Work order updated successfully.")
                     return redirect('view_work_order', pk=pk)
 
                 else:
                     messages.error(request, "Work Order form has errors.")
+
         except Exception as e:
             messages.error(request, f"Error saving work order: {str(e)}")
 
     else:
         form = WorkOrderForm(instance=work_order)
+
+        # Pre-fill vessel field in form from project
+        try:
+            form.fields['vessel'].initial = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
+        except AttributeError:
+            form.fields['vessel'].initial = ""
 
     context = {
         'form': form,
@@ -1574,6 +1674,7 @@ def manager_update_work_order_view(request, pk):
     }
 
     return render(request, 'Manager/update_work_order.html', context)
+
 
 
 @login_required
@@ -1598,7 +1699,6 @@ def download_work_order_pdf(request, pk):
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="work_order_{work_order.work_order_number}.pdf"'
     return response
-
 
 
 # Main view for list + forms

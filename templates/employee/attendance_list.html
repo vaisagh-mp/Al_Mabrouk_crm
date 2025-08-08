@@ -75,7 +75,7 @@
                     <th>Logout</th>
                     <th>Working Hours</th>
                     <th>Location</th>
-                    <th>Vessel</th>
+                    <!-- <th>Vessel</th> -->
                     <th>Project</th>
                     <th>Travel Time</th>
                     <th>Status</th>
@@ -108,13 +108,13 @@
                             <span class="text-muted">Not specified</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <!-- <td>
                         {% if record.vessel %}
                             {{ record.vessel }}
                         {% else %}
                             <span class="text-muted">N/A</span>
                         {% endif %}
-                    </td>
+                    </td> -->
                     <td>
                         {% if record.project %}
                             {{ record.project.name }}

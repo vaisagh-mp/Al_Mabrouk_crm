@@ -26,20 +26,20 @@
 <div class="wrk-rprt-frm">
   <h2>Update Work Order</h2>
 
-  <form id="workOrderForm" method="post">
+  <form id="workOrderForm" method="post" enctype="multipart/form-data">
     {% csrf_token %}
 
     {{ form.non_field_errors }}
 
-    <div class="grid-2">
-      <div>
+    <div class="grid-4">
+      <!-- <div>
         <label for="{{ form.work_order_number.id_for_label }}">Work Order Number</label>
         {{ form.work_order_number }}
-      </div>
-      <div>
+      </div> -->
+      <!-- <div>
         <label for="{{ form.vessel.id_for_label }}">Vessel</label>
         {{ form.vessel }}
-      </div>
+      </div> -->
     </div>
 
     <div class="grid-2">
@@ -152,7 +152,43 @@
       </div>
     </div>
 
-    <button type="submit">Submit</button>
+    <div>
+      <label for="{{ form.project_description.id_for_label }}">Project Description</label>
+      {{ form.project_description }}
+    </div>
+
+    <div>
+  <label for="project_images">Project Images</label>
+  
+  <!-- Show existing images -->
+  {% if work_order.images.exists %}
+    <div class="wo-section">
+      <div class="wo-title">PROJECT IMAGES:</div>
+      <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+        {% for img in work_order.images.all %}
+          <div style="position: relative;">
+            <img src="{{ img.image.url }}" alt="Project Image" style="width: 200px; height: auto;" />
+            <label style="display: block; text-align: center;">
+              <input type="checkbox" name="delete_image_ids" value="{{ img.id }}">
+              Delete
+            </label>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Upload input for multiple new images -->
+  <input
+    type="file"
+    name="project_images"
+    id="project_images"
+    class="form-control"
+    multiple
+    accept="image/*"
+  />
+
+    <button type="submit" style="margin-top: 20px;">Submit</button>
   </form>
 </div>
 

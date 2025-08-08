@@ -21,11 +21,11 @@
 
   <div class="widget-box table-wdgt">
     <div class="add-project-wrapper">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         {% csrf_token %}
 
         <!-- Work Order Number -->
-        <div class="mb-3">
+        <!-- <div class="mb-3">
           <label for="id_work_order_number" class="form-label">Work Order Number*</label>
           <input
             type="text"
@@ -36,31 +36,29 @@
             placeholder="Enter work order number"
             value="{{ form.work_order_number.value|default_if_none:'' }}"
           />
-        </div>
+        </div> -->
 
         <!-- Vessel -->
-        <div class="mb-3">
-          <label for="id_vessel" class="form-label">Vessel*</label>
+        <!-- <div class="mb-3">
+          <label for="id_vessel" class="form-label">Vessel</label>
           <input
             type="text"
             class="form-control"
             id="id_vessel"
             name="vessel"
-            required
             placeholder="Enter vessel name"
             value="{{ form.vessel.value|default_if_none:'' }}"
           />
-        </div>
+        </div> -->
 
         <!-- Client -->
         <div class="mb-3">
-          <label for="id_client" class="form-label">Client*</label>
+          <label for="id_client" class="form-label">Client</label>
           <input
             type="text"
             class="form-control"
             id="id_client"
             name="client"
-            required
             placeholder="Enter client"
             value="{{ form.client.value|default_if_none:'' }}"
           />
@@ -68,13 +66,12 @@
 
         <!-- IMO No -->
         <div class="mb-3">
-          <label for="id_imo_no" class="form-label">IMO No*</label>
+          <label for="id_imo_no" class="form-label">IMO No</label>
           <input
             type="text"
             class="form-control"
             id="id_imo_no"
             name="imo_no"
-            required
             placeholder="Enter IMO number"
             value="{{ form.imo_no.value|default_if_none:'' }}"
           />
@@ -82,13 +79,12 @@
 
         <!-- Location -->
         <div class="mb-3">
-          <label for="id_location" class="form-label">Location*</label>
+          <label for="id_location" class="form-label">Location</label>
           <input
             type="text"
             class="form-control"
             id="id_location"
             name="location"
-            required
             placeholder="Enter location"
             value="{{ form.location.value|default_if_none:'' }}"
           />
@@ -109,7 +105,7 @@
 
         <!-- Job Scope -->
         <div class="mb-3">
-          <label for="id_job_scope" class="form-label">Job Scope*</label>
+          <label for="id_job_scope" class="form-label">Job Scope</label>
           <textarea
             class="form-control"
             id="id_job_scope"
@@ -121,7 +117,7 @@
 
         <!-- Job Instructions -->
         <div class="mb-3">
-          <label for="id_job_instructions" class="form-label">Job Instructions*</label>
+          <label for="id_job_instructions" class="form-label">Job Instructions</label>
           <textarea
             class="form-control"
             id="id_job_instructions"
@@ -129,6 +125,25 @@
             rows="3"
             placeholder="Enter instructions"
           >{{ form.job_instructions.value|default_if_none:'' }}</textarea>
+        </div>
+
+        <!-- Project Description -->
+        <div class="mb-3">
+          <label for="id_project_description" class="form-label">Project Description</label>
+          <textarea
+            class="form-control"
+            id="id_project_description"
+            name="project_description"
+            rows="3"
+            placeholder="Enter project description"
+          >{{ form.project_description.value|default_if_none:'' }}</textarea>
+        </div>
+
+        <!-- Project Images -->
+        <div class="mb-3">
+          <label for="id_project_images" class="form-label">Project Images</label>
+          <input type="file" name="project_images" multiple accept="image/*" class="form-control" />
+
         </div>
 
         <!-- Job Assigned To (Multiple Select) -->

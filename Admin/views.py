@@ -25,7 +25,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
 
 
 # Home
@@ -628,7 +628,7 @@ def project_list_view(request):
             "id": project.id,
             "name": project.name,
             "category": project.category,
-            "code": project.code,
+            "vessel": project.vessel_name,
             "status": project.status,
             "invoice": project.invoice_amount,
             "currency": project.currency_code,
@@ -700,6 +700,7 @@ def admin_project_summary_view(request, project_id):
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
+        "vessel_name": project.vessel_name,
         "project_manager": project.manager.user.username,
         "code": project.code,
         "category": project.category,
@@ -1455,9 +1456,20 @@ def create_work_order_view_admin(request, project_id):
             work_order = form.save(commit=False)
             work_order.created_by = user
             work_order.project = project
+
+            # Safe set vessel from project.vessel_name
+            try:
+                work_order.vessel = project.vessel_name if project.vessel_name else "N/A"
+            except AttributeError:
+                work_order.vessel = ""
+
             work_order.save()
 
-            # Assign team members to job
+            # Save multiple project images
+            for image in request.FILES.getlist('project_images'):
+                WorkOrderImage.objects.create(work_order=work_order, image=image)
+
+            # Assign team members
             teams = Team.objects.filter(project=project)
             team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
             work_order.job_assigned_to.set(User.objects.filter(employee_profile__in=team_members))
@@ -1466,6 +1478,12 @@ def create_work_order_view_admin(request, project_id):
             return redirect('admin_view_work_order', pk=work_order.pk)
     else:
         form = WorkOrderForm(user=user, project=project)
+
+        # Pre-fill vessel safely
+        try:
+            form.fields['vessel'].initial = project.vessel_name if project.vessel_name else "N/A"
+        except AttributeError:
+            form.fields['vessel'].initial = ""
 
     return render(request, 'Admin/create_work_order.html', {
         'form': form,
@@ -1498,11 +1516,20 @@ def admin_update_work_order_view(request, pk):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                form = WorkOrderForm(request.POST, instance=work_order)
-                if form.is_valid():
-                    work_order = form.save()
+                form = WorkOrderForm(request.POST, request.FILES, instance=work_order)
 
-                    # Update detail
+                if form.is_valid():
+                    work_order = form.save(commit=False)
+
+                    # Auto-fill vessel from project.vessel_name
+                    try:
+                        work_order.vessel = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
+                    except AttributeError:
+                        work_order.vessel = ""
+
+                    work_order.save()
+
+                    # Update WorkOrderDetail
                     work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                     work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                     work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
@@ -1510,12 +1537,12 @@ def admin_update_work_order_view(request, pk):
                     work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                     work_order_detail.save()
 
-                    # Clear related
+                    # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
                     Tool.objects.filter(work_order=work_order).delete()
                     Document.objects.filter(work_order=work_order).delete()
 
-                    # Save new
+                    # Save Spares
                     for name, unit, qty in zip(
                         request.POST.getlist('spare_name[]'),
                         request.POST.getlist('spare_unit[]'),
@@ -1529,6 +1556,7 @@ def admin_update_work_order_view(request, pk):
                                 quantity=int(qty or 0)
                             )
 
+                    # Save Tools
                     for name, qty in zip(
                         request.POST.getlist('tool_name[]'),
                         request.POST.getlist('tool_quantity[]')
@@ -1540,6 +1568,7 @@ def admin_update_work_order_view(request, pk):
                                 quantity=int(qty or 0)
                             )
 
+                    # Save Documents
                     for name, status in zip(
                         request.POST.getlist('doc_name[]'),
                         request.POST.getlist('doc_status[]')
@@ -1551,16 +1580,33 @@ def admin_update_work_order_view(request, pk):
                                 status=status.strip()
                             )
 
+                    # Save uploaded project images
+                    files = request.FILES.getlist('project_images')
+                    for f in files:
+                        WorkOrderImage.objects.create(work_order=work_order, image=f)
+
+                    # Delete selected images
+                    delete_ids = request.POST.getlist('delete_image_ids')
+                    if delete_ids:
+                        WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
+
                     messages.success(request, "Work order updated successfully.")
                     return redirect('admin_view_work_order', pk=pk)
 
                 else:
                     messages.error(request, "Work Order form has errors.")
+
         except Exception as e:
             messages.error(request, f"Error saving work order: {str(e)}")
 
     else:
         form = WorkOrderForm(instance=work_order)
+
+        # Pre-fill vessel field in form from project
+        try:
+            form.fields['vessel'].initial = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
+        except AttributeError:
+            form.fields['vessel'].initial = ""
 
     context = {
         'form': form,
@@ -1572,6 +1618,7 @@ def admin_update_work_order_view(request, pk):
     }
 
     return render(request, 'Admin/update_work_order.html', context)
+
 
 
 # Main view for list + forms

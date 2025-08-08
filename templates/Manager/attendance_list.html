@@ -74,7 +74,7 @@
                     <th>Logout</th>
                     <th>Working Hour</th>
                     <th>Login Location</th>
-                    <th>Vessel</th>
+                    <!-- <th>Vessel</th> -->
                     <th>Project</th>
                     <th>Team(s)</th> <!-- current project team -->
                     <th>Action</th>
@@ -90,7 +90,7 @@
                     <td>{{ record.log_out_time|time:"g:ia" }}</td>
                     <td>{{ record.total_hours_of_work|format_work_duration }}</td>
                     <td>{{ record.get_location_display|default:"N/A" }}</td>
-                    <td>{{ record.get_vessel|default:"N/A" }}</td>
+                    <!-- <td>{{ record.get_vessel|default:"N/A" }}</td> -->
                     <td>{{ record.project.name|default:"No Project" }}</td>
                     <td>
                         {% with record.employee.teams_assigned.all as teams %}

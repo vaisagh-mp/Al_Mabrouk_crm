@@ -125,7 +125,7 @@
         <tr>
           <th>Project Name</th>
           <th>category</th>
-          <th>Code</th>
+          <th>Vessel</th>
           <th>Purchase & Expenses</th>
           <th>Invoice Amount</th>
           <th>Currency</th>
@@ -140,7 +140,7 @@
             <a href="{% url 'project-summary' project.id %}">{{ project.name }}</a>
           </td>
           <td>{{ project.category }}</td>
-          <td>{{ project.code }}</td>
+          <td>{{ project.vessel|default:"N/A" }}</td>
           <td>{{ project.purchase_and_expenses }}</td>
           <td>{{ project.invoice }}</td>
           <td>{{ project.currency }}</td>

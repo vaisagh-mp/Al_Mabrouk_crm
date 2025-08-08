@@ -27,7 +27,7 @@
         
         <!-- Project Name -->
         <div class="mb-3">
-          <label for="id_name" class="form-label">Project Name</label>
+          <label for="id_name" class="form-label">Project Name*</label>
           <input
             type="text"
             class="form-control"
@@ -47,7 +47,6 @@
             class="form-control"
             id="id_code"
             name="code"
-            required
             placeholder="Enter project code"
             value="{{ form.code.value|default_if_none:'' }}"
           />
@@ -83,7 +82,7 @@
 
         <!-- Client Name -->
         <div class="mb-3">
-            <label for="id_name" class="form-label">Client Name</label>
+            <label for="id_name" class="form-label">Client Name*</label>
             <input
               type="text"
               class="form-control"
@@ -92,6 +91,20 @@
               required
               placeholder="Enter Client name"
               value="{{ form.client_name.value|default_if_none:'' }}"
+            />
+        </div>
+
+        <!-- Vessel Name -->
+        <div class="mb-3">
+            <label for="id_name" class="form-label">Vessel Name*</label>
+            <input
+              type="text"
+              class="form-control"
+              id="id_name"
+              name="vessel_name"
+              required
+              placeholder="Enter vessel name"
+              value="{{ form.vessel_name.value|default_if_none:'' }}"
             />
         </div>
 
@@ -118,7 +131,6 @@
             class="form-control"
             id="id_invoice_amount"
             name="invoice_amount"
-            required
             placeholder="Enter invoice amount"
             value="{{ form.invoice_amount.value|default_if_none:'' }}"
           />
@@ -133,7 +145,6 @@
             id="id_currency_code"
             name="currency_code"
             maxlength="3"
-            required
             placeholder="Enter currency code"
             value="{{ form.currency_code.value|default_if_none:'' }}"
           />
@@ -153,7 +164,7 @@
         
         <!-- Manager Dropdown (Using the queryset from the form field) -->
         <div class="mb-3">
-          <label for="id_manager" class="form-label">Select Manager</label>
+          <label for="id_manager" class="form-label">Select Manager*</label>
           <select class="form-select" id="id_manager" name="manager" required>
             <option value="">---------</option>
             {% for manager in form.fields.manager.queryset %}

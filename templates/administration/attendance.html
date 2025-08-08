@@ -32,7 +32,7 @@
                     <th>Logout</th>
                     <th>Working Hours</th>
                     <th>Location</th>
-                    <th>Vessel</th>
+                    <!-- <th>Vessel</th> -->
                     <th>Travel Time</th>
                     <th>Admin Approval</th>
                     <th>Status</th>
@@ -65,13 +65,13 @@
                             <span class="text-muted">Not specified</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <!-- <td>
                         {% if record.vessel %}
                             {{ record.vessel }}
                         {% else %}
                             <span class="text-muted">N/A</span>
                         {% endif %}
-                    </td>
+                    </td> -->
                     <td>
                         {% if record.total_travel_time and record.total_travel_time != 'None' %}
                             {{ record.total_travel_time|format_work_duration }}

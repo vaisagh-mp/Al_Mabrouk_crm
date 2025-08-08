@@ -171,6 +171,25 @@
     </table>
   </div>
 
+  <!-- Project Description -->
+  <div class="wo-section">
+    <div class="wo-title">PROJECT DESCRIPTION:</div>
+    <div>{{ work_order.project_description|linebreaks }}</div>
+  </div>
+
+  <!-- Project Image -->
+  {% if work_order.images.exists %}
+    <div class="wo-section">
+      <div class="wo-title">PROJECT IMAGE:</div>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        {% for img in work_order.images.all %}
+          <img src="{{ img.image.url }}" alt="Project Image" style="width: 200px; height: auto;" />
+        {% endfor %}
+      </div>
+  {% else %}
+    <p>No images uploaded.</p>
+  {% endif %}
+
   <div class="mt-4">
     <a href="{% url 'project_details' work_order.project.id %}" class="btn wrp">Back to Project</a>
   </div>

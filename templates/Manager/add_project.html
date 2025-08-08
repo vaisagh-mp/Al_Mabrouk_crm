@@ -1,0 +1,238 @@
+{% extends 'Manager/managerbase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+
+  {% if messages %}
+  <div class="container mt-3">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+
+  <div class="pg-title">
+    <h1>Add New Project</h1>
+  </div>
+
+  <div class="widget-box table-wdgt">
+    <div class="add-project-wrapper">
+      <form id="projectForm" method="POST" action="{% url 'manager-add-project' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <!-- Project Name -->
+        <div class="mb-3">
+          <label for="id_name" class="form-label">Project Name*</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_name"
+            name="name"
+            required
+            placeholder="Enter project name"
+            value="{{ form.name.value|default_if_none:'' }}"
+          />
+        </div>
+        
+        <!-- Project Code -->
+        <div class="mb-3">
+          <label for="id_code" class="form-label">Project Code</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_code"
+            name="code"
+            placeholder="Enter project code"
+            value="{{ form.code.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Priority Field (Radio Buttons) -->
+        <div class="mb-3">
+          <label class="form-label">Priority:</label>
+          <div>
+            {% for choice in form.fields.priority.choices %}
+              <div class="form-check form-check-inline">
+                <input
+                  type="radio"
+                  class="form-check-input"
+                  id="priority_{{ choice.0 }}"
+                  name="priority"
+                  value="{{ choice.0 }}"
+                  {% if form.priority.value == choice.0 %}checked{% endif %}
+                />
+                <label class="form-check-label" for="priority_{{ choice.0 }}">{{ choice.1 }}</label>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Job Description -->
+        <div class="mb-3">
+          <label for="id_job_description" class="form-label">Job Description</label>
+          <textarea class="form-control" id="id_job_description" name="job_description" rows="4">
+            {{ form.job_description.value|default_if_none:'' }}
+          </textarea>
+        </div>
+
+        <!-- Client Name -->
+        <div class="mb-3">
+            <label for="id_name" class="form-label">Client Name*</label>
+            <input
+              type="text"
+              class="form-control"
+              id="id_name"
+              name="client_name"
+              required
+              placeholder="Enter Client name"
+              value="{{ form.client_name.value|default_if_none:'' }}"
+            />
+        </div>
+
+        <!-- Vessel Name -->
+        <div class="mb-3">
+            <label for="id_name" class="form-label">Vessel Name*</label>
+            <input
+              type="text"
+              class="form-control"
+              id="id_name"
+              name="vessel_name"
+              required
+              placeholder="Enter vessel name"
+              value="{{ form.vessel_name.value|default_if_none:'' }}"
+            />
+        </div>
+
+        
+        <!-- Purchase and Expenses -->
+        <div class="mb-3">
+          <label for="id_purchase_and_expenses" class="form-label">Purchase and Expenses</label>
+          <input
+            type="number"
+            class="form-control"
+            id="id_purchase_and_expenses"
+            name="purchase_and_expenses"
+            required
+            placeholder="Enter purchase & expenses"
+            value="{{ form.purchase_and_expenses.value|default_if_none:'' }}"
+          />
+        </div>
+        
+        <!-- Invoice Amount -->
+        <div class="mb-3">
+          <label for="id_invoice_amount" class="form-label">Invoice Amount</label>
+          <input
+            type="number"
+            class="form-control"
+            id="id_invoice_amount"
+            name="invoice_amount"
+            required
+            placeholder="Enter invoice amount"
+            value="{{ form.invoice_amount.value|default_if_none:'' }}"
+          />
+        </div>
+        
+        <!-- Currency Code -->
+        <div class="mb-3">
+          <label for="id_currency_code" class="form-label">Currency Code</label>
+          <input
+            type="text"
+            class="form-control"
+            id="id_currency_code"
+            name="currency_code"
+            maxlength="3"
+            required
+            placeholder="Enter currency code"
+            value="{{ form.currency_code.value|default_if_none:'' }}"
+          />
+        </div>
+        
+        <!-- Category Dropdown (Using Model Choices) -->
+        <div class="mb-3">
+          <label for="id_category" class="form-label">Category</label>
+          <select class="form-select" id="id_category" name="category" required>
+            {% for key, value in form.fields.category.choices %}
+              <option value="{{ key }}" {% if form.category.value == key %}selected{% endif %}>
+                {{ value }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Manager Dropdown (Using the queryset from the form field) -->
+        <!-- <div class="mb-3">
+          <label for="id_manager" class="form-label">Select Manager</label>
+          <select class="form-select" id="id_manager" name="manager" required>
+            <option value="">---------</option>
+            {% for manager in form.fields.manager.queryset %}
+              <option value="{{ manager.id }}"
+                {% if form.manager.value|stringformat:"s" == manager.id|stringformat:"s" %}selected{% endif %}>
+                {{ manager }}
+              </option>
+            {% endfor %}
+          </select>
+        </div> -->
+        
+        <!-- Status Dropdown (Using Model Choices) -->
+        <div class="mb-3">
+          <label for="id_status" class="form-label">Status</label>
+          <select class="form-select" id="id_status" name="status" required>
+            {% for key, value in form.fields.status.choices %}
+              <option value="{{ key }}" {% if form.status.value == key %}selected{% endif %}>
+                {{ value }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="mb-3">
+          <label for="id_deadline_date" class="form-label">Deadline Date</label>
+          <input
+            type="date"
+            class="form-control"
+            id="id_deadline_date"
+            name="deadline_date"
+            value="{{ form.deadline_date.value|default_if_none:'' }}"
+          />
+        </div>
+
+        <!-- Job Card File Upload -->
+        <div class="mb-3">
+          <label for="id_job_card" class="form-label">Upload Job Card</label>
+          <input
+            type="file"
+            class="form-control"
+            id="id_job_card"
+            name="job_card"
+            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          />
+        </div>
+
+        <div class="create-btn mt-4">
+          <button class="prmry-btn" type="submit">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if form.errors %}
+  <div class="alert alert-danger">
+    <ul>
+      {% for field, errors in form.errors.items %}
+        {% for error in errors %}
+          <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+
+{% endblock %}

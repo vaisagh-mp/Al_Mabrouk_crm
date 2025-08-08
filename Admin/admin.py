@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
 
 
 @admin.register(Project)
@@ -177,3 +177,16 @@ class WorkOrderDetailAdmin(admin.ModelAdmin):
 class VesselAdmin(admin.ModelAdmin):
     list_display = ('id', 'name')
     search_fields = ('name',)
+
+
+@admin.register(WorkOrderImage)
+class WorkOrderImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'work_order', 'image_preview')
+    readonly_fields = ('image_preview',)
+
+    def image_preview(self, obj):
+        if obj.image:
+            return f'<img src="{obj.image.url}" style="max-height: 100px;" />'
+        return "-"
+    image_preview.allow_tags = True
+    image_preview.short_description = "Preview"
