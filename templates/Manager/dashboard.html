@@ -24,7 +24,7 @@
                     {% else %}
                         <i class="fas fa-arrow-down text-danger"></i>
                     {% endif %}
-                    <span>{{ project_growth_percentage|abs_value }}%</span> Since last month
+                    <span>{{ project_growth_percentage }}%</span> Since last month
                 </p>
 
               <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
@@ -54,7 +54,7 @@
                   {% else %}
                     <i class="fas fa-arrow-up text-success"></i>
                   {% endif %}
-                  <span>{{ completed_growth_percentage|abs_value }}%</span> Since last month
+                  <span>{{ completed_growth_percentage }}%</span> Since last month
                 </p>
 
               <div class="wdgt-bg-icons">
@@ -112,13 +112,14 @@
                         {% endif %}
               
 
-                  <a href="{% url 'manager_attendance_dashboard' %}" id="punchButton">
-                      {% if last_punch_in == "Not Punched In" %}
-                      Punch In
+                    <a href="{% url 'manager_attendance_dashboard' %}" id="punchButton">
+                      {% if has_open_session %}
+                        Punch Out
                       {% else %}
-                      Punch Out
+                        Punch In
                       {% endif %}
-                  </a>
+                    </a>
+
               </div>
           </div>
       </div>
@@ -177,7 +178,16 @@
             <div class="widget-box leave-card-widget">
                 <div class="leave-card">
                 <div class="widget-title">
-                    <h4>Presence Overview</h4>
+                    <h4>Monthly Presence</h4>
+                    <div class="month-selector">
+                        <select id="presence-month" class="year-btn">
+                            {% for m in months %}
+                                <option value="{{ m.value }}" {% if m.value == current_month %}selected{% endif %}>
+                                    {{ m.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
                 <div id="leaveChart" style="width:90%;margin: auto;"></div>
                 </div>

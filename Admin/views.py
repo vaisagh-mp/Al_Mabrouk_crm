@@ -116,10 +116,15 @@ def dashboard(request):
         last_profit = last_revenue - last_expenses
 
         # Profit Change %
-        if last_profit != 0:
-            profit_change_percent = ((current_profit - last_profit) / last_profit) * 100
+        if last_profit == 0:
+            if current_profit > 0:
+                profit_change_percent = 100
+            elif current_profit < 0:
+                profit_change_percent = -100
+            else:
+                profit_change_percent = 0
         else:
-            profit_change_percent = 0
+            profit_change_percent = ((current_profit - last_profit) / abs(last_profit)) * 100
 
         # Pending Invoices (Projects where invoice_amount is 0)
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
@@ -141,6 +146,29 @@ def dashboard(request):
             created_at__date__gte=first_day_this_month,
             status='COMPLETED'
         ).count()
+
+
+        # Previous month date range
+        last_day_last_month = first_day_this_month - timedelta(days=1)
+        first_day_last_month = last_day_last_month.replace(day=1)
+
+        # Projects completed last month
+        completed_last_month = Project.objects.filter(
+            created_at__date__gte=first_day_last_month,
+            created_at__date__lte=last_day_last_month,
+            status='COMPLETED'
+        ).count()
+
+        # Special growth rules
+        if completed_last_month > 0 and completed_this_month == 0:
+            completion_growth_percentage = -100
+        elif completed_last_month == 0 and completed_this_month > 0:
+            completion_growth_percentage = 100
+        else:
+            completion_growth_percentage = (
+                ((completed_this_month - completed_last_month) / completed_last_month) * 100
+                if completed_last_month > 0 else 0
+            )
 
         # Completion percentage for this month
         completion_percentage_this_month = (
@@ -223,9 +251,10 @@ def dashboard(request):
             'total_revenue': round(total_revenue, 2),
             'total_expenses': round(total_expenses, 2),
             'total_profit': round(total_profit, 2),
-            'current_profit': round(current_profit, 2),
+            # 'current_profit': round(current_profit, 2),
+            'net_profit': round(current_profit, 2),
             'profit_change_percent': round(profit_change_percent, 2),
-            'profit_change_percent_abs': abs(round(profit_change_percent, 2)),
+            'profit_change_percent_abs' : abs(profit_change_percent),
             'pending_invoices': pending_invoices,
             'project_details': project_details,
             'ongoing_projects': ongoing_projects,
@@ -233,7 +262,13 @@ def dashboard(request):
             'overdue_projects': overdue_projects,
             'completion_percentage': round(completion_percentage, 2),
             'completion_percentage_this_month': round(completion_percentage_this_month, 2),
-             'client_count': total_clients,
+
+            'completion_percentage_this_month': round(completion_growth_percentage, 2),
+            'completion_percentage': round(
+                (completed_projects / total_projects * 100) if total_projects > 0 else 0, 2
+            ),
+
+            'client_count': total_clients,
             'client_change_percent': client_change_percent,
             'client_change_percent_abs': abs(client_change_percent),
             'now': now(),

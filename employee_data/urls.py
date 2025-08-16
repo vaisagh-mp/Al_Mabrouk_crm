@@ -5,6 +5,8 @@ urlpatterns = [
     path('dashboard/', views.employee_dashboard, name='employee_dashboard'),
     path('search/', views.engineer_search_redirect_view, name='engineer_search_redirect'),
 
+    path("get-presence-data/", views.engg_get_presence_data, name="engg_get_presence_data"),
+
     path('submit-attendance/', views.submit_attendance_request, name='submit_attendance_request'),
     path('attendance-list/', views.attendance_list, name='attendance_list_view'),
     path('update-project-status/<int:project_id>/', views.update_project_status, name='update_project_status_emp'),

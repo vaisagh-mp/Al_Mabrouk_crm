@@ -6,6 +6,8 @@ urlpatterns = [
 
     path('search/', admstrn_search_redirect_view, name='admstrn_search_redirect_view'),
 
+    path("get-presence-data/", adm_get_presence_data, name="adm_get_presence_data"),
+
     path('add-project/', admstrn_add_project, name='admstrn_add_project'),
     path('projects/', admstrn_project_list_view, name='admstrn_project_list_view'),
     path('project/<int:project_id>/', admstrn_project_summary_view, name='admstrn_project_summary_view'),

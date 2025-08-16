@@ -473,94 +473,91 @@
           timerInterval = null;
         }
 
-        document.addEventListener("DOMContentLoaded", function () {
-          // Use ISO 8601 date format from Django using the 'c' format
-          const loginTimeStr = "{{ user_attendance.login_time|date:'c' }}";
-          const logOutTimeStr = "{{ user_attendance.log_out_time|date:'c' }}";
+        document.addEventListener("DOMContentLoaded", function() {
+    const totalWorkedSeconds = parseInt("{{ total_worked_seconds|default:0 }}", 10) || 0;
+    const openLoginTimeStr = "{{ open_login_time|date:'c' }}";
 
-          // Debug: log the date strings to the console
-          console.log("loginTimeStr:", loginTimeStr);
-          console.log("logOutTimeStr:", logOutTimeStr);
+    if (openLoginTimeStr && openLoginTimeStr.trim() !== "" && openLoginTimeStr !== "None") {
+        // Ongoing session
+        const loginTime = new Date(openLoginTimeStr).getTime();
+        const now = new Date().getTime();
+        const elapsedSeconds = Math.floor((now - loginTime) / 1000);
 
-          // Check if loginTimeStr is not empty or "None"
-          if (
-            loginTimeStr &&
-            loginTimeStr.trim() !== "" &&
-            loginTimeStr !== "None"
-          ) {
-            const loginTime = new Date(loginTimeStr).getTime();
-
-            if (
-              !logOutTimeStr ||
-              logOutTimeStr.trim() === "" ||
-              logOutTimeStr === "None"
-            ) {
-              // Currently punched in
-              const now = new Date().getTime();
-              const elapsedSeconds = Math.floor((now - loginTime) / 1000);
-              startTimer(elapsedSeconds);
-            } else {
-              // Punched out; calculate total elapsed time
-              const logOutTime = new Date(logOutTimeStr).getTime();
-              totalSeconds = Math.floor((logOutTime - loginTime) / 1000);
-              const progress = (totalSeconds / maxSeconds) * 100;
-              chart.updateSeries([progress]);
-              stopTimer();
-            }
-          } else {
-            console.log("No valid login time provided.");
-            chart.updateSeries([0]);
-          }
-        });
+        startTimer(totalWorkedSeconds + elapsedSeconds);
+    } else {
+        // No ongoing session, just show total worked seconds
+        totalSeconds = totalWorkedSeconds;
+        const progress = (totalSeconds / maxSeconds) * 100;
+        chart.updateSeries([progress]);
+    }
+});
       } else {
         console.error("Element with id 'Puncinchart' not found.");
       }
     </script>
 
     <!-- Leave Details Chart -->
-    <script>
-      const chartData = {{ chart_data|safe }};
-        
-      var optionsChartOne = {
-        series: [
-          chartData.on_time,
-          chartData.late,
-          chartData.wfh,
-          chartData.absent,
-          chartData.sick,
-        ],
+<script>
+  let chartOne; // make chart variable global
+
+function renderPresenceChart(onTime, late, wfh, absent, sick) {
+    const optionsChartOne = {
+        series: [onTime, late, wfh, absent, sick],
         chart: {
-          type: "donut",
+            type: "donut",
+            height: 198 // fixed height for desktop
         },
         labels: [
-          chartData.on_time + " On Time",
-          chartData.late + " Late Attendance",
-          chartData.wfh + " Work From Home",
-          chartData.absent + " Absent",
-          chartData.sick + " Sick Leave",
+            `${onTime} On Time`,
+            `${late} Late Attendance`,
+            `${wfh} Work From Home`,
+            `${absent} Absent`,
+            `${sick} Sick Leave`
         ],
         legend: {
-          position: "bottom",
-          horizontalAlign: "center",
+            position: "bottom",
+            horizontalAlign: "center",
         },
         responsive: [
-          {
-            breakpoint: 480,
-            options: {
-              legend: {
-                position: "bottom",
-              },
+            {
+                breakpoint: 480,
+                options: {
+                    chart: {
+                        height: 240 // slightly taller on small screens if needed
+                    },
+                    legend: { position: "bottom" }
+                },
             },
-          },
         ],
-      };
-    
-      var chartOne = new ApexCharts(
-        document.querySelector("#leaveChart"),
-        optionsChartOne
-      );
-      chartOne.render();
-    </script>
+    };
+
+    // Destroy old chart if exists
+    if (chartOne) {
+        chartOne.destroy();
+    }
+
+    // Create new chart instance
+    chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
+    chartOne.render();
+}
+
+// Initial render with Django context data
+const chartData = {{ chart_data|safe }};
+renderPresenceChart(chartData.on_time, chartData.late, chartData.wfh, chartData.absent, chartData.sick);
+
+// Month change event
+document.getElementById("presence-month").addEventListener("change", function() {
+    const month = this.value;
+    const year = new Date().getFullYear();
+
+    fetch(`/manager/get-presence-data/?month=${month}&year=${year}&_=${new Date().getTime()}`)
+        .then(res => res.json())
+        .then(data => {
+            renderPresenceChart(data.on_time, data.late, data.wfh, data.absent, data.sick);
+        })
+        .catch(err => console.error("Error fetching presence data:", err));
+});
+</script>
 
 
     <script>

@@ -114,28 +114,21 @@ class Project(models.Model):
         """
         Calculate total project expenses:
         - Purchase and material expenses
-        - Employee work costs (attendance-based time spent * hourly salary)
+        (Temporarily excluding Employee work costs)
         """
-        total_expenses = self.purchase_and_expenses  # Start with the purchase and material expenses
-        project_assignments = self.projectassignment_set.all()
-    
-        for assignment in project_assignments:
-            # Get the employee
-            employee = assignment.employee
-    
-            # Fetch attendance records for the project and employee
-            attendance_records = Attendance.objects.filter(employee=employee, project=self)
-    
-            # Calculate the total hours worked from attendance
-            total_hours_worked = sum(record.total_hours_of_work or 0 for record in attendance_records)
-    
-            # Convert total_hours_worked to Decimal for precise calculations
-            total_hours_worked = Decimal(total_hours_worked)
-    
-            # Add to total expenses (employee's work cost based on attendance)
-            total_expenses += total_hours_worked * Decimal(employee.salary)
-    
+        total_expenses = self.purchase_and_expenses  # Only material & purchase costs
+
+        # --- Temporarily disabled employee cost calculation ---
+        # project_assignments = self.projectassignment_set.all()
+        # for assignment in project_assignments:
+        #     employee = assignment.employee
+        #     attendance_records = Attendance.objects.filter(employee=employee, project=self)
+        #     total_hours_worked = sum(record.total_hours_of_work or 0 for record in attendance_records)
+        #     total_hours_worked = Decimal(total_hours_worked)
+        #     total_expenses += total_hours_worked * Decimal(employee.salary)
+
         return total_expenses
+
 
 
     def calculate_profit(self):
@@ -164,7 +157,7 @@ class Project(models.Model):
             return (self.deadline_date - self.created_at.date()).days
         return 0  # Return 0 if either date is missing
     
-    def calculate_revevenue(self):
+    def calculate_revenue(self):
         return self.invoice_amount - self.calculate_expenses()
     
     def calculate_revenue_percentage(self):

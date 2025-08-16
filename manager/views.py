@@ -33,6 +33,7 @@ from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
 from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
+import calendar
 
 
 # Home
@@ -48,7 +49,15 @@ def dashboard(request):
         today = timezone.now().date()
         local_tz = pytz.timezone('Asia/Dubai')
 
-        today_attendance = Attendance.objects.filter(employee=manager, login_time__date=today).first()
+        open_session_exists = Attendance.objects.filter(
+            employee=manager,
+            log_out_time__isnull=True,
+            login_time__date=today
+        ).exists()
+
+        # Get today's latest attendance record (either open or last closed)
+        today_attendance = Attendance.objects.filter(employee=manager, login_time__date=today).order_by('-login_time').first()
+
 
         last_punch_in = localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p') if today_attendance else "Not Punched In"
         last_punch_out = localtime(today_attendance.log_out_time).astimezone(local_tz).strftime('%I:%M %p') if today_attendance and today_attendance.log_out_time else "Not Punched Out"
@@ -73,8 +82,15 @@ def dashboard(request):
 
         total_days_in_month = monthrange(current_year, current_month)[1]
         approved_attendance = Attendance.objects.filter(employee=manager, status='APPROVED')
-        approved_attendance_this_month = approved_attendance.filter(login_time__date__gte=first_day_this_month)
-        approved_attendance_last_month = approved_attendance.filter(login_time__date__gte=first_day_last_month, login_time__date__lt=first_day_this_month)
+        approved_attendance_this_month = approved_attendance.filter(
+            login_time__date__gte=first_day_this_month,
+            login_time__date__lte=today
+        ).order_by('login_time')
+
+        approved_attendance_last_month = approved_attendance.filter(
+            login_time__date__gte=first_day_last_month,
+            login_time__date__lt=first_day_this_month
+        )
 
         # Working days logic
         def get_working_days(start, end):
@@ -120,17 +136,30 @@ def dashboard(request):
 
         attendance_growth_percentage = calculate_growth(attendance_percentage_current_month, attendance_last_month_percent)
 
-        # Chart Data
-        on_time_count = late_count = wfh_count = 0
-        for att in approved_attendance:
+        # Chart Data [new]
+        first_login_per_day = {}
+        for att in approved_attendance_this_month:
+            day = att.login_time.date()
+            if day not in first_login_per_day:
+                first_login_per_day[day] = att  # only earliest login per day
+
+        on_time_days = set()
+        late_days = set()
+        wfh_days = set()
+
+        for att in first_login_per_day.values():
             if att.login_time:
-                login_time = localtime(att.login_time).time()
-                if time(9, 0) <= login_time <= time(9, 15):
-                    on_time_count += 1
-                elif login_time > time(9, 15):
-                    late_count += 1
+                login_time_val = localtime(att.login_time).time()
+                if login_time_val <= time(9, 15):
+                    on_time_days.add(att.login_time.date())
+                else:
+                    late_days.add(att.login_time.date())
             if att.attendance_status == 'WORK FROM HOME':
-                wfh_count += 1
+                wfh_days.add(att.login_time.date())
+
+        on_time_count = len(on_time_days)
+        late_count = len(late_days)
+        wfh_count = len(wfh_days)
 
         # Total employment working days
         employee = get_object_or_404(Employee, user=user)
@@ -144,11 +173,21 @@ def dashboard(request):
         # Leave Balances
         leave_balance = LeaveBalance.objects.filter(user=user).first()
         annual_leave_taken = Leave.objects.filter(user=user, approval_status="APPROVED", leave_type="ANNUAL LEAVE").aggregate(total=Sum('no_of_days'))['total'] or 0
-        sick_leave_taken = Leave.objects.filter(user=user, approval_status="APPROVED", leave_type="SICK LEAVE").aggregate(total=Sum('no_of_days'))['total'] or 0
+        sick_leave_taken = Leave.objects.filter(
+            user=request.user,
+            approval_status="APPROVED",
+            leave_type="SICK LEAVE",
+            from_date__gte=first_day_this_month,
+            from_date__lte=today
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
         balance_annual_leave = max((leave_balance.annual_leave if leave_balance else 0) - annual_leave_taken, 0)
         balance_sick_leave = max((leave_balance.sick_leave if leave_balance else 0) - sick_leave_taken, 0)
 
-        absent_days_count = total_employment_working_days - (on_time_count + late_count + wfh_count + annual_leave_taken + sick_leave_taken)
+        # [New]
+        absent_days_count = working_days_this_month - (
+            on_time_count + late_count + wfh_count + sick_leave_taken
+        )
         absent_days_count = max(absent_days_count, 0)
 
         # Define leave stats
@@ -160,8 +199,25 @@ def dashboard(request):
         worked_days = manager.work_days
         loss_of_pay_days = leaves_taken - total_leaves if leaves_taken > total_leaves else 0
 
+        months = [
+            {"value": i, "name": calendar.month_name[i]}
+            for i in range(1, 13)
+        ]
+
+        # ✅ Calculate total worked seconds for today (before context)
+        today_records = Attendance.objects.filter(employee=manager, login_time__date=today)
+
+        total_worked_seconds = 0
+        for rec in today_records:
+            if rec.login_time and rec.log_out_time:
+                total_worked_seconds += int((rec.log_out_time - rec.login_time).total_seconds())
+
+        open_session = today_records.filter(log_out_time__isnull=True).order_by('-login_time').first()
+
         context = {
             "role": "Manager",
+            "months": months,
+            "current_month": today.month,
             'manager': manager,
             'assigned_projects': assigned_projects,
             'total_projects': total_projects,
@@ -182,6 +238,7 @@ def dashboard(request):
             'loss_of_pay_days': loss_of_pay_days,
             "last_punch_in": last_punch_in,
             "last_punch_out": last_punch_out,
+            "has_open_session": open_session_exists,
             'user_attendance': today_attendance,
             "current_time": timezone.now().astimezone(local_tz).strftime('%I:%M %p, %d %b %Y'),
             'chart_data': {
@@ -191,6 +248,10 @@ def dashboard(request):
                 'absent': absent_days_count,
                 'sick': sick_leave_taken,
             },
+
+            'total_worked_seconds': total_worked_seconds,
+            'open_login_time': open_session.login_time if open_session else None,
+
             'project_growth_percentage': round(projects_this_month - projects_last_month, 2),
             'pending_growth_percentage': abs(round(calculate_growth(pending_projects_this_month,pending_projects_last_month), 2)),
             'completed_growth_percentage': round(calculate_growth(completed_projects_this_month, completed_projects_last_month), 2),
@@ -201,7 +262,98 @@ def dashboard(request):
         return render(request, 'Manager/dashboard.html', context)
 
     return render(request, 'employee/employee_dashboard.html')  
-    
+
+@login_required
+def get_presence_data(request):
+    try:
+        # Month & year from request (default: current month/year)
+        month = int(request.GET.get("month", date.today().month))
+        year = int(request.GET.get("year", date.today().year))
+
+        # Validate month/year
+        if month < 1 or month > 12:
+            return JsonResponse({"error": "Invalid month"}, status=400)
+
+        user = request.user
+        employee = get_object_or_404(Employee, user=user)
+        today = timezone.now().date()
+
+        # Date range for selected month
+        first_day = date(year, month, 1)
+        last_day = date(year, month, monthrange(year, month)[1])
+
+        # If current month is selected, count only until today
+        if year == today.year and month == today.month:
+            last_day = today
+
+        # Helper: Working days logic (Mon–Sat except holidays)
+        def get_working_days(start, end):
+            all_days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+            weekdays = [d for d in all_days if d.weekday() < 6]
+            holidays = set(Holiday.objects.filter(date__range=(start, end)).values_list('date', flat=True))
+            return len([d for d in weekdays if d not in holidays])
+
+        working_days_this_month = get_working_days(first_day, last_day)
+
+        # Approved attendance for this month
+        approved_attendance = Attendance.objects.filter(
+            employee=employee,
+            status="APPROVED",
+            login_time__date__gte=first_day,
+            login_time__date__lte=last_day
+        ).order_by('login_time')
+
+        # First login per day logic
+        first_login_per_day = {}
+        for att in approved_attendance:
+            day = att.login_time.date()
+            if day not in first_login_per_day:
+                first_login_per_day[day] = att
+
+        on_time_days = set()
+        late_days = set()
+        wfh_days = set()
+
+        for att in first_login_per_day.values():
+            if att.login_time:
+                login_t = localtime(att.login_time).time()
+                if login_t <= time(9, 15):
+                    on_time_days.add(att.login_time.date())
+                else:
+                    late_days.add(att.login_time.date())
+            if att.attendance_status == 'WORK FROM HOME':
+                wfh_days.add(att.login_time.date())
+
+        on_time_count = len(on_time_days)
+        late_count = len(late_days)
+        wfh_count = len(wfh_days)
+
+        # Sick leave for that month
+        sick_leave_taken = Leave.objects.filter(
+            user=user,
+            approval_status="APPROVED",
+            leave_type="SICK LEAVE",
+            from_date__gte=first_day,
+            from_date__lte=last_day
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
+        # Absent days formula
+        absent_days_count = working_days_this_month - (
+            on_time_count + late_count + wfh_count + sick_leave_taken
+        )
+        absent_days_count = max(absent_days_count, 0)
+
+        return JsonResponse({
+            "on_time": on_time_count,
+            "late": late_count,
+            "wfh": wfh_count,
+            "absent": absent_days_count,
+            "sick": sick_leave_taken
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
 
 @login_required
 def manager_profile(request):
@@ -602,6 +754,9 @@ def attendance_list(request):
     # Sort the records by login time (descending)
     attendance_records = sorted(
         attendance_records, key=lambda x: x.login_time, reverse=True)
+    
+    for record in attendance_records:
+        record.matching_teams = record.employee.teams_assigned.filter(project=record.project)
 
     # Paginate the attendance records
     paginator = Paginator(attendance_records, 10)
@@ -1416,30 +1571,32 @@ def manager_log_in(request):
         travel_in_time = parse_datetime(travel_in_time_str) if travel_in_time_str else None
         travel_out_time = parse_datetime(travel_out_time_str) if travel_out_time_str else None
 
-        attendance, created = Attendance.objects.get_or_create(
+        # OPTIONAL: Auto close any open session before starting new one
+        open_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True)
+        for record in open_attendance:
+            record.log_out_time = now()
+            record.total_hours_of_work = (record.log_out_time - record.login_time).total_seconds() / 3600
+            record.save()
+
+        # Create a new login record (no get_or_create restriction now)
+        Attendance.objects.create(
             employee=employee,
             project_id=project_id,
-            log_out_time__isnull=True,
-            defaults={
-                "location": location,
-                "attendance_status": attendance_status,
-                "login_time": now(),
-                "travel_in_time": travel_in_time,
-                "travel_out_time": travel_out_time,
-                "status": "APPROVED",
-                "total_hours_of_work": 0,
-                "vessel_id": vessel_id  # Store selected vessel
-            },
+            location=location,
+            attendance_status=attendance_status,
+            login_time=now(),
+            travel_in_time=travel_in_time,
+            travel_out_time=travel_out_time,
+            status="APPROVED",
+            total_hours_of_work=0,
+            vessel_id=vessel_id
         )
 
-        if created:
-            messages.success(request, "You have successfully logged in.")
-        else:
-            messages.error(request, "You are already logged in. Please log off before logging in again.")
-
+        messages.success(request, "You have successfully logged in for this session.")
         return redirect("attendance_status")
 
     return manager_render_attendance_page(request)
+
 
 @login_required
 def manager_log_off(request, attendance_id):
@@ -1472,7 +1629,11 @@ def manager_log_off(request, attendance_id):
 @login_required
 def manager_render_attendance_page(request):
     employee = get_object_or_404(Employee, user=request.user)
-    user_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True).first()
+    user_attendance = Attendance.objects.filter(
+    employee=employee, 
+    log_out_time__isnull=True
+).order_by('-login_time').first()
+
 
     attendance_status_choices = Attendance.ATTENDANCE_STATUS
     location_choices = Attendance.LOCATION_CHOICES
@@ -1552,7 +1713,6 @@ def create_work_order_view(request, project_id):
         'form': form,
         'project': project
     })
-
 
 
 @login_required
@@ -1674,7 +1834,6 @@ def manager_update_work_order_view(request, pk):
     }
 
     return render(request, 'Manager/update_work_order.html', context)
-
 
 
 @login_required

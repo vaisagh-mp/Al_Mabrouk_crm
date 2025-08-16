@@ -93,17 +93,13 @@
                     <!-- <td>{{ record.get_vessel|default:"N/A" }}</td> -->
                     <td>{{ record.project.name|default:"No Project" }}</td>
                     <td>
-                        {% with record.employee.teams_assigned.all as teams %}
-                            {% if teams %}
-                                {% for team in teams %}
-                                    {% if team.project == record.project %}
-                                        {{ team.name }}
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                No team assigned
-                            {% endif %}
-                        {% endwith %}
+                        {% if record.matching_teams %}
+                            {% for team in record.matching_teams %}
+                                {{ team.name }}
+                            {% endfor %}
+                        {% else %}
+                            No team assigned
+                        {% endif %}
                     </td>
                     <td class="list-action-col">
                         <a href="{% url 'manager_edit_attendance' record.id %}"><i class="far fa-edit"></i></a>

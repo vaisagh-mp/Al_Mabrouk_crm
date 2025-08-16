@@ -90,9 +90,9 @@
     <div class="col-lg-3 col-md-6 m-b-20">
       <div class="status-wdgt card-bg-orange">
         <h5>Net Profit</h5>
-        <h6>{{ total_profit|floatformat:0 }} AED</h6>
+        <h6>{{ total_profit |floatformat:0 }} AED</h6>
         <p>
-          {% if total_profit >= 0 %}
+          {% if profit_change_percent >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
             <span>{{ profit_change_percent|floatformat:2 }}%</span> Since last month
           {% else %}
@@ -130,23 +130,23 @@
           <hr />
           
           <div class="prjct-overview-card-top-sec">
-              <div>
-                  <p>Project Completion</p>
-                  <p>
+            <div>
+                <p>Project Completion</p>
+                <p>
                     {% if completion_percentage_this_month >= 0 %}
-                      <i class="fas fa-arrow-up text-success"></i>
-                      <span>{{ completion_percentage_this_month }}%</span> Since last month
+                        <i class="fas fa-arrow-up text-success"></i>
+                        <span>{{ completion_percentage_this_month }}%</span> Since last month
                     {% else %}
-                      <i class="fas fa-arrow-down text-danger"></i>
-                      <span>{{ completion_percentage_this_month|absolute }}%</span> Since last month
+                        <i class="fas fa-arrow-down text-danger"></i>
+                        <span>{{ completion_percentage_this_month|absolute }}%</span> Since last month
                     {% endif %}
-                  </p>
-              </div>
-              <div>
-                  <span>{{ completion_percentage }}%</span>
-              </div>
-          </div>
-  
+                </p>
+            </div>
+            <div>
+                <span>{{ completion_percentage }}%</span>
+            </div>
+        </div>
+
           <div class="prjct-overview-progress">
             <div class="progress-bar progress-bar-width" id="progressBar">
                 <div class="progress-bar-anim"></div>

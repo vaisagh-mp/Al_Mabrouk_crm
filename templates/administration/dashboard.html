@@ -89,7 +89,7 @@
       <div class="col-lg-4 col-md-6">
           <div class="widget-box">
               <div class="attendance-card">
-                  <h3>Attendance</h3>
+                  <h4>Attendance</h4>
                   <!-- Display current date and time -->
                   <div class="date">{{ current_time }}</div>
 
@@ -117,10 +117,10 @@
               
 
                   <a href="{% url 'admstrn_attendance_dashboard' %}" id="punchButton">
-                      {% if last_punch_in == "Not Punched In" %}
-                      Punch In
+                      {% if has_open_session %}
+                        Punch Out
                       {% else %}
-                      Punch Out
+                        Punch In
                       {% endif %}
                   </a>
               </div>
@@ -182,9 +182,18 @@
             <div class="widget-box leave-card-widget">
                 <div class="leave-card">
                 <div class="widget-title">
-                    <h4>Presence Overview</h4>
+                    <h4>Monthly Presence</h4>
+                    <div class="month-selector">
+                        <select id="presence-month" class="year-btn">
+                            {% for m in months %}
+                                <option value="{{ m.value }}" {% if m.value == current_month %}selected{% endif %}>
+                                    {{ m.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
-                <div id="leaveChart"></div>
+                <div id="leaveChart" style="width:90%;margin: auto;"></div>
                 </div>
             </div>
         </div>
