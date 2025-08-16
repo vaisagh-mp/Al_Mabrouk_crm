@@ -493,7 +493,10 @@ def profile(request):
     first_day_this_month = today.replace(day=1)
 
     # Use the later of join date or start of this month
-    work_start_date = max(employee.date_of_join, first_day_this_month)
+    if employee.date_of_join:
+        work_start_date = max(employee.date_of_join, first_day_this_month)
+    else:
+        work_start_date = first_day_this_month
 
     # Get working days from join date/1st of month to today (Mon–Sat)
     all_days = [work_start_date + timedelta(days=i) for i in range((today - work_start_date).days + 1)]
