@@ -1118,13 +1118,13 @@ def employee_update_work_order_view(request, pk):
     if request.method == 'POST':
         try:
             with transaction.atomic():
-                # ✅ Update project_description
+                # Update project_description
                 project_description = request.POST.get('project_description')
                 if project_description is not None:
                     work_order.project_description = project_description
                     work_order.save()
 
-                # ✅ Update WorkOrderDetail
+                # Update WorkOrderDetail
                 work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                 work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                 work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
@@ -1132,7 +1132,7 @@ def employee_update_work_order_view(request, pk):
                 work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                 work_order_detail.save()
 
-                # ✅ Clear and save Spares
+                # Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
                 for name, unit, qty in zip(
                     request.POST.getlist('spare_name[]'),
@@ -1147,7 +1147,7 @@ def employee_update_work_order_view(request, pk):
                             quantity=int(qty or 0)
                         )
 
-                # ✅ Clear and save Tools
+                # Clear and save Tools
                 Tool.objects.filter(work_order=work_order).delete()
                 for name, qty in zip(
                     request.POST.getlist('tool_name[]'),
@@ -1160,7 +1160,7 @@ def employee_update_work_order_view(request, pk):
                             quantity=int(qty or 0)
                         )
 
-                # ✅ Clear and save Documents
+                # Clear and save Documents
                 Document.objects.filter(work_order=work_order).delete()
                 for name, status in zip(
                     request.POST.getlist('doc_name[]'),
@@ -1173,12 +1173,12 @@ def employee_update_work_order_view(request, pk):
                             status=status.strip()
                         )
 
-                # ✅ Save new uploaded project images
+                # Save new uploaded project images
                 files = request.FILES.getlist('project_images')
                 for f in files:
                     WorkOrderImage.objects.create(work_order=work_order, image=f)
 
-                # ✅ Delete selected project images
+                # Delete selected project images
                 delete_ids = request.POST.getlist('delete_image_ids')
                 if delete_ids:
                     WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
