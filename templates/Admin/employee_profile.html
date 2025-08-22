@@ -47,12 +47,32 @@
             <p class="text-dark">{{ employee.salary }} AED</p>
           </div>
           <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="d-inline-flex align-items-center">
-              <i class="fas fa-globe"></i>
-              Overseas Days
-            </span>
-            <p class="text-dark">{{ employee.overseas_days }}</p>
-          </div>
+              <span class="d-inline-flex align-items-center">
+                <i class="fas fa-anchor"></i>
+                Anchorage
+              </span>
+              <p class="text-dark">
+                {{ anchorage_attendance }}
+              </p>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="d-inline-flex align-items-center">
+                <i class="fas fa-globe"></i>
+                Overseas
+              </span>
+              <p class="text-dark">
+                {{ overseas_attendance }}
+              </p>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <span class="d-inline-flex align-items-center">
+                <i class="fas fa-ship"></i>
+                At_Berth
+              </span>
+              <p class="text-dark">
+                {{ at_berth_attendance }}
+              </p>
+            </div>
         </div>
         <hr />
 

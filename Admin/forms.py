@@ -87,6 +87,15 @@ class EmployeeCreationForm(forms.ModelForm):
 
 # Define a form for the Project model
 class ProjectForm(forms.ModelForm):
+
+    # Extra Team fields (optional)
+    team_name = forms.CharField(label="Team Name", required=False)
+    employees = forms.ModelMultipleChoiceField(
+        queryset=Employee.objects.filter(is_employee=True),
+        widget=forms.CheckboxSelectMultiple,
+        required=False
+    )
+    
     class Meta:
         model = Project
         fields = [

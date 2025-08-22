@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Max
 from django.db.models.signals import post_save, m2m_changed, pre_save, post_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import User
@@ -560,12 +561,16 @@ class WorkOrder(models.Model):
             year_suffix = str(datetime.now().year)[-2:]  # e.g., "25"
             prefix = f"AMMS-{year_suffix}"
 
-            # Count how many work orders already exist this year
-            existing_count = WorkOrder.objects.filter(
-                work_order_number__startswith=prefix
-            ).count() + 1
+            # Get the highest sequence number for this prefix
+            last_number = (
+                WorkOrder.objects.filter(work_order_number__startswith=prefix)
+                .annotate(num_part=models.functions.Cast(models.Substr('work_order_number', len(prefix) + 2), models.IntegerField()))
+                .aggregate(max_num=Max('num_part'))
+                ['max_num']
+            )
 
-            self.work_order_number = f"{prefix}-{existing_count:03d}"  # 001, 002, etc.
+            next_number = (last_number or 0) + 1
+            self.work_order_number = f"{prefix}-{next_number:03d}"  # e.g., 001, 002, etc.
 
         super().save(*args, **kwargs)
 

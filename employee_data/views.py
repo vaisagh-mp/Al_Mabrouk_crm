@@ -520,6 +520,10 @@ def profile(request):
 
     # Attendance %
     attendance_percentage = ((full_days + 0.5 * half_days) / total_working_days_this_month * 100) if total_working_days_this_month > 0 else 0
+    engineer_attendance_qs = Attendance.objects.filter(employee=employee, status='APPROVED')
+    overseas_attendance = engineer_attendance_qs.filter(project__category="OVERSEAS").count()
+    anchorage_attendance = engineer_attendance_qs.filter(project__category="ANCHORAGE").count()
+    at_berth_attendance = engineer_attendance_qs.filter(project__category="AT_BERTH").count()
 
     context = {
         "role": "Engineer",
@@ -530,6 +534,10 @@ def profile(request):
         'total_projects': total_projects,
         'completed_projects': completed_projects,
         'pending_projects': pending_projects,
+
+        "overseas_attendance": overseas_attendance,
+        "anchorage_attendance": anchorage_attendance,
+        "at_berth_attendance": at_berth_attendance,
     }
 
     return render(request, 'employee/profile.html', context)

@@ -965,6 +965,13 @@ def employee_profile(request, employee_id):
         manager_pending_projects = manager_projects.exclude(status__in=['COMPLETED']).count()
         manager_assigned_projects = manager_projects.filter(status='ASSIGN').count()
 
+    
+    engineer_attendance_qs = Attendance.objects.filter(employee=employee, status='APPROVED')
+    overseas_attendance = engineer_attendance_qs.filter(project__category="OVERSEAS").count()
+    anchorage_attendance = engineer_attendance_qs.filter(project__category="ANCHORAGE").count()
+    at_berth_attendance = engineer_attendance_qs.filter(project__category="AT_BERTH").count()
+
+
     # Context
     context = {
         'role': 'Admin',
@@ -983,6 +990,10 @@ def employee_profile(request, employee_id):
         'manager_completed_projects': manager_completed_projects,
         'manager_pending_projects': manager_pending_projects,
         'manager_assigned_projects': manager_assigned_projects,
+
+        "overseas_attendance": overseas_attendance,
+        "anchorage_attendance": anchorage_attendance,
+        "at_berth_attendance": at_berth_attendance,
     }
 
     return render(request, 'Admin/employee_profile.html', context)

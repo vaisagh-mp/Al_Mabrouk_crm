@@ -37,7 +37,8 @@
             <tbody>
                 {% for employee in page_obj %}
                 <tr>
-                    <td><a href="{% url 'employee_profile_view' employee.id %}">{{ employee.user.get_full_name }}</a></td>
+                    <!-- <td><a href="{% url 'employee_profile_view' employee.id %}">{{ employee.user.get_full_name }}</a></td> -->
+                    <td>{{ employee.user.get_full_name }}</td>
                     <td>{{ employee.pk }}</td>
                     <td>{{ employee.rank }}</td>
                     <td>

@@ -417,6 +417,10 @@ def manager_profile(request):
     total_working_days_manager = len(working_days_manager)
 
     manager_attendance_percentage = round(((manager_full_days + 0.5 * manager_half_days) / total_working_days_manager) * 100, 2) if total_working_days_manager > 0 else 0
+    manager_attendance_ct = Attendance.objects.filter(employee=manager, status='APPROVED')
+    overseas_attendance = manager_attendance_ct.filter(project__category="OVERSEAS").count()
+    anchorage_attendance = manager_attendance_ct.filter(project__category="ANCHORAGE").count()
+    at_berth_attendance = manager_attendance_ct.filter(project__category="AT_BERTH").count()
 
     # --- CONTEXT ---
     context = {
@@ -429,6 +433,10 @@ def manager_profile(request):
         "managed_projects": managed_projects,
         "attendance_percentage_current_month": team_attendance_percentage,
         "manager_attendance_percentage": manager_attendance_percentage,
+
+        "overseas_attendance": overseas_attendance,
+        "anchorage_attendance": anchorage_attendance,
+        "at_berth_attendance": at_berth_attendance,
     }
 
     return render(request, 'Manager/manager_profile.html', context)
@@ -493,18 +501,35 @@ def manager_add_project(request):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
+            # Save Project
             project = form.save(commit=False)
-            project.manager = request.user.employee_profile  # auto-assign
+            project.manager = request.user.employee_profile
             project.save()
-            messages.success(request, "Project added successfully!")
+
+            # Create Team only if team_name is provided
+            team_name = form.cleaned_data.get('team_name')
+            employees = form.cleaned_data.get('employees')
+
+            if team_name:  
+                team = Team.objects.create(
+                    name=team_name,
+                    manager=project.manager,
+                    project=project
+                )
+                if employees:
+                    team.employees.set(employees)
+
+            messages.success(
+                request,
+                "Project created successfully!" if not team_name else "Project + Team created successfully!"
+            )
             return redirect('project_list')
         else:
-            messages.error(request, "There was an error adding the project. Please check the form.")
+            messages.error(request, "There was an error creating the project. Please check the form.")
     else:
         form = ProjectForm(user=request.user)
 
     return render(request, 'Manager/add_project.html', {'form': form, 'role': 'Manager'})
-
 # Edit project
 @login_required
 def manager_edit_project(request, project_id):
