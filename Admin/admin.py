@@ -165,7 +165,8 @@ class ToolAdmin(admin.ModelAdmin):
 
 @admin.register(WorkOrderTime)
 class WorkOrderTimeAdmin(admin.ModelAdmin):
-    list_display = ['start_time', 'finish_time']
+    list_display = ("work_order", "date", "start_time", "finish_time", "estimated_hours")
+    readonly_fields = ("estimated_hours",)
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
