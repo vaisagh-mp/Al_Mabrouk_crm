@@ -126,7 +126,7 @@
       <button type="button" class="add-btn" onclick="addDocRow()">Add Document</button>
     </div>
 
-    <div class="grid-2">
+    <div class="grid-3">
       <div>
         <label>Start Date</label>
         <input type="date" name="start_date" value="{{ work_order_detail.start_date|date:'Y-m-d' }}">
@@ -135,21 +135,28 @@
         <label>Completion Date</label>
         <input type="date" name="completion_date" value="{{ work_order_detail.completion_date|date:'Y-m-d' }}">
       </div>
-    </div>
-
-    <div class="grid-3">
       <div>
         <label>Estimated Hours</label>
-        <input type="number" name="estimated_hours" value="{{ work_order_detail.estimated_hours|default_if_none:'' }}">
+        <input type="number" step="0.01" name="estimated_hours" 
+               value="{{ work_order_detail.estimated_hours|default_if_none:'' }}">
       </div>
-      <div>
-        <label>Start Time</label>
-        <input type="time" name="start_time" value="{{ work_order_detail.start_time|time:'H:i' }}">
+    </div>
+
+    <div class="wr-ordr-tbl">
+      <label>Time Logs</label>
+      <div class="table-responsive">
+        <table id="timeTable">
+          <thead>
+            <tr>
+              <th>date</th>
+              <th>Start Time</th>
+              <th>Finish Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
-      <div>
-        <label>Finish Time</label>
-        <input type="time" name="finish_time" value="{{ work_order_detail.finish_time|time:'H:i' }}">
-      </div>
+      <button type="button" class="add-btn" onclick="addTimeRow()">Add Time Row</button>
     </div>
 
     <div>

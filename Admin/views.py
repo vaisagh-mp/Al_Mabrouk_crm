@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from calendar import monthrange
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.contrib.auth import update_session_auth_hash
 from django.urls import reverse
 from django.http import HttpResponseForbidden
@@ -19,13 +20,14 @@ from datetime import datetime
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.contrib import messages
+from manager.forms import TeamForm
 from django.contrib.auth.forms import UserCreationForm
-from .forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm, VesselForm
+from .forms import EmployeeCreationForm, AdminTeamForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm, VesselForm
 from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 
 
 # Home
@@ -179,9 +181,24 @@ def dashboard(request):
         completion_percentage = (completed_projects / total_projects * 100) if total_projects > 0 else 0
         
         # Fetching project details with manager name
-        project_details = Project.objects.annotate(
-            leader_name=F('manager__user__username')
-        ).values('id', 'name', 'leader_name', 'status', 'category', 'priority').order_by('-created_at')[:5]
+        projects = Project.objects.prefetch_related('teams__employees__user').order_by('-created_at')[:5]
+
+        project_details = []
+        for p in projects:
+            members = [
+                f"{e.user.first_name} {e.user.last_name}"
+                for t in p.teams.all()
+                for e in t.employees.all()
+            ]
+            project_details.append({
+                "id": p.id,
+                "name": p.name,
+                "leader_name": p.manager.user.get_full_name(),
+                "priority": p.priority,
+                "status": p.status,
+                "teams_members": members,
+            })
+
 
         # Unique client count (ignores empty values)
        # Total distinct clients
@@ -237,7 +254,7 @@ def dashboard(request):
                 return redirect('project-summary', project_id=filtered_projects.first().id)
             else:
                 projects = filtered_projects
-
+    
         context = {
             "role": "Admin",
             'projects': projects,
@@ -767,6 +784,60 @@ def admin_project_summary_view(request, project_id):
 
 
 @login_required
+def update_team_admin_status(request, project_id):
+    
+    # Ensure only admins can access this function
+    if not request.user.is_superuser:
+        messages.error(request, "You do not have permission to update project status.")
+        return redirect("admin_dashboard")
+
+    if request.method == "POST":
+        project = get_object_or_404(Project, id=project_id)
+        status = request.POST.get("status")
+        remark = request.POST.get("remark", "")
+        purchase_and_expenses = request.POST.get("invoice_amount")
+        currency_code = request.POST.get("currency_code")
+
+        previous_status = project.status
+        project.status = status
+
+        # Save invoice info if status is completed
+        if status == "COMPLETED":
+            if purchase_and_expenses and currency_code:
+                project.purchase_and_expenses = purchase_and_expenses
+                project.currency_code = currency_code
+            else:
+                project.purchase_and_expenses = 0
+                project.currency_code = "AED"
+
+        project.save()
+
+        changed_by = None
+        changed_by_name = None
+
+        if hasattr(request.user, 'employee_profile'):
+            changed_by = request.user.employee_profile
+        else:
+            changed_by_name = request.user.username
+
+        # Create an activity log entry
+        ActivityLog.objects.create(
+            project=project,
+            previous_status=previous_status,
+            new_status=status,
+            notes=remark,
+            changed_by=changed_by,
+            changed_by_name=changed_by_name
+        )
+
+        messages.success(request, "Project status updated successfully by Admin.")
+    else:
+        messages.error(request, "Invalid request method.")
+
+    return redirect('project-summary', project_id=project_id)
+
+
+@login_required
 def admin_project_attachments_view(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     attachments = ProjectAttachment.objects.filter(project=project).order_by('-uploaded_at')
@@ -804,18 +875,37 @@ def admin_delete_project_attachment(request, attachment_id):
 # add project
 @login_required
 def add_project(request):
-    form = ProjectForm()
-
     if request.method == 'POST':
-        form = ProjectForm(request.POST, request.FILES)
+        form = ProjectForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Project added successfully!")
+            # Save Project
+            project = form.save(commit=False)
+            project.save()
+
+            # Create Team only if team_name is provided
+            team_name = form.cleaned_data.get('team_name')
+            employees = form.cleaned_data.get('employees')
+
+            if team_name:  
+                team = Team.objects.create(
+                    name=team_name,
+                    manager=project.manager,   # uses the manager selected in form
+                    project=project
+                )
+                if employees:
+                    team.employees.set(employees)
+
+            messages.success(
+                request,
+                "Project created successfully!" if not team_name else "Project + Team created successfully!"
+            )
             return redirect('project-list')
         else:
             messages.error(request, "There was an error adding the project. Please check the form.") 
+    else:
+        form = ProjectForm(user=request.user)
 
-    return render(request, 'Admin/add_project.html', {'form': form,'role': 'Admin'})
+    return render(request, 'Admin/add_project.html', {'form': form, 'role': 'Admin'})
 
 @login_required
 def edit_project(request, project_id):
@@ -841,6 +931,82 @@ def delete_project(request, project_id):
     project.delete()
     messages.success(request, "Project deleted successfully!")
     return redirect('project-list')
+
+
+@login_required
+def admin_team_create(request):
+    """ Admin - Create Team """
+    if request.method == 'POST':
+        form = AdminTeamForm(request.POST)  # Admin can see all, so no user filter
+        if form.is_valid():
+            form.save()
+            return redirect('admin-team-list')
+    else:
+        form = AdminTeamForm()
+
+    return render(request, 'Admin/add_team.html', {'form': form, "role": "Admin"})
+
+@login_required
+def team_list(request):
+    search_query = request.GET.get('search', '').strip()
+
+    if request.user.is_superuser or request.user.is_staff:
+        # Admin → show all teams
+        if search_query:
+            teams = Team.objects.filter(name__icontains=search_query)
+        else:
+            teams = Team.objects.all().order_by('-created_at')
+
+        role = "Admin"
+
+    else:
+        # Manager → show only manager's teams
+        manager = get_object_or_404(Employee, user=request.user, is_manager=True)
+        if search_query:
+            teams = Team.objects.filter(manager=manager, name__icontains=search_query)
+        else:
+            teams = Team.objects.filter(manager=manager).order_by('-project__created_at')
+        role = "Manager"
+
+    # Pagination
+    paginator = Paginator(teams, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'Admin/team_list.html', {
+        'teams': page_obj,
+        'search_query': search_query,
+        "role": role
+    })
+@login_required
+def admin_team_update(request, pk):
+    team = get_object_or_404(Team, pk=pk)
+
+    if request.method == 'POST':
+        form = AdminTeamForm(request.POST, instance=team)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Team updated successfully!")
+            return redirect('admin-team-list')
+    else:
+        form = AdminTeamForm(instance=team)
+
+    return render(request, 'Admin/update_team.html', {
+        'form': form,
+        'role': 'Admin',
+    })
+
+def is_admin(user):
+    return user.is_authenticated and user.is_superuser 
+
+@login_required
+@user_passes_test(is_admin)
+def admin_team_delete(request, team_id):
+    team = get_object_or_404(Team, id=team_id)
+    team.delete()
+    messages.success(request, "Team deleted successfully!")
+    return redirect('admin-team-list')
+
 
 # project_assignment_list
 @login_required
@@ -1518,7 +1684,7 @@ def create_work_order_view_admin(request, project_id):
             # Assign team members
             teams = Team.objects.filter(project=project)
             team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
-            work_order.job_assigned_to.set(User.objects.filter(employee_profile__in=team_members))
+            work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
 
             messages.success(request, "Work Order created successfully by Superadmin.")
             return redirect('admin_view_work_order', pk=work_order.pk)
@@ -1544,9 +1710,31 @@ def admin_view_work_order(request, pk):
         return redirect('custom-login')
 
     work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
+
+    live_members = []
+    if work_order.project:
+        if hasattr(work_order.project, "teams"):  # many teams
+            live_members = [
+                emp.user for team in work_order.project.teams.all()
+                for emp in team.employees.all()
+            ]
+        elif hasattr(work_order.project, "team"):  # single team
+            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+
+    # FIX: use the correct field
+    all_members = work_order.all_members.all()
+    total_hours = (
+        WorkOrderTime.objects.filter(work_order=work_order)
+        .aggregate(total=Sum('estimated_hours'))['total'] or 0
+    )
 
     return render(request, 'Admin/view_work_order.html', {
-        'work_order': work_order
+        'work_order': work_order,
+        'work_order_detail': work_order_detail,
+        'live_members': live_members,
+        'all_members': all_members,
+        'calculated_hours': total_hours,
     })
 
 
@@ -1579,9 +1767,26 @@ def admin_update_work_order_view(request, pk):
                     work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                     work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                     work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
-                    work_order_detail.start_time = parse_time(request.POST.get('start_time')) or None
-                    work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                     work_order_detail.save()
+
+                    # ---------------------------
+                    # Clear old WorkOrderTime entries
+                    # ---------------------------
+                    WorkOrderTime.objects.filter(work_order=work_order).delete()
+
+                    # Save multiple WorkOrderTime rows
+                    for date, start, finish in zip(
+                        request.POST.getlist('time_date[]'),
+                        request.POST.getlist('start_time[]'),
+                        request.POST.getlist('finish_time[]')
+                    ):
+                        if start or finish:
+                            WorkOrderTime.objects.create(
+                                work_order=work_order,
+                                date=parse_date(date) if date else None,
+                                start_time=parse_time(start) if start else None,
+                                finish_time=parse_time(finish) if finish else None,
+                            )
 
                     # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
@@ -1658,6 +1863,12 @@ def admin_update_work_order_view(request, pk):
         'form': form,
         'work_order': work_order,
         'work_order_detail': work_order_detail,
+        'time_logs': WorkOrderTime.objects.filter(work_order=work_order),
+        'times': json.dumps(
+            list(WorkOrderTime.objects.filter(work_order=work_order).values( 'date', 'start_time', 'finish_time'
+            )),
+            cls=DjangoJSONEncoder
+        ),
         'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),

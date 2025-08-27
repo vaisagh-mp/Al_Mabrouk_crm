@@ -325,10 +325,16 @@
           </td>
           <td>
             <div class="avatars">
-              <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-              <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-              <img src="{% static 'assets/images/user-pro.webp' %}" alt="Team Member" />
-              <span>+1</span>
+              {% if project.teams_members %}
+                {% for member in project.teams_members|slice:":3" %}
+                  <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member }}" title="{{ member }}" />
+                {% endfor %}
+                {% if project.teams_members|length > 3 %}
+                  <span>+{{ project.teams_members|length|add:"-3" }}</span>
+                {% endif %}
+              {% else %}
+                <span>No team</span>
+              {% endif %}
             </div>
           </td>
           <td>{{ project.leader_name }}</td>
@@ -360,16 +366,17 @@
   </script>
 <script>
   document.addEventListener("DOMContentLoaded", function() {
-      let clientGrowthPercentage = parseFloat("{{ client_growth_percentage|default:0 }}") || 0;
-      let progressBar = document.getElementById("clientProgressBar");
+    let clientGrowthPercentage = parseFloat("{{ client_growth_percentage|default:0 }}") || 0;
+    let progressBar = document.querySelector("#clientProgressBar .progress-bar-anim");
 
-      if (progressBar) {
-          const isPositive = clientGrowthPercentage >= 0;
-          const safePercentage = Math.max(0, Math.min(clientGrowthPercentage, 100));
-          progressBar.style.width = safePercentage + "%";
-          progressBar.style.backgroundColor = isPositive ? "#00e396" : "#dc3545"; // green for up, red for down
-      }
-  });
+    if (progressBar) {
+        const isPositive = clientGrowthPercentage >= 0;
+        const safePercentage = Math.max(0, Math.min(clientGrowthPercentage, 100));
+        progressBar.style.width = safePercentage + "%";
+        progressBar.style.backgroundColor = isPositive ? "#00e396" : "#dc3545"; // green for up, red for down
+    }
+});
+
 </script>
 
   

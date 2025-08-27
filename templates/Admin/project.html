@@ -155,8 +155,68 @@
 
       <!-- Project Status Updates -->
       <div class="col-lg-7">
+        
+        <div class="emp-pjct-status-box" style="margin-bottom: 20px;">
+          <div class="widget-box">
+            <div class="widget-title">
+              <h4>Update Status</h4>
+            </div>
+          
+            <form method="POST" action="{% url 'update_team_admin_status' project_id=project_data.project_id %}" id="statusForm">
+              {% csrf_token %}
+              <div class="prjct-status-updt-box">
+                <select id="status" name="status" onchange="toggleRemarkBox()" required>
+                  <option value="" disabled selected>Select Status</option>
+                  <option value="ASSIGN">Assign</option>
+                  <option value="ONGOING">Ongoing</option>
+                  <option value="HOLD">On Hold</option>
+                  <option value="CANCELLED">Cancelled</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+                <div class="button-row">
+                  <button type="button" class="btn" onclick="handleStatusSubmit()">Update</button>
+                </div>
+              </div>
+            
+              <div id="remarkBox" class="remark-box" style="display: none">
+                <textarea id="remark" name="remark" rows="4" placeholder="Enter note here"></textarea>
+              </div>
+            
+              <!-- Hidden fields for invoice info -->
+              <input type="hidden" name="invoice_amount" id="invoice_amount_field">
+              <input type="hidden" name="currency_code" id="currency_code_field">
+            </form>
+          </div>
+        </div>
+
+         <!-- Modal for invoice info -->
+        <div class="modal fade" id="invoiceModal" tabindex="-1" aria-labelledby="invoiceModalLabel" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="invoiceModalLabel">Purchase & Expenses Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <div class="mb-3">
+                  <label for="invoice_amount" class="form-label">Purchase & Expenses Amount</label>
+                  <input type="number" class="form-control" id="invoice_amount" step="0.01" required>
+                </div>
+                <div class="mb-3">
+                  <label for="currency_code" class="form-label">Currency Code</label>
+                  <input type="text" class="form-control" id="currency_code" value="AED" maxlength="10" required>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-warning" onclick="skipInvoice()">Skip</button>
+                <button type="button" class="btn btn-primary" onclick="submitStatusFormWithInvoice()">Submit</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="prjct-time-line-box admin">
-          <div class="widget-box" style="height:790px;">
+          <div class="widget-box" style="height:680px;">
             <div class="widget-title">
               <h4>Project Timeline</h4>
             </div>
@@ -171,21 +231,26 @@
                       {% elif log.new_status == 'COMPLETED' %}Green
                       {% else %}Orange{% endif %}">
                   </div>
-                  <div class="content">
+                  <div class="content"> 
                       <h5>{{ log.new_status }}</h5>
                       <p>
                           {% if log.team_member_status %}
                               {{ log.team_member_status.employee.user.first_name }} {{ log.team_member_status.employee.user.last_name }}
-                          {% else %}
+                          {% elif log.changed_by %}
                               {{ log.changed_by.user.first_name }} {{ log.changed_by.user.last_name }} (Manager)
+                          {% elif log.changed_by_name %}
+                              {{ log.changed_by_name }} (Admin)
                           {% endif %}
                           changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
                       </p>
+                    
                       {% if log.notes %}
-                      <p>Note: {{ log.notes }}</p>
+                          <p>Note: {{ log.notes }}</p>
                       {% endif %}
+                    
                       <span>{{ log.changed_at|timesince }} ago</span>
                   </div>
+
               </div>
               {% empty %}
               <div class="timeline-item">
@@ -263,4 +328,52 @@
   </div>
 </div>
 
+
+<script>
+function toggleRemarkBox() {
+    const selectedStatus = document.getElementById("status").value;
+    const remarkBox = document.getElementById("remarkBox");
+    remarkBox.style.display = selectedStatus ? "block" : "none";
+}
+
+function handleStatusSubmit() {
+    const status = document.getElementById("status").value;
+    if (status === "COMPLETED") {
+        // Show modal
+       new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+    } else {
+        // Submit form normally
+        document.getElementById("statusForm").submit();
+    }
+}
+
+function submitStatusFormWithInvoice() {
+    const amount = document.getElementById("invoice_amount").value;
+    const currency = document.getElementById("currency_code").value;
+
+    if (!amount || !currency) {
+        alert("Please fill in both invoice amount and currency.");
+        return;
+    }
+
+    // Set hidden inputs and submit
+    document.getElementById("invoice_amount_field").value = amount;
+    document.getElementById("currency_code_field").value = currency;
+
+    document.getElementById("statusForm").submit();
+}
+
+function skipInvoice() {
+    // Clear hidden fields
+    document.getElementById("invoice_amount_field").value = "";
+    document.getElementById("currency_code_field").value = "";
+
+    // Submit form anyway (status = COMPLETED will still go through)
+    document.getElementById("statusForm").submit();
+}
+
+function closeInvoiceModal() {
+    document.getElementById("invoiceModal").style.display = "none";
+}
+</script>
 {% endblock %}

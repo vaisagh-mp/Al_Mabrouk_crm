@@ -26,10 +26,9 @@
         <tr style="border-bottom: 1px solid #ccc">
           <th></th>
           <th></th>
-          <th></th>
           <!-- <th></th> -->
           <!-- <th></th> -->
-          <th></th>
+          <!-- <th></th> -->
           <th>
             <select id="status-filter" class="form-select w-auto">
                 <option value="">All Statuses</option>
@@ -39,8 +38,8 @@
             </select>
           </th>
           <th>
-            <div class="add-new-emply">
-              <div class="table-searchbar">
+            
+            <div class="table-searchbar">
                 <div class="sidebar-search">
                   <div>
                     <div class="input-group">
@@ -56,9 +55,13 @@
                   </div>
                 </div>
               </div>
+          </th>
+          <th>
+            <div class="add-new-emply">
               <a class="badge bg-warning" href="{% url 'manager-add-project' %}" >
                 Add <i class="fas fa-plus"></i>
               </a>
+              
               <!-- <a class="badge bg-warning" href="#" data-bs-toggle="modal" data-bs-target="#formModal">
                 Add <i class="fas fa-plus"></i>
               </a> -->
@@ -128,9 +131,9 @@
           <th>Project Name</th>
           <th>category</th>
           <th>Vessel</th>
-          <th>Purchase & Expenses</th>
+          <!-- <th>Purchase & Expenses</th> -->
           <!-- <th>Invoice Amount</th> -->
-          <th>Currency</th>
+          <!-- <th>Currency</th> -->
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -141,9 +144,9 @@
             <td><a href="{% url 'project-summary-view' project.id %}">{{ project.name }}</a></td>
             <td>{{ project.category }}</td>
             <td>{{ project.vessel_name|default:"N/A" }}</td>
-            <td>{{ project.purchase_and_expenses }}</td>
+            <!-- <td>{{ project.purchase_and_expenses }}</td> -->
             <!-- <td>{{ project.invoice_amount }}</td>  -->
-            <td>{{ project.currency_code }}</td>  <!-- Fixed Field Name -->
+            <!-- <td>{{ project.currency_code }}</td>  Fixed Field Name -->
             <td>
                 <span class="status
                     {% if project.status == 'ONGOING' %}ongoing

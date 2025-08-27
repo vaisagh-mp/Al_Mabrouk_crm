@@ -32,7 +32,7 @@ from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 import calendar
 
 
@@ -574,7 +574,7 @@ def team_list(request):
     if search_query:
         teams = Team.objects.filter(manager=manager, name__icontains=search_query)
     else:
-        teams = Team.objects.filter(manager=manager).order_by('-project__created_at')
+        teams = Team.objects.filter(manager=manager).order_by('-created_at')
 
     # Pagination
     paginator = Paginator(teams, 10)
@@ -1358,8 +1358,8 @@ def update_team_manager_status(request, project_id):
                 project.purchase_and_expenses = purchase_and_expenses
                 project.currency_code = currency_code
             else:
-                messages.error(request, "Invoice details are required for completed projects.")
-                return redirect('project-summary-view', project_id=project_id)
+                project.purchase_and_expenses = 0
+                project.currency_code = "AED"
 
         project.save()
 
@@ -1717,7 +1717,7 @@ def create_work_order_view(request, project_id):
             # Assign team members
             teams = Team.objects.filter(project=project)
             team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
-            work_order.job_assigned_to.set(User.objects.filter(employee_profile__in=team_members))
+            work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
 
             # Save multiple project images
             for image in request.FILES.getlist('project_images'):
@@ -1743,9 +1743,35 @@ def create_work_order_view(request, project_id):
 @login_required
 def view_work_order(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
+
+    live_members = []
+    if work_order.project:
+        if hasattr(work_order.project, "teams"):  # many teams
+            live_members = [
+                emp.user for team in work_order.project.teams.all()
+                for emp in team.employees.all()
+            ]
+        elif hasattr(work_order.project, "team"):  # single team
+            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+
+    # FIX: use the correct field
+    all_members = work_order.all_members.all()
+
+    total_hours = (
+        WorkOrderTime.objects.filter(work_order=work_order)
+        .aggregate(total=Sum('estimated_hours'))['total'] or 0
+    )
+
+    # Convert Decimal to float for template rendering
+    total_hours = float(total_hours)
 
     return render(request, 'Manager/view_work_order.html', {
-        'work_order': work_order
+        'work_order': work_order,
+        'work_order_detail': work_order_detail,
+        'live_members': live_members,
+        'all_members': all_members,
+        'calculated_hours': total_hours,
     })
 
 
@@ -1763,22 +1789,41 @@ def manager_update_work_order_view(request, pk):
                     work_order = form.save(commit=False)
 
                     # Auto-fill vessel from project.vessel_name
-                    try:
-                        work_order.vessel = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
-                    except AttributeError:
-                        work_order.vessel = ""
-
+                    work_order.vessel = (
+                        work_order.project.vessel_name
+                        if work_order.project and work_order.project.vessel_name
+                        else ""
+                    )
                     work_order.save()
 
-                    # Update WorkOrderDetail
                     work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                     work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                     work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
-                    work_order_detail.start_time = parse_time(request.POST.get('start_time')) or None
-                    work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
+
                     work_order_detail.save()
 
-                    # Clear old related data
+                    # ---------------------------
+                    # Clear old WorkOrderTime entries
+                    # ---------------------------
+                    WorkOrderTime.objects.filter(work_order=work_order).delete()
+
+                    # Save multiple WorkOrderTime rows
+                    for date, start, finish in zip(
+                        request.POST.getlist('time_date[]'),
+                        request.POST.getlist('start_time[]'),
+                        request.POST.getlist('finish_time[]')
+                    ):
+                        if start or finish:
+                            WorkOrderTime.objects.create(
+                                work_order=work_order,
+                                date=parse_date(date) if date else None,
+                                start_time=parse_time(start) if start else None,
+                                finish_time=parse_time(finish) if finish else None,
+                            )
+
+                    # ---------------------------
+                    # Clear & re-save Spares, Tools, Documents
+                    # ---------------------------
                     Spare.objects.filter(work_order=work_order).delete()
                     Tool.objects.filter(work_order=work_order).delete()
                     Document.objects.filter(work_order=work_order).delete()
@@ -1842,10 +1887,12 @@ def manager_update_work_order_view(request, pk):
 
     else:
         form = WorkOrderForm(instance=work_order)
-
-        # Pre-fill vessel field in form from project
         try:
-            form.fields['vessel'].initial = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
+            form.fields['vessel'].initial = (
+                work_order.project.vessel_name
+                if work_order.project and work_order.project.vessel_name
+                else ""
+            )
         except AttributeError:
             form.fields['vessel'].initial = ""
 
@@ -1853,6 +1900,12 @@ def manager_update_work_order_view(request, pk):
         'form': form,
         'work_order': work_order,
         'work_order_detail': work_order_detail,
+        'time_logs': WorkOrderTime.objects.filter(work_order=work_order),
+        'times': json.dumps(
+            list(WorkOrderTime.objects.filter(work_order=work_order).values( 'date', 'start_time', 'finish_time'
+            )),
+            cls=DjangoJSONEncoder
+        ),
         'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
@@ -1864,24 +1917,51 @@ def manager_update_work_order_view(request, pk):
 @login_required
 def download_work_order_pdf(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
     # Get the full static file path
     logo_path = finders.find('assets/images/reportlogo.png')
 
-    # Optionally encode to base64 (better compatibility)
+    # Encode logo in base64
     with open(logo_path, 'rb') as img_file:
         logo_data = base64.b64encode(img_file.read()).decode()
 
+    # Separate Live vs All Members
+    live_members = []
+    if work_order.project:
+        if hasattr(work_order.project, "teams"):  # many teams
+            live_members = [
+                emp.user for team in work_order.project.teams.all()
+                for emp in team.employees.all()
+            ]
+        elif hasattr(work_order.project, "team"):  # single team
+            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+    all_members = work_order.all_members.all()
+
+    total_hours = (
+        WorkOrderTime.objects.filter(work_order=work_order)
+        .aggregate(total=Sum('estimated_hours'))['total'] or 0
+    )
+
+    # Convert Decimal to float for template rendering
+    total_hours = float(total_hours)
+
     html_string = render_to_string('Manager/work_order_pdf.html', {
         'work_order': work_order,
+        'work_order_detail': work_order_detail,
         'logo_base64': logo_data,
+        'live_members': live_members,
+        'all_members': all_members,
+        'calculated_hours': total_hours,
     })
 
     html = HTML(string=html_string)
     pdf = html.write_pdf()
 
     response = HttpResponse(pdf, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="work_order_{work_order.work_order_number}.pdf"'
+    response['Content-Disposition'] = (
+        f'attachment; filename="work_order_{work_order.work_order_number}.pdf"'
+    )
     return response
 
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 
 
 @admin.register(Project)
@@ -162,6 +162,10 @@ class SpareAdmin(admin.ModelAdmin):
 class ToolAdmin(admin.ModelAdmin):
     list_display = ['work_order', 'name', 'quantity']
     search_fields = ['name']
+
+@admin.register(WorkOrderTime)
+class WorkOrderTimeAdmin(admin.ModelAdmin):
+    list_display = ['start_time', 'finish_time']
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):

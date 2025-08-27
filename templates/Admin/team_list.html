@@ -1,0 +1,118 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="pg-title">
+        <h1>All Team</h1>
+    </div>
+
+    <!-- Employs List -->
+    <div class="widget-box table-wdgt">
+        <table id="employeeTable">
+            <thead>
+                <tr style="border-bottom: 1px solid #ccc">
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th style="justify-items: center;">
+                        <div class="add-new-emply">
+                            <div class="table-searchbar">
+                                <div class="sidebar-search">
+                                  <div>
+                                    <div class="input-group">
+                                      <form method="GET" action="" class="d-flex">
+                                          <input type="text" name="search" class="form-control search-menu" placeholder="Search projects..."
+                                                 value="{{ search_query }}" />
+                                          <button class="srh-btn" type="submit" class="btn btn-primary">
+                                              <i class="fa fa-search" aria-hidden="true"></i>
+                                          </button>
+                                      </form>
+                                  </div>
+                                  </div>
+                                </div>
+                            </div>
+                        </div>
+                    </th>
+                    <th style="justify-items: normal;">  
+                        <div class="add-new-emply">
+                        <a class="badge bg-warning" href="{% url 'admin-team-create' %}">
+                                Add <i class="fas fa-plus"></i>
+                        </a>
+                    </div>   
+                    </th>
+                </tr>
+            </thead>
+            <thead>
+                <tr>
+                    <th>Team Name</th>
+                    <th>Project</th>
+                    <th>Manager</th>
+                    <th>Team Members</th>
+                    {% if role == "Admin" %}
+                        <th>Action</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in teams %}
+                <tr>
+                    <td>{{ team.name }}</td>
+                    <td>{{ team.project.name }} -- {{ team.project.code }}</td>
+                    <td>{{ team.manager.user.first_name }} {{ team.manager.user.last_name }}</td>
+                    <td>
+                        {% for employee in team.employees.all %}
+                            {{ employee.user.first_name }} {{ employee.user.last_name }}{% if not forloop.last %}, {% endif %}<br>
+                        {% endfor %}
+                    </td>
+                    {% if role == "Admin" %}
+                    <td class="list-action-col">
+                        <a href="{% url 'admin-team-update' team.id %}"><i class="far fa-edit"></i></a>
+                        <a href="{% url 'admin-team-delete' team.id %}" onclick="return confirm('Are you sure?');"><i class="far fa-trash-alt"></i></a>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center">No teams found</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            
+        </table> 
+    </div>
+
+    {% if teams.has_other_pages %}
+<div class="pagination" id="pagination">
+    {% if teams.has_previous %}
+        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ teams.previous_page_number }}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% with teams.number as current %}
+        {% for num in teams.paginator.page_range %}
+            {% if num >= current|add:"-1" and num <= current|add:"1" %}
+                {% if num == current %}
+                    <button class="active">{{ num }}</button>
+                {% else %}
+                    <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ num }}">
+                        <button>{{ num }}</button>
+                    </a>
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endwith %}
+
+    {% if teams.has_next %}
+        <a href="?{% if search_query %}search={{ search_query }}&{% endif %}page={{ teams.next_page_number }}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>
+{% endif %}
+
+
+</div>
+
+{% endblock %}

@@ -689,36 +689,53 @@ document.getElementById("presence-month").addEventListener("change", function() 
   const spares = {{ spares|safe }};
   const tools = {{ tools|safe }};
   const documents = {{ documents|safe }};
+  const times = {{ times|safe }};
 
+  function addSpareRow(name = '', unit = '', quantity = '') {
+    const table = document.querySelector('#sparesTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="spare_name[]" value="${name}"></td>
+      <td><input type="text" name="spare_unit[]" value="${unit}"></td>
+      <td><input type="number" name="spare_quantity[]" value="${quantity}"></td>`;
+  }
+
+  function addToolRow(name = '', quantity = '') {
+    const table = document.querySelector('#toolsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="tool_name[]" value="${name}"></td>
+      <td><input type="number" name="tool_quantity[]" value="${quantity}"></td>`;
+  }
+
+  function addDocRow(name = '', status = '') {
+    const table = document.querySelector('#docsTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="doc_name[]" value="${name}"></td>
+      <td><input type="text" name="doc_status[]" value="${status}"></td>`;
+  }
+
+  function addTimeRow(date = '', start = '', finish = '') {
+    const table = document.querySelector('#timeTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="date" name="time_date[]" value="${date}"></td>
+      <td><input type="time" name="start_time[]" value="${start}"></td>
+      <td><input type="time" name="finish_time[]" value="${finish}"></td>`;
+  }
+
+  // Prepopulate existing data
   window.onload = function () {
-    // Load existing spares
-    spares.forEach(spare => {
-      const row = document.querySelector('#sparesTable tbody').insertRow();
-      row.innerHTML = `
-        <td><input type="text" name="spare_name[]" value="${spare.name}"></td>
-        <td><input type="text" name="spare_unit[]" value="${spare.unit}"></td>
-        <td><input type="number" name="spare_quantity[]" value="${spare.quantity}"></td>
-      `;
-    });
-
-    // Load existing tools
-    tools.forEach(tool => {
-      const row = document.querySelector('#toolsTable tbody').insertRow();
-      row.innerHTML = `
-        <td><input type="text" name="tool_name[]" value="${tool.name}"></td>
-        <td><input type="number" name="tool_quantity[]" value="${tool.quantity}"></td>
-      `;
-    });
-
-    // Load existing documents
-    documents.forEach(doc => {
-      const row = document.querySelector('#docsTable tbody').insertRow();
-      row.innerHTML = `
-        <td><input type="text" name="doc_name[]" value="${doc.name}"></td>
-        <td><input type="text" name="doc_status[]" value="${doc.status}"></td>
-      `;
-    });
-  };
+    spares.forEach(spare => addSpareRow(spare.name, spare.unit, spare.quantity));
+    tools.forEach(tool => addToolRow(tool.name, tool.quantity));
+    documents.forEach(doc => addDocRow(doc.name, doc.status));
+    times.forEach(t => addTimeRow(
+      t.date || '',                               
+      t.start_time ? t.start_time.slice(0, 5) : '', 
+      t.finish_time ? t.finish_time.slice(0, 5) : ''
+    ));
+  }
 </script>
 
   </body>

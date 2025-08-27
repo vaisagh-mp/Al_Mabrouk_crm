@@ -66,21 +66,21 @@ class Project(models.Model):
         # Call the parent class's save method
         super().save(*args, **kwargs)
 
-    def save(self, *args, **kwargs):
-        log_entries = []
+    # def save(self, *args, **kwargs):
+        # log_entries = []
     
-        if self.pk:
-            old_project = Project.objects.get(pk=self.pk)
+        # if self.pk:
+            # old_project = Project.objects.get(pk=self.pk)
     
             # 1. Log status change
-            if old_project.status != self.status:
-                log_entries.append(ActivityLog(
-                    project=self,
-                    previous_status=old_project.status,
-                    new_status=self.status,
-                    notes=f"Project status changed to {self.status}",
-                    changed_by=self.manager
-                ))
+            # if old_project.status != self.status:
+            #     log_entries.append(ActivityLog(
+            #         project=self,
+            #         previous_status=old_project.status,
+            #         new_status=self.status,
+            #         notes=f"Project status changed to {self.status}",
+            #         changed_by=self.manager
+            #     ))
     
             # 2. Log attachment change
             # if old_project.attachment != self.attachment:
@@ -100,11 +100,11 @@ class Project(models.Model):
             #     ))
     
         # Save the project first
-        super().save(*args, **kwargs)
+        # super().save(*args, **kwargs)
     
         # Save logs after saving the project (so foreign key is valid)
-        if log_entries:
-            ActivityLog.objects.bulk_create(log_entries)
+        # if log_entries:
+        #     ActivityLog.objects.bulk_create(log_entries)
     
 
 
@@ -190,6 +190,8 @@ class Team(models.Model):
         'Project', on_delete=models.CASCADE, related_name='teams'
     )
 
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     def save(self, *args, **kwargs):
         # Update the project status to 'ASSIGN' if it's not already set
         if self.project.status != 'ASSIGN':
@@ -227,6 +229,31 @@ def update_work_order_assignees(sender, instance, action, reverse, model, pk_set
             # Remove from WorkOrder
             if hasattr(instance.project, 'workorder') and employee.user:
                 instance.project.workorder.job_assigned_to.remove(employee.user)
+
+@receiver(m2m_changed, sender=Team.employees.through)
+def sync_team_members_status(sender, instance, action, reverse, pk_set, **kwargs):
+    """
+    Keep TeamMemberStatus in sync when employees are added/removed from a Team
+    """
+    if action == "post_add":
+        # Add missing TeamMemberStatus for new employees
+        for employee_id in pk_set:
+            TeamMemberStatus.objects.get_or_create(
+                team=instance,
+                employee_id=employee_id,
+                defaults={'status': 'ASSIGN'}
+            )
+
+    elif action == "post_remove":
+        # Delete TeamMemberStatus for removed employees
+        TeamMemberStatus.objects.filter(
+            team=instance,
+            employee_id__in=pk_set
+        ).delete()
+
+    elif action == "post_clear":
+        # If all employees removed, clear statuses too
+        TeamMemberStatus.objects.filter(team=instance).delete()
 
 class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='employee_profile')
@@ -504,10 +531,13 @@ class ActivityLog(models.Model):
         'Employee', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='status_changes'
     )  # To track who changed the status
+    changed_by_name = models.CharField(max_length=255, null=True, blank=True)
     changed_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.changed_by.user.username if self.changed_by else 'Unknown'} changed {self.previous_status} → {self.new_status}"
+        if self.changed_by:
+            return f"{self.changed_by.user.first_name} changed to {self.new_status}"
+        return f"{self.changed_by_name} changed to {self.new_status}"
 
 class ProjectAttachment(models.Model):
     project = models.ForeignKey(Project, related_name='attachments', on_delete=models.CASCADE)
@@ -555,6 +585,9 @@ class WorkOrder(models.Model):
     job_instructions = models.TextField(null=True, blank=True)
     project_description = models.TextField(null=True, blank=True)
     job_assigned_to = models.ManyToManyField(User, related_name='assigned_work_orders', blank=True)
+    all_members = models.ManyToManyField(
+        User, related_name='all_assigned_work_orders', blank=True
+    ) 
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_work_orders', null=True, blank=True)
 
     def save(self, *args, **kwargs):
@@ -575,8 +608,27 @@ class WorkOrder(models.Model):
 
         super().save(*args, **kwargs)
 
+class WorkOrderTime(models.Model):
+    work_order = models.ForeignKey(WorkOrder, related_name="times", on_delete=models.CASCADE)
+    date = models.DateField()
+    start_time = models.TimeField()
+    finish_time = models.TimeField()
+    estimated_hours = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0, editable=False
+    )
+
+    def save(self, *args, **kwargs):
+        if self.date and self.start_time and self.finish_time:
+            start_dt = datetime.combine(self.date, self.start_time)
+            finish_dt = datetime.combine(self.date, self.finish_time)
+            if finish_dt < start_dt:  # Handle overnight
+                finish_dt += timedelta(days=1)
+            hours = (finish_dt - start_dt).total_seconds() / 3600
+            self.estimated_hours = round(hours, 2)  # store as Decimal(XX.XX)
+        super().save(*args, **kwargs)
+    
 class WorkOrderDetail(models.Model):
-    work_order = models.OneToOneField(WorkOrder, on_delete=models.CASCADE, related_name='detail')
+    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='detail')
     start_date = models.DateField(null=True, blank=True)
     completion_date = models.DateField(null=True, blank=True)
     estimated_hours = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)

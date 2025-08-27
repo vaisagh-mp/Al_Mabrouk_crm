@@ -12,6 +12,12 @@ urlpatterns = [
     # path('employee/edit/<int:employee_id>/', edit_employee, name='edit-employee'),
     # path('employee/delete/<int:employee_id>/', delete_employee, name='delete-employee'),
     # path('user/edit/<int:user_id>/', admin_edit_user, name='admin_edit_user'),
+
+    path('team/create/', admin_team_create, name='admin-team-create'),
+    path('teams/', team_list, name='admin-team-list'),
+    path('team/update/<int:pk>/', admin_team_update, name='admin-team-update'),
+    path('teams/<int:team_id>/delete/', admin_team_delete, name='admin-team-delete'),
+
     path('employee/<int:employee_id>/', employee_profile, name='employee_profile'),
     path('manager/<int:manager_id>/', manager_profile, name='manager_profile'),
     path('employee/edit/<int:employee_id>/', admin_edit_employee, name='admin_edit_employee'),
@@ -36,6 +42,8 @@ urlpatterns = [
     path('project/<int:project_id>/attachments/', admin_project_attachments_view, name='admin_project_attachments_view'),
     path('attachment/<int:attachment_id>/delete/', admin_delete_project_attachment, name='admin_delete_project_attachment'),
     
+    path('update-status/<int:project_id>/', update_team_admin_status, name='update_team_admin_status'),
+
     path('work-order/create/<int:project_id>/', create_work_order_view_admin, name='admin-create-work-order'),
     path('work-order/view/<int:pk>/', admin_view_work_order, name='admin_view_work_order'),
     path('work-order/update/<int:pk>/', admin_update_work_order_view, name='admin-update-work-order'),

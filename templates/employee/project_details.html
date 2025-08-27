@@ -202,17 +202,25 @@
                 <div
                   class="dot {% if log.new_status == 'ONGOING' %}Blue{% elif log.new_status == 'HOLD' %}Gray{% elif log.new_status == 'CANCELLED' %}Red{% elif log.new_status == 'COMPLETED' %}Green{% else %}Orange{% endif %}"
                 ></div>
-                <div class="content">
-                  <h5>{{ log.new_status }}</h5>
-                  <p>
-                    {{ log.team_member_status.employee.user.first_name }}
-                    changed status from "{{ log.previous_status}}" to "{{log.new_status }}"
-                  </p>
-                  {% if log.notes %}
-                  <p>Note: {{ log.notes }}</p>
-                  {% endif %}
-                  <span>{{ log.changed_at|timesince }} ago</span>
-                </div>
+                <div class="content"> 
+                      <h5>{{ log.new_status }}</h5>
+                      <p>
+                          {% if log.team_member_status %}
+                              {{ log.team_member_status.employee.user.first_name }} {{ log.team_member_status.employee.user.last_name }}
+                          {% elif log.changed_by %}
+                              {{ log.changed_by.user.first_name }} {{ log.changed_by.user.last_name }} (Manager)
+                          {% elif log.changed_by_name %}
+                              {{ log.changed_by_name }} (Admin)
+                          {% endif %}
+                          changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                      </p>
+                    
+                      {% if log.notes %}
+                          <p>Note: {{ log.notes }}</p>
+                      {% endif %}
+                    
+                      <span>{{ log.changed_at|timesince }} ago</span>
+                  </div>
               </div>
               {% empty %}
               <div class="timeline-item">

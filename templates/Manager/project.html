@@ -238,7 +238,7 @@
                 </div>
               </div>
               <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="skipInvoice()">Skip</button>
                 <button type="button" class="btn btn-primary" onclick="submitStatusFormWithInvoice()">Submit</button>
               </div>
             </div>
@@ -262,19 +262,23 @@
                       {% elif log.new_status == 'COMPLETED' %}Green
                       {% else %}Orange{% endif %}">
                   </div>
-                  <div class="content">
+                  <div class="content"> 
                       <h5>{{ log.new_status }}</h5>
                       <p>
                           {% if log.team_member_status %}
                               {{ log.team_member_status.employee.user.first_name }} {{ log.team_member_status.employee.user.last_name }}
-                          {% else %}
+                          {% elif log.changed_by %}
                               {{ log.changed_by.user.first_name }} {{ log.changed_by.user.last_name }} (Manager)
+                          {% elif log.changed_by_name %}
+                              {{ log.changed_by_name }} (Admin)
                           {% endif %}
                           changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
                       </p>
+                    
                       {% if log.notes %}
-                      <p>Note: {{ log.notes }}</p>
+                          <p>Note: {{ log.notes }}</p>
                       {% endif %}
+                    
                       <span>{{ log.changed_at|timesince }} ago</span>
                   </div>
               </div>
@@ -344,6 +348,16 @@ function submitStatusFormWithInvoice() {
 
     document.getElementById("statusForm").submit();
 }
+
+function skipInvoice() {
+    // Clear hidden fields
+    document.getElementById("invoice_amount_field").value = "";
+    document.getElementById("currency_code_field").value = "";
+
+    // Submit form anyway (status = COMPLETED will still go through)
+    document.getElementById("statusForm").submit();
+}
+
 
 function closeInvoiceModal() {
     document.getElementById("invoiceModal").style.display = "none";

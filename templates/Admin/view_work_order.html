@@ -79,12 +79,23 @@
   </div>
 
   <div class="wo-section">
-    <div class="wo-title">JOB ASSIGNED TO:</div>
+    <div class="wo-title">JOB ASSIGNED TO (Live Members):</div>
     <ul>
-      {% for user in work_order.job_assigned_to.all %}
-      <li>{{ user.get_full_name|default:user.username }}</li>
+      {% for user in live_members %}
+        <li>{{ user.get_full_name|default:user.username }}</li>
       {% empty %}
-      <li>No one assigned.</li>
+        <li>No live team members assigned.</li>
+      {% endfor %}
+    </ul>
+  </div>
+  
+  <div class="wo-section">
+    <div class="wo-title">JOB ASSIGNED TO (All Members):</div>
+    <ul>
+      {% for user in all_members %}
+        <li>{{ user.get_full_name|default:user.username }}</li>
+      {% empty %}
+        <li>No one assigned.</li>
       {% endfor %}
     </ul>
   </div>
@@ -97,21 +108,33 @@
     </tr>
     <tr>
       <th>START DATE:</th>
-      <td colspan="3">{{ work_order.detail.start_date }}</td>
+      <td colspan="3">{{ work_order_detail.start_date }}</td>
     </tr>
     <tr>
       <th>COMPLETION DATE:</th>
-      <td colspan="3">{{ work_order.detail.completion_date |default:"--/--/--" }}</td>
+      <td colspan="3">{{ work_order_detail.completion_date |default:"--/--/--" }}</td>
     </tr>
     <tr>
       <th>ESTIMATED HOURS:</th>
-      <td colspan="3">{{ work_order.detail.estimated_hours|default:"00:00" }}</td>
+      <td colspan="3">{{ work_order_detail.estimated_hours|default:"00:00" }}</td>
     </tr>
+    
     <tr>
-      <th>START TIME: <span> &nbsp; {{ work_order.detail.start_time|default:"00:00" }}</span></th>
-
-      <th>FINISH TIME: <span> &nbsp; {{ work_order.detail.finish_time|default:"00:00" }}</span></th>
+    <th>Date</th>
+    <th colspan="2">START TIME(s)</th>
+    <th colspan="2">FINISH TIME(s)</th>
     </tr>
+    {% for t in work_order.times.all %}
+    <tr>
+        <td>{{ t.date|date:"d/m/Y" }}</td>
+        <td colspan="2">{{ t.start_time|default:"00:00" }}</td>
+        <td colspan="2">{{ t.finish_time|default:"00:00" }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+        <td colspan="5">No time entries</td>
+    </tr>
+    {% endfor %}
 
   </table>
 

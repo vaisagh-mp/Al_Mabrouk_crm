@@ -130,7 +130,10 @@ class ProjectForm(forms.ModelForm):
         if self.user and hasattr(self.user, 'employee_profile') and self.user.employee_profile.is_manager:
             self.fields['manager'].widget = forms.HiddenInput()
             self.fields['manager'].required = False
-      
+
+
+
+
     
 class ProjectAssignmentForm(forms.ModelForm):
     class Meta:
@@ -141,6 +144,29 @@ class ProjectAssignmentForm(forms.ModelForm):
             'time_stop': forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
         }
 
+
+class AdminTeamForm(forms.ModelForm):
+    class Meta:
+        model = Team
+        fields = ['name', 'manager', 'project', 'employees']
+        widgets = {
+            'employees': forms.SelectMultiple(attrs={'class': 'form-control', 'size': 8}),
+            'project': forms.Select(attrs={'class': 'form-control'}),
+            'manager': forms.Select(attrs={'class': 'form-control'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter team name'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Only Managers in the manager field
+        self.fields['manager'].queryset = Employee.objects.filter(is_manager=True).select_related("user")
+
+        # Only Employees in employees field
+        self.fields['employees'].queryset = Employee.objects.filter(is_employee=True).select_related("user")
+
+        # Show all projects (or you can filter active ones if needed)
+        self.fields['project'].queryset = Project.objects.all()
 
 class ManagerEmployeeUpdateForm(forms.ModelForm):
     ROLE_CHOICES = [

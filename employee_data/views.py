@@ -23,7 +23,7 @@ from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
@@ -682,10 +682,16 @@ def project_details(request, project_id):
         employee=employee  # Filtering by current logged-in employee
     ).order_by('-last_updated')
 
-    logs = ActivityLog.objects.filter(
-        team_member_status__employee_id=employee.id,
-        team_member_status__team__project_id=project_id
-    ).order_by('-changed_at')
+    # logs = ActivityLog.objects.filter(
+    #     team_member_status__employee_id=employee.id,
+    #     team_member_status__team__project_id=project_id
+    # ).order_by('-changed_at')
+
+    team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
+    manager_logs = ActivityLog.objects.filter(project=project)
+
+    # Merge and sort logs
+    logs = (team_logs | manager_logs).order_by('-changed_at')
 
 
 
@@ -1104,13 +1110,37 @@ def employee_mark_notifications_as_read(request):
 @login_required
 def employee_view_work_order(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
+
+    live_members = []
+    if work_order.project:
+        if hasattr(work_order.project, "teams"):  # many teams
+            live_members = [
+                emp.user for team in work_order.project.teams.all()
+                for emp in team.employees.all()
+            ]
+        elif hasattr(work_order.project, "team"):  # single team
+            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+
+    # FIX: use the correct field
+    all_members = work_order.all_members.all()
+
+    total_hours = (
+        WorkOrderTime.objects.filter(work_order=work_order)
+        .aggregate(total=Sum('estimated_hours'))['total'] or 0
+    )
+
+    total_hours = float(total_hours)
 
     # Ensure the logged-in employee is assigned to this work order
     if request.user not in work_order.job_assigned_to.all():
-        return render(request, '403.html', status=403)  # Or redirect with warning
-
+        return redirect('projects') 
     return render(request, 'employee/view_work_order.html', {
-        'work_order': work_order
+        'work_order': work_order,
+        'work_order_detail': work_order_detail,
+        'live_members': live_members,
+        'all_members': all_members,
+        'calculated_hours': total_hours,
     })
 
 @login_required
@@ -1136,9 +1166,25 @@ def employee_update_work_order_view(request, pk):
                 work_order_detail.start_date = parse_date(request.POST.get('start_date'))
                 work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
                 work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
-                work_order_detail.start_time = parse_time(request.POST.get('start_time')) or None
-                work_order_detail.finish_time = parse_time(request.POST.get('finish_time')) or None
                 work_order_detail.save()
+
+                # ---------------------------
+                # Clear old WorkOrderTime entries
+                # ---------------------------
+                WorkOrderTime.objects.filter(work_order=work_order).delete()
+                # Save multiple WorkOrderTime rows
+                for date, start, finish in zip(
+                    request.POST.getlist('time_date[]'),
+                    request.POST.getlist('start_time[]'),
+                    request.POST.getlist('finish_time[]')
+                ):
+                    if start or finish:
+                        WorkOrderTime.objects.create(
+                            work_order=work_order,
+                            date=parse_date(date) if date else None,
+                            start_time=parse_time(start) if start else None,
+                            finish_time=parse_time(finish) if finish else None,
+                        )
 
                 # Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
@@ -1205,6 +1251,12 @@ def employee_update_work_order_view(request, pk):
     context = {
         'work_order': work_order,
         'work_order_detail': work_order_detail,
+        'time_logs': WorkOrderTime.objects.filter(work_order=work_order),
+        'times': json.dumps(
+            list(WorkOrderTime.objects.filter(work_order=work_order).values( 'date', 'start_time', 'finish_time'
+            )),
+            cls=DjangoJSONEncoder
+        ),
         'spares': json.dumps(list(spares.values()), cls=DjangoJSONEncoder),
         'tools': json.dumps(list(tools.values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(documents.values()), cls=DjangoJSONEncoder),

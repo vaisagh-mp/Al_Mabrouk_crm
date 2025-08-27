@@ -649,6 +649,7 @@ document.getElementById("presence-month").addEventListener("change", function() 
   const spares = {{ spares|safe }};
   const tools = {{ tools|safe }};
   const documents = {{ documents|safe }};
+  const times = {{ times|safe }};
 
   function addSpareRow(name = '', unit = '', quantity = '') {
     const table = document.querySelector('#sparesTable tbody');
@@ -675,13 +676,29 @@ document.getElementById("presence-month").addEventListener("change", function() 
       <td><input type="text" name="doc_status[]" value="${status}"></td>`;
   }
 
+  function addTimeRow(date = '', start = '', finish = '') {
+    const table = document.querySelector('#timeTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="date" name="time_date[]" value="${date}"></td>
+      <td><input type="time" name="start_time[]" value="${start}"></td>
+      <td><input type="time" name="finish_time[]" value="${finish}"></td>`;
+  }
+
   // Prepopulate existing data
   window.onload = function () {
     spares.forEach(spare => addSpareRow(spare.name, spare.unit, spare.quantity));
     tools.forEach(tool => addToolRow(tool.name, tool.quantity));
     documents.forEach(doc => addDocRow(doc.name, doc.status));
+    times.forEach(t => addTimeRow(
+      t.date || '',                               
+      t.start_time ? t.start_time.slice(0, 5) : '', 
+      t.finish_time ? t.finish_time.slice(0, 5) : ''
+    ));
   }
 </script>
+
+
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

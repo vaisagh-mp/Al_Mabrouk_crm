@@ -221,7 +221,7 @@
                         <div class="avatars">
                             {% for team in work.teams.all %}
                                 {% for member in team.employees.all %}
-                                    <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" />
+                                    <img src="{% static 'assets/images/user-pro.webp' %}" alt="{{ member.user.username }}" title="{{ member.user.username }}" />
                                 {% endfor %}
                             {% endfor %}
                             <span>+{{ work.teams.all|length }}</span> 
