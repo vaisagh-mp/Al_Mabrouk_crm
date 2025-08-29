@@ -1717,7 +1717,12 @@ def create_work_order_view(request, project_id):
             # Assign team members
             teams = Team.objects.filter(project=project)
             team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
-            work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
+            # work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
+            assigned_users = User.objects.filter(employee_profile__in=team_members)
+
+            work_order.job_assigned_to.set(assigned_users)   # Current team
+            work_order.all_members.add(*assigned_users)      # Historical record
+
 
             # Save multiple project images
             for image in request.FILES.getlist('project_images'):
