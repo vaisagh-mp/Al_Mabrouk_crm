@@ -1612,7 +1612,7 @@ header .dropdown-menu {
 
 @media(min-width:992px) {
   .prjct-time-line-box.admin .project-timeline {
-    height: 640px !important;
+    height: 390px !important;
   }
 }
 

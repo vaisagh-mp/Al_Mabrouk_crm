@@ -719,6 +719,40 @@ def admin_project_summary_view(request, project_id):
     # Merge and sort logs
     logs = (team_logs | manager_logs).order_by('-changed_at')
 
+    MAX_UPLOAD_SIZE = 49 * 1024 * 1024  # 49 MB in bytes
+    changed_by_name = request.user.username
+    # Handle multiple file uploads
+    if request.method == "POST":
+        if request.FILES.getlist("attachments"):
+            uploaded_files = request.FILES.getlist("attachments")
+            for file in uploaded_files:
+                if file.size > MAX_UPLOAD_SIZE:
+                    messages.error(request, f"File {file.name} exceeds the 49MB limit.")
+                    continue
+
+                # Use None if uploaded by admin
+                uploaded_by_employee = None
+                if not request.user.is_superuser:
+                    try:
+                        uploaded_by_employee = request.user.employee
+                    except Employee.DoesNotExist:
+                        uploaded_by_employee = None
+
+                ProjectAttachment.objects.create(
+                    project=project,
+                    file=file,
+                    uploaded_by=uploaded_by_employee
+                )
+
+                ActivityLog.objects.create(
+                    project=project,
+                    previous_status="No Attachment",
+                    new_status="Attachment Uploaded",
+                    notes=f"{file.name} uploaded by {'Admin' if request.user.is_superuser else uploaded_by_employee.user.username}.",
+                    changed_by=uploaded_by_employee,
+                    changed_by_name=request.user.username
+                )
+
     # Fetch team statuses
     statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
     status_choices = TeamMemberStatus.STATUS_CHOICES
@@ -749,6 +783,8 @@ def admin_project_summary_view(request, project_id):
     except WorkOrder.DoesNotExist:
         work_order = None
 
+    attachments = project.attachments.all() 
+
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
@@ -775,6 +811,7 @@ def admin_project_summary_view(request, project_id):
         "project_id": project.id,
         "work_order": work_order,
         "status_choices": status_choices,
+        "attachments": attachments,
         "job_card": project.job_card.url if project.job_card else None,
         "attachment_file": project.attachment.url if project.attachment else None,
     }

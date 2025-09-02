@@ -19,7 +19,7 @@
         {% for file in attachments %}
           <tr>
             <td>{{ file.file.name|cut:'project_attachments/' }}</td>
-            <td>{{ file.uploaded_by.user.get_full_name }}</td>
+            <td>{{ file.uploaded_by.user.get_full_name|default:"Admin" }}</td>
             <td>{{ file.uploaded_at|date:"d M Y H:i" }}</td>
             <td>
               <a href="{{ file.file.url }}" target="_blank" class="btn">View File</a>
