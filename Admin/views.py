@@ -835,6 +835,11 @@ def update_team_admin_status(request, project_id):
         purchase_and_expenses = request.POST.get("invoice_amount")
         currency_code = request.POST.get("currency_code")
 
+        # Validate status
+        if not status:
+            messages.error(request, "Please select a status before updating.")
+            return redirect('project-summary', project_id=project_id)
+
         previous_status = project.status
         project.status = status
 

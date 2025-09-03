@@ -810,6 +810,12 @@ def update_team_member_status(request, project_id):
         employee = get_object_or_404(Employee, user=request.user)
         new_status = request.POST.get("status")
         remark      = request.POST.get("remark", "")
+        
+        # Validate status
+        if not new_status:
+            messages.error(request, "Please select a status before updating.")
+            return redirect('project_details', project_id=project_id)
+
 
         # Fetch TeamMemberStatus entry for this employee & project
         team_member_status = TeamMemberStatus.objects.filter(

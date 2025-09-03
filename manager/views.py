@@ -1347,6 +1347,11 @@ def update_team_manager_status(request, project_id):
         purchase_and_expenses = request.POST.get("invoice_amount")
         currency_code = request.POST.get("currency_code")
 
+        # Validate status
+        if not status:
+            messages.error(request, "Please select a status before updating.")
+            return redirect('project-summary-view', project_id=project_id)
+
         project = get_object_or_404(Project, id=project_id, manager=employee)
 
         previous_status = project.status
