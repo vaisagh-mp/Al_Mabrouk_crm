@@ -126,10 +126,10 @@
           <th>Project Name</th>
           <th>category</th>
           <th>Vessel</th>
+          <th>Status</th>
           <th>Purchase & Expenses</th>
           <th>Invoice Amount</th>
           <th>Currency</th>
-          <th>Status</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -141,9 +141,6 @@
           </td>
           <td>{{ project.category }}</td>
           <td>{{ project.vessel|default:"N/A" }}</td>
-          <td>{{ project.purchase_and_expenses }}</td>
-          <td>{{ project.invoice }}</td>
-          <td>{{ project.currency }}</td>
           <td><span class="status
             {% if project.status == 'ONGOING' %} ongoing
             {% elif project.status == 'COMPLETED' %} completed
@@ -153,6 +150,9 @@
             {% elif project.status == 'CANCELLED' %} cancelled
             {% else %}status-default{% endif %}
           ">{{ project.status }}</span></td>
+          <td>{{ project.purchase_and_expenses }}</td>
+          <td>{{ project.invoice }}</td>
+          <td>{{ project.currency }}</td>
           <td class="list-action-col">
             <a href="{% url 'edit_project' project.id %}"><i class="far fa-edit" data-bs-toggle="modal" data-bs-target="#editModal"></i></a>
             <a href="{% url 'delete_project' project.id %}"><i class="far fa-trash-alt" onclick="return confirmDelete();"></i></a>

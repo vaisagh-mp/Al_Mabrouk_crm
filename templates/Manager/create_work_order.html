@@ -164,4 +164,16 @@
 </div>
 </div>
 
+<script src="https://cdn.ckeditor.com/4.22.1/full/ckeditor.js"></script>
+<script>
+  CKEDITOR.replace('id_job_instructions', {
+    height: 250,              // editor height
+    extraPlugins: 'colorbutton,font',  // enables text/background color, fonts
+    enterMode: CKEDITOR.ENTER_BR,      // Enter creates <br> instead of <p>
+    shiftEnterMode: CKEDITOR.ENTER_BR,
+    autoParagraph: false,     // prevents CKEditor from wrapping lines in <p>
+    removePlugins: 'elementspath,resize' // optional: cleaner toolbar/UI
+    // toolbar: optional, full build already has all tools
+  });
+</script>
 {% endblock %}

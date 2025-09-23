@@ -34,6 +34,14 @@
   .work_order_btn  .wrp:hover {
   background-color: #0056b3;
 }
+
+.wo-section pre {
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.5; 
+}
+
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -141,7 +149,7 @@
   <!-- Job Instructions -->
   <div class="wo-section">
     <div class="wo-title">JOB INSTRUCTIONS:</div>
-    <pre>{{ work_order.job_instructions }}</pre>
+    <pre>{{ work_order.job_instructions|safe }}</pre>
   </div>
 
   <!-- Spares Required Table -->

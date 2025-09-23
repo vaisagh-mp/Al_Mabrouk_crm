@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Work Order PDF</title>
+
 <style>
   @page {
     size: A4;
@@ -79,6 +80,13 @@
     padding: 30px;
     box-sizing: border-box;
   }
+
+  .section pre {
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  line-height: 1.5; 
+}
 </style>
 
 </head>
@@ -178,7 +186,7 @@
 
   <div class="section">
     <div class="wo-title">JOB INSTRUCTIONS:</div>
-    <pre>{{ work_order.job_instructions }}</pre>
+    <pre>{{ work_order.job_instructions | safe }}</pre>
   </div>
 
   <div class="section">
