@@ -1246,12 +1246,12 @@ def admin_edit_employee(request, employee_id):
             # Update Employee fields
             employee.phone_number = form.cleaned_data["phone_number"]
             employee.rank = form.cleaned_data["rank"]
-            employee.salary = form.cleaned_data["salary"]
+            employee.salary = form.cleaned_data.get("salary") or 0
             employee.date_of_birth = form.cleaned_data["date_of_birth"]
             employee.date_of_join = form.cleaned_data["date_of_join"]
-            employee.work_days = form.cleaned_data["work_days"]
-            employee.holidays = form.cleaned_data["holidays"]
-            employee.overseas_days = form.cleaned_data["overseas_days"]
+            employee.work_days = form.cleaned_data.get("work_days") or 0
+            employee.holidays = form.cleaned_data.get("holidays") or 0
+            employee.overseas_days = form.cleaned_data.get("overseas_days") or 0
             employee.address = form.cleaned_data["address"]
 
             # Handle profile picture upload
