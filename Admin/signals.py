@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
-from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment
+from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment, WorkOrder
 from django.contrib.auth.models import User
 
 
@@ -139,3 +139,20 @@ def notify_on_project_attachment_upload(sender, instance, created, **kwargs):
                 recipient=emp.user,
                 message=message
             )
+
+@receiver(m2m_changed, sender=Team.employees.through)
+def track_all_members(sender, instance, action, pk_set, **kwargs):
+    """
+    Persist ALL members ever assigned to a work order.
+    """
+    if action == "post_add":
+        project = instance.project
+
+        try:
+            work_order = project.workorder
+        except WorkOrder.DoesNotExist:
+            return
+
+        # ✅ CORRECT: Employee → User
+        users = User.objects.filter(employee_profile__id__in=pk_set)
+        work_order.all_members.add(*users)

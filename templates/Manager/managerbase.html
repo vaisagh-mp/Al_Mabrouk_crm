@@ -647,6 +647,7 @@ document.getElementById("presence-month").addEventListener("change", function() 
 
 <script>
   const spares = {{ spares|safe }};
+  const sparesConsumed = {{ spares_consumed|safe }};
   const tools = {{ tools|safe }};
   const documents = {{ documents|safe }};
   const times = {{ times|safe }};
@@ -658,6 +659,16 @@ document.getElementById("presence-month").addEventListener("change", function() 
       <td><input type="text" name="spare_name[]" value="${name}"></td>
       <td><input type="text" name="spare_unit[]" value="${unit}"></td>
       <td><input type="number" name="spare_quantity[]" value="${quantity}"></td>`;
+  }
+
+  /* ✅ ADD THIS (same as Admin) */
+  function addSpareConsumedRow(name = '', unit = '', quantity = '') {
+    const table = document.querySelector('#sparesConsumedTable tbody');
+    const row = table.insertRow();
+    row.innerHTML = `
+      <td><input type="text" name="consumed_spare_name[]" value="${name}"></td>
+      <td><input type="text" name="consumed_spare_unit[]" value="${unit}"></td>
+      <td><input type="number" name="consumed_spare_quantity[]" value="${quantity}"></td>`;
   }
 
   function addToolRow(name = '', quantity = '') {
@@ -685,17 +696,32 @@ document.getElementById("presence-month").addEventListener("change", function() 
       <td><input type="time" name="finish_time[]" value="${finish}"></td>`;
   }
 
-  // Prepopulate existing data
+  /* ✅ Prepopulate (same as Admin) */
   window.onload = function () {
-    spares.forEach(spare => addSpareRow(spare.name, spare.unit, spare.quantity));
-    tools.forEach(tool => addToolRow(tool.name, tool.quantity));
-    documents.forEach(doc => addDocRow(doc.name, doc.status));
-    times.forEach(t => addTimeRow(
-      t.date || '',                               
-      t.start_time ? t.start_time.slice(0, 5) : '', 
-      t.finish_time ? t.finish_time.slice(0, 5) : ''
-    ));
-  }
+    spares.forEach(s =>
+      addSpareRow(s.name, s.unit, s.quantity)
+    );
+
+    sparesConsumed.forEach(s =>
+      addSpareConsumedRow(s.name, s.unit, s.quantity)
+    );
+
+    tools.forEach(t =>
+      addToolRow(t.name, t.quantity)
+    );
+
+    documents.forEach(d =>
+      addDocRow(d.name, d.status)
+    );
+
+    times.forEach(t =>
+      addTimeRow(
+        t.date || '',
+        t.start_time ? t.start_time.slice(0, 5) : '',
+        t.finish_time ? t.finish_time.slice(0, 5) : ''
+      )
+    );
+  };
 </script>
 
 

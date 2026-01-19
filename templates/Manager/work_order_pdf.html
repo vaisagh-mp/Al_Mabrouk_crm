@@ -210,6 +210,29 @@
   </div>
 
   <div class="section">
+    <div class="wo-title">SPARES CONSUMED</div>
+    <table class="wo-table">
+      <tr>
+        <th>Name</th>
+        <th>Unit</th>
+        <th>Quantity</th>
+      </tr>
+      {% for spare in work_order.consumed_spares.all %}
+      <tr>
+        <td>{{ spare.name }}</td>
+        <td>{{ spare.unit }}</td>
+        <td>{{ spare.quantity }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="3">No spares consumed.</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+
+  <div class="section">
     <div class="wo-title">TOOLS REQUIRED</div>
     <table class="wo-table">
       <tr>
@@ -249,6 +272,41 @@
     <div class="wo-title">PROJECT DESCRIPTION:</div>
     <div>{{ work_order.project_description|linebreaks }}</div>
   </div>
+
+{% if image_groups %}
+  <div class="section">
+    <div class="wo-title">PROJECT IMAGES:</div>
+
+    {% for name, images in image_groups.items %}
+      <div style="margin-bottom:20px;">
+
+        <div style="font-weight:bold;">
+          {{ name }}
+        </div>
+
+        {% if images.0.description %}
+          <div style="font-size:12px; margin-bottom:8px;">
+            {{ images.0.description }}
+          </div>
+        {% endif %}
+
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          {% for img in images %}
+            <div style="width:23%;">
+              <img
+                src="data:image/{{ img.mime }};base64,{{ img.base64 }}"
+                style="width:100%; height:auto; border:1px solid #000;"
+              >
+            </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+
 
 </div>
 

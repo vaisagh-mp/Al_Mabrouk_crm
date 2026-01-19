@@ -134,6 +134,17 @@
                     <h4>{{ project_data.project_manager }}</h4>
                     <p>Project Manager</p>
                   </div>
+
+                  <!-- Edit icon -->
+                 {% if team %}
+                  <a
+                    href="{% url 'admin-team-update' team.id %}"
+                    class="team-edit-btn"
+                    title="Edit Team"
+                  >
+                    <i class="bi bi-pencil-square"></i>
+                  </a>
+                {% endif %}
                 </div>
                 <hr />
                 {% for engineer in project_data.engineers %}
@@ -172,11 +183,30 @@
             </form>
 
             {% if project_data.attachments %}
-              <p><strong>Total Uploaded Files:</strong> {{ project_data.attachments|length }}</p>
+              <div>
+                <strong>Uploaded Files:</strong>
+                <ul id="attachment-list">
+                  {% for attachment in project_data.attachments %}
+                    <li
+                      class="attachment-item"
+                      {% if forloop.counter > 3 %}style="display:none;"{% endif %}
+                    >
+                      <a href="{{ attachment.file.url }}" target="_blank">
+              {{ attachment.file.name|cut:attachment.file.field.upload_to }}
+            </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              
+                {% if project_data.attachments|length > 3 %}
+                  <a href="javascript:void(0);" id="view-more-btn" onclick="toggleAttachments()">
+                    View more
+                  </a>
+                {% endif %}
+              </div>
             {% else %}
               <p>No attachments uploaded yet.</p>
-            {% endif %}
-
+          {% endif %}
           </div>
         </div>
         
@@ -193,6 +223,7 @@
                   <option value="" disabled selected>Select Status</option>
                   <option value="ASSIGN">Assign</option>
                   <option value="ONGOING">Ongoing</option>
+                  <option value="QUOTED">Quoted</option>
                   <option value="HOLD">On Hold</option>
                   <option value="CANCELLED">Cancelled</option>
                   <option value="COMPLETED">Completed</option>
@@ -400,4 +431,23 @@ function closeInvoiceModal() {
     document.getElementById("invoiceModal").style.display = "none";
 }
 </script>
+
+<script>
+function toggleAttachments() {
+  const items = document.querySelectorAll('.attachment-item');
+  const btn = document.getElementById('view-more-btn');
+
+  let expanded = btn.dataset.expanded === "true";
+
+  items.forEach((item, index) => {
+    if (index >= 3) {
+      item.style.display = expanded ? "none" : "list-item";
+    }
+  });
+
+  btn.innerText = expanded ? "View more" : "View less";
+  btn.dataset.expanded = (!expanded).toString();
+}
+</script>
+
 {% endblock %}

@@ -108,6 +108,29 @@ class ProjectForm(forms.ModelForm):
             'job_description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
         }
 
+
+    def clean_code(self):
+        code = self.cleaned_data.get("code")
+
+        if code is None:
+            return None
+
+        # Normalize input
+        normalized = code.strip().lower()
+
+        if normalized in ("none", "null", "nil", "nill", ""):
+            return None
+
+        return code.strip()
+
+    def clean_priority(self):
+        priority = self.cleaned_data.get("priority")
+
+        if priority in [None, "", "none", "null"]:
+            return "MEDIUM"  # or None if you want
+
+        return priority
+    
     def __init__(self, *args, **kwargs):
         # Pop user if passed
         self.user = kwargs.pop('user', None)

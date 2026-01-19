@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
+from django.utils.html import format_html
+from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
 
 
 @admin.register(Project)
@@ -158,6 +159,26 @@ class SpareAdmin(admin.ModelAdmin):
     list_display = ['work_order', 'name', 'unit', 'quantity']
     search_fields = ['name']
 
+
+@admin.register(SpareConsumed)
+class SpareConsumedAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'work_order',
+        'name',
+        'quantity',
+        'unit',
+    )
+    list_filter = ('work_order', 'unit')
+    search_fields = ('name', 'work_order__work_order_number')
+    ordering = ('-id',)
+
+    fieldsets = (
+        (None, {
+            'fields': ('work_order', 'name', 'quantity', 'unit')
+        }),
+    )
+    
 @admin.register(Tool)
 class ToolAdmin(admin.ModelAdmin):
     list_display = ['work_order', 'name', 'quantity']
@@ -186,12 +207,30 @@ class VesselAdmin(admin.ModelAdmin):
 
 @admin.register(WorkOrderImage)
 class WorkOrderImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'work_order', 'image_preview')
+    list_display = (
+        'id',
+        'work_order',
+        'name',
+        'short_description',
+        'image_preview',
+    )
     readonly_fields = ('image_preview',)
+    search_fields = ('name', 'description', 'work_order__work_order_number')
+    list_filter = ('work_order',)
 
     def image_preview(self, obj):
         if obj.image:
-            return f'<img src="{obj.image.url}" style="max-height: 100px;" />'
+            return format_html(
+                '<img src="{}" style="max-height: 100px; border-radius: 4px;" />',
+                obj.image.url
+            )
         return "-"
-    image_preview.allow_tags = True
+
     image_preview.short_description = "Preview"
+
+    def short_description(self, obj):
+        if obj.description:
+            return obj.description[:50] + ("..." if len(obj.description) > 50 else "")
+        return "-"
+
+    short_description.short_description = "Description"

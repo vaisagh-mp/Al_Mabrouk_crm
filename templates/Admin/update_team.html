@@ -27,15 +27,21 @@
                         <!-- Manager Selection -->
                         <div class="mb-3">
                             <label for="managerSelection" class="form-label">Manager</label>
-                            <select class="form-select" id="managerSelection" name="manager" {% if form.manager.value %} disabled {% endif %} required>
-                                <option value="">Choose Manager</option>
-                                {% for manager in form.fields.manager.queryset %}
-                                    <option value="{{ manager.id }}"
-                                        {% if manager.id|stringformat:"s" == form.manager.value|stringformat:"s" %}selected{% endif %}>
-                                        {{ manager.user.first_name }} {{ manager.user.last_name }}
-                                    </option>
-                                {% endfor %}
-                            </select>
+                            <select class="form-select" id="managerSelection" disabled>
+    {% for manager in form.fields.manager.queryset %}
+        <option value="{{ manager.id }}"
+            {% if manager.id|stringformat:"s" == form.manager.value|stringformat:"s" %}
+                selected
+            {% endif %}
+        >
+            {{ manager.user.first_name }} {{ manager.user.last_name }}
+        </option>
+    {% endfor %}
+</select>
+
+<!-- Hidden field to actually submit the value -->
+<input type="hidden" name="manager" value="{{ form.manager.value }}">
+
                         </div>
 
 

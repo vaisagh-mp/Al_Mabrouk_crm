@@ -59,14 +59,14 @@
                     ><b>{{ project_data.category }}</b>
                   </span>
                 </div>
-                <div class="pjct-info-item">
+                <!-- <div class="pjct-info-item">
                   <h6>Job Card:</h6>
                   {% if project_data.job_card %}
                     <a href="{{ project_data.job_card }}" class="btn btn-outline-success btn-sm" target="_blank">View Job Card</a>
                   {% else %}
                     <span class="text-muted">No job card uploaded</span>
                   {% endif %}
-                </div>
+                </div> -->
                 <div class="pjct-info-item">
                   <h6>Created:</h6>
                   <span class="created">{{ project_data.project_create |date:"d-m-Y"  }}</span>
@@ -114,6 +114,17 @@
                     >
                     <p>Project Manager</p>
                   </div>
+
+                  <!-- ✅ Manager Edit Icon -->
+                  {% if team %}
+                    <a
+                      href="{% url 'team-update' team.id %}"
+                      class="team-edit-btn"
+                      title="Edit Team"
+                    >
+                      <i class="bi bi-pencil-square"></i>
+                    </a>
+                  {% endif %}
                 </div>
                 <hr />
                 {% for engineer in project_data.engineers %}
@@ -144,27 +155,63 @@
             <div class="widget-title">
               <h4>Upload Attachment</h4>
             </div>
+          
             <form method="POST" enctype="multipart/form-data">
               {% csrf_token %}
-              <input class="upload-inpt" type="file" name="attachments" accept=".pdf,.doc,.docx,.jpg,.png,.zip" multiple>
+              <input
+                class="upload-inpt"
+                type="file"
+                name="attachments"
+                accept=".pdf,.doc,.docx,.jpg,.png,.zip"
+                multiple
+              >
               <div style="margin-top: 15px; margin-bottom: 5px;">
                 <button type="submit" class="btn">Upload</button>
-              <a href="{% url 'project_attachments_view' project_data.project_id %}" class="btn btn-secondary">View All</a>
+                <a
+                  href="{% url 'project_attachments_view' project_data.project_id %}"
+                  class="btn btn-secondary"
+                >
+                  View All
+                </a>
               </div>
-              
             </form>
-
+          
             {% if project_data.attachments %}
-              <p><strong>Total Uploaded Files:</strong> {{ project_data.attachments|length }}</p>
+              <div>
+                <strong>Uploaded Files:</strong>
+                <ul id="attachment-list">
+                  {% for attachment in project_data.attachments %}
+                    <li
+                      class="attachment-item"
+                      {% if forloop.counter > 3 %}style="display:none;"{% endif %}
+                    >
+                      <a href="{{ attachment.file.url }}" target="_blank">
+                        {{ attachment.file.name|cut:attachment.file.field.upload_to }}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              
+                {% if project_data.attachments|length > 3 %}
+                  <a
+                    href="javascript:void(0);"
+                    id="view-more-btn"
+                    class="view-more-btn"
+                    onclick="toggleAttachments()"
+                  >
+                    View more
+                  </a>
+                {% endif %}
+              </div>
             {% else %}
               <p>No attachments uploaded yet.</p>
             {% endif %}
-
           </div>
         </div>
 
 
-        <div class="emp-pjct-status-box" style="margin-top: 20px;">
+
+        <!-- <div class="emp-pjct-status-box" style="margin-top: 20px;">
           <div class="widget-box">
             <div class="widget-title">
               <h4>Upload Job Card</h4>
@@ -183,7 +230,7 @@
               <p>No job card uploaded yet.</p>
             {% endif %}
           </div>
-        </div>
+        </div> -->
 
 
         <div class="emp-pjct-status-box" style="margin-top: 20px;">
@@ -199,6 +246,7 @@
                   <option value="" disabled selected>Select Status</option>
                   <option value="ASSIGN">Assign</option>
                   <option value="ONGOING">Ongoing</option>
+                  <option value="QUOTED">Quoted</option>
                   <option value="HOLD">On Hold</option>
                   <option value="CANCELLED">Cancelled</option>
                   <option value="COMPLETED">Completed</option>
@@ -361,6 +409,25 @@ function skipInvoice() {
 
 function closeInvoiceModal() {
     document.getElementById("invoiceModal").style.display = "none";
+}
+</script>
+
+
+<script>
+function toggleAttachments() {
+  const items = document.querySelectorAll('.attachment-item');
+  const btn = document.getElementById('view-more-btn');
+
+  let expanded = btn.dataset.expanded === "true";
+
+  items.forEach((item, index) => {
+    if (index >= 3) {
+      item.style.display = expanded ? "none" : "list-item";
+    }
+  });
+
+  btn.innerText = expanded ? "View more" : "View less";
+  btn.dataset.expanded = (!expanded).toString();
 }
 </script>
 

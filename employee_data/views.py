@@ -23,7 +23,7 @@ from django.db.models import Sum
 from django.db.models import Q, F
 from datetime import datetime
 from django.contrib import messages
-from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
+from Admin.models import Employee, Attendance, ProjectAssignment, Project, Team, TeamMemberStatus, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
 from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
@@ -758,6 +758,7 @@ def project_details(request, project_id):
         "category": project.category,
         "purchase_and_expenses": project.purchase_and_expenses,
         "invoice_amount": project.invoice_amount,
+        "priority": project.priority,
         "engineers": engineers,
         "engineer_salaries": engineer_salaries,  # Include engineer salaries
         "engineer_project_hours": engineer_project_hours,  # Total hours for each engineer
@@ -1207,6 +1208,21 @@ def employee_update_work_order_view(request, pk):
                             quantity=int(qty or 0)
                         )
 
+                # Save new consumed spares
+                SpareConsumed.objects.filter(work_order=work_order).delete()
+                for name, unit, qty in zip(
+                    request.POST.getlist('consumed_spare_name[]'),
+                    request.POST.getlist('consumed_spare_unit[]'),
+                    request.POST.getlist('consumed_spare_quantity[]')
+                ):
+                    if name.strip():
+                        SpareConsumed.objects.create(
+                            work_order=work_order,
+                            name=name.strip(),
+                            unit=unit.strip(),
+                            quantity=int(qty or 0)
+                        )    
+
                 # Clear and save Tools
                 Tool.objects.filter(work_order=work_order).delete()
                 for name, qty in zip(
@@ -1234,9 +1250,38 @@ def employee_update_work_order_view(request, pk):
                         )
 
                 # Save new uploaded project images
-                files = request.FILES.getlist('project_images')
-                for f in files:
-                    WorkOrderImage.objects.create(work_order=work_order, image=f)
+                # ---------------------------
+                # Update existing image name & description
+                # ---------------------------
+                for key, value in request.POST.items():
+                    if key.startswith('existing_image_names['):
+                        img_id = key.replace('existing_image_names[', '').replace(']', '')
+                        try:
+                            img = WorkOrderImage.objects.get(id=img_id, work_order=work_order)
+                            img.name = value.strip() or img.name
+                            desc_key = f'existing_image_descriptions[{img_id}]'
+                            img.description = request.POST.get(desc_key, '').strip()
+                            img.save()
+                        except WorkOrderImage.DoesNotExist:
+                            pass
+                        
+                    
+                # Save uploaded project images
+                image_names = request.POST.getlist('image_names[]')
+                image_descriptions = request.POST.getlist('image_descriptions[]')
+                all_files = request.FILES.getlist('project_images[]')
+                file_cursor = 0
+                for name, desc in zip(image_names, image_descriptions):
+                    # Each row may have multiple images selected
+                    row_files = all_files[file_cursor:]
+                    for f in row_files:
+                        WorkOrderImage.objects.create(
+                            work_order=work_order,
+                            image=f,
+                            name=name.strip() or "Untitled Image",
+                            description=desc.strip()
+                        )
+                    file_cursor += len(row_files)
 
                 # Delete selected project images
                 delete_ids = request.POST.getlist('delete_image_ids')
@@ -1264,6 +1309,13 @@ def employee_update_work_order_view(request, pk):
             cls=DjangoJSONEncoder
         ),
         'spares': json.dumps(list(spares.values()), cls=DjangoJSONEncoder),
+        'spares_consumed': json.dumps(
+            list(
+                SpareConsumed.objects.filter(work_order=work_order)
+                .values('name', 'unit', 'quantity')
+            ),
+            cls=DjangoJSONEncoder
+        ),
         'tools': json.dumps(list(tools.values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(documents.values()), cls=DjangoJSONEncoder),
     }

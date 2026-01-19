@@ -171,6 +171,25 @@
     </table>
   </div>
 
+  <!-- Spares Consumed Table -->
+  <div class="wo-section">
+    <div class="wo-title">SPARES CONSUMED</div>
+    <table class="wo-table" style="width: 100%;">
+      <tr>
+        <th>NAME</th>
+        <th>UNIT</th>
+        <th>QTY</th>
+      </tr>
+      {% for spare in work_order.consumed_spares.all %}
+      <tr>
+        <td>{{ spare.name }}</td>
+        <td>{{ spare.unit }}</td>
+        <td>{{ spare.quantity }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
   <!-- Tools Required Table -->
   <div class="wo-section">
     <div class="wo-title">Tools Required</div>
@@ -212,7 +231,7 @@
   </div>
 
   <!-- Project Image -->
-  {% if work_order.images.exists %}
+  <!-- {% if work_order.images.exists %}
     <div class="wo-section">
       <div class="wo-title">PROJECT IMAGE:</div>
       <div style="display: flex; gap: 10px; flex-wrap: wrap;">
@@ -222,7 +241,53 @@
       </div>
   {% else %}
     <p>No images uploaded.</p>
-  {% endif %}
+  {% endif %} -->
+  {% if work_order.images.exists %}
+  <div class="wo-section">
+    <div class="wo-title">PROJECT IMAGES:</div>
+
+    {% regroup work_order.images.all by name as image_groups %}
+
+    {% for group in image_groups %}
+      <div style="margin-bottom: 30px;">
+
+        <!-- Group Heading -->
+        <h4 style="margin-bottom: 5px;">
+          {{ group.grouper }}
+        </h4>
+
+        <!-- Group Description (from first image in group) -->
+        {% with first_image=group.list.0 %}
+          {% if first_image.description %}
+            <div style="font-size: 13px; color: #555; margin-bottom: 12px;">
+              {{ first_image.description }}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- Images under this heading -->
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+          {% for img in group.list %}
+            <img
+              src="{{ img.image.url }}"
+              alt="{{ img.name }}"
+              style="
+                width: 200px;
+                height: auto;
+                border: 1px solid #ccc;
+                padding: 5px;
+              "
+            />
+          {% endfor %}
+        </div>
+
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>No images uploaded.</p>
+{% endif %}
+
 
   <div class="mt-4 work_order_btn">
     <a href="{% url 'project-summary' work_order.project.id %}" class="btn wrp">Back to Project</a>

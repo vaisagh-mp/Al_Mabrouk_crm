@@ -16,6 +16,7 @@ class Project(models.Model):
         ('PENDING', 'Pending'),
         ('ASSIGN', 'Assign'),
         ('ONGOING', 'Ongoing'),
+        ('QUOTED', 'Quoted'),
         ('HOLD', 'Hold'),
         ('CANCELLED', 'Cancelled'),
         ('COMPLETED', 'Completed'),
@@ -642,6 +643,19 @@ class Spare(models.Model):
     unit = models.CharField(max_length=50)
     quantity = models.IntegerField()
 
+class SpareConsumed(models.Model):
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name='consumed_spares'
+    )
+    name = models.CharField(max_length=100)
+    unit = models.CharField(max_length=50)
+    quantity = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.name} ({self.quantity} {self.unit})"
+
 class Tool(models.Model):
     work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='tools')
     name = models.CharField(max_length=100)
@@ -653,5 +667,14 @@ class Document(models.Model):
     status = models.CharField(max_length=100)
 
 class WorkOrderImage(models.Model):
-    work_order = models.ForeignKey(WorkOrder, on_delete=models.CASCADE, related_name='images')
+    work_order = models.ForeignKey(
+        WorkOrder,
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    name = models.CharField(max_length=100, default='Untitled Image')
+    description = models.TextField(null=True, blank=True)
     image = models.ImageField(upload_to='work_order_images/')
+
+    def __str__(self):
+        return self.name

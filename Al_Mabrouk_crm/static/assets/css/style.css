@@ -816,6 +816,11 @@ header .dropdown-menu {
   color: var(--primary-font-color);
 }
 
+.status.Quoted {
+  background-color: #3690f8;
+  color: #cae3ff;
+}
+
 .status.ongoing {
   background-color: #ffc299;
   color: #8b4f00;
@@ -1685,6 +1690,11 @@ header .dropdown-menu {
 .pjct-info-item .priority.medium {
   background-color: var(--bs-orange);
 }
+
+.pjct-info-item .priority.low {
+  background-color: var(--bs-yellow) !important;
+}
+
 
 #employeeTable td .priority.high {
   background-color: var(--dark-red);
@@ -2851,3 +2861,47 @@ width: 13px;
   .month-selector select{
     outline: none !important;
   }
+
+
+
+  /* Uploaded files list */
+#attachment-list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 10px;
+}
+
+#attachment-list li {
+  margin-bottom: 6px;
+}
+
+/* File links */
+#attachment-list a {
+  text-decoration: none;
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+#attachment-list a:hover {
+  color: #0d6efd; /* Bootstrap primary blue */
+  text-decoration: underline;
+}
+
+/* View More button */
+#view-more-btn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #fff;
+  background-color: #3f6d95;
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+#view-more-btn:hover {
+  background-color: #3f6d95;
+}

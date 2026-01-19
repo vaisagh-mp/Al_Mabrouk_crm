@@ -16,6 +16,8 @@ from django.utils import timezone
 from django.db.models import Sum
 from datetime import date, time, timedelta
 from django.contrib.staticfiles import finders
+from collections import defaultdict
+from pathlib import Path
 import base64
 import json
 import pytz
@@ -32,7 +34,7 @@ from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
-from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
+from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
 import calendar
 
 
@@ -1146,6 +1148,8 @@ def project_summary_view(request, project_id):
     # Fetch logs where the manager updated the project status
     manager_logs = ActivityLog.objects.filter(project=project)
 
+    team = project.teams.first()
+
     # Merge both logs and order by `changed_at`
     logs = (team_logs | manager_logs).distinct().order_by('-changed_at')
 
@@ -1226,6 +1230,7 @@ def project_summary_view(request, project_id):
         "currency_code": project.currency_code,
         "total_expenses": round(total_expenses, 2),
         "profit": profit,
+        "priority": project.priority,
         "status": project.status,
         "total_engineer_salary": round(total_engineer_salary, 2),
         "project_create": project.created_at,
@@ -1239,7 +1244,7 @@ def project_summary_view(request, project_id):
         "job_card": project.job_card.url if project.job_card else None,
     }
 
-    context = {"project_data": project_data, "role": "Manager",}
+    context = {"project_data": project_data, "team": team, "role": "Manager",}
     return render(request, 'Manager/project.html', context)
 
 # project attachments
@@ -1835,6 +1840,7 @@ def manager_update_work_order_view(request, pk):
                     # Clear & re-save Spares, Tools, Documents
                     # ---------------------------
                     Spare.objects.filter(work_order=work_order).delete()
+                    SpareConsumed.objects.filter(work_order=work_order).delete()
                     Tool.objects.filter(work_order=work_order).delete()
                     Document.objects.filter(work_order=work_order).delete()
 
@@ -1846,6 +1852,20 @@ def manager_update_work_order_view(request, pk):
                     ):
                         if name.strip():
                             Spare.objects.create(
+                                work_order=work_order,
+                                name=name.strip(),
+                                unit=unit.strip(),
+                                quantity=int(qty or 0)
+                            )
+                    
+                    # Save new consumed spares
+                    for name, unit, qty in zip(
+                        request.POST.getlist('consumed_spare_name[]'),
+                        request.POST.getlist('consumed_spare_unit[]'),
+                        request.POST.getlist('consumed_spare_quantity[]')
+                    ):
+                        if name.strip():
+                            SpareConsumed.objects.create(
                                 work_order=work_order,
                                 name=name.strip(),
                                 unit=unit.strip(),
@@ -1876,10 +1896,46 @@ def manager_update_work_order_view(request, pk):
                                 status=status.strip()
                             )
 
+                    # ---------------------------
+                    # Update existing image name & description
+                    # ---------------------------
+                    for key, value in request.POST.items():
+                        if key.startswith('existing_image_names['):
+                            img_id = key.replace('existing_image_names[', '').replace(']', '')
+
+                            try:
+                                img = WorkOrderImage.objects.get(id=img_id, work_order=work_order)
+                                img.name = value.strip() or img.name
+
+                                desc_key = f'existing_image_descriptions[{img_id}]'
+                                img.description = request.POST.get(desc_key, '').strip()
+
+                                img.save()
+                            except WorkOrderImage.DoesNotExist:
+                                pass
+                            
+                        
                     # Save uploaded project images
-                    files = request.FILES.getlist('project_images')
-                    for f in files:
-                        WorkOrderImage.objects.create(work_order=work_order, image=f)
+                    image_names = request.POST.getlist('image_names[]')
+                    image_descriptions = request.POST.getlist('image_descriptions[]')
+                    all_files = request.FILES.getlist('project_images[]')
+
+                    file_cursor = 0
+
+                    for name, desc in zip(image_names, image_descriptions):
+                        # Each row may have multiple images selected
+                        row_files = all_files[file_cursor:]
+
+                        for f in row_files:
+                            WorkOrderImage.objects.create(
+                                work_order=work_order,
+                                image=f,
+                                name=name.strip() or "Untitled Image",
+                                description=desc.strip()
+                            )
+
+                        file_cursor += len(row_files)
+
 
                     # Delete selected images
                     delete_ids = request.POST.getlist('delete_image_ids')
@@ -1917,6 +1973,12 @@ def manager_update_work_order_view(request, pk):
             cls=DjangoJSONEncoder
         ),
         'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+        'spares_consumed': json.dumps(
+        list(SpareConsumed.objects.filter(work_order=work_order).values(
+            'name', 'unit', 'quantity'
+        )),
+        cls=DjangoJSONEncoder
+    ),
         'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
     }
@@ -1948,6 +2010,29 @@ def download_work_order_pdf(request, pk):
             live_members = [emp.user for emp in work_order.project.team.employees.all()]
     all_members = work_order.all_members.all()
 
+    # Convert project images to base64
+    image_groups = defaultdict(list)
+
+    for img in work_order.images.all():
+        with open(img.image.path, 'rb') as f:
+            base64_data = base64.b64encode(f.read()).decode('ascii')
+
+        ext = Path(img.image.path).suffix.lower()
+        if ext in ['.jpg', '.jpeg']:
+            mime = 'jpeg'
+        elif ext == '.png':
+            mime = 'png'
+        elif ext == '.gif':
+            mime = 'gif'
+        else:
+            mime = 'jpeg'
+
+        image_groups[img.name].append({
+            'base64': base64_data,
+            'mime': mime,
+            'description': img.description,
+        })
+
     total_hours = (
         WorkOrderTime.objects.filter(work_order=work_order)
         .aggregate(total=Sum('estimated_hours'))['total'] or 0
@@ -1963,6 +2048,7 @@ def download_work_order_pdf(request, pk):
         'live_members': live_members,
         'all_members': all_members,
         'calculated_hours': total_hours,
+        'image_groups': dict(image_groups),
     })
 
     html = HTML(string=html_string)

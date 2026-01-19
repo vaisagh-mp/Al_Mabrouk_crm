@@ -146,6 +146,7 @@
             {% elif project.status == 'COMPLETED' %} completed
             {% elif project.status == 'ASSIGN' %} Assign
             {% elif project.status == 'PENDING' %} pending
+            {% elif project.status == 'QUOTED' %} Quoted
             {% elif project.status == 'HOLD' %} hold
             {% elif project.status == 'CANCELLED' %} cancelled
             {% else %}status-default{% endif %}

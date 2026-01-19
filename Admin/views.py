@@ -27,7 +27,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 import json
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
+from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 
 
 # Home
@@ -715,7 +715,7 @@ def admin_project_summary_view(request, project_id):
     # Fetch logs from both team members and manager
     team_logs = ActivityLog.objects.filter(team_member_status__team__project=project)
     manager_logs = ActivityLog.objects.filter(project=project)
-
+    team = Team.objects.filter(project=project).first()
     # Merge and sort logs
     logs = (team_logs | manager_logs).order_by('-changed_at')
 
@@ -816,7 +816,7 @@ def admin_project_summary_view(request, project_id):
         "attachment_file": project.attachment.url if project.attachment else None,
     }
 
-    context = {"project_data": project_data, 'role': 'Admin'}
+    context = {"project_data": project_data,  "team": team, 'role': 'Admin'}
     return render(request, 'Admin/project.html', context)
 
 
@@ -1027,7 +1027,9 @@ def admin_team_update(request, pk):
     if request.method == 'POST':
         form = AdminTeamForm(request.POST, instance=team)
         if form.is_valid():
-            form.save()
+            team = form.save(commit=False)
+            team.save()
+            form.save_m2m()  # 🔑 REQUIRED for employees
             messages.success(request, "Team updated successfully!")
             return redirect('admin-team-list')
     else:
@@ -1037,6 +1039,7 @@ def admin_team_update(request, pk):
         'form': form,
         'role': 'Admin',
     })
+
 
 def is_admin(user):
     return user.is_authenticated and user.is_superuser 
@@ -1758,18 +1761,18 @@ def admin_view_work_order(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
+    # ✅ LIVE MEMBERS → current team only
     live_members = []
     if work_order.project:
-        if hasattr(work_order.project, "teams"):  # many teams
-            live_members = [
-                emp.user for team in work_order.project.teams.all()
-                for emp in team.employees.all()
-            ]
-        elif hasattr(work_order.project, "team"):  # single team
-            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+        live_members = [
+            emp.user
+            for team in work_order.project.teams.all()
+            for emp in team.employees.all()
+        ]
 
-    # FIX: use the correct field
+    # ✅ ALL MEMBERS → persisted history (never removed)
     all_members = work_order.all_members.all()
+
     total_hours = (
         WorkOrderTime.objects.filter(work_order=work_order)
         .aggregate(total=Sum('estimated_hours'))['total'] or 0
@@ -1836,6 +1839,7 @@ def admin_update_work_order_view(request, pk):
 
                     # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
+                    SpareConsumed.objects.filter(work_order=work_order).delete()
                     Tool.objects.filter(work_order=work_order).delete()
                     Document.objects.filter(work_order=work_order).delete()
 
@@ -1847,6 +1851,20 @@ def admin_update_work_order_view(request, pk):
                     ):
                         if name.strip():
                             Spare.objects.create(
+                                work_order=work_order,
+                                name=name.strip(),
+                                unit=unit.strip(),
+                                quantity=int(qty or 0)
+                            )
+
+                    # Save new consumed spares
+                    for name, unit, qty in zip(
+                        request.POST.getlist('consumed_spare_name[]'),
+                        request.POST.getlist('consumed_spare_unit[]'),
+                        request.POST.getlist('consumed_spare_quantity[]')
+                    ):
+                        if name.strip():
+                            SpareConsumed.objects.create(
                                 work_order=work_order,
                                 name=name.strip(),
                                 unit=unit.strip(),
@@ -1877,10 +1895,45 @@ def admin_update_work_order_view(request, pk):
                                 status=status.strip()
                             )
 
+                    # ---------------------------
+                    # Update existing image name & description
+                    # ---------------------------
+                    for key, value in request.POST.items():
+                        if key.startswith('existing_image_names['):
+                            img_id = key.replace('existing_image_names[', '').replace(']', '')
+
+                            try:
+                                img = WorkOrderImage.objects.get(id=img_id, work_order=work_order)
+                                img.name = value.strip() or img.name
+
+                                desc_key = f'existing_image_descriptions[{img_id}]'
+                                img.description = request.POST.get(desc_key, '').strip()
+
+                                img.save()
+                            except WorkOrderImage.DoesNotExist:
+                                pass
+                            
+                        
                     # Save uploaded project images
-                    files = request.FILES.getlist('project_images')
-                    for f in files:
-                        WorkOrderImage.objects.create(work_order=work_order, image=f)
+                    image_names = request.POST.getlist('image_names[]')
+                    image_descriptions = request.POST.getlist('image_descriptions[]')
+                    all_files = request.FILES.getlist('project_images[]')
+
+                    file_cursor = 0
+
+                    for name, desc in zip(image_names, image_descriptions):
+                        # Each row may have multiple images selected
+                        row_files = all_files[file_cursor:]
+
+                        for f in row_files:
+                            WorkOrderImage.objects.create(
+                                work_order=work_order,
+                                image=f,
+                                name=name.strip() or "Untitled Image",
+                                description=desc.strip()
+                            )
+
+                        file_cursor += len(row_files)
 
                     # Delete selected images
                     delete_ids = request.POST.getlist('delete_image_ids')
@@ -1916,6 +1969,10 @@ def admin_update_work_order_view(request, pk):
             cls=DjangoJSONEncoder
         ),
         'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+        'spares_consumed': json.dumps(
+                list(SpareConsumed.objects.filter(work_order=work_order).values()),
+                cls=DjangoJSONEncoder
+            ),
         'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
         'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
     }
