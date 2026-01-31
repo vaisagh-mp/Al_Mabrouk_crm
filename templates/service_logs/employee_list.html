@@ -1,0 +1,286 @@
+{% extends 'employee/employeebase.html' %}
+{% block content %}
+
+<div class="pg-title">
+    <h1>My Service Logs</h1>
+</div>
+
+<div class="widget-box">
+
+    <div class="add-new-emply mb-20">
+        <a href="{% url 'service_log_create' %}" class="prmry-btn" style="color: #fff;">
+            + Add Service Log
+        </a>
+    </div>
+
+    <div class="table-wdgt">
+        <table class="widget-box-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Employee</th>
+                    <th>Project</th>
+                    <th>Service Type</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th>Total Hrs</th>
+                    <th>OT Hrs</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.date }}</td>
+                <td>{{ log.employee.user.username }}</td>
+                <td>{{ log.project.name|default:"-" }}</td>
+                <td>{{ log.service_type }}</td>
+                <td>{{ log.start_time }}</td>
+                <td>{{ log.end_time }}</td>
+                <td>{{ log.total_hours }}</td>
+                <td>{{ log.ot_hours }}</td>
+            
+                <td>
+                    <div class="crm-actions">
+                        <a href="{% url 'service_log_edit' log.id %}"
+                           class="crm-btn crm-btn-edit"
+                           title="Edit">
+                           ✏
+                        </a>
+                    
+                        <button
+                            type="button"
+                            class="crm-btn crm-btn-delete"
+                            title="Delete"
+                            data-id="{{ log.id }}"
+                            onclick="confirmDelete(this)">
+                            🗑
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" align="center">No logs found.</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+
+        </table>
+        <div class="pagination-box" style="margin-top: 20px; text-align: right;">
+    {% if page_obj.has_other_pages %}
+        <ul class="pagination">
+
+            {% if page_obj.has_previous %}
+                <li>
+                    <a href="?page={{ page_obj.previous_page_number }}">‹ Prev</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="active"><span>{{ num }}</span></li>
+                {% else %}
+                    <li>
+                        <a href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li>
+                    <a href="?page={{ page_obj.next_page_number }}">Next ›</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    {% endif %}
+</div>
+
+    </div>
+
+</div>
+<div id="deleteModal" class="crm-modal">
+    <div class="crm-modal-content">
+        <h4>Delete Service Log</h4>
+        <p>Are you sure you want to delete this service log?</p>
+
+        <form method="post" id="deleteForm">
+            {% csrf_token %}
+            <div class="crm-modal-actions">
+                <button type="button"
+                        class="crm-btn crm-btn-secondary"
+                        onclick="closeDeleteModal()">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="crm-btn crm-btn-danger">
+                    Delete
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    /* ================= PAGINATION ================= */
+
+.pagination-box {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.pagination {
+    display: flex;
+    list-style: none;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+}
+
+.pagination li {
+    display: inline-flex;
+}
+
+.pagination a,
+.pagination span {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+/* Hover */
+.pagination a:hover {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+}
+
+/* Active Page */
+.pagination li.active span {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+    cursor: default;
+}
+
+/* Disabled state */
+.pagination li.disabled span {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Action buttons */
+.crm-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.crm-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+/* Edit */
+.crm-btn-edit {
+    color: #2563eb;
+}
+.crm-btn-edit:hover {
+    color: #1d4ed8;
+    transform: scale(1.15);
+}
+
+/* Delete */
+.crm-btn-delete {
+    color: #dc2626;
+}
+.crm-btn-delete:hover {
+    color: #b91c1c;
+    transform: scale(1.15);
+}
+
+/* Modal */
+.crm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+.crm-modal.show {
+    display: flex;
+}
+.crm-modal-content {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    width: 360px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+.crm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+.crm-btn-secondary {
+    background: #e5e7eb;
+    color: #374151;
+}
+.crm-btn-danger {
+    background: #dc2626;
+    color: #fff;
+}
+
+
+/* Mobile friendly */
+@media (max-width: 576px) {
+    .pagination {
+        gap: 4px;
+    }
+
+    .pagination a,
+    .pagination span {
+        min-width: 30px;
+        height: 30px;
+        font-size: 12px;
+    }
+}
+
+</style>
+
+<script>
+function confirmDelete(btn) {
+    const id = btn.dataset.id;
+    const modal = document.getElementById("deleteModal");
+    const form = document.getElementById("deleteForm");
+
+    form.action = `/service-logs/service-logs/delete/${id}/`;
+    modal.classList.add("show");
+}
+
+function closeDeleteModal() {
+    document.getElementById("deleteModal").classList.remove("show");
+}
+</script>
+
+{% endblock %}

@@ -117,6 +117,14 @@
                   <h6>Status:</h6>
                   <span class="status">{{ project_data.status }}</span>
                 </div>
+                {% if project_data.completed_date %}
+                <div class="pjct-info-item">
+                  <h6>Completed Date:</h6>
+                  <span class="created">
+                    {{ project_data.completed_date|date:"d-m-Y" }}
+                  </span>
+                </div>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -364,7 +372,11 @@
         </tr>
         <tr>
           <td>Man-Hours</td>
-          <td>{{ project_data.total_engineer_salary }}/hr </td>
+          <td>{{ project_data.total_employee_hours }} hrs</td>
+        </tr>
+        <tr>
+          <td>Avg Employee Cost / Hour</td>
+          <td>{{ project_data.avg_hourly_cost }} AED/hr</td>
         </tr>
         <tr>
           <td>Total Expenses</td>

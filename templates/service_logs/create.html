@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Create Service Log</h2>
+
+<form method="post">
+    {% csrf_token %}
+
+    <label>Date</label><br>
+    <input type="date" name="date" required><br><br>
+
+    <label>Project</label><br>
+    <select name="project">
+        <option value="">-- Select Project --</option>
+        {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+        {% endfor %}
+    </select><br><br>
+
+    <label>Vessel Name</label><br>
+    <input type="text" name="vessel_name" required><br><br>
+
+    <label>Port</label><br>
+    <input type="text" name="port" required><br><br>
+
+    <label>Service Type</label><br>
+    <select name="service_type" required>
+        <option value="INSPECTION">Inspection</option>
+        <option value="JOB">Job</option>
+    </select><br><br>
+
+    <label>Service Reference</label><br>
+    <input type="text" name="service_reference"><br><br>
+
+    <label>Start Time</label><br>
+    <input type="time" name="start_time" required><br><br>
+
+    <label>End Time</label><br>
+    <input type="time" name="end_time" required><br><br>
+
+    <label>Location Type</label><br>
+    <select name="location_type" required>
+        <option value="ANCHORAGE">Anchorage</option>
+        <option value="SAILING">Sailing</option>
+    </select><br><br>
+
+    <label>
+        <input type="checkbox" name="is_holiday">
+        Is Holiday
+    </label><br><br>
+
+    <button type="submit" class="btn btn-success">
+        Save Service Log
+    </button>
+</form>
+
+{% endblock %}

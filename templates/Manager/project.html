@@ -95,6 +95,14 @@
                   <h6>Status</h6>
                   <span class="status">{{ project_data.status }}</span>
                 </div>
+                {% if project_data.completed_date %}
+                <div class="pjct-info-item">
+                  <h6>Completed Date:</h6>
+                  <span class="created">
+                    {{ project_data.completed_date|date:"d-m-Y" }}
+                  </span>
+                </div>
+                {% endif %}
               </div>
             </div>
           </div>

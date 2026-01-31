@@ -190,6 +190,49 @@
                       </ul>
                     </div>
                   </li>
+                  <li class="sidebar-dropdown">
+  <a href="#">
+    <i class="fas fa-clipboard-list"></i>
+    <span>Service Logs</span>
+  </a>
+  <div class="sidebar-submenu">
+    <ul>
+      <li>
+        <a href="{% url 'service_log_list' %}">
+          All Service Logs
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'service_log_utilization' %}?year={{ now|date:'Y' }}&month={{ now|date:'m' }}">
+          Utilization Report
+        </a>
+      </li>
+    </ul>
+  </div>
+</li>
+
+                  <li class="sidebar-dropdown">
+                      <a href="#">
+                          <i class="fa fa-chart-line"></i>
+                          <span>Analytics</span>
+                      </a>
+                      <div class="sidebar-submenu">
+                          <ul>
+                              <li>
+                                  <a href="{% url 'analytics_project' %}">
+                                      Project Analytics
+                                  </a>
+                              </li>
+                              <li>
+                                  <a href="{% url 'analytics_employee' %}">
+                                      Employee Analytics
+                                  </a>
+                              </li>
+                          </ul>
+                      </div>
+                  </li>
+
+
                   <!-- <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-users"></i>

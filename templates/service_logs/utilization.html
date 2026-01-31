@@ -1,0 +1,206 @@
+{% extends 'Admin/adminbase.html' %}
+{% block content %}
+
+<!-- Flatpickr Core -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+<div class="pg-title">
+    <h1>Employee Utilization</h1>
+</div>
+
+<div class="widget-box">
+<!-- id="datePicker" -->
+    <!-- Date Filter -->
+<form method="get" class="date-filter">
+        <!-- <label>Select Date</label> -->
+
+        <input
+            type="text"
+            id="smartDatePicker"
+            name="date"
+            placeholder="Select date / range / month / year"
+            value="{{ selected_date|default:'' }}"
+            required
+        >
+
+        <button type="submit" class="prmry-btn">Filter</button>
+    </form>
+
+
+
+    <!-- Table -->
+    <div class="table-wdgt">
+        <table class="widget-box-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Total Hours</th>
+                    <th>Normal Cost</th>
+                    <th>OT Cost</th>
+                    <th>Utilization %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summary %}
+                <tr>
+                    <td>{{ row.employee__user__username }}</td>
+                    <td>{{ row.total_hours|floatformat:2 }}</td>
+                    <td>{{ row.normal_cost|floatformat:2 }}</td>
+                    <td>{{ row.ot_cost|floatformat:2 }}</td>
+                    <td>
+                        <span class="status present">
+                            {{ row.utilization_percent }}%
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" align="center">No data available</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination-box" style="margin-top: 20px; text-align: right;">
+            {% if page_obj.has_other_pages %}
+                <ul class="pagination">
+                
+                    {% if page_obj.has_previous %}
+                        <li>
+                            <a href="?page={{ page_obj.previous_page_number }}&date={{ selected_date }}">
+                                ‹ Prev
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="active"><span>{{ num }}</span></li>
+                        {% else %}
+                            <li>
+                                <a href="?page={{ num }}&date={{ selected_date }}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                        
+                    {% if page_obj.has_next %}
+                        <li>
+                            <a href="?page={{ page_obj.next_page_number }}&date={{ selected_date }}">
+                                Next ›
+                            </a>
+                        </li>
+                    {% endif %}
+                    
+                </ul>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+
+<style>
+    /* ================= PAGINATION ================= */
+
+.pagination-box {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.pagination {
+    display: flex;
+    list-style: none;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+}
+
+.pagination li {
+    display: inline-flex;
+}
+
+.pagination a,
+.pagination span {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+/* Hover */
+.pagination a:hover {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+}
+
+/* Active Page */
+.pagination li.active span {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+    cursor: default;
+}
+
+/* Disabled state */
+.pagination li.disabled span {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Mobile friendly */
+@media (max-width: 576px) {
+    .pagination {
+        gap: 4px;
+    }
+
+    .pagination a,
+    .pagination span {
+        min-width: 30px;
+        height: 30px;
+        font-size: 12px;
+    }
+}
+
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    flatpickr("#smartDatePicker", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d F Y",
+        allowInput: true,
+        defaultDate: [firstDay, lastDay],   // ✅ CURRENT MONTH
+        onReady: function(selectedDates, dateStr, instance) {
+            instance.altInput.placeholder = "Select date / range / month / year";
+            instance.altInput.style.width = "30%";
+        }
+    });
+});
+</script>
+
+
+
+
+
+{% endblock %}

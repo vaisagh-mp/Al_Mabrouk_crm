@@ -1,0 +1,175 @@
+{% extends 'Admin/adminbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="pg-title">
+    <h1>Service Logs</h1>
+</div>
+
+<div class="widget-box">
+
+    <div class="table-wdgt">
+        <table class="widget-box-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Employee</th>
+                    <th>Project</th>
+                    <th>Vessel</th>
+                    <th>Port</th>
+                    <th>Service Type</th>
+                    <th>Location Type</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                    <th>Total Hrs</th>
+                    <th>OT Hrs</th>
+                    <th>OT Type</th>
+                    <th>Normal Cost</th>
+                    <th>OT Cost</th>
+                    <th>Is Holiday</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.date }}</td>
+                    <td>{{ log.employee.user.username }}</td>
+                    <td>{{ log.project.name|default:"-" }}</td>
+                    <td>{{ log.vessel_name }}</td>
+                    <td>{{ log.port }}</td>
+                    <td>{{ log.service_type }}</td>
+                    <td>{{ log.location_type }}</td>
+                    <td>{{ log.start_time }}</td>
+                    <td>{{ log.end_time }}</td>
+                    <td>{{ log.total_hours }}</td>
+                    <td>{{ log.ot_hours }}</td>
+                    <td>
+                        {% if log.ot_hours > 0 %}
+                            <span class="status {% if log.ot_type == 'HOLIDAY' %}hold{% else %}completed{% endif %}">
+                                {{ log.ot_type|title }}
+                            </span>
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ log.normal_cost }}</td>
+                    <td>{{ log.ot_cost }}</td>
+                    <td>{{ log.is_holiday|yesno:"YES,NO" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" align="center">No logs found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="pagination-box" style="margin-top: 20px; text-align: right;">
+    {% if page_obj.has_other_pages %}
+        <ul class="pagination">
+
+            {% if page_obj.has_previous %}
+                <li>
+                    <a href="?page={{ page_obj.previous_page_number }}">‹ Prev</a>
+                </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="active"><span>{{ num }}</span></li>
+                {% else %}
+                    <li>
+                        <a href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <li>
+                    <a href="?page={{ page_obj.next_page_number }}">Next ›</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    {% endif %}
+</div>
+
+    </div>
+
+</div>
+
+<style>
+    /* ================= PAGINATION ================= */
+
+.pagination-box {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.pagination {
+    display: flex;
+    list-style: none;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+}
+
+.pagination li {
+    display: inline-flex;
+}
+
+.pagination a,
+.pagination span {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+/* Hover */
+.pagination a:hover {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+}
+
+/* Active Page */
+.pagination li.active span {
+    background: #3d6999;
+    color: #ffffff;
+    border-color: #3d6999;
+    cursor: default;
+}
+
+/* Disabled state */
+.pagination li.disabled span {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Mobile friendly */
+@media (max-width: 576px) {
+    .pagination {
+        gap: 4px;
+    }
+
+    .pagination a,
+    .pagination span {
+        min-width: 30px;
+        height: 30px;
+        font-size: 12px;
+    }
+}
+
+</style>
+{% endblock %}

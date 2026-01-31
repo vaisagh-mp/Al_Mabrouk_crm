@@ -1214,6 +1214,15 @@ def project_summary_view(request, project_id):
     except WorkOrder.DoesNotExist:
         work_order = None
 
+    # Get completed date (latest COMPLETED status)
+    completed_log = (
+        logs.filter(new_status="COMPLETED")
+            .order_by("-changed_at")
+            .first()
+    )
+
+    completed_date = completed_log.changed_at if completed_log else None
+
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
@@ -1232,6 +1241,7 @@ def project_summary_view(request, project_id):
         "profit": profit,
         "priority": project.priority,
         "status": project.status,
+        "completed_date": completed_date,
         "total_engineer_salary": round(total_engineer_salary, 2),
         "project_create": project.created_at,
         "deadline_date": project.deadline_date,

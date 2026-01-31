@@ -1,0 +1,127 @@
+{% extends "Admin/adminbase.html" %}
+{% block content %}
+
+<div class="pg-title">
+    <h1>Analytics Dashboard</h1>
+</div>
+
+<!-- TAB BUTTONS -->
+<div class="analytics-tabs">
+    <button class="tab-btn active" onclick="openTab(event,'projectTab')">
+        Project Based
+    </button>
+    <button class="tab-btn" onclick="openTab(event,'employeeTab')">
+        Employee Based
+    </button>
+</div>
+
+<div class="widget-box">
+
+<!-- ================= PROJECT BASED ================= -->
+<div id="projectTab" class="tab-content active">
+
+{% for item in project_analytics %}
+<h4 class="mt-20">{{ item.project.name }}</h4>
+
+<p>
+<b>Total Hours:</b> {{ item.total_hours|floatformat:2 }} |
+<b>Total Cost:</b> {{ item.total_cost|floatformat:2 }} |
+<b>Revenue:</b> {{ item.revenue|floatformat:2 }} |
+<b>Profit:</b> {{ item.profit|floatformat:2 }} ({{ item.profit_percent|floatformat:2 }}%)
+</p>
+
+<div class="table-wdgt">
+<table class="widget-box-table">
+<thead>
+<tr>
+<th>Employee</th>
+<th>Total Hours</th>
+<th>OT Hours</th>
+<th>Utilization %</th>
+<th>Normal Cost</th>
+<th>OT Cost</th>
+<th>Total Cost</th>
+</tr>
+</thead>
+<tbody>
+{% for emp in item.employees %}
+<tr>
+<td>{{ emp.name }}</td>
+<td>{{ emp.hours|floatformat:2 }}</td>
+<td>{{ emp.ot_hours|floatformat:2 }}</td>
+<td>{{ emp.utilization }}%</td>
+<td>{{ emp.normal_cost|floatformat:2 }}</td>
+<td>{{ emp.ot_cost|floatformat:2 }}</td>
+<td>{{ emp.total_cost|floatformat:2 }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+<hr>
+{% endfor %}
+
+</div>
+
+<!-- ================= EMPLOYEE BASED ================= -->
+<div id="employeeTab" class="tab-content">
+
+{% for emp in employee_analytics %}
+<h4 class="mt-20">{{ emp.employee.user.username }}</h4>
+
+<p>
+<b>Total Hours:</b> {{ emp.total_hours|floatformat:2 }} |
+<b>OT Hours:</b> {{ emp.ot_hours|floatformat:2 }} |
+<b>Utilization:</b> {{ emp.utilization }}% |
+<b>Total Cost:</b> {{ emp.total_cost|floatformat:2 }}
+</p>
+
+<div class="table-wdgt">
+<table class="widget-box-table">
+<thead>
+<tr>
+<th>Project</th>
+<th>Hours</th>
+<th>OT Hours</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+{% for p in emp.projects %}
+<tr>
+<td>{{ p.name }}</td>
+<td>{{ p.hours|floatformat:2 }}</td>
+<td>{{ p.ot_hours|floatformat:2 }}</td>
+<td>{{ p.cost|floatformat:2 }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+<hr>
+{% endfor %}
+
+</div>
+
+</div>
+
+<!-- STYLES -->
+<style>
+.analytics-tabs{display:flex;gap:12px;margin-bottom:20px}
+.tab-btn{padding:10px 20px;border:none;border-radius:8px;background:#f1f1f1;cursor:pointer}
+.tab-btn.active{background:#3d6999;color:#fff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+</style>
+
+<!-- SCRIPT -->
+<script>
+function openTab(e,id){
+document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+e.currentTarget.classList.add('active');
+}
+</script>
+
+{% endblock %}

@@ -48,6 +48,8 @@ INSTALLED_APPS = [
     'manager',
     'administration',
     'hr',
+    'service_logs',
+
 ]
 
 MIDDLEWARE = [

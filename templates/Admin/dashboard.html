@@ -7,6 +7,23 @@
   <div class="pg-title">
     <h1>Admin Dashboard</h1>
   </div>
+  <div class="table-header-inline mb-3">
+  <form method="get" class="crm-filter">
+    <div class="crm-filter-group">
+      <!-- <span class="crm-filter-label">View</span> -->
+
+      <div class="crm-select">
+        <select name="period" onchange="this.form.submit()">
+          <!-- <option value="week"  {% if period == "week" %}selected{% endif %}>Week</option> -->
+          <option value="month" {% if period == "month" %}selected{% endif %}>Month</option>
+          <option value="year"  {% if period == "year" %}selected{% endif %}>Year</option>
+        </select>
+        <i class="bi bi-chevron-down"></i>
+      </div>
+    </div>
+  </form>
+
+</div>
   <div class="row sparkboxes mt-4 mb-4">
     <div class="col-md-4">
       <div class="widget-box">
@@ -352,6 +369,71 @@
   </div>
 </div>
 
+<style>
+  /* CRM Filter Container */
+.crm-filter {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Label + Select inline */
+.crm-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 6px 12px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+}
+
+/* Label */
+.crm-filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Select Wrapper */
+.crm-select {
+  position: relative;
+}
+
+/* Select Field */
+.crm-select select {
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  padding: 6px 26px 6px 6px;
+  cursor: pointer;
+}
+
+/* Chevron Icon */
+.crm-select i {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #6b7280;
+  pointer-events: none;
+}
+
+/* Hover */
+.crm-filter-group:hover {
+  border-color: #c7d2fe;
+}
+
+/* Focus */
+.crm-select select:focus {
+  outline: none;
+}
+
+</style>
 <script>
   document.addEventListener("DOMContentLoaded", function() {
       let completionPercentage = parseFloat("{{ completion_percentage|default:0 }}") || 0;

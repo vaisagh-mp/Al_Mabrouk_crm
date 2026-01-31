@@ -207,6 +207,27 @@
                     </div>
                   </li>
                   <li class="sidebar-dropdown">
+  <a href="#">
+    <i class="fa fa-clock"></i>
+    <span>Service Logs</span>
+  </a>
+  <div class="sidebar-submenu">
+    <ul>
+      <li>
+        <a href="{% url 'service_log_list' %}">
+          All Service Logs
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'service_log_create' %}">
+          Add Service Log
+        </a>
+      </li>
+    </ul>
+  </div>
+</li>
+
+                  <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-tasks"></i>
                       <span>Projects</span>

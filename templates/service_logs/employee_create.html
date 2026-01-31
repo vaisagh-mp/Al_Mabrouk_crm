@@ -1,0 +1,94 @@
+{% extends "employee/employeebase.html" %}
+{% block content %}
+
+<div class="pg-title">
+    <h1>Add Service Log</h1>
+</div>
+
+<div class="widget-box">
+
+    <form method="post" class="wrk-rprt-frm">
+        {% csrf_token %}
+
+        <div class="grid-2">
+            <div>
+                <label>Date</label>
+                <input type="date" name="date" required>
+            </div>
+
+            <div>
+                <label>Project</label>
+                <select name="project" required>
+                    {% for project in request.user.employee_profile.teams_assigned.all %}
+                        <option value="{{ project.project.id }}">
+                            {{ project.project.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label>Vessel Name</label>
+                <input type="text" name="vessel_name" required>
+            </div>
+
+            <div>
+                <label>Port</label>
+                <input type="text" name="port" required>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label>Service Type</label>
+                <select name="service_type">
+                    <option value="JOB">Job</option>
+                    <option value="INSPECTION">Inspection</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Service Reference</label>
+                <input type="text" name="service_reference">
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label>Start Time</label>
+                <input type="time" name="start_time" required>
+            </div>
+
+            <div>
+                <label>End Time</label>
+                <input type="time" name="end_time" required>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <label>Location Type</label>
+                <select name="location_type">
+                    <option value="ANCHORAGE">Anchorage</option>
+                    <option value="SAILING">Sailing</option>
+                </select>
+            </div>
+
+            <div style="display: flex;align-items: center;gap: 15px;">
+                <label>Holiday</label>
+                    <input type="checkbox" name="is_holiday" style="width: unset;"> 
+                
+            </div>
+        </div>
+
+        <button type="submit" class="prmry-btn" style="margin-top: 25px;">
+            Save Log
+        </button>
+
+    </form>
+
+</div>
+
+{% endblock %}

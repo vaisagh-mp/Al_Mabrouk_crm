@@ -12,6 +12,8 @@ from datetime import date
 from datetime import timedelta
 from django.db import transaction
 from django.db.models import Q, F, Sum, Count
+from decimal import Decimal
+from collections import defaultdict
 from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
@@ -25,6 +27,7 @@ from django.contrib.auth.forms import UserCreationForm
 from .forms import EmployeeCreationForm, AdminTeamForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm, VesselForm
 from django.core.serializers.json import DjangoJSONEncoder
 import json
+from dateutil.relativedelta import relativedelta
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
@@ -39,6 +42,23 @@ def dashboard(request):
         first_day_this_month = today.replace(day=1)
         last_day_last_month = first_day_this_month - timedelta(days=1)
         first_day_last_month = last_day_last_month.replace(day=1)
+
+
+        period = request.GET.get("period", "month")
+
+        today = now().date()
+
+        if period == "week":
+            start_date = today - timedelta(days=today.weekday())  # Monday
+            end_date = start_date + timedelta(days=6)
+
+        elif period == "year":
+            start_date = today.replace(month=1, day=1)
+            end_date = today.replace(month=12, day=31)
+
+        else:  # month (default)
+            start_date = today.replace(day=1)
+            end_date = (start_date + relativedelta(months=1)) - timedelta(days=1)
 
         # Get total projects
         total_projects = Project.objects.count()
@@ -78,6 +98,19 @@ def dashboard(request):
             user__date_joined__date__lte=end_of_last_month
         ).count()
 
+        attendance_qs = Attendance.objects.filter(
+            login_time__date__range=(start_date, end_date)
+        ).select_related("employee")
+
+        total_employee_hours = Decimal(0)
+        total_employee_cost = Decimal(0)
+
+        for record in attendance_qs:
+            emp = record.employee
+            hours = Decimal(record.total_hours_of_work or 0)
+            hourly_cost = emp.salary / Decimal(26 * 8)
+            total_employee_cost += hourly_cost * hours
+
         # Calculate change percentage
         if employees_last_month > 0:
             emp_change_percent = ((employees_this_month - employees_last_month) / employees_last_month) * 100
@@ -85,37 +118,75 @@ def dashboard(request):
             emp_change_percent = 100 if employees_this_month > 0 else 0
         
         # Total Revenue (Invoice Amount Sum)
-        total_revenue = Project.objects.aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+        total_revenue = Project.objects.filter(
+            created_at__date__range=(start_date, end_date)
+        ).aggregate(Sum("invoice_amount"))["invoice_amount__sum"] or Decimal(0)
+
         
         # Total Expenses (Purchase & Expenses Sum)
-        total_expenses = Project.objects.aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+        purchase_expenses = Project.objects.filter(
+            created_at__date__range=(start_date, end_date)
+        ).aggregate(Sum("purchase_and_expenses"))["purchase_and_expenses__sum"] or Decimal(0)
+
+        
+        total_expenses = purchase_expenses + total_employee_cost
         
         # Total Profit = Revenue - Expenses
         total_profit = total_revenue - total_expenses
 
+        current_month_attendance = Attendance.objects.filter(
+            login_time__date__gte=start_of_this_month
+        )
+
+        current_employee_cost = Decimal(0)
+
+        for record in current_month_attendance:
+            emp = record.employee
+            hours = Decimal(record.total_hours_of_work or 0)
+            hourly_cost = emp.salary / Decimal(26 * 8)
+            current_employee_cost += hourly_cost * hours
+
+        # current_profit = current_revenue - (current_expenses + current_employee_cost)
+
+        last_month_attendance = Attendance.objects.filter(
+            login_time__date__gte=start_of_last_month,
+            login_time__date__lte=end_of_last_month
+        )
+
+        last_employee_cost = Decimal(0)
+
+        for record in last_month_attendance:
+            emp = record.employee
+            hours = Decimal(record.total_hours_of_work or 0)
+            hourly_cost = emp.salary / Decimal(26 * 8)
+            last_employee_cost += hourly_cost * hours
+
+        # last_profit = last_revenue - (last_expenses + last_employee_cost)
+
         # Current Month Revenue and Expenses
         current_revenue = Project.objects.filter(
             created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
 
         current_expenses = Project.objects.filter(
             created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
 
-        current_profit = current_revenue - current_expenses
+        current_profit = current_revenue - (current_expenses + current_employee_cost)
 
         # Last Month Revenue and Expenses
         last_revenue = Project.objects.filter(
             created_at__date__gte=start_of_last_month,
             created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or 0
+        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
 
         last_expenses = Project.objects.filter(
             created_at__date__gte=start_of_last_month,
             created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or 0
+        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
 
-        last_profit = last_revenue - last_expenses
+        last_profit = last_revenue - (last_expenses + last_employee_cost)
+
 
         # Profit Change %
         if last_profit == 0:
@@ -266,8 +337,11 @@ def dashboard(request):
             'emp_change_percent_abs': abs(round(emp_change_percent, 2)),
             'active_employees': active_employees,
             'total_revenue': round(total_revenue, 2),
-            'total_expenses': round(total_expenses, 2),
-            'total_profit': round(total_profit, 2),
+            "total_employee_hours": round(total_employee_hours, 2),
+            "total_employee_cost": round(total_employee_cost, 2),
+            "total_expenses": round(total_expenses, 2),
+            "total_profit": round(total_profit, 2),
+            "period": period,
             # 'current_profit': round(current_profit, 2),
             'net_profit': round(current_profit, 2),
             'profit_change_percent': round(profit_change_percent, 2),
@@ -757,25 +831,81 @@ def admin_project_summary_view(request, project_id):
     statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
     status_choices = TeamMemberStatus.STATUS_CHOICES
     teams = project.teams.all()
+    attendance_qs = Attendance.objects.filter(project=project).select_related("employee", "employee__user")
+
+    # total_employee_hours = 0
+    # total_employee_cost = 0
+
+    # for team in teams:
+    #     for engineer in team.employees.all():
+    #         attendance_records = Attendance.objects.filter(
+    #             employee=engineer,
+    #             project=project
+    #         )
+
+    #         hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
+
+    #         # Example hourly calculation
+    #         hourly_cost = engineer.salary / Decimal(26 * 8)  # monthly → hourly
+    #         cost = hourly_cost * Decimal(hours)
+
+    #         total_employee_hours += hours
+    #         total_employee_cost += cost
+
+    # project_avg_hourly_cost = (
+    #     total_employee_cost / total_employee_hours
+    #     if total_employee_hours else Decimal(0)
+    # )
+
+    employee_hours = defaultdict(Decimal)
+    employee_costs = defaultdict(Decimal)
+
+    for record in attendance_qs:
+        emp = record.employee
+        hours = Decimal(record.total_hours_of_work or 0)
+
+        hourly_cost = emp.salary / Decimal(26 * 8)
+        cost = hourly_cost * hours
+
+        employee_hours[emp] += hours
+        employee_costs[emp] += cost
+
+    total_employee_hours = sum(employee_hours.values())
+    total_employee_cost = sum(employee_costs.values())
+
+    avg_hourly_cost = (
+        total_employee_cost / total_employee_hours
+        if total_employee_hours else Decimal(0)
+    )
 
     engineers = []
     engineer_salaries = {}
     total_engineer_salary = 0
     engineer_project_hours = {}
 
-    for team in teams:
-        for engineer in team.employees.all():
-            engineers.append(engineer.user.username)
-            engineer_salaries[engineer.user.username] = engineer.salary
-            total_engineer_salary += engineer.salary
+    # for team in teams:
+    #     for engineer in team.employees.all():
+    #         engineers.append(engineer.user.username)
+    #         engineer_salaries[engineer.user.username] = engineer.salary
+    #         total_engineer_salary += engineer.salary
 
-            attendance_records = Attendance.objects.filter(employee=engineer, project=project)
-            total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
-            engineer_project_hours[engineer.user.username] = round(total_hours, 2)
+    #         attendance_records = Attendance.objects.filter(employee=engineer, project=project)
+    #         total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
+    #         engineer_project_hours[engineer.user.username] = round(total_hours, 2)
 
-    total_expenses = project.calculate_expenses()
-    profit = project.calculate_profit()
-    profit_percent = project.calculate_profit_percentage()
+    for emp, hours in employee_hours.items():
+        engineers.append(emp.user.username)
+        engineer_project_hours[emp.user.username] = round(hours, 2)
+
+    total_expenses = (
+        project.purchase_and_expenses
+        + total_employee_cost
+    )
+    profit = project.invoice_amount - total_expenses
+    profit_percent = (
+        (profit / project.invoice_amount) * 100
+        if project.invoice_amount else Decimal(0)
+    )
     work_days = project.calculate_total_work_days()
 
     try:
@@ -784,6 +914,15 @@ def admin_project_summary_view(request, project_id):
         work_order = None
 
     attachments = project.attachments.all() 
+
+    # Get completed date (latest COMPLETED status)
+    completed_log = (
+        logs.filter(new_status="COMPLETED")
+            .order_by("-changed_at")
+            .first()
+    )
+
+    completed_date = completed_log.changed_at if completed_log else None
 
     project_data = {
         "project_name": project.name,
@@ -799,7 +938,6 @@ def admin_project_summary_view(request, project_id):
         "engineer_project_hours": engineer_project_hours,
         "total_work_days": work_days,
         "currency_code": project.currency_code,
-        "total_expenses": round(total_expenses, 2),
         "profit": profit,
         "profit_percent": profit_percent,
         "status": project.status,
@@ -807,6 +945,7 @@ def admin_project_summary_view(request, project_id):
         "project_create": project.created_at,
         "deadline_date": project.deadline_date,
         "statuses": statuses,
+        "completed_date": completed_date,
         "logs": logs,
         "project_id": project.id,
         "work_order": work_order,
@@ -814,6 +953,11 @@ def admin_project_summary_view(request, project_id):
         "attachments": attachments,
         "job_card": project.job_card.url if project.job_card else None,
         "attachment_file": project.attachment.url if project.attachment else None,
+
+        "total_employee_hours": round(total_employee_hours, 2),
+        "total_employee_cost": round(total_employee_cost, 2),
+        "avg_hourly_cost": round(avg_hourly_cost, 2),
+        "total_expenses": round(total_expenses, 2),
     }
 
     context = {"project_data": project_data,  "team": team, 'role': 'Admin'}

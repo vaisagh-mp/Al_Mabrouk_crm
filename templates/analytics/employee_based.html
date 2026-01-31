@@ -1,0 +1,565 @@
+{% extends "Admin/adminbase.html" %}
+{% load static %}
+{% block content %}
+
+<div class="pg-title">
+    <h1>Employee Analytics</h1>
+</div>
+
+<!-- ================= DATE FILTER ================= -->
+<!-- <form method="get" class="date-filter mb-20">
+    <input
+        type="text"
+        id="datePicker"
+        name="date"
+        placeholder="Select date / range"
+        value="{{ start_date }}{% if end_date and start_date != end_date %} to {{ end_date }}{% endif %}"
+        style="width: 260px;"
+        required
+    >
+    <button type="submit" class="prmry-btn">Filter</button>
+</form> -->
+
+
+<div class="kpi-box">
+    <div class="row rg-24">
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-blue"><i class="fas fa-users"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_total_employees }}</h3>
+                    <span>Employees</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-indigo"><i class="fas fa-clock"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_total_hours|floatformat:2 }}</h3>
+                    <span>Work Hours</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-orange"><i class="fas fa-wallet"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_total_cost|floatformat:2 }}</h3>
+                    <span>Total Cost</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-success"><i class="fas fa-chart-line"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_avg_utilization|floatformat:1 }}%</h3>
+                    <span>Avg Utili</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-red"><i class="fas fa-stopwatch"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_total_ot|floatformat:2 }}</h3>
+                    <span>OT Hours</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-violet"><i class="fas fa-folder-open"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_total_projects }}</h3>
+                    <span>Projects</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ================= EMPLOYEE INSIGHTS ================= -->
+<div class="widget-box mt-30" style="margin-bottom: 25px;">
+
+    <div class="table-header-inline">
+        <h4>Employee Insights</h4>
+
+        <form method="get" id="trendFilterForm" class="sort-form">
+            <div class="sort-wrapper">
+                <label for="trendRange">View</label>
+
+                <div class="select-box">
+                    <select id="trendRange" name="trend" onchange="this.form.submit()">
+                        <option value="week"  {% if trend == "week" %}selected{% endif %}>
+                            🗓 Week
+                        </option>
+                        <option value="month" {% if trend == "month" %}selected{% endif %}>
+                            📆 Month
+                        </option>
+                        <option value="year"  {% if trend == "year" %}selected{% endif %}>
+                            🏷 Year
+                        </option>
+                    </select>
+                    <span class="select-arrow">▾</span>
+                </div>
+            </div>
+        </form>
+    </div>
+
+
+    <div class="row rg-30">
+        <div class="col-md-6">
+            <canvas id="utilizationTrendChart" height="120"></canvas>
+        </div>
+        <div class="col-md-6">
+            <canvas id="costEfficiencyChart" height="120"></canvas>
+        </div>
+    </div>
+
+</div>
+
+
+
+<div class="widget-box mt-30" style="margin-bottom: 50px; display: inline-block; width: 100%;" >
+
+    <div class="table-header-inline">
+        <h4>Employee Performance Summary</h4>
+    </div>
+
+    <div class="table-wdgt">
+        <table class="widget-box-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Role</th>
+                    <th>Total Hours</th>
+                    <th>OT Hours</th>
+                    <th>Utilization %</th>
+                    <th>Normal Cost</th>
+                    <th>OT Cost</th>
+                    <th>Total Cost</th>
+                    <th>Projects</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+
+                {% for emp in employee_analytics %}
+                <tr>
+                    <td><b>{{ emp.employee.user.username }}</b></td>
+
+                    <td>
+                        {% if emp.employee.is_manager %}
+                            <span >Manager</span>
+                        {% else %}
+                            <span >Employee</span>
+                        {% endif %}
+                    </td>
+
+                    <td>{{ emp.total_hours|floatformat:2 }}</td>
+                    <td>{{ emp.ot_hours|floatformat:2 }}</td>
+
+                    <td>
+                        <span class="util-chip
+                            {% if emp.utilization >= 90 %}danger
+                            {% elif emp.utilization >= 70 %}success
+                            {% else %}warning{% endif %}">
+                            {{ emp.utilization }}%
+                        </span>
+                    </td>
+
+                    <td>{{ emp.normal_cost|floatformat:2 }}</td>
+                    <td>{{ emp.ot_cost|floatformat:2 }}</td>
+                    <td><b>{{ emp.total_cost|floatformat:2 }}</b></td>
+
+                    <td>{{ emp.projects|length }}</td>
+
+                    <td>
+                        {% if emp.utilization >= 90 or emp.ot_hours > 20 %}
+                            🔴 High OT
+                        {% elif emp.utilization >= 70 %}
+                            🟢 Optimal
+                        {% else %}
+                            🟡 Underutilized
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="10" align="center">No employee data available</td>
+                </tr>
+                {% endfor %}
+
+            </tbody>
+        </table>
+        {% if page_obj.paginator.num_pages > 1 %}
+<div class="crm-pagination">
+
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}" class="pg-btn">‹</a>
+    {% else %}
+        <span class="pg-btn disabled">‹</span>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+            <span class="pg-btn active">{{ num }}</span>
+        {% elif num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
+            <a href="?page={{ num }}" class="pg-btn">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}" class="pg-btn">›</a>
+    {% else %}
+        <span class="pg-btn disabled">›</span>
+    {% endif %}
+
+</div>
+{% endif %}
+
+    </div>
+</div>
+
+
+<!-- ================= STYLES ================= -->
+<style>
+/* body{
+    margin-bottom: 50px !important;
+} */
+.kpi-box {
+    margin-bottom: 30px;
+}
+
+.kpi-box .row{
+    row-gap: 20px;
+}
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #fff;
+    padding: 18px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+    transition: all 0.25s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.1);
+}
+
+.kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 18px;
+}
+
+.kpi-content h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.kpi-content span {
+    font-size: 10px;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+
+.table-header-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.sort-form {
+    display: flex;
+    align-items: center;
+}
+
+.sort-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.sort-wrapper label {
+    font-weight: 500;
+    color: #444;
+    margin: 0;
+}
+
+.select-box {
+    position: relative;
+}
+
+.select-box select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    padding: 6px 34px 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #d0d5dd;
+    background: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.select-box select:focus {
+    outline: none;
+    border-color: #3d6999;
+}
+
+.select-arrow {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11px;
+    pointer-events: none;
+    color: #666;
+}
+
+
+.util-chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.util-chip.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.util-chip.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.util-chip.danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge {
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.crm-pagination {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 20px;
+}
+
+.pg-btn {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.pg-btn:hover {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.pg-btn.active {
+    background: #4f46e5;
+    color: #fff;
+    border-color: #4f46e5;
+}
+
+.pg-btn.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+
+/* Color helpers */
+.bg-blue { background: #3d6999; }
+.bg-indigo { background: #6366f1; }
+.bg-orange { background: #f59e0b; }
+.bg-success { background: #16a34a; }
+.bg-red { background: #dc2626; }
+.bg-violet { background: #7c3aed; }
+
+</style>
+
+<!-- ================= FLATPICKR ================= -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    flatpickr("#datePicker", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d F Y",
+        allowInput: true
+    });
+});
+</script>
+
+<script>
+const utilizationCtx = document.getElementById("utilizationTrendChart");
+
+if (utilizationCtx) {
+    new Chart(utilizationCtx, {
+        type: "line",
+        data: {
+            labels: {{ trend_labels|safe }},
+            datasets: [{
+                label: "Avg Utilization %",
+                data: {{ trend_utilization|safe }},
+                borderColor: "#3d6999",
+                backgroundColor: "rgba(61,105,153,0.12)",
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: "bottom" }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+</script>
+
+<!-- <script>
+const costCtx = document.getElementById("costEfficiencyChart");
+
+if (costCtx) {
+    new Chart(costCtx, {
+        type: "bar",
+        data: {
+            labels: {{ employee_labels|safe }},
+            datasets: [{
+                label: "Cost per Hour",
+                data: {{ employee_cost_efficiency|safe }},
+                backgroundColor: "#16a34a"
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: "bottom" }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+</script> -->
+
+<script>
+const avgCost = (
+    {{ kpi_total_cost|floatformat:2 }} / {{ kpi_total_hours|floatformat:2 }}
+) || 0;
+
+const costCtx = document.getElementById("costEfficiencyChart");
+
+if (costCtx) {
+    new Chart(costCtx, {
+        type: "bar",
+        data: {
+            labels: {{ employee_labels|safe }},
+            datasets: [{
+                label: "Cost per Hour",
+                data: {{ employee_cost_efficiency|safe }},
+                backgroundColor: {{ employee_cost_efficiency|safe }}.map(v => {
+                    if (v === 0) return "#e5e7eb";          // No work
+                    if (v < avgCost) return "#16a34a";     // Efficient
+                    if (v < avgCost * 1.25) return "#f59e0b"; // Acceptable
+                    return "#dc2626";                      // High cost
+                })
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: "bottom"
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (ctx) {
+                            const v = ctx.parsed.y;
+
+                            if (v === 0) {
+                                return "No work logged";
+                            }
+                            if (v < avgCost) {
+                                return `₹${v}/hr (Efficient)`;
+                            }
+                            return `₹${v}/hr (High cost)`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: "Cost per Hour"
+                    }
+                }
+            }
+        }
+    });
+}
+</script>
+
+
+{% endblock %}

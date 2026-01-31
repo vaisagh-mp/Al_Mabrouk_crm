@@ -81,6 +81,14 @@
                     {% if project_data.statuses %} {{project_data.statuses.0.status }} {% else %} {{project_data.status }} {% endif %}
                   </span>
                 </div>
+                {% if project_data.completed_date %}
+                <div class="pjct-info-item">
+                  <h6>Completed Date:</h6>
+                  <span class="created">
+                    {{ project_data.completed_date|date:"d-m-Y" }}
+                  </span>
+                </div>
+                {% endif %}
               </div>
             </div>
           </div>

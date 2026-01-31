@@ -748,6 +748,15 @@ def project_details(request, project_id):
     if not is_employee_in_team:
         work_order = None
 
+    # Get completed date (latest COMPLETED status)
+    completed_log = (
+        logs.filter(new_status="COMPLETED")
+            .order_by("-changed_at")
+            .first()
+    )
+
+    completed_date = completed_log.changed_at if completed_log else None
+
     # Prepare data for the project
     project_data = {
         "project_name": project.name,
@@ -774,6 +783,7 @@ def project_details(request, project_id):
         "project_create": project.created_at,
         "deadline_date": project.deadline_date,
         "statuses": statuses,
+        "completed_date": completed_date,
         'logs': logs,
         "project_id": project.id,
         "work_order": work_order,
