@@ -11,6 +11,7 @@ from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
 from django.http import HttpResponse
+from django.core.files.storage import default_storage
 from weasyprint import HTML
 from django.utils import timezone
 from django.db.models import Sum
@@ -1996,46 +1997,112 @@ def manager_update_work_order_view(request, pk):
     return render(request, 'Manager/update_work_order.html', context)
 
 
+# @login_required
+# def download_work_order_pdf(request, pk):
+#     work_order = get_object_or_404(WorkOrder, pk=pk)
+#     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
+
+#     # Get the full static file path
+#     logo_path = finders.find('assets/images/reportlogo.png')
+
+#     # Encode logo in base64
+#     with open(logo_path, 'rb') as img_file:
+#         logo_data = base64.b64encode(img_file.read()).decode()
+
+#     # Separate Live vs All Members
+#     live_members = []
+#     if work_order.project:
+#         if hasattr(work_order.project, "teams"):  # many teams
+#             live_members = [
+#                 emp.user for team in work_order.project.teams.all()
+#                 for emp in team.employees.all()
+#             ]
+#         elif hasattr(work_order.project, "team"):  # single team
+#             live_members = [emp.user for emp in work_order.project.team.employees.all()]
+#     all_members = work_order.all_members.all()
+
+#     # Convert project images to base64
+#     image_groups = defaultdict(list)
+
+#     for img in work_order.images.all():
+#         if not img.image or not default_storage.exists(img.image.name):
+#             continue  # skip missing files
+
+#         with default_storage.open(img.image.name, 'rb') as f:
+#             base64_data = base64.b64encode(f.read()).decode('ascii')
+
+#         ext = Path(img.image.name).suffix.lower()
+#         mime = 'jpeg' if ext in ['.jpg', '.jpeg'] else 'png'
+
+#         image_groups[img.name].append({
+#             'base64': base64_data,
+#             'mime': mime,
+#             'description': img.description,
+#         })
+
+#     total_hours = (
+#         WorkOrderTime.objects.filter(work_order=work_order)
+#         .aggregate(total=Sum('estimated_hours'))['total'] or 0
+#     )
+
+#     # Convert Decimal to float for template rendering
+#     total_hours = float(total_hours)
+
+#     html_string = render_to_string('Manager/work_order_pdf.html', {
+#         'work_order': work_order,
+#         'work_order_detail': work_order_detail,
+#         'logo_base64': logo_data,
+#         'live_members': live_members,
+#         'all_members': all_members,
+#         'calculated_hours': total_hours,
+#         'image_groups': dict(image_groups),
+#     })
+
+#     html = HTML(string=html_string)
+#     pdf = html.write_pdf()
+
+#     response = HttpResponse(pdf, content_type='application/pdf')
+#     response['Content-Disposition'] = (
+#         f'attachment; filename="work_order_{work_order.work_order_number}.pdf"'
+#     )
+#     return response
+
+
 @login_required
 def download_work_order_pdf(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
-    # Get the full static file path
+    # Logo (safe)
     logo_path = finders.find('assets/images/reportlogo.png')
+    logo_data = ""
+    if logo_path:
+        with open(logo_path, 'rb') as img_file:
+            logo_data = base64.b64encode(img_file.read()).decode()
 
-    # Encode logo in base64
-    with open(logo_path, 'rb') as img_file:
-        logo_data = base64.b64encode(img_file.read()).decode()
-
-    # Separate Live vs All Members
+    # Members
     live_members = []
-    if work_order.project:
-        if hasattr(work_order.project, "teams"):  # many teams
-            live_members = [
-                emp.user for team in work_order.project.teams.all()
-                for emp in team.employees.all()
-            ]
-        elif hasattr(work_order.project, "team"):  # single team
-            live_members = [emp.user for emp in work_order.project.team.employees.all()]
+    if work_order.project and hasattr(work_order.project, "teams"):
+        live_members = [
+            emp.user
+            for team in work_order.project.teams.all()
+            for emp in team.employees.all()
+        ]
+
     all_members = work_order.all_members.all()
 
-    # Convert project images to base64
+    # Images (safe)
     image_groups = defaultdict(list)
 
     for img in work_order.images.all():
-        with open(img.image.path, 'rb') as f:
+        if not img.image or not default_storage.exists(img.image.name):
+            continue
+
+        with default_storage.open(img.image.name, 'rb') as f:
             base64_data = base64.b64encode(f.read()).decode('ascii')
 
-        ext = Path(img.image.path).suffix.lower()
-        if ext in ['.jpg', '.jpeg']:
-            mime = 'jpeg'
-        elif ext == '.png':
-            mime = 'png'
-        elif ext == '.gif':
-            mime = 'gif'
-        else:
-            mime = 'jpeg'
+        ext = Path(img.image.name).suffix.lower()
+        mime = 'jpeg' if ext in ['.jpg', '.jpeg'] else 'png'
 
         image_groups[img.name].append({
             'base64': base64_data,
@@ -2044,25 +2111,32 @@ def download_work_order_pdf(request, pk):
         })
 
     total_hours = (
-        WorkOrderTime.objects.filter(work_order=work_order)
+        WorkOrderTime.objects
+        .filter(work_order=work_order)
         .aggregate(total=Sum('estimated_hours'))['total'] or 0
     )
 
-    # Convert Decimal to float for template rendering
-    total_hours = float(total_hours)
+    html_string = render_to_string(
+        'Manager/work_order_pdf.html',
+        {
+            'work_order': work_order,
+            'work_order_detail': work_order_detail,
+            'logo_base64': logo_data,
+            'live_members': live_members,
+            'all_members': all_members,
+            'calculated_hours': float(total_hours),
+            'image_groups': dict(image_groups),
+        }
+    )
 
-    html_string = render_to_string('Manager/work_order_pdf.html', {
-        'work_order': work_order,
-        'work_order_detail': work_order_detail,
-        'logo_base64': logo_data,
-        'live_members': live_members,
-        'all_members': all_members,
-        'calculated_hours': total_hours,
-        'image_groups': dict(image_groups),
-    })
-
-    html = HTML(string=html_string)
-    pdf = html.write_pdf()
+    try:
+        html = HTML(
+            string=html_string,
+            base_url=request.build_absolute_uri('/')
+        )
+        pdf = html.write_pdf()
+    except Exception as e:
+        return HttpResponse(f"PDF generation failed: {e}", status=500)
 
     response = HttpResponse(pdf, content_type='application/pdf')
     response['Content-Disposition'] = (

@@ -87,6 +87,13 @@
   padding: 0;
   line-height: 1.5; 
 }
+
+.job-instructions {
+  white-space: normal;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.6;
+}
 </style>
 
 </head>
@@ -185,9 +192,12 @@
   </table>
 
   <div class="section">
-    <div class="wo-title">JOB INSTRUCTIONS:</div>
-    <pre>{{ work_order.job_instructions | safe }}</pre>
+  <div class="wo-title">JOB INSTRUCTIONS:</div>
+  <div class="job-instructions">
+    {{ work_order.job_instructions|striptags|linebreaksbr }}
   </div>
+</div>
+
 
   <div class="section">
     <div class="wo-title">SPARES REQUIRED</div>
