@@ -20,6 +20,8 @@ from django.contrib.staticfiles import finders
 from collections import defaultdict
 from pathlib import Path
 import base64
+import io
+from PIL import Image
 import json
 import pytz
 from datetime import datetime
@@ -2078,7 +2080,9 @@ def download_work_order_pdf(request, pk):
     logo_data = ""
     if logo_path:
         with open(logo_path, 'rb') as img_file:
-            logo_data = base64.b64encode(img_file.read()).decode()
+            raw = img_file.read()
+            if raw:
+                logo_data = base64.b64encode(raw).decode()
 
     # Members
     live_members = []
@@ -2091,22 +2095,44 @@ def download_work_order_pdf(request, pk):
 
     all_members = work_order.all_members.all()
 
-    # Images (safe)
+    # Images — resize to save memory and prevent OOM / 504 timeouts
+    # Original images can be 5+ MB each; resizing to max 800px and JPEG 70%
+    # reduces ~155 MB of raw data down to ~2-3 MB total.
+    PDF_IMAGE_MAX_SIZE = (800, 800)   # max width/height in pixels
+    PDF_IMAGE_QUALITY = 70            # JPEG quality (1-100)
+
     image_groups = defaultdict(list)
 
     for img in work_order.images.all():
         if not img.image or not default_storage.exists(img.image.name):
             continue
 
-        with default_storage.open(img.image.name, 'rb') as f:
-            base64_data = base64.b64encode(f.read()).decode('ascii')
+        try:
+            with default_storage.open(img.image.name, 'rb') as f:
+                pil_img = Image.open(f)
+                pil_img.load()  # force read so we can close the file
 
-        ext = Path(img.image.name).suffix.lower()
-        mime = 'jpeg' if ext in ['.jpg', '.jpeg'] else 'png'
+            # Convert RGBA/P to RGB for JPEG output
+            if pil_img.mode in ('RGBA', 'P'):
+                pil_img = pil_img.convert('RGB')
+
+            # Resize only if larger than the max
+            pil_img.thumbnail(PDF_IMAGE_MAX_SIZE, Image.LANCZOS)
+
+            # Write resized image to an in-memory buffer as JPEG
+            buf = io.BytesIO()
+            pil_img.save(buf, format='JPEG', quality=PDF_IMAGE_QUALITY, optimize=True)
+            buf.seek(0)
+
+            base64_data = base64.b64encode(buf.getvalue()).decode('ascii')
+            buf.close()
+        except Exception:
+            # Skip any image that can't be processed
+            continue
 
         image_groups[img.name].append({
             'base64': base64_data,
-            'mime': mime,
+            'mime': 'jpeg',
             'description': img.description,
         })
 

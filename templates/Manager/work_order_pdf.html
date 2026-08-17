@@ -101,7 +101,9 @@
 
 
 <header>
+  {% if logo_base64 %}
   <img src="data:image/png;base64,{{ logo_base64 }}" alt="Company Logo" />
+  {% endif %}
 </header>
 
 
@@ -306,6 +308,7 @@
               <img
                 src="data:image/{{ img.mime }};base64,{{ img.base64 }}"
                 style="width:100%; height:auto; border:1px solid #000;"
+                width="150" height="150"
               >
             </div>
           {% endfor %}
