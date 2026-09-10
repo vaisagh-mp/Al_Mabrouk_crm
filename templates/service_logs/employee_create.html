@@ -19,10 +19,13 @@
             <div>
                 <label>Project</label>
                 <select name="project" required>
-                    {% for project in request.user.employee_profile.teams_assigned.all %}
-                        <option value="{{ project.project.id }}">
-                            {{ project.project.name }}
+                    <option value="" disabled selected>Select Project</option>
+                    {% for project in projects %}
+                        <option value="{{ project.id }}">
+                            {{ project.name }}
                         </option>
+                    {% empty %}
+                        <option value="" disabled>No projects available</option>
                     {% endfor %}
                 </select>
             </div>

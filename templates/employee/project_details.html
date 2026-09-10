@@ -211,13 +211,14 @@
                   onchange="toggleRemarkBox()"
                   required
                 >
-                  <option value="" disabled selected>Select Status</option>
-                  <option value="ASSIGN">Assign</option>
-                  <option value="ONGOING">Ongoing</option>
-                  <option value="QUOTED">Quoted</option>
-                  <option value="HOLD">On Hold</option>
-                  <option value="CANCELLED">Cancelled</option>
-                  <option value="COMPLETED">Completed</option>
+                  <option value="" disabled {% if not project_data.status %}selected{% endif %}>Select Status</option>
+                  <option value="PENDING" {% if project_data.status == "PENDING" %}selected{% endif %}>Pending</option>
+                  <option value="ASSIGN" {% if project_data.status == "ASSIGN" %}selected{% endif %}>Assign</option>
+                  <option value="ONGOING" {% if project_data.status == "ONGOING" %}selected{% endif %}>Ongoing</option>
+                  <option value="QUOTED" {% if project_data.status == "QUOTED" %}selected{% endif %}>Quoted</option>
+                  <option value="HOLD" {% if project_data.status == "HOLD" %}selected{% endif %}>On Hold</option>
+                  <option value="CANCELLED" {% if project_data.status == "CANCELLED" %}selected{% endif %}>Cancelled</option>
+                  <option value="COMPLETED" {% if project_data.status == "COMPLETED" %}selected{% endif %}>Completed</option>
                 </select>
                 <div class="button-row">
                   <button type="submit" class="btn">Update</button>
@@ -246,7 +247,7 @@
               {% for log in project_data.logs %}
               <div class="timeline-item">
                 <div
-                  class="dot {% if log.new_status == 'ONGOING' %}Blue{% elif log.new_status == 'HOLD' %}Gray{% elif log.new_status == 'CANCELLED' %}Red{% elif log.new_status == 'COMPLETED' %}Green{% else %}Orange{% endif %}"
+                  class="dot {% if log.new_status == 'ONGOING' %}Blue{% elif log.new_status == 'HOLD' %}Gray{% elif log.new_status == 'CANCELLED' %}Red{% elif log.new_status == 'COMPLETED' %}Green{% elif log.new_status == 'PENDING' %}Gray{% elif log.new_status == 'ASSIGN' %}Orange{% else %}Orange{% endif %}"
                 ></div>
                 <div class="content"> 
                       <h5>{{ log.new_status }}</h5>
@@ -258,7 +259,11 @@
                           {% elif log.changed_by_name %}
                               {{ log.changed_by_name }} (Admin)
                           {% endif %}
-                          changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                          {% if log.previous_status == "Created" or log.previous_status == "None" %}
+                              created project with status "<strong>{{ log.new_status }}</strong>"
+                          {% else %}
+                              changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                          {% endif %}
                       </p>
                     
                       {% if log.notes %}

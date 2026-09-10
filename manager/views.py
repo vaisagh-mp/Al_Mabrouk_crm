@@ -18,6 +18,7 @@ from django.db.models import Sum
 from datetime import date, time, timedelta
 from django.contrib.staticfiles import finders
 from collections import defaultdict
+from decimal import Decimal
 from pathlib import Path
 import base64
 import io
@@ -38,6 +39,7 @@ from .forms import TeamForm
 from django.contrib import messages
 from django.http import JsonResponse
 from Admin.models import Attendance, Project, Team, TeamMemberStatus, Employee, ActivityLog, Leave, LeaveBalance, Notification, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
+from service_logs.models import EmployeeServiceLog
 import calendar
 
 
@@ -510,6 +512,15 @@ def manager_add_project(request):
             project = form.save(commit=False)
             project.manager = request.user.employee_profile
             project.save()
+
+            ActivityLog.objects.create(
+                project=project,
+                previous_status="Created",
+                new_status=project.status,
+                notes=f"Project '{project.name}' created with status '{project.status}'.",
+                changed_by=request.user.employee_profile,
+                changed_by_name=request.user.username
+            )
 
             # Create Team only if team_name is provided
             team_name = form.cleaned_data.get('team_name')
@@ -1190,25 +1201,79 @@ def project_summary_view(request, project_id):
     statuses = TeamMemberStatus.objects.filter(team__project=project).order_by('-last_updated')
     status_choices = TeamMemberStatus.STATUS_CHOICES
     teams = project.teams.all()
+    attendance_qs = Attendance.objects.filter(project=project).select_related("employee", "employee__user")
+    service_logs_qs = EmployeeServiceLog.objects.filter(project=project).select_related("employee", "employee__user")
+
+    employee_hours = defaultdict(Decimal)
+    employee_costs = defaultdict(Decimal)
+
+    # 1. Aggregate hours & costs from Service Logs
+    for log in service_logs_qs:
+        emp = log.employee
+        hours = Decimal(log.total_hours or 0)
+        cost = Decimal(log.normal_cost or 0) + Decimal(log.ot_cost or 0)
+
+        employee_hours[emp] += hours
+        employee_costs[emp] += cost
+
+    # 2. Support Attendance records if any exist
+    for record in attendance_qs:
+        emp = record.employee
+        hours = Decimal(record.total_hours_of_work or 0)
+        hourly_cost = emp.salary / Decimal(26 * 8) if emp.salary else Decimal(0)
+        cost = hourly_cost * hours
+
+        employee_hours[emp] += hours
+        employee_costs[emp] += cost
+
+    total_employee_hours = sum(employee_hours.values())
+    total_employee_cost = sum(employee_costs.values())
+
+    avg_hourly_cost = (
+        total_employee_cost / total_employee_hours
+        if total_employee_hours else Decimal(0)
+    )
 
     engineers = []
     engineer_salaries = {}
-    total_engineer_salary = 0
+    total_engineer_salary = Decimal(0)
     engineer_project_hours = {}
 
-    for team in teams:
-        for engineer in team.employees.all():
-            engineers.append(engineer.user.username)
-            engineer_salaries[engineer.user.username] = engineer.salary
-            total_engineer_salary += engineer.salary
+    for emp, hours in employee_hours.items():
+        username = emp.user.username
+        engineers.append(username)
+        engineer_salaries[username] = emp.salary or Decimal(0)
+        total_engineer_salary += (emp.salary or Decimal(0))
+        engineer_project_hours[username] = round(hours, 2)
 
-            attendance_records = Attendance.objects.filter(employee=engineer, project=project)
-            total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
-            engineer_project_hours[engineer.user.username] = round(total_hours, 2)
+    # Include assigned team employees if not already in list
+    for team_obj in teams:
+        for emp in team_obj.employees.all():
+            if emp.user.username not in engineers:
+                engineers.append(emp.user.username)
+                engineer_salaries[emp.user.username] = emp.salary or Decimal(0)
+                total_engineer_salary += (emp.salary or Decimal(0))
+                engineer_project_hours[emp.user.username] = Decimal(0)
 
-    total_expenses = project.calculate_expenses()
-    profit = project.calculate_profit()
-    work_days = project.calculate_total_work_days()
+    total_expenses = (
+        project.purchase_and_expenses
+        + total_employee_cost
+    )
+    profit = project.invoice_amount - total_expenses
+    profit_percent = (
+        (profit / project.invoice_amount) * 100
+        if project.invoice_amount else Decimal(0)
+    )
+
+    # Calculate Total Work Days
+    log_dates = set(service_logs_qs.order_by().values_list("date", flat=True).distinct())
+    att_dates = set(a.login_time.date() for a in attendance_qs if a.login_time)
+    worked_dates = log_dates.union(att_dates)
+
+    if worked_dates:
+        work_days = len(worked_dates)
+    else:
+        work_days = project.calculate_total_work_days()
 
     # Get all attachments
     attachments = ProjectAttachment.objects.filter(project=project)
@@ -1242,6 +1307,10 @@ def project_summary_view(request, project_id):
         "currency_code": project.currency_code,
         "total_expenses": round(total_expenses, 2),
         "profit": profit,
+        "profit_percent": profit_percent,
+        "total_employee_hours": round(total_employee_hours, 2),
+        "total_employee_cost": round(total_employee_cost, 2),
+        "avg_hourly_cost": round(avg_hourly_cost, 2),
         "priority": project.priority,
         "status": project.status,
         "completed_date": completed_date,

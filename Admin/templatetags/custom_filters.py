@@ -12,6 +12,34 @@ def format_hours(value):
         return f"{hours}:{minutes} hrs"
     except (ValueError, TypeError):
         return value  # Return the original value if conversion fails
+
+
+@register.filter
+def format_hours_minutes(value):
+    """
+    Converts decimal hours to a human-readable format:
+    e.g. 16.75 -> '16 hrs 45 mins'
+         1.25 -> '1 hr 15 mins'
+         1.0  -> '1 hr'
+         0.5  -> '30 mins'
+         0    -> '0 hrs'
+    """
+    if value is None:
+        return "0 hrs"
+    try:
+        total_seconds = int(round(float(value) * 3600))
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+
+        parts = []
+        if hours > 0:
+            parts.append(f"{hours} {'hr' if hours == 1 else 'hrs'}")
+        if minutes > 0:
+            parts.append(f"{minutes} {'min' if minutes == 1 else 'mins'}")
+
+        return " ".join(parts) if parts else "0 hrs"
+    except (ValueError, TypeError):
+        return value
     
 
 @register.filter
@@ -21,8 +49,7 @@ def subtract(value, arg):
         return value - arg
     except (ValueError, TypeError):
         return 0
-    
-register = template.Library()
+
 
 @register.filter
 def format_work_duration(decimal_hours):

@@ -1,4 +1,5 @@
 {% extends 'employee/employeebase.html' %}
+{% load custom_filters %}
 {% block content %}
 
 <div class="pg-title">
@@ -37,8 +38,8 @@
                 <td>{{ log.service_type }}</td>
                 <td>{{ log.start_time }}</td>
                 <td>{{ log.end_time }}</td>
-                <td>{{ log.total_hours }}</td>
-                <td>{{ log.ot_hours }}</td>
+                <td>{{ log.total_hours|format_hours_minutes }}</td>
+                <td>{{ log.ot_hours|format_hours_minutes }}</td>
             
                 <td>
                     <div class="crm-actions">

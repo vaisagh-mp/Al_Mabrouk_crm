@@ -1,4 +1,5 @@
 {% extends 'Admin/adminbase.html' %}
+{% load custom_filters %}
 {% block content %}
 
 <!-- Flatpickr Core -->
@@ -45,7 +46,7 @@
                 {% for row in summary %}
                 <tr>
                     <td>{{ row.employee__user__username }}</td>
-                    <td>{{ row.total_hours|floatformat:2 }}</td>
+                    <td>{{ row.total_hours|format_hours_minutes }}</td>
                     <td>{{ row.normal_cost|floatformat:2 }}</td>
                     <td>{{ row.ot_cost|floatformat:2 }}</td>
                     <td>

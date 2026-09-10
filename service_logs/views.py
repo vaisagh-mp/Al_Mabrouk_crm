@@ -2,16 +2,16 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.shortcuts import redirect
 from .models import EmployeeServiceLog
-from Admin.models import Project, Employee
+from Admin.models import Project, Employee, ActivityLog
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Count, Avg
+from django.db.models import Sum, Count, Avg, Q
 from django.db.models.functions import TruncWeek, TruncMonth, TruncYear
 from decimal import Decimal
 from collections import defaultdict
 from django.utils.timezone import now
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
 from django.http import JsonResponse
 import json
@@ -72,8 +72,14 @@ def service_log_create(request):
     
     if is_manager(user):
         template = "service_logs/manager_create.html"
+        projects = Project.objects.filter(
+            Q(manager=employee) | Q(teams__manager=employee)
+        ).exclude(status="CANCELLED").distinct().order_by("name")
     elif is_employee(user):
         template = "service_logs/employee_create.html"
+        projects = Project.objects.filter(
+            teams__employees=employee
+        ).exclude(status="CANCELLED").distinct().order_by("name")
     else:
         return HttpResponseForbidden("Access denied.")
 
@@ -102,31 +108,39 @@ def service_log_create(request):
 
         return redirect("service_log_list")
 
-    return render(request, template)
+    return render(request, template, {"projects": projects})
 
 
 @login_required
 def service_log_edit(request, log_id):
     user = request.user
-
-    if is_admin(user):
-        return HttpResponseForbidden("Admins cannot edit service logs.")
-
-    try:
-        employee = user.employee_profile
-    except:
-        return HttpResponseForbidden("Employee profile not found.")
-
     log = get_object_or_404(EmployeeServiceLog, id=log_id)
 
-    # 🔐 Permission check
-    if is_employee(user) and log.employee != employee:
-        return HttpResponseForbidden("You can only edit your own logs.")
-
-    if is_manager(user):
+    if is_admin(user):
+        template = "service_logs/admin_edit.html"
+        projects = Project.objects.exclude(status="CANCELLED").order_by("name")
+    elif is_manager(user):
         template = "service_logs/manager_edit.html"
-    else:
+        try:
+            employee = user.employee_profile
+            projects = Project.objects.filter(
+                Q(manager=employee) | Q(teams__manager=employee)
+            ).exclude(status="CANCELLED").distinct().order_by("name")
+        except:
+            projects = Project.objects.exclude(status="CANCELLED").order_by("name")
+    elif is_employee(user):
+        try:
+            employee = user.employee_profile
+        except:
+            return HttpResponseForbidden("Employee profile not found.")
+        if log.employee != employee:
+            return HttpResponseForbidden("You can only edit your own logs.")
         template = "service_logs/employee_edit.html"
+        projects = Project.objects.filter(
+            teams__employees=employee
+        ).exclude(status="CANCELLED").distinct().order_by("name")
+    else:
+        return HttpResponseForbidden("Access denied.")
 
     if request.method == "POST":
         try:
@@ -147,7 +161,8 @@ def service_log_edit(request, log_id):
         log.save()
         return redirect("service_log_list")
 
-    return render(request, template, {"log": log})
+    context = {"log": log, "projects": projects}
+    return render(request, template, context)
 
 @login_required
 def service_log_delete(request, pk):
@@ -304,7 +319,7 @@ def analytics_project(request):
 
         # Employee breakdown
         employees_data = []
-        for emp_id in project_logs.values_list("employee", flat=True).distinct():
+        for emp_id in project_logs.order_by().values_list("employee_id", flat=True).distinct():
             emp_logs = project_logs.filter(employee_id=emp_id)
             emp = emp_logs.first().employee
 
@@ -410,6 +425,91 @@ def analytics_project(request):
     revenue_current = [float(current_map[k]["revenue"]) for k in labels]
     revenue_last_year = [float(last_year_map[k]["revenue"]) for k in labels]
 
+    # =====================================================
+    # 🔹 SERVICE COMPLETION TABLE DATA (with Custom Date Picker & Pagination)
+    # =====================================================
+    sc_date_str = request.GET.get("sc_date", "").strip()
+    sc_start_date = None
+    sc_end_date = None
+
+    if sc_date_str and " to " in sc_date_str:
+        try:
+            s_part, e_part = sc_date_str.split(" to ")
+            sc_start_date = datetime.strptime(s_part.strip(), "%Y-%m-%d").date()
+            sc_end_date = datetime.strptime(e_part.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    elif sc_date_str:
+        try:
+            sc_start_date = sc_end_date = datetime.strptime(sc_date_str.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    all_projects = Project.objects.exclude(status="CANCELLED").order_by("-created_at")
+    profit_map = {item["project"].id: (item["profit"], item["profit_percent"]) for item in project_analytics}
+
+    service_completions = []
+    for proj in all_projects:
+        proj_logs = EmployeeServiceLog.objects.filter(project=proj)
+        last_att_date = proj_logs.order_by("-date").values_list("date", flat=True).first()
+
+        service_ref = (
+            proj_logs.filter(service_reference__isnull=False)
+            .exclude(service_reference="")
+            .order_by("-date")
+            .values_list("service_reference", flat=True)
+            .first()
+            or proj.code
+            or "-"
+        )
+        vessel = proj.vessel_name or (proj_logs.first().vessel_name if proj_logs.first() else "-")
+
+        completed_log = (
+            ActivityLog.objects.filter(project=proj, new_status="COMPLETED")
+            .order_by("-changed_at")
+            .first()
+        )
+        comp_date = completed_log.changed_at.date() if completed_log else (proj.deadline_date if proj.status == "COMPLETED" else None)
+
+        # Custom date range filter for Service Completion
+        if sc_start_date or sc_end_date:
+            dates_to_check = [d for d in [comp_date, last_att_date, proj.created_at.date() if proj.created_at else None] if d]
+            if not dates_to_check:
+                continue
+
+            match = False
+            for d in dates_to_check:
+                if sc_start_date and sc_end_date:
+                    if sc_start_date <= d <= sc_end_date:
+                        match = True
+                        break
+                elif sc_start_date and d >= sc_start_date:
+                    match = True
+                    break
+                elif sc_end_date and d <= sc_end_date:
+                    match = True
+                    break
+            if not match:
+                continue
+
+        p_profit, p_profit_pct = profit_map.get(proj.id, (Decimal(0), Decimal(0)))
+
+        service_completions.append({
+            "service_ref": service_ref,
+            "vessel": vessel,
+            "project": proj,
+            "last_attendance_date": last_att_date,
+            "status": proj.status,
+            "completion_date": comp_date,
+            "profit": p_profit,
+            "profit_percent": p_profit_pct,
+        })
+
+    # Pagination for Service Completion (10 per page)
+    sc_paginator = Paginator(service_completions, 10)
+    sc_page = request.GET.get("sc_page", 1)
+    service_completions_page = sc_paginator.get_page(sc_page)
+
     return render(
         request,
         "analytics/project_based.html",
@@ -418,6 +518,8 @@ def analytics_project(request):
             "projects_page": projects_page,
             "sort": sort,
             "top_clients": top_clients,
+            "service_completions_page": service_completions_page,
+            "sc_date": sc_date_str,
 
             # KPI values
             "kpi_total_projects": len(project_analytics),
@@ -451,7 +553,7 @@ def project_drilldown(request, project_id):
 
     data = []
 
-    for emp_id in logs.values_list("employee", flat=True).distinct():
+    for emp_id in logs.order_by().values_list("employee_id", flat=True).distinct():
         emp_logs = logs.filter(employee_id=emp_id)
         emp = emp_logs.first().employee
 
@@ -519,7 +621,7 @@ def analytics_employee(request):
         )
 
         project_data = []
-        for pid in emp_logs.values_list("project", flat=True).distinct():
+        for pid in emp_logs.filter(project__isnull=False).order_by().values_list("project_id", flat=True).distinct():
             p_logs = emp_logs.filter(project_id=pid)
             project = p_logs.first().project if p_logs.exists() else None
 
@@ -623,6 +725,76 @@ def analytics_employee(request):
     paginator = Paginator(employee_analytics, 10)
     page_obj = paginator.get_page(page_number)
 
+    # =====================================================
+    # 🔹 VESSEL VISITS TABLE DATA (with Custom Date Picker & Pagination)
+    # =====================================================
+    vv_date_str = request.GET.get("vv_date", "").strip()
+    vv_start_date = None
+    vv_end_date = None
+
+    if vv_date_str and " to " in vv_date_str:
+        try:
+            s_part, e_part = vv_date_str.split(" to ")
+            vv_start_date = datetime.strptime(s_part.strip(), "%Y-%m-%d").date()
+            vv_end_date = datetime.strptime(e_part.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    elif vv_date_str:
+        try:
+            vv_start_date = vv_end_date = datetime.strptime(vv_date_str.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+
+    vv_logs = EmployeeServiceLog.objects.select_related("employee", "employee__user", "project").all()
+    if vv_start_date and vv_end_date:
+        vv_logs = vv_logs.filter(date__range=(vv_start_date, vv_end_date))
+    elif vv_start_date:
+        vv_logs = vv_logs.filter(date=vv_start_date)
+
+    vv_logs = vv_logs.order_by("-date", "employee__user__username")
+
+    # Map of (employee_id, date) -> list of all logs for that employee on that date
+    day_logs_map = defaultdict(list)
+    for l in EmployeeServiceLog.objects.all():
+        day_logs_map[(l.employee_id, l.date)].append(l)
+
+    vessel_visits = []
+    for l in vv_logs:
+        day_visits = day_logs_map[(l.employee_id, l.date)]
+        v_count = len(day_visits)
+        if v_count <= 1:
+            continue
+
+        vessel = (l.project.vessel_name if (l.project and l.project.vessel_name) else l.vessel_name) or "-"
+        s_ref = l.service_reference or (l.project.code if l.project else "-")
+        emp = l.employee
+        designation = emp.rank or emp.get_role() if emp else "-"
+
+        port = l.port or ""
+        loc_type = l.get_location_type_display() if l.location_type else ""
+        if port and loc_type:
+            location = f"{port} ({loc_type})"
+        else:
+            location = port or loc_type or "-"
+
+        vessel_visits.append({
+            "date": l.date,
+            "employee_name": emp.user.username if emp and emp.user else "Unknown",
+            "designation": designation,
+            "service_ref": s_ref,
+            "vessel": vessel,
+            "location": location,
+            "port": port,
+            "location_type": loc_type,
+            "total_hours": l.total_hours,
+            "project_id": l.project_id,
+            "is_multiple_vessels": True,
+            "vessel_count": v_count,
+        })
+
+    vv_paginator = Paginator(vessel_visits, 10)
+    vv_page = request.GET.get("vv_page", 1)
+    vessel_visits_page = vv_paginator.get_page(vv_page)
 
     return render(
         request,
@@ -630,6 +802,8 @@ def analytics_employee(request):
         {
             "employee_analytics": page_obj,
             "page_obj": page_obj,
+            "vessel_visits_page": vessel_visits_page,
+            "vv_date": vv_date_str,
 
             # KPI values
             "kpi_total_employees": kpi_total_employees,

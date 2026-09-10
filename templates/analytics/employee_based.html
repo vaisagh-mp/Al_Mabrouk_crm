@@ -1,5 +1,5 @@
 {% extends "Admin/adminbase.html" %}
-{% load static %}
+{% load static custom_filters %}
 {% block content %}
 
 <div class="pg-title">
@@ -38,7 +38,7 @@
             <div class="kpi-card">
                 <div class="kpi-icon bg-indigo"><i class="fas fa-clock"></i></div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_total_hours|floatformat:2 }}</h3>
+                    <h3>{{ kpi_total_hours|format_hours_minutes }}</h3>
                     <span>Work Hours</span>
                 </div>
             </div>
@@ -68,7 +68,7 @@
             <div class="kpi-card">
                 <div class="kpi-icon bg-red"><i class="fas fa-stopwatch"></i></div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_total_ot|floatformat:2 }}</h3>
+                    <h3>{{ kpi_total_ot|format_hours_minutes }}</h3>
                     <span>OT Hours</span>
                 </div>
             </div>
@@ -165,8 +165,8 @@
                         {% endif %}
                     </td>
 
-                    <td>{{ emp.total_hours|floatformat:2 }}</td>
-                    <td>{{ emp.ot_hours|floatformat:2 }}</td>
+                    <td>{{ emp.total_hours|format_hours_minutes }}</td>
+                    <td>{{ emp.ot_hours|format_hours_minutes }}</td>
 
                     <td>
                         <span class="util-chip
@@ -229,6 +229,110 @@
 
     </div>
 </div>
+
+
+{% if vessel_visits_page and vessel_visits_page.paginator.count > 0 %}
+<!-- ================= VESSEL VISITS (MULTIPLE VISITS) ================= -->
+<div class="widget-box mt-30">
+    <div class="table-header-inline">
+        <h4>MULTIPLE VESSEL VISITS (SAME DAY)</h4>
+
+        <form method="get" class="sort-form d-flex align-items-center gap-2">
+            {% if trend %}<input type="hidden" name="trend" value="{{ trend }}">{% endif %}
+            {% if page_obj.number %}<input type="hidden" name="page" value="{{ page_obj.number }}">{% endif %}
+            {% if request.GET.date %}<input type="hidden" name="date" value="{{ request.GET.date }}">{% endif %}
+
+            <div class="d-flex align-items-center gap-2">
+                <input
+                    type="text"
+                    id="vvDatePicker"
+                    name="vv_date"
+                    placeholder="📅 Select From - To Date"
+                    value="{{ vv_date|default:'' }}"
+                    style="height: 34px; width: 230px; font-size: 13px; border-radius: 6px; border: 1px solid #d1d5db; padding: 4px 10px; background: #ffffff;"
+                >
+                {% if vv_date %}
+                <a href="?trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}" style="height: 34px; padding: 0 10px; line-height: 34px; font-size: 12px; border-radius: 6px; background: #e5e7eb; color: #374151; text-decoration: none; display: inline-block;" title="Clear date filter">Clear</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <div class="table-wdgt">
+        <table class="crm-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Employee</th>
+                    <th>Designation</th>
+                    <th>Service Ref</th>
+                    <th>Vessel</th>
+                    <th>Location</th>
+                    <th>Total Hours</th>
+                    <th>Vessels Visited (Same Day)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in vessel_visits_page %}
+                <tr>
+                    <td>{{ item.date|date:"d M Y" }}</td>
+                    <td><strong>{{ item.employee_name }}</strong></td>
+                    <td>{{ item.designation|default:"-" }}</td>
+                    <td>
+                        {% if item.project_id %}
+                        <a href="{% if request.user.is_superuser %}{% url 'project-summary' item.project_id %}{% else %}{% url 'project-summary-view' item.project_id %}{% endif %}"
+                           class="service-ref-badge"
+                           title="Go to Project Details">
+                            <i class="fas fa-file-alt" style="font-size: 11px;"></i>
+                            {{ item.service_ref|default:"-" }}
+                        </a>
+                        {% else %}
+                        <span class="service-ref-badge">
+                            <i class="fas fa-file-alt" style="font-size: 11px;"></i>
+                            {{ item.service_ref|default:"-" }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.vessel|default:"-" }}</td>
+                    <td>{{ item.location|default:"-" }}</td>
+                    <td><strong>{{ item.total_hours|format_hours_minutes }}</strong></td>
+                    <td>
+                        <span class="badge bg-orange" style="padding: 4px 8px; border-radius: 4px; font-size: 11px; color: white; font-weight: 600;">
+                            ⚠️ {{ item.vessel_count }} vessels
+                        </span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" align="center">No multiple vessel visits recorded</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Vessel Visits Pagination -->
+        {% if vessel_visits_page.paginator.num_pages > 1 %}
+        <div class="pagination mt-10">
+            {% if vessel_visits_page.has_previous %}
+            <a href="?vv_page={{ vessel_visits_page.previous_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">
+                ← Prev
+            </a>
+            {% endif %}
+
+            <span>
+                Page {{ vessel_visits_page.number }} of {{ vessel_visits_page.paginator.num_pages }}
+            </span>
+
+            {% if vessel_visits_page.has_next %}
+            <a href="?vv_page={{ vessel_visits_page.next_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">
+                Next →
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 
 
 <!-- ================= STYLES ================= -->
@@ -420,6 +524,55 @@
 .bg-red { background: #dc2626; }
 .bg-violet { background: #7c3aed; }
 
+/* SERVICE REF BADGE / LINK */
+.service-ref-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0fdf4;
+    color: #15803d !important;
+    border: 1px solid #bbf7d0;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-decoration: none !important;
+    transition: all 0.2s ease-in-out;
+}
+
+.service-ref-badge:hover {
+    background: #16a34a;
+    color: #ffffff !important;
+    border-color: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(22, 163, 74, 0.25);
+}
+
+.mt-30 {
+    margin-top: 30px;
+}
+.mt-10 {
+    margin-top: 10px;
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+}
+
+.pagination a {
+    color: #4f46e5;
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+}
+
 </style>
 
 <!-- ================= FLATPICKR ================= -->
@@ -436,6 +589,19 @@ document.addEventListener("DOMContentLoaded", function () {
         altInput: true,
         altFormat: "d F Y",
         allowInput: true
+    });
+
+    flatpickr("#vvDatePicker", {
+        mode: "range",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d M Y",
+        allowInput: true,
+        onClose: function(selectedDates, dateStr, instance) {
+            if (selectedDates.length === 2) {
+                instance.element.form.submit();
+            }
+        }
     });
 });
 </script>

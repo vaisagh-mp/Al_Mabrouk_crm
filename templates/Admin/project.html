@@ -228,13 +228,14 @@
               {% csrf_token %}
               <div class="prjct-status-updt-box">
                 <select id="status" name="status" onchange="toggleRemarkBox()" required>
-                  <option value="" disabled selected>Select Status</option>
-                  <option value="ASSIGN">Assign</option>
-                  <option value="ONGOING">Ongoing</option>
-                  <option value="QUOTED">Quoted</option>
-                  <option value="HOLD">On Hold</option>
-                  <option value="CANCELLED">Cancelled</option>
-                  <option value="COMPLETED">Completed</option>
+                  <option value="" disabled {% if not project_data.status %}selected{% endif %}>Select Status</option>
+                  <option value="PENDING" {% if project_data.status == "PENDING" %}selected{% endif %}>Pending</option>
+                  <option value="ASSIGN" {% if project_data.status == "ASSIGN" %}selected{% endif %}>Assign</option>
+                  <option value="ONGOING" {% if project_data.status == "ONGOING" %}selected{% endif %}>Ongoing</option>
+                  <option value="QUOTED" {% if project_data.status == "QUOTED" %}selected{% endif %}>Quoted</option>
+                  <option value="HOLD" {% if project_data.status == "HOLD" %}selected{% endif %}>On Hold</option>
+                  <option value="CANCELLED" {% if project_data.status == "CANCELLED" %}selected{% endif %}>Cancelled</option>
+                  <option value="COMPLETED" {% if project_data.status == "COMPLETED" %}selected{% endif %}>Completed</option>
                 </select>
                 <div class="button-row">
                   <button type="button" class="btn" onclick="handleStatusSubmit()">Update</button>
@@ -292,6 +293,8 @@
                       {% elif log.new_status == 'HOLD' %}Gray
                       {% elif log.new_status == 'CANCELLED' %}Red
                       {% elif log.new_status == 'COMPLETED' %}Green
+                      {% elif log.new_status == 'PENDING' %}Gray
+                      {% elif log.new_status == 'ASSIGN' %}Orange
                       {% else %}Orange{% endif %}">
                   </div>
                   <div class="content"> 
@@ -304,7 +307,11 @@
                           {% elif log.changed_by_name %}
                               {{ log.changed_by_name }} (Admin)
                           {% endif %}
-                          changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                          {% if log.previous_status == "Created" or log.previous_status == "None" %}
+                              created project with status "<strong>{{ log.new_status }}</strong>"
+                          {% else %}
+                              changed status from "<strong>{{ log.previous_status }}</strong>" to "<strong>{{ log.new_status }}</strong>"
+                          {% endif %}
                       </p>
                     
                       {% if log.notes %}
@@ -363,20 +370,20 @@
         </tr>
         <tr>
           <td>Total Work Days</td>
-          <td>{{ project_data.total_work_days }}</td>
+          <td>{{ project_data.total_work_days }} Days</td>
         </tr>
         
         <tr>
           <td>Engineers</td>
-          <td>{{ project_data.engineers|join:", " }}</td>
+          <td>{{ project_data.engineers|join:", "|default:"-" }}</td>
         </tr>
         <tr>
           <td>Man-Hours</td>
-          <td>{{ project_data.total_employee_hours }} hrs</td>
+          <td>{{ project_data.total_employee_hours|format_hours_minutes }}</td>
         </tr>
         <tr>
           <td>Avg Employee Cost / Hour</td>
-          <td>{{ project_data.avg_hourly_cost }} AED/hr</td>
+          <td>{{ project_data.avg_hourly_cost|floatformat:2 }} AED/hr</td>
         </tr>
         <tr>
           <td>Total Expenses</td>
@@ -388,7 +395,7 @@
         </tr>
         <tr>
           <td>Profit Percentage</td>
-          <td>{{ project_data.profit_percent|floatformat:1}} %</td>
+          <td>{{ project_data.profit_percent|floatformat:1 }}%</td>
         </tr>
       </tbody>
     </table>
