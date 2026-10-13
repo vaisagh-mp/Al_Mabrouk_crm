@@ -11,24 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='SpareConsumed',
-            fields=[
-                ('id', models.BigAutoField(
-                    auto_created=True,
-                    primary_key=True,
-                    serialize=False,
-                    verbose_name='ID'
-                )),
-                ('name', models.CharField(max_length=100)),
-                ('unit', models.CharField(max_length=50)),
-                ('quantity', models.IntegerField()),
-                ('work_order', models.ForeignKey(
-                    on_delete=django.db.models.deletion.CASCADE,
-                    related_name='consumed_spares',
-                    to='Admin.workorder',
-                )),
-            ],
-        ),
+        # SpareConsumed was already created in 0005_workorderimage_description_workorderimage_name_and_more
     ]
 

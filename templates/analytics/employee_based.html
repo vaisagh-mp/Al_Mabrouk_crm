@@ -1,26 +1,62 @@
-{% extends "Admin/adminbase.html" %}
+{% extends base_template|default:"Admin/adminbase.html" %}
 {% load static custom_filters %}
 {% block content %}
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
 
 <div class="pg-title">
     <h1>Employee Analytics</h1>
 </div>
 
-<!-- ================= DATE FILTER ================= -->
-<!-- <form method="get" class="date-filter mb-20">
-    <input
-        type="text"
-        id="datePicker"
-        name="date"
-        placeholder="Select date / range"
-        value="{{ start_date }}{% if end_date and start_date != end_date %} to {{ end_date }}{% endif %}"
-        style="width: 260px;"
-        required
-    >
-    <button type="submit" class="prmry-btn">Filter</button>
-</form> -->
+<!-- ================= DATE & WORK TYPE FILTER ================= -->
+<div class="analytics-filter-card">
+    <form method="get" class="analytics-filter-form">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        {% if trend %}<input type="hidden" name="trend" value="{{ trend }}">{% endif %}
+        {% if vv_date %}<input type="hidden" name="vv_date" value="{{ vv_date }}">{% endif %}
 
+        <div class="analytics-filter-field">
+            <span class="filter-field-label"><i class="far fa-calendar-alt"></i> Date:</span>
+            <div class="date-input-wrap">
+                <input
+                    type="text"
+                    id="datePicker"
+                    name="date"
+                    class="analytics-date-input"
+                    placeholder="Select date / range"
+                    value="{{ start_date|date:'Y-m-d' }}{% if end_date and start_date != end_date %} to {{ end_date|date:'Y-m-d' }}{% endif %}"
+                >
+            </div>
+        </div>
 
+        <div class="analytics-filter-field">
+            <span class="filter-field-label"><i class="fas fa-briefcase"></i> Work Type:</span>
+            <div class="select-box">
+                <select name="work_type" id="workTypeFilter">
+                    <option value="All" {% if not work_type or work_type == "All" %}selected{% endif %}>All Work Types</option>
+                    <option value="Vessel" {% if work_type == "Vessel" %}selected{% endif %}>Vessel</option>
+                    <option value="Office" {% if work_type == "Office" %}selected{% endif %}>Office</option>
+                    <option value="Mixed" {% if work_type == "Mixed" %}selected{% endif %}>Mixed</option>
+                </select>
+                <span class="select-arrow">▾</span>
+            </div>
+        </div>
+
+        <div class="analytics-filter-buttons">
+            <button type="submit" class="prmry-btn filter-btn">Filter</button>
+            {% if request.GET.date or work_type %}
+            <a href="?{% if trend %}trend={{ trend }}&{% endif %}{% if vv_date %}vv_date={{ vv_date }}&{% endif %}tab={{ tab }}" class="pg-btn reset-btn" title="Reset filters">Reset</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- ================= TABS ================= -->
+<div class="att-an-tabs-bar">
+    <a href="?{{ querystring_perf }}" class="att-an-tab {% if tab != 'attendance' %}active{% endif %}">Performance</a>
+    <a href="?{{ querystring_att }}" class="att-an-tab {% if tab == 'attendance' %}active{% endif %}">Attendance</a>
+</div>
+
+{% if tab != 'attendance' %}
 <div class="kpi-box">
     <div class="row rg-24">
 
@@ -46,6 +82,26 @@
 
         <div class="col-lg-2 col-6 col-md-4">
             <div class="kpi-card">
+                <div class="kpi-icon bg-blue"><i class="fas fa-building"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_office_hours|format_hours_minutes }}</h3>
+                    <span>Office Hours</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-indigo"><i class="fas fa-ship"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_vessel_hours|format_hours_minutes }}</h3>
+                    <span>Vessel Hours</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
                 <div class="kpi-icon bg-orange"><i class="fas fa-wallet"></i></div>
                 <div class="kpi-content">
                     <h3>{{ kpi_total_cost|floatformat:2 }}</h3>
@@ -60,6 +116,16 @@
                 <div class="kpi-content">
                     <h3>{{ kpi_avg_utilization|floatformat:1 }}%</h3>
                     <span>Avg Utili</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-success"><i class="fas fa-user-check"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ kpi_avg_attendance_rate|floatformat:1 }}%</h3>
+                    <span>Avg Attendance</span>
                 </div>
             </div>
         </div>
@@ -94,6 +160,10 @@
         <h4>Employee Insights</h4>
 
         <form method="get" id="trendFilterForm" class="sort-form">
+            <input type="hidden" name="tab" value="{{ tab }}">
+            {% if request.GET.date %}<input type="hidden" name="date" value="{{ request.GET.date }}">{% endif %}
+            {% if work_type %}<input type="hidden" name="work_type" value="{{ work_type }}">{% endif %}
+            {% if vv_date %}<input type="hidden" name="vv_date" value="{{ vv_date }}">{% endif %}
             <div class="sort-wrapper">
                 <label for="trendRange">View</label>
 
@@ -141,8 +211,15 @@
                 <tr>
                     <th>Employee</th>
                     <th>Role</th>
+                    <th>Work Type</th>
+                    <th>Office Hrs</th>
+                    <th>Vessel Hrs</th>
                     <th>Total Hours</th>
                     <th>OT Hours</th>
+                    <th>Days Worked</th>
+                    <th>Absent</th>
+                    <th>Leave</th>
+                    <th>Attendance %</th>
                     <th>Utilization %</th>
                     <th>Normal Cost</th>
                     <th>OT Cost</th>
@@ -159,14 +236,36 @@
 
                     <td>
                         {% if emp.employee.is_manager %}
-                            <span >Manager</span>
+                            <span>Manager</span>
+                        {% elif emp.employee.is_hr %}
+                            <span>HR</span>
+                        {% elif emp.employee.is_administration %}
+                            <span>Admin</span>
                         {% else %}
-                            <span >Employee</span>
+                            <span>Employee</span>
                         {% endif %}
                     </td>
 
+                    <td>
+                        {% if emp.work_type == "Vessel" %}
+                            <span class="status pending">Vessel</span>
+                        {% elif emp.work_type == "Office" %}
+                            <span class="status present">Office</span>
+                        {% elif emp.work_type == "Mixed" %}
+                            <span class="status in-progress">Mixed</span>
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                    </td>
+
+                    <td>{{ emp.office_hours|format_hours_minutes }}</td>
+                    <td>{{ emp.vessel_hours|format_hours_minutes }}</td>
                     <td>{{ emp.total_hours|format_hours_minutes }}</td>
                     <td>{{ emp.ot_hours|format_hours_minutes }}</td>
+                    <td>{{ emp.days_worked }}</td>
+                    <td>{{ emp.days_absent }}</td>
+                    <td>{{ emp.days_leave }}</td>
+                    <td>{{ emp.attendance_rate|floatformat:1 }}%</td>
 
                     <td>
                         <span class="util-chip
@@ -195,7 +294,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="10" align="center">No employee data available</td>
+                    <td colspan="17" align="center">No employee data available</td>
                 </tr>
                 {% endfor %}
 
@@ -205,7 +304,7 @@
 <div class="crm-pagination">
 
     {% if page_obj.has_previous %}
-        <a href="?page={{ page_obj.previous_page_number }}" class="pg-btn">‹</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if trend %}&trend={{ trend }}{% endif %}{% if vv_date %}&vv_date={{ vv_date }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}" class="pg-btn">‹</a>
     {% else %}
         <span class="pg-btn disabled">‹</span>
     {% endif %}
@@ -214,12 +313,12 @@
         {% if page_obj.number == num %}
             <span class="pg-btn active">{{ num }}</span>
         {% elif num >= page_obj.number|add:-2 and num <= page_obj.number|add:2 %}
-            <a href="?page={{ num }}" class="pg-btn">{{ num }}</a>
+            <a href="?page={{ num }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if trend %}&trend={{ trend }}{% endif %}{% if vv_date %}&vv_date={{ vv_date }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}" class="pg-btn">{{ num }}</a>
         {% endif %}
     {% endfor %}
 
     {% if page_obj.has_next %}
-        <a href="?page={{ page_obj.next_page_number }}" class="pg-btn">›</a>
+        <a href="?page={{ page_obj.next_page_number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if trend %}&trend={{ trend }}{% endif %}{% if vv_date %}&vv_date={{ vv_date }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}" class="pg-btn">›</a>
     {% else %}
         <span class="pg-btn disabled">›</span>
     {% endif %}
@@ -231,16 +330,17 @@
 </div>
 
 
-{% if vessel_visits_page and vessel_visits_page.paginator.count > 0 %}
 <!-- ================= VESSEL VISITS (MULTIPLE VISITS) ================= -->
 <div class="widget-box mt-30">
     <div class="table-header-inline">
         <h4>MULTIPLE VESSEL VISITS (SAME DAY)</h4>
 
         <form method="get" class="sort-form d-flex align-items-center gap-2">
+            <input type="hidden" name="tab" value="{{ tab }}">
             {% if trend %}<input type="hidden" name="trend" value="{{ trend }}">{% endif %}
             {% if page_obj.number %}<input type="hidden" name="page" value="{{ page_obj.number }}">{% endif %}
             {% if request.GET.date %}<input type="hidden" name="date" value="{{ request.GET.date }}">{% endif %}
+            {% if work_type %}<input type="hidden" name="work_type" value="{{ work_type }}">{% endif %}
 
             <div class="d-flex align-items-center gap-2">
                 <input
@@ -252,7 +352,7 @@
                     style="height: 34px; width: 230px; font-size: 13px; border-radius: 6px; border: 1px solid #d1d5db; padding: 4px 10px; background: #ffffff;"
                 >
                 {% if vv_date %}
-                <a href="?trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}" style="height: 34px; padding: 0 10px; line-height: 34px; font-size: 12px; border-radius: 6px; background: #e5e7eb; color: #374151; text-decoration: none; display: inline-block;" title="Clear date filter">Clear</a>
+                <a href="?trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}" style="height: 34px; padding: 0 10px; line-height: 34px; font-size: 12px; border-radius: 6px; background: #e5e7eb; color: #374151; text-decoration: none; display: inline-block;" title="Clear date filter">Clear</a>
                 {% endif %}
             </div>
         </form>
@@ -280,12 +380,26 @@
                     <td>{{ item.designation|default:"-" }}</td>
                     <td>
                         {% if item.project_id %}
-                        <a href="{% if request.user.is_superuser %}{% url 'project-summary' item.project_id %}{% else %}{% url 'project-summary-view' item.project_id %}{% endif %}"
+                        {% if request.user.is_superuser %}
+                        <a href="{% url 'project-summary' item.project_id %}"
                            class="service-ref-badge"
                            title="Go to Project Details">
                             <i class="fas fa-file-alt" style="font-size: 11px;"></i>
                             {{ item.service_ref|default:"-" }}
                         </a>
+                        {% elif hide_project_links %}
+                        <span class="service-ref-badge">
+                            <i class="fas fa-file-alt" style="font-size: 11px;"></i>
+                            {{ item.service_ref|default:"-" }}
+                        </span>
+                        {% else %}
+                        <a href="{% url 'project-summary-view' item.project_id %}"
+                           class="service-ref-badge"
+                           title="Go to Project Details">
+                            <i class="fas fa-file-alt" style="font-size: 11px;"></i>
+                            {{ item.service_ref|default:"-" }}
+                        </a>
+                        {% endif %}
                         {% else %}
                         <span class="service-ref-badge">
                             <i class="fas fa-file-alt" style="font-size: 11px;"></i>
@@ -304,7 +418,9 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" align="center">No multiple vessel visits recorded</td>
+                    <td colspan="8" align="center" style="padding: 24px 12px; color: #6b7280; font-size: 13px;">
+                        No multiple vessel visits recorded
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -314,7 +430,7 @@
         {% if vessel_visits_page.paginator.num_pages > 1 %}
         <div class="pagination mt-10">
             {% if vessel_visits_page.has_previous %}
-            <a href="?vv_page={{ vessel_visits_page.previous_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">
+            <a href="?vv_page={{ vessel_visits_page.previous_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}">
                 ← Prev
             </a>
             {% endif %}
@@ -324,12 +440,343 @@
             </span>
 
             {% if vessel_visits_page.has_next %}
-            <a href="?vv_page={{ vessel_visits_page.next_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}">
+            <a href="?vv_page={{ vessel_visits_page.next_page_number }}&vv_date={{ vv_date }}&trend={{ trend }}&page={{ page_obj.number }}{% if request.GET.date %}&date={{ request.GET.date }}{% endif %}{% if work_type %}&work_type={{ work_type }}{% endif %}{% if tab %}&tab={{ tab }}{% endif %}">
                 Next →
             </a>
             {% endif %}
         </div>
         {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if tab == 'attendance' %}
+<!-- ================= ATTENDANCE TAB ================= -->
+<div class="kpi-box">
+    <div class="row rg-24">
+        <!-- Attendance Rate -->
+        <div class="col-lg-3 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-success"><i class="fas fa-user-check"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.attendance_rate.value|floatformat:1 }}%</h3>
+                    <span>Attendance Rate</span>
+                    {% if att.kpis.attendance_rate.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.attendance_rate.is_good is None %}muted{% elif att.kpis.attendance_rate.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.attendance_rate.delta > 0 %}▲{% elif att.kpis.attendance_rate.delta < 0 %}▼{% endif %} {{ att.kpis.attendance_rate.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Absenteeism Rate -->
+        <div class="col-lg-3 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-red"><i class="fas fa-user-times"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.absenteeism_rate.value|floatformat:1 }}%</h3>
+                    <span>Absenteeism Rate</span>
+                    {% if att.kpis.absenteeism_rate.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.absenteeism_rate.is_good is None %}muted{% elif att.kpis.absenteeism_rate.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.absenteeism_rate.delta > 0 %}▲{% elif att.kpis.absenteeism_rate.delta < 0 %}▼{% endif %} {{ att.kpis.absenteeism_rate.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Avg Hours / Worked Day -->
+        <div class="col-lg-3 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-blue"><i class="fas fa-clock"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.avg_hours_per_worked_day.value|format_hours_minutes }}</h3>
+                    <span>Avg Hours / Day</span>
+                    {% if att.kpis.avg_hours_per_worked_day.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.avg_hours_per_worked_day.is_good is None %}muted{% elif att.kpis.avg_hours_per_worked_day.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.avg_hours_per_worked_day.delta > 0 %}▲{% elif att.kpis.avg_hours_per_worked_day.delta < 0 %}▼{% endif %} {{ att.kpis.avg_hours_per_worked_day.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Gross OT Hours -->
+        <div class="col-lg-3 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-orange"><i class="fas fa-stopwatch"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.gross_ot_hours.value|format_hours_minutes }}</h3>
+                    <span>Gross OT Hours</span>
+                    {% if att.kpis.gross_ot_hours.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.gross_ot_hours.is_good is None %}muted{% elif att.kpis.gross_ot_hours.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.gross_ot_hours.delta > 0 %}▲{% elif att.kpis.gross_ot_hours.delta < 0 %}▼{% endif %} {{ att.kpis.gross_ot_hours.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Gross OT Days -->
+        <div class="col-lg-4 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-indigo"><i class="fas fa-business-time"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.gross_ot_days.value|floatformat:2 }}</h3>
+                    <span>Gross OT Days</span>
+                    {% if att.kpis.gross_ot_days.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.gross_ot_days.is_good is None %}muted{% elif att.kpis.gross_ot_days.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.gross_ot_days.delta > 0 %}▲{% elif att.kpis.gross_ot_days.delta < 0 %}▼{% endif %} {{ att.kpis.gross_ot_days.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Leave Days -->
+        <div class="col-lg-4 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon" style="background: var(--bs-yellow, #e8c00b); color: #fff;"><i class="fas fa-calendar-minus"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.total_leave_days.value }}</h3>
+                    <span>Total Leave Days</span>
+                    {% if att.kpis.total_leave_days.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.total_leave_days.is_good is None %}muted{% elif att.kpis.total_leave_days.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.total_leave_days.delta > 0 %}▲{% elif att.kpis.total_leave_days.delta < 0 %}▼{% endif %} {{ att.kpis.total_leave_days.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Off-Days Worked -->
+        <div class="col-lg-4 col-6 col-md-4">
+            <div class="kpi-card">
+                <div class="kpi-icon bg-violet"><i class="fas fa-calendar-check"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ att.kpis.off_days_worked.value }}</h3>
+                    <span>Off-Days Worked</span>
+                    {% if att.kpis.off_days_worked.delta is not None %}
+                        <span class="att-an-delta {% if att.kpis.off_days_worked.is_good is None %}muted{% elif att.kpis.off_days_worked.is_good %}good{% else %}bad{% endif %}">
+                            {% if att.kpis.off_days_worked.delta > 0 %}▲{% elif att.kpis.off_days_worked.delta < 0 %}▼{% endif %} {{ att.kpis.off_days_worked.delta|abs_value }}% vs prev
+                        </span>
+                    {% else %}
+                        <span class="att-an-delta muted">—</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= DAILY WORKFORCE MIX ================= -->
+<div class="widget-box mt-30 att-an-card">
+    <div class="table-header-inline">
+        <h4>DAILY WORKFORCE MIX</h4>
+    </div>
+    <div class="att-an-chart-wrap" style="position: relative; width: 100%; height: 320px;">
+        <canvas id="attDailyMixChart"></canvas>
+    </div>
+    {{ att.daily_mix|json_script:"att-daily-mix" }}
+</div>
+
+<!-- ================= ATTENDANCE CALENDAR ================= -->
+<div class="widget-box mt-30 att-an-card">
+    <div class="table-header-inline">
+        <h4>ATTENDANCE CALENDAR</h4>
+    </div>
+    {% if att.heatmap %}
+    <div class="att-an-cal-wrap">
+        <table class="att-an-cal-table">
+            <thead>
+                <tr>
+                    <th class="att-an-sticky-col">Employee</th>
+                    {% for d in att.heatmap.dates %}
+                    <th class="{% if d.is_off %}att-an-offday{% endif %}">
+                        <div class="att-an-cal-th-day">{{ d.day_num }}</div>
+                        <div class="att-an-cal-th-wday">{{ d.weekday_letter }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in att.heatmap.rows %}
+                <tr>
+                    <td class="att-an-sticky-col">
+                        {% if register_url %}
+                            <a href="{{ register_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}&search={{ row.username|urlencode }}" class="att-an-emp-link" title="Open register for {{ row.name }}">{{ row.name }}</a>
+                        {% else %}
+                            <strong>{{ row.name }}</strong>
+                        {% endif %}
+                    </td>
+                    {% for cell in row.cells %}
+                    <td>
+                        {% if cell.status_code == 'NONE' %}
+                            <span class="att-an-cal-cell att-an-st-none" title="{{ cell.tooltip }}"></span>
+                        {% elif register_url %}
+                            <a href="{{ register_url }}?start={{ cell.date|date:'Y-m-d' }}&end={{ cell.date|date:'Y-m-d' }}&search={{ row.username|urlencode }}" class="att-an-cal-cell att-an-st-{{ cell.status_code|lower }}" title="{{ cell.tooltip }}"></a>
+                        {% else %}
+                            <span class="att-an-cal-cell att-an-st-{{ cell.status_code|lower }}" title="{{ cell.tooltip }}"></span>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="att-an-legend">
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-office"></span> Office</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-vessel"></span> Vessel</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-office_vessel"></span> Office+Vessel</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-annual_leave"></span> Leave</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-absent"></span> Absent</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-rest"></span> REST</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-training"></span> Training</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-sunday"></span> Off-day / Holiday</div>
+        <div class="att-an-legend-item"><span class="att-an-legend-swatch att-an-st-none"></span> No data</div>
+    </div>
+    {% else %}
+    <div class="att-an-note">
+        <i class="fas fa-info-circle"></i> Select a range of 62 days or less to see the calendar.
+    </div>
+    {% endif %}
+</div>
+
+<!-- ================= OVERTIME LEADERBOARD & ABSENCE WATCHLIST ================= -->
+<div class="row rg-24 mt-30" style="margin-bottom: 50px;">
+    <!-- Overtime Leaderboard -->
+    <div class="col-lg-6">
+        <div class="widget-box att-an-card" style="height: 100%;">
+            <div class="table-header-inline">
+                <h4>OVERTIME LEADERBOARD</h4>
+            </div>
+            <div class="table-wdgt">
+                <table class="crm-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 45px;">Rank</th>
+                            <th>Employee</th>
+                            <th>Designation</th>
+                            <th style="min-width: 130px;">OT Hours</th>
+                            <th>OT Days</th>
+                            <th>Total Hrs</th>
+                            <th>Off-Day %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in att.leaderboard %}
+                        <tr>
+                            <td><strong>#{{ item.rank }}</strong></td>
+                            <td>
+                                {% if register_url %}
+                                    <a href="{{ register_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}&search={{ item.username|urlencode }}" class="att-an-emp-link">{{ item.name }}</a>
+                                {% else %}
+                                    {{ item.name }}
+                                {% endif %}
+                                {% if item.ot_alert %}
+                                    <span class="status cancelled" style="margin-left: 4px; font-size: 10px; padding: 2px 6px;">High OT</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ item.designation|default:"-" }}</td>
+                            <td>
+                                <div class="att-an-ot-bar-wrap">
+                                    <span>{{ item.ot_hours|format_work_duration }}</span>
+                                    <div class="att-an-ot-bar-bg">
+                                        <div class="att-an-ot-bar-fill" style="width: {{ item.bar_width_pct }}%;"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ item.ot_days }}</td>
+                            <td>{{ item.total_hours|format_work_duration }}</td>
+                            <td>{{ item.off_day_ot_share }}%</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" align="center" style="padding: 24px 12px; color: var(--secondary-font-color); font-size: 13px;">
+                                No overtime in this period.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Absence Watchlist -->
+    <div class="col-lg-6">
+        <div class="widget-box att-an-card" style="height: 100%;">
+            <div class="table-header-inline">
+                <h4>ABSENCE WATCHLIST</h4>
+            </div>
+            <div class="table-wdgt">
+                <table class="crm-table">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>Designation</th>
+                            <th>Absent</th>
+                            <th>Spells</th>
+                            <th>Longest</th>
+                            <th>Bradford</th>
+                            <th>Common Day</th>
+                            <th>Level</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in att.watchlist %}
+                        <tr>
+                            <td>
+                                {% if register_url %}
+                                    <a href="{{ register_url }}?start={{ start_date|date:'Y-m-d' }}&end={{ end_date|date:'Y-m-d' }}&search={{ item.username|urlencode }}" class="att-an-emp-link">{{ item.name }}</a>
+                                {% else %}
+                                    {{ item.name }}
+                                {% endif %}
+                            </td>
+                            <td>{{ item.designation|default:"-" }}</td>
+                            <td><strong>{{ item.absent_days }}</strong></td>
+                            <td>{{ item.spells }}</td>
+                            <td>{{ item.longest_spell }} d</td>
+                            <td><strong>{{ item.bradford_factor }}</strong></td>
+                            <td>{{ item.most_common_weekday }}</td>
+                            <td>
+                                {% if item.level == 'normal' %}
+                                    <span class="status completed">Normal</span>
+                                {% elif item.level == 'monitor' %}
+                                    <span class="status hold">Monitor</span>
+                                {% else %}
+                                    <span class="status cancelled">Action</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" align="center" style="padding: 24px 12px; color: var(--secondary-font-color); font-size: 13px;">
+                                No absences in this period. 🎉
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="att-an-info-note">
+                ⓘ Bradford Factor = spells² × days; frequent short absences score higher than single long absences.
+            </div>
+        </div>
     </div>
 </div>
 {% endif %}
@@ -429,6 +876,140 @@
     font-size: 13px;
     cursor: pointer;
     min-width: 120px;
+}
+
+/* ================= ANALYTICS FILTER CARD ================= */
+.analytics-filter-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.analytics-filter-form {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+.analytics-filter-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-field-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #4b5563;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.filter-field-label i {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.date-input-wrap {
+    position: relative;
+    display: inline-block;
+}
+
+.analytics-date-input,
+.analytics-filter-card .analytics-date-input,
+.analytics-filter-card .flatpickr-input {
+    width: 220px !important;
+    max-width: 220px !important;
+    min-width: 200px !important;
+    height: 38px !important;
+    flex: 0 0 220px !important;
+    display: inline-block !important;
+    padding: 6px 12px !important;
+    border-radius: 8px !important;
+    border: 1px solid #d0d5dd !important;
+    background: #fff !important;
+    font-size: 13px !important;
+    color: #1f2937 !important;
+    outline: none !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.analytics-date-input:focus,
+.analytics-filter-card .flatpickr-input:focus {
+    border-color: #3d6999 !important;
+    box-shadow: 0 0 0 3px rgba(61, 105, 153, 0.15) !important;
+}
+
+.analytics-filter-field .select-box select {
+    height: 38px;
+    min-width: 140px;
+    padding: 6px 32px 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #d0d5dd;
+    background: #fff;
+    font-size: 13px;
+    color: #1f2937;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.analytics-filter-field .select-box select:focus {
+    border-color: #3d6999;
+    box-shadow: 0 0 0 3px rgba(61, 105, 153, 0.15);
+}
+
+.analytics-filter-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.analytics-filter-buttons .filter-btn {
+    height: 38px;
+    padding: 0 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.analytics-filter-buttons .reset-btn {
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vv-date-input,
+.sort-form .vv-date-input,
+.sort-form .flatpickr-input {
+    width: 220px !important;
+    max-width: 220px !important;
+    height: 34px !important;
+    flex: 0 0 220px !important;
+    display: inline-block !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    border: 1px solid #d1d5db !important;
+    background: #ffffff !important;
+    font-size: 13px !important;
+    color: #1f2937 !important;
 }
 
 .select-box select:focus {
@@ -573,6 +1154,236 @@
     border: 1px solid #c7d2fe;
 }
 
+/* ================= ATTENDANCE ANALYTICS TABS & CARDS ================= */
+.att-an-tabs-bar {
+    display: flex;
+    gap: 20px;
+    border-bottom: 2px solid #e9ecef;
+    margin-bottom: 24px;
+    padding-left: 4px;
+}
+
+.att-an-tab {
+    display: inline-block;
+    padding: 10px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--secondary-font-color);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+}
+
+.att-an-tab:hover {
+    color: var(--primary-font-color);
+}
+
+.att-an-tab.active {
+    color: var(--primary-font-color);
+    border-bottom: 3px solid var(--bs-blue);
+}
+
+/* KPI DELTA INDICATORS */
+.att-an-delta {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 3px;
+    line-height: 1.2;
+}
+
+.att-an-delta.good {
+    color: var(--bs-green);
+}
+
+.att-an-delta.bad {
+    color: var(--bs-red);
+}
+
+.att-an-delta.muted {
+    color: var(--secondary-font-color);
+}
+
+/* ATTENDANCE CALENDAR HEATMAP */
+.att-an-card {
+    background: #ffffff;
+    border-radius: 12px;
+}
+
+.att-an-cal-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #ffffff;
+}
+
+.att-an-cal-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+}
+
+.att-an-cal-table th,
+.att-an-cal-table td {
+    padding: 6px 3px;
+    text-align: center;
+    border-right: 1px solid #e9ecef;
+    border-bottom: 1px solid #e9ecef;
+    white-space: nowrap;
+}
+
+.att-an-cal-table thead th {
+    background: #f8f9fa;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.att-an-cal-table thead th.att-an-offday {
+    background: #e9ecef !important;
+}
+
+.att-an-cal-th-day {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary-font-color);
+}
+
+.att-an-cal-th-wday {
+    font-size: 10px;
+    color: var(--secondary-font-color);
+    font-weight: 500;
+}
+
+.att-an-sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #ffffff !important;
+    text-align: left !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    min-width: 170px;
+    max-width: 220px;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+}
+
+.att-an-cal-table thead th.att-an-sticky-col {
+    z-index: 3;
+    background: #f8f9fa !important;
+}
+
+.att-an-cal-cell {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    vertical-align: middle;
+    transition: transform 0.15s ease;
+}
+
+a.att-an-cal-cell:hover {
+    transform: scale(1.25);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* HEATMAP STATUS COLOURS */
+.att-an-st-office { background-color: var(--bs-green); }
+.att-an-st-vessel { background-color: var(--bs-blue); }
+.att-an-st-office_vessel { background-color: #0c5460; }
+.att-an-st-annual_leave,
+.att-an-st-sick_leave,
+.att-an-st-personal_leave { background-color: var(--bs-yellow); }
+.att-an-st-absent { background-color: var(--bs-red); }
+.att-an-st-rest { background-color: #838282; }
+.att-an-st-training { background-color: #6777ef; }
+.att-an-st-sunday,
+.att-an-st-holiday { background-color: #e9ecef; }
+.att-an-st-none {
+    background: #fff;
+    border: 1px dashed #e9ecef;
+    color: var(--secondary-font-color);
+}
+
+/* CALENDAR LEGEND */
+.att-an-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 14px;
+    padding-top: 10px;
+    font-size: 12px;
+    color: var(--secondary-font-color);
+}
+
+.att-an-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.att-an-legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.att-an-note {
+    padding: 20px;
+    text-align: center;
+    color: var(--secondary-font-color);
+    font-size: 13px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #e9ecef;
+}
+
+/* OT INLINE PROGRESS BAR */
+.att-an-ot-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+}
+
+.att-an-ot-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.att-an-ot-bar-fill {
+    height: 100%;
+    background: var(--bs-orange);
+    border-radius: 3px;
+}
+
+/* INFO NOTE & DRILL DOWN LINKS */
+.att-an-info-note {
+    font-size: 12px;
+    color: var(--secondary-font-color);
+    padding: 10px 14px;
+    border-top: 1px solid #e9ecef;
+    background: #f8f9fa;
+    border-radius: 0 0 12px 12px;
+}
+
+.att-an-emp-link {
+    color: var(--bs-blue);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.att-an-emp-link:hover {
+    text-decoration: underline;
+    color: var(--bs-blue);
+}
+
 </style>
 
 <!-- ================= FLATPICKR ================= -->
@@ -583,22 +1394,35 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+    const mainPickerEl = document.getElementById("datePicker");
+    const initialDateVal = mainPickerEl ? mainPickerEl.value : "";
+
     flatpickr("#datePicker", {
         mode: "range",
         dateFormat: "Y-m-d",
         altInput: true,
-        altFormat: "d F Y",
-        allowInput: true
+        altInputClass: "analytics-date-input",
+        altFormat: "d M Y",
+        allowInput: true,
+        onClose: function(selectedDates, dateStr, instance) {
+            if (selectedDates.length === 2 && dateStr !== initialDateVal) {
+                instance.element.form.submit();
+            }
+        }
     });
+
+    const vvPickerEl = document.getElementById("vvDatePicker");
+    const initialVvVal = vvPickerEl ? vvPickerEl.value : "";
 
     flatpickr("#vvDatePicker", {
         mode: "range",
         dateFormat: "Y-m-d",
         altInput: true,
+        altInputClass: "vv-date-input",
         altFormat: "d M Y",
         allowInput: true,
         onClose: function(selectedDates, dateStr, instance) {
-            if (selectedDates.length === 2) {
+            if (selectedDates.length === 2 && dateStr !== initialVvVal) {
                 instance.element.form.submit();
             }
         }
@@ -727,5 +1551,107 @@ if (costCtx) {
 }
 </script>
 
+{% if tab == 'attendance' %}
+<script>
+(function() {
+    const mixScriptEl = document.getElementById("att-daily-mix");
+    const mixCanvasEl = document.getElementById("attDailyMixChart");
+
+    if (mixScriptEl && mixCanvasEl) {
+        if (window.attDailyMixChartInstance) {
+            window.attDailyMixChartInstance.destroy();
+        }
+
+        const mixData = JSON.parse(mixScriptEl.textContent);
+
+        window.attDailyMixChartInstance = new Chart(mixCanvasEl, {
+            type: "bar",
+            data: {
+                labels: mixData.labels,
+                datasets: [
+                    {
+                        label: "Office",
+                        data: mixData.office,
+                        backgroundColor: "#4caf50",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Vessel",
+                        data: mixData.vessel,
+                        backgroundColor: "#3f6d95",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Office+Vessel",
+                        data: mixData.office_vessel,
+                        backgroundColor: "#0c5460",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Leave",
+                        data: mixData.leave,
+                        backgroundColor: "#e8c00b",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Absent",
+                        data: mixData.absent,
+                        backgroundColor: "#f44336",
+                        stack: "mix"
+                    },
+                    {
+                        label: "REST",
+                        data: mixData.rest,
+                        backgroundColor: "#838282",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Training",
+                        data: mixData.training,
+                        backgroundColor: "#6777ef",
+                        stack: "mix"
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: { display: false }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        ticks: { precision: 0 }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: "bottom"
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: function(tooltipItems) {
+                                if (!tooltipItems || !tooltipItems.length) return "";
+                                const dataIndex = tooltipItems[0].dataIndex;
+                                let dayTotal = 0;
+                                if (window.attDailyMixChartInstance) {
+                                    window.attDailyMixChartInstance.data.datasets.forEach(function(ds) {
+                                        dayTotal += (Number(ds.data[dataIndex]) || 0);
+                                    });
+                                }
+                                return "Day Total: " + dayTotal;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
 
 {% endblock %}

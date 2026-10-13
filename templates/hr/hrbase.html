@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
     <!-- Fontawesome -->
     <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
@@ -210,6 +212,20 @@
                         <i class="fa fa-calendar"></i>
                         <span>Attendance Status</span>
                       </a>
+                    </li>
+
+                    <li class="sidebar-dropdown">
+                      <a href="#">
+                        <i class="fa fa-chart-line"></i>
+                        <span>Analytics</span>
+                      </a>
+                      <div class="sidebar-submenu">
+                        <ul>
+                          <li>
+                            <a href="{% url 'hr_employee_analytics' %}">Employee Analytics</a>
+                          </li>
+                        </ul>
+                      </div>
                     </li>
                   
                   <!-- <li class="sidebar-dropdown">
@@ -543,29 +559,73 @@
 
       <!-- Leave Details Chart -->
       <script>
-  var optionsChartOne = {
-    series: [1254, 32, 658, 14, 68],
-    chart: {
-      type: 'donut',
-    },
-    labels: ['1254 on time', '32 Late Attendance', '658 Work From Home', '14 Absent', '68 Sick Leave'],
-    legend: {
-      position: 'bottom', // Moves the legend (labels) below the chart
-      horizontalAlign: 'center', // Centers the legend
-    },
-    responsive: [{
-      breakpoint: 480,
-      options: {
+  let chartOne; // make chart variable global
 
-        legend: {
-          position: 'bottom'
-        }
-      }
-    }]
-  };
+  function renderPresenceChart(onTime, late, wfh, absent, sick) {
+    const optionsChartOne = {
+      series: [onTime, late, wfh, absent, sick],
+      chart: {
+        type: "donut",
+        height: 198 // fixed height for desktop
+      },
+      labels: [
+        `${onTime} On Time`,
+        `${late} Late Attendance`,
+        `${wfh} Work From Home`,
+        `${absent} Absent`,
+        `${sick} Sick Leave`
+      ],
+      legend: {
+        position: "bottom",
+        horizontalAlign: "center",
+      },
+      responsive: [
+        {
+          breakpoint: 480,
+          options: {
+            chart: {
+              height: 240 // slightly taller on small screens if needed
+            },
+            legend: { position: "bottom" }
+          },
+        },
+      ],
+    };
 
-  var chartOne = new ApexCharts(document.querySelector("#leaveChart"), optionsChartOne);
-  chartOne.render();
+    // Destroy old chart if exists
+    if (chartOne) {
+      chartOne.destroy();
+    }
+
+    // Create new chart instance
+    const chartEl = document.querySelector("#leaveChart");
+    if (chartEl) {
+      chartOne = new ApexCharts(chartEl, optionsChartOne);
+      chartOne.render();
+    }
+  }
+
+  if (document.getElementById("leaveChart")) {
+    const chartData = {{ chart_data|default:"null"|safe }};
+    if (chartData) {
+      renderPresenceChart(chartData.on_time, chartData.late, chartData.wfh, chartData.absent, chartData.sick);
+    }
+
+    const monthSelect = document.getElementById("presence-month");
+    if (monthSelect) {
+      monthSelect.addEventListener("change", function() {
+        const month = this.value;
+        const year = new Date().getFullYear();
+
+        fetch(`{% url 'hr_get_presence_data' %}?month=${month}&year=${year}&_=${Date.now()}`)
+          .then(res => res.json())
+          .then(data => {
+            renderPresenceChart(data.on_time, data.late, data.wfh, data.absent, data.sick);
+          })
+          .catch(err => console.error("Error fetching presence data:", err));
+      });
+    }
+  }
       </script>
       
       <script>

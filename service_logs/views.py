@@ -2,7 +2,10 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.shortcuts import redirect
 from .models import EmployeeServiceLog
-from Admin.models import Project, Employee, ActivityLog
+from Admin.models import Project, Employee, ActivityLog, Attendance
+from Admin.attendance_register import build_attendance_register
+from Admin.attendance_analytics import build_attendance_analytics
+from django.urls import reverse
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
@@ -10,8 +13,9 @@ from django.db.models import Sum, Count, Avg, Q
 from django.db.models.functions import TruncWeek, TruncMonth, TruncYear
 from decimal import Decimal
 from collections import defaultdict
+from django.utils import timezone
 from django.utils.timezone import now
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 from calendar import monthrange
 from django.http import JsonResponse
 import json
@@ -577,173 +581,356 @@ def project_drilldown(request, project_id):
     return JsonResponse(data, safe=False)
 
 
-@login_required
-def analytics_employee(request):
-    user = request.user
-    if not (is_admin(user) or is_manager(user)):
-        return HttpResponseForbidden("Access denied")
+def _parse_filter_date(date_text):
+    if not date_text:
+        return None
+    date_text = date_text.strip()
+    formats = [
+        "%Y-%m-%d",
+        "%b. %d, %Y",
+        "%b %d, %Y",
+        "%B %d, %Y",
+        "%d %b %Y",
+        "%d %B %Y",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+        "%d-%m-%Y",
+        "%Y/%m/%d",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_text, fmt).date()
+        except ValueError:
+            continue
+    return None
 
+
+def build_employee_analytics_context(request):
     # ---------- Date Filter ----------
-    date_str = request.GET.get("date")
+    date_str = (request.GET.get("date") or "").strip()
+    start_date, end_date = None, None
     if date_str and " to " in date_str:
-        start, end = date_str.split(" to ")
-        start_date = datetime.strptime(start, "%Y-%m-%d").date()
-        end_date = datetime.strptime(end, "%Y-%m-%d").date()
+        s_part, e_part = date_str.split(" to ", 1)
+        start_date = _parse_filter_date(s_part)
+        end_date = _parse_filter_date(e_part)
     elif date_str:
-        start_date = end_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    else:
+        parsed = _parse_filter_date(date_str)
+        if parsed:
+            start_date = end_date = parsed
+
+    if start_date and not end_date:
+        end_date = start_date
+    elif end_date and not start_date:
+        start_date = end_date
+    elif start_date and end_date and start_date > end_date:
+        start_date, end_date = end_date, start_date
+
+    if not start_date or not end_date:
         today = now().date()
         start_date = today.replace(day=1)
         end_date = today
 
-    logs = EmployeeServiceLog.objects.select_related(
-        "employee", "employee__user", "project"
-    ).filter(date__range=(start_date, end_date))
+    # 1. Source Data
+    register_rows = build_attendance_register(start_date, end_date)
+
+    logs = list(
+        EmployeeServiceLog.objects.select_related(
+            "employee", "employee__user", "project"
+        ).filter(date__range=(start_date, end_date))
+    )
+
+    tz = timezone.get_current_timezone()
+    start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
+    end_dt = timezone.make_aware(datetime.combine(end_date, time.max), tz)
+
+    attendances_with_project = list(
+        Attendance.objects.filter(
+            login_time__gte=start_dt,
+            login_time__lte=end_dt,
+            project__isnull=False
+        ).exclude(status='REJECTED').select_related('project')
+    )
+
+    logs_by_emp = defaultdict(list)
+    for l in logs:
+        logs_by_emp[l.employee_id].append(l)
+
+    atts_by_emp = defaultdict(list)
+    for a in attendances_with_project:
+        atts_by_emp[a.employee_id].append(a)
+
+    all_employees = list(
+        Employee.objects.filter(
+            user__is_active=True
+        ).filter(
+            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True)
+        ).select_related('user').order_by('user__username')
+    )
+
+    rows_by_emp = defaultdict(list)
+    for r in register_rows:
+        rows_by_emp[r['employee'].id].append(r)
 
     # =====================================================
-    # EMPLOYEE ANALYTICS (ALL EMPLOYEES)
+    # 2. PER-EMPLOYEE METRICS
     # =====================================================
     employee_analytics = []
 
-    all_employees = Employee.objects.select_related("user").all()
-
     for emp in all_employees:
-        emp_logs = logs.filter(employee=emp)
+        emp_rows = rows_by_emp.get(emp.id, [])
+        emp_logs = logs_by_emp.get(emp.id, [])
 
-        total_hours = emp_logs.aggregate(h=Sum("total_hours"))["h"] or Decimal(0)
-        ot_hours = emp_logs.aggregate(o=Sum("ot_hours"))["o"] or Decimal(0)
-        normal_cost = emp_logs.aggregate(n=Sum("normal_cost"))["n"] or Decimal(0)
-        ot_cost = emp_logs.aggregate(o=Sum("ot_cost"))["o"] or Decimal(0)
+        vessel_hours = sum((l.total_hours or Decimal(0)) for l in emp_logs)
 
-        utilization = (
-            round((total_hours / Decimal(26 * 8)) * 100, 2)
-            if total_hours else Decimal(0)
+        emp_logs_by_date = defaultdict(list)
+        for l in emp_logs:
+            emp_logs_by_date[l.date].append(l)
+
+        office_hours = Decimal(0)
+        office_normal_cost = Decimal(0)
+        office_ot_cost = Decimal(0)
+
+        rate = (emp.salary / Decimal(26 * 8)) if emp.salary else Decimal(0)
+
+        for r in emp_rows:
+            st = r['status_code']
+            if st == 'OFFICE':
+                day_office = r['total_hours'] or Decimal(0)
+            elif st == 'OFFICE_VESSEL':
+                day_log_hours = sum((l.total_hours or Decimal(0)) for l in emp_logs_by_date.get(r['date'], []))
+                day_office = max((r['total_hours'] or Decimal(0)) - day_log_hours, Decimal(0))
+            else:
+                day_office = Decimal(0)
+
+            office_hours += day_office
+
+            if rate > 0 and day_office > 0:
+                day_normal = min(day_office, Decimal(8))
+                day_ot = max(day_office - Decimal(8), Decimal(0))
+                mult = Decimal('2.0') if r['is_off_day'] else Decimal('1.5')
+                office_normal_cost += day_normal * rate
+                office_ot_cost += day_ot * rate * mult
+
+        total_hours = vessel_hours + office_hours
+
+        ot_hours = sum(
+            (r['ot_hours'] or Decimal(0))
+            for r in emp_rows
+            if r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL')
         )
 
+        vessel_normal_cost = sum((l.normal_cost or Decimal(0)) for l in emp_logs)
+        vessel_ot_cost = sum((l.ot_cost or Decimal(0)) for l in emp_logs)
+
+        normal_cost = vessel_normal_cost + office_normal_cost
+        ot_cost = vessel_ot_cost + office_ot_cost
+        total_cost = normal_cost + ot_cost
+
+        days_worked = sum(1 for r in emp_rows if r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL'))
+        days_absent = sum(1 for r in emp_rows if r['status_code'] == 'ABSENT')
+        days_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE'))
+        days_training = sum(1 for r in emp_rows if r['status_code'] == 'TRAINING')
+        days_rest = sum(1 for r in emp_rows if r['status_code'] == 'REST')
+
+        working_days = sum(
+            1 for r in emp_rows
+            if (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+        )
+
+        capacity_hours = working_days * 8
+        utilization = (
+            round((total_hours / Decimal(capacity_hours)) * 100, 2)
+            if capacity_hours > 0 else Decimal('0.00')
+        )
+
+        att_denom = working_days - days_leave - days_training
+        attendance_rate = (
+            round((Decimal(days_worked) / Decimal(att_denom)) * 100, 2)
+            if att_denom > 0 else Decimal('0.00')
+        )
+
+        if vessel_hours > 0 and office_hours == 0:
+            work_type = "Vessel"
+        elif office_hours > 0 and vessel_hours == 0:
+            work_type = "Office"
+        elif vessel_hours > 0 and office_hours > 0:
+            work_type = "Mixed"
+        else:
+            work_type = "—"
+
+        p_logs_by_id = defaultdict(list)
+        for l in emp_logs:
+            if l.project_id:
+                p_logs_by_id[l.project_id].append(l)
+
+        p_atts_by_id = defaultdict(list)
+        for a in atts_by_emp.get(emp.id, []):
+            if a.project_id:
+                p_atts_by_id[a.project_id].append(a)
+
+        all_pids = set(p_logs_by_id.keys()) | set(p_atts_by_id.keys())
         project_data = []
-        for pid in emp_logs.filter(project__isnull=False).order_by().values_list("project_id", flat=True).distinct():
-            p_logs = emp_logs.filter(project_id=pid)
-            project = p_logs.first().project if p_logs.exists() else None
+        for pid in all_pids:
+            p_logs = p_logs_by_id.get(pid, [])
+            p_atts = p_atts_by_id.get(pid, [])
+
+            proj_obj = p_logs[0].project if p_logs else (p_atts[0].project if p_atts else None)
+            proj_name = proj_obj.name if proj_obj else "-"
+
+            p_l_hours = sum((l.total_hours or Decimal(0)) for l in p_logs)
+            p_l_ot = sum((l.ot_hours or Decimal(0)) for l in p_logs)
+            p_l_cost = sum(((l.normal_cost or Decimal(0)) + (l.ot_cost or Decimal(0))) for l in p_logs)
+
+            p_a_hours = sum((a.total_hours_of_work or Decimal(0)) for a in p_atts)
+            p_a_cost = (p_a_hours * rate) if rate > 0 else Decimal(0)
 
             project_data.append({
-                "name": project.name if project else "-",
-                "hours": p_logs.aggregate(h=Sum("total_hours"))["h"] or Decimal(0),
-                "ot_hours": p_logs.aggregate(o=Sum("ot_hours"))["o"] or Decimal(0),
-                "cost": (
-                    (p_logs.aggregate(n=Sum("normal_cost"))["n"] or Decimal(0)) +
-                    (p_logs.aggregate(o=Sum("ot_cost"))["o"] or Decimal(0))
-                ),
+                "name": proj_name,
+                "hours": p_l_hours + p_a_hours,
+                "ot_hours": p_l_ot,
+                "cost": p_l_cost + p_a_cost,
             })
 
         employee_analytics.append({
             "employee": emp,
+            "work_type": work_type,
+            "office_hours": office_hours,
+            "vessel_hours": vessel_hours,
             "total_hours": total_hours,
             "ot_hours": ot_hours,
+            "days_worked": days_worked,
+            "days_absent": days_absent,
+            "days_leave": days_leave,
+            "days_training": days_training,
+            "days_rest": days_rest,
+            "working_days": working_days,
+            "capacity_hours": capacity_hours,
+            "attendance_rate": attendance_rate,
             "utilization": utilization,
             "normal_cost": normal_cost,
             "ot_cost": ot_cost,
-            "total_cost": normal_cost + ot_cost,
+            "total_cost": total_cost,
             "projects": project_data,
         })
 
     # =====================================================
-    # KPI CALCULATIONS (CORRECT)
+    # 3. WORK TYPE FILTER & KPIS
     # =====================================================
-    kpi_total_employees = all_employees.count()
+    work_type_filter = (request.GET.get("work_type") or "").strip()
+    if work_type_filter and work_type_filter.lower() != "all":
+        filtered_analytics = [e for e in employee_analytics if e["work_type"].lower() == work_type_filter.lower()]
+    else:
+        filtered_analytics = employee_analytics
 
-    kpi_total_hours = sum(e["total_hours"] for e in employee_analytics)
-    kpi_total_cost = sum(e["total_cost"] for e in employee_analytics)
-    kpi_total_ot = sum(e["ot_hours"] for e in employee_analytics)
+    kpi_total_employees = len(filtered_analytics)
+    kpi_total_hours = sum(e["total_hours"] for e in filtered_analytics)
+    kpi_office_hours = sum(e["office_hours"] for e in filtered_analytics)
+    kpi_vessel_hours = sum(e["vessel_hours"] for e in filtered_analytics)
+    kpi_total_cost = sum(e["total_cost"] for e in filtered_analytics)
+    kpi_total_ot = sum(e["ot_hours"] for e in filtered_analytics)
 
     kpi_total_projects = len(set(
         p["name"]
-        for e in employee_analytics
+        for e in filtered_analytics
         for p in e["projects"]
         if p["name"] and p["name"] != "-"
     ))
 
+    total_capacity = sum(e["capacity_hours"] for e in filtered_analytics)
     kpi_avg_utilization = (
-        sum(e["utilization"] for e in employee_analytics) / kpi_total_employees
-        if kpi_total_employees else Decimal(0)
+        (kpi_total_hours / Decimal(total_capacity)) * 100
+        if total_capacity else Decimal(0)
     )
 
-    # ---------- UTILIZATION TREND (MONTHLY) ----------
+    total_worked_days = sum(e["days_worked"] for e in filtered_analytics)
+    total_expected_days = sum(max(e["working_days"] - e["days_leave"] - e["days_training"], 0) for e in filtered_analytics)
+    kpi_avg_attendance_rate = (
+        (Decimal(total_worked_days) / Decimal(total_expected_days)) * 100
+        if total_expected_days else Decimal(0)
+    )
 
+    # ---------- UTILIZATION TREND ----------
     trend = request.GET.get("trend", "month")
+    filtered_emp_ids = {e["employee"].id for e in filtered_analytics}
+    trend_rows = [r for r in register_rows if r["employee"].id in filtered_emp_ids]
 
-    if trend == "week":
-        trunc_func = TruncWeek
-        label_fmt = "%d %b"
-        capacity = Decimal(5 * 8 * kpi_total_employees)   # 5 working days
-    elif trend == "year":
-        trunc_func = TruncYear
-        label_fmt = "%Y"
-        capacity = Decimal(12 * 26 * 8 * kpi_total_employees)
-    else:  # month (default)
-        trunc_func = TruncMonth
-        label_fmt = "%b %Y"
-        capacity = Decimal(26 * 8 * kpi_total_employees)
+    period_data = defaultdict(lambda: {'hours': Decimal(0), 'working_days': 0})
 
-    trend_qs = (
-        logs
-        .annotate(period=trunc_func("date"))
-        .values("period")
-        .annotate(total_hours=Sum("total_hours"))
-        .order_by("period")
-    )
+    for r in trend_rows:
+        d = r['date']
+        if trend == "week":
+            period_key = d - timedelta(days=d.weekday())
+        elif trend == "year":
+            period_key = date(d.year, 1, 1)
+        else:  # month (default)
+            period_key = date(d.year, d.month, 1)
+
+        period_data[period_key]['hours'] += (r['total_hours'] or Decimal(0))
+        is_working = (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+        if is_working:
+            period_data[period_key]['working_days'] += 1
 
     trend_labels = []
     trend_utilization = []
 
-    MONTHLY_CAPACITY = Decimal(26 * 8 * kpi_total_employees) if kpi_total_employees else 0
+    if trend == "week":
+        label_fmt = "%d %b"
+    elif trend == "year":
+        label_fmt = "%Y"
+    else:
+        label_fmt = "%b %Y"
 
-    for row in trend_qs:
-        trend_labels.append(row["period"].strftime(label_fmt))
-
-        util = (
-            (row["total_hours"] / capacity) * 100
-            if capacity else 0
+    for p_key in sorted(period_data.keys()):
+        trend_labels.append(p_key.strftime(label_fmt))
+        p_cap = period_data[p_key]['working_days'] * 8
+        u = (
+            (period_data[p_key]['hours'] / Decimal(p_cap)) * 100
+            if p_cap > 0 else Decimal(0)
         )
+        trend_utilization.append(float(round(u, 2)))
 
-        trend_utilization.append(float(round(util, 2)))
-    
+    # ---------- COST EFFICIENCY (skip 0 hours) ----------
     employee_labels = []
     employee_cost_efficiency = []
 
-    for e in employee_analytics:
-        employee_labels.append(e["employee"].user.username)
-        efficiency = (
-            (e["total_cost"] / e["total_hours"])
-            if e["total_hours"] else 0
-        )
-        employee_cost_efficiency.append(float(round(efficiency, 2)))
+    for e in filtered_analytics:
+        if e["total_hours"] > 0:
+            employee_labels.append(e["employee"].user.username)
+            efficiency = (
+                (e["total_cost"] / e["total_hours"])
+                if e["total_hours"] else 0
+            )
+            employee_cost_efficiency.append(float(round(efficiency, 2)))
 
     # =====================================================
     # PAGINATION (10 employees per page)
     # =====================================================
     page_number = request.GET.get("page", 1)
-    paginator = Paginator(employee_analytics, 10)
+    paginator = Paginator(filtered_analytics, 10)
     page_obj = paginator.get_page(page_number)
 
     # =====================================================
     # 🔹 VESSEL VISITS TABLE DATA (with Custom Date Picker & Pagination)
     # =====================================================
-    vv_date_str = request.GET.get("vv_date", "").strip()
+    vv_date_str = (request.GET.get("vv_date") or "").strip()
     vv_start_date = None
     vv_end_date = None
 
     if vv_date_str and " to " in vv_date_str:
-        try:
-            s_part, e_part = vv_date_str.split(" to ")
-            vv_start_date = datetime.strptime(s_part.strip(), "%Y-%m-%d").date()
-            vv_end_date = datetime.strptime(e_part.strip(), "%Y-%m-%d").date()
-        except ValueError:
-            pass
+        s_part, e_part = vv_date_str.split(" to ", 1)
+        vv_start_date = _parse_filter_date(s_part)
+        vv_end_date = _parse_filter_date(e_part)
     elif vv_date_str:
-        try:
-            vv_start_date = vv_end_date = datetime.strptime(vv_date_str.strip(), "%Y-%m-%d").date()
-        except ValueError:
-            pass
+        vv_parsed = _parse_filter_date(vv_date_str)
+        if vv_parsed:
+            vv_start_date = vv_end_date = vv_parsed
+
+    if vv_start_date and not vv_end_date:
+        vv_end_date = vv_start_date
+    elif vv_end_date and not vv_start_date:
+        vv_start_date = vv_end_date
+    elif vv_start_date and vv_end_date and vv_start_date > vv_end_date:
+        vv_start_date, vv_end_date = vv_end_date, vv_start_date
 
     vv_logs = EmployeeServiceLog.objects.select_related("employee", "employee__user", "project").all()
     if vv_start_date and vv_end_date:
@@ -796,32 +983,76 @@ def analytics_employee(request):
     vv_page = request.GET.get("vv_page", 1)
     vessel_visits_page = vv_paginator.get_page(vv_page)
 
-    return render(
-        request,
-        "analytics/employee_based.html",
-        {
-            "employee_analytics": page_obj,
-            "page_obj": page_obj,
-            "vessel_visits_page": vessel_visits_page,
-            "vv_date": vv_date_str,
+    tab = (request.GET.get("tab") or "performance").strip().lower()
+    if tab != "attendance":
+        tab = "performance"
 
-            # KPI values
-            "kpi_total_employees": kpi_total_employees,
-            "kpi_total_hours": kpi_total_hours,
-            "kpi_total_cost": kpi_total_cost,
-            "kpi_total_ot": kpi_total_ot,
-            "kpi_total_projects": kpi_total_projects,
-            "kpi_avg_utilization": round(kpi_avg_utilization, 2),
+    att = None
+    if tab == "attendance":
+        days_in_range = end_date - start_date
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - days_in_range
+        prev_rows = build_attendance_register(prev_start, prev_end)
+        employees_filter_ids = {e["employee"].id for e in filtered_analytics}
+        att = build_attendance_analytics(
+            register_rows,
+            prev_rows,
+            employees_filter_ids,
+            start_date,
+            end_date
+        )
 
-            "trend": trend,
-            "trend_labels": json.dumps(trend_labels),
-            "trend_utilization": json.dumps(trend_utilization),
-            "employee_labels": json.dumps(employee_labels),
-            "employee_cost_efficiency": json.dumps(employee_cost_efficiency),
+    q_perf = request.GET.copy()
+    q_perf["tab"] = "performance"
+    q_att = request.GET.copy()
+    q_att["tab"] = "attendance"
 
-            "start_date": start_date,
-            "end_date": end_date,
-        }
-    )
+    try:
+        register_url = reverse('attendance_list_adminview') if request.user.is_superuser else None
+    except Exception:
+        register_url = None
+
+    return {
+        "tab": tab,
+        "att": att,
+        "querystring_perf": q_perf.urlencode(),
+        "querystring_att": q_att.urlencode(),
+        "register_url": register_url,
+        "employee_analytics": page_obj,
+        "page_obj": page_obj,
+        "vessel_visits_page": vessel_visits_page,
+        "vv_date": vv_date_str,
+
+        # KPI values
+        "kpi_total_employees": kpi_total_employees,
+        "kpi_total_hours": kpi_total_hours,
+        "kpi_office_hours": kpi_office_hours,
+        "kpi_vessel_hours": kpi_vessel_hours,
+        "kpi_total_cost": kpi_total_cost,
+        "kpi_total_ot": kpi_total_ot,
+        "kpi_total_projects": kpi_total_projects,
+        "kpi_avg_utilization": round(kpi_avg_utilization, 2),
+        "kpi_avg_attendance_rate": round(kpi_avg_attendance_rate, 2),
+
+        "trend": trend,
+        "trend_labels": json.dumps(trend_labels),
+        "trend_utilization": json.dumps(trend_utilization),
+        "employee_labels": json.dumps(employee_labels),
+        "employee_cost_efficiency": json.dumps(employee_cost_efficiency),
+
+        "work_type": work_type_filter,
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+
+
+@login_required
+def analytics_employee(request):
+    user = request.user
+    if not (is_admin(user) or is_manager(user)):
+        return HttpResponseForbidden("Access denied")
+
+    context = build_employee_analytics_context(request)
+    return render(request, "analytics/employee_based.html", context)
 
 

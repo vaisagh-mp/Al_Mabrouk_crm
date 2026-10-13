@@ -5,8 +5,8 @@ from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamM
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'manager', 'purchase_and_expenses', 'invoice_amount', 'status', 'created_at')
-    search_fields = ('name', 'code', 'status')
+    list_display = ('name', 'code', 'service_reference', 'manager', 'purchase_and_expenses', 'invoice_amount', 'status', 'created_at')
+    search_fields = ('name', 'code', 'service_reference', 'status')
     list_filter = ('status',)
     readonly_fields = ('calculate_expenses', 'calculate_profit')
 
@@ -186,8 +186,9 @@ class ToolAdmin(admin.ModelAdmin):
 
 @admin.register(WorkOrderTime)
 class WorkOrderTimeAdmin(admin.ModelAdmin):
-    list_display = ("work_order", "date", "start_time", "finish_time", "estimated_hours")
+    list_display = ("work_order", "date", "start_time", "finish_time", "estimated_hours", "employee")
     readonly_fields = ("estimated_hours",)
+    search_fields = ("work_order__work_order_number", "employee__user__username")
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):

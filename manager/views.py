@@ -270,6 +270,84 @@ def dashboard(request):
 
     return render(request, 'employee/employee_dashboard.html')  
 
+def compute_presence_data(employee, year, month):
+    user = employee.user
+    today = timezone.now().date()
+
+    # Date range for selected month
+    first_day = date(year, month, 1)
+    last_day = date(year, month, monthrange(year, month)[1])
+
+    # If current month is selected, count only until today
+    if year == today.year and month == today.month:
+        last_day = today
+
+    # Helper: Working days logic (Mon–Sat except holidays)
+    def get_working_days(start, end):
+        all_days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+        weekdays = [d for d in all_days if d.weekday() < 6]
+        holidays = set(Holiday.objects.filter(date__range=(start, end)).values_list('date', flat=True))
+        return len([d for d in weekdays if d not in holidays])
+
+    working_days_this_month = get_working_days(first_day, last_day)
+
+    # Approved attendance for this month
+    approved_attendance = Attendance.objects.filter(
+        employee=employee,
+        status="APPROVED",
+        login_time__date__gte=first_day,
+        login_time__date__lte=last_day
+    ).order_by('login_time')
+
+    # First login per day logic
+    first_login_per_day = {}
+    for att in approved_attendance:
+        day = att.login_time.date()
+        if day not in first_login_per_day:
+            first_login_per_day[day] = att
+
+    on_time_days = set()
+    late_days = set()
+    wfh_days = set()
+
+    for att in first_login_per_day.values():
+        if att.login_time:
+            login_t = localtime(att.login_time).time()
+            if login_t <= time(9, 15):
+                on_time_days.add(att.login_time.date())
+            else:
+                late_days.add(att.login_time.date())
+        if att.attendance_status == 'WORK FROM HOME':
+            wfh_days.add(att.login_time.date())
+
+    on_time_count = len(on_time_days)
+    late_count = len(late_days)
+    wfh_count = len(wfh_days)
+
+    # Sick leave for that month
+    sick_leave_taken = Leave.objects.filter(
+        user=user,
+        approval_status="APPROVED",
+        leave_type="SICK LEAVE",
+        from_date__gte=first_day,
+        from_date__lte=last_day
+    ).aggregate(total=Sum('no_of_days'))['total'] or 0
+
+    # Absent days formula
+    absent_days_count = working_days_this_month - (
+        on_time_count + late_count + wfh_count + sick_leave_taken
+    )
+    absent_days_count = max(absent_days_count, 0)
+
+    return {
+        "on_time": on_time_count,
+        "late": late_count,
+        "wfh": wfh_count,
+        "absent": absent_days_count,
+        "sick": sick_leave_taken
+    }
+
+
 @login_required
 def get_presence_data(request):
     try:
@@ -281,82 +359,8 @@ def get_presence_data(request):
         if month < 1 or month > 12:
             return JsonResponse({"error": "Invalid month"}, status=400)
 
-        user = request.user
-        employee = get_object_or_404(Employee, user=user)
-        today = timezone.now().date()
-
-        # Date range for selected month
-        first_day = date(year, month, 1)
-        last_day = date(year, month, monthrange(year, month)[1])
-
-        # If current month is selected, count only until today
-        if year == today.year and month == today.month:
-            last_day = today
-
-        # Helper: Working days logic (Mon–Sat except holidays)
-        def get_working_days(start, end):
-            all_days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
-            weekdays = [d for d in all_days if d.weekday() < 6]
-            holidays = set(Holiday.objects.filter(date__range=(start, end)).values_list('date', flat=True))
-            return len([d for d in weekdays if d not in holidays])
-
-        working_days_this_month = get_working_days(first_day, last_day)
-
-        # Approved attendance for this month
-        approved_attendance = Attendance.objects.filter(
-            employee=employee,
-            status="APPROVED",
-            login_time__date__gte=first_day,
-            login_time__date__lte=last_day
-        ).order_by('login_time')
-
-        # First login per day logic
-        first_login_per_day = {}
-        for att in approved_attendance:
-            day = att.login_time.date()
-            if day not in first_login_per_day:
-                first_login_per_day[day] = att
-
-        on_time_days = set()
-        late_days = set()
-        wfh_days = set()
-
-        for att in first_login_per_day.values():
-            if att.login_time:
-                login_t = localtime(att.login_time).time()
-                if login_t <= time(9, 15):
-                    on_time_days.add(att.login_time.date())
-                else:
-                    late_days.add(att.login_time.date())
-            if att.attendance_status == 'WORK FROM HOME':
-                wfh_days.add(att.login_time.date())
-
-        on_time_count = len(on_time_days)
-        late_count = len(late_days)
-        wfh_count = len(wfh_days)
-
-        # Sick leave for that month
-        sick_leave_taken = Leave.objects.filter(
-            user=user,
-            approval_status="APPROVED",
-            leave_type="SICK LEAVE",
-            from_date__gte=first_day,
-            from_date__lte=last_day
-        ).aggregate(total=Sum('no_of_days'))['total'] or 0
-
-        # Absent days formula
-        absent_days_count = working_days_this_month - (
-            on_time_count + late_count + wfh_count + sick_leave_taken
-        )
-        absent_days_count = max(absent_days_count, 0)
-
-        return JsonResponse({
-            "on_time": on_time_count,
-            "late": late_count,
-            "wfh": wfh_count,
-            "absent": absent_days_count,
-            "sick": sick_leave_taken
-        })
+        employee = get_object_or_404(Employee, user=request.user)
+        return JsonResponse(compute_presence_data(employee, year, month))
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
@@ -1499,11 +1503,11 @@ def manager_edit_attendance(request, attendance_id):
             return redirect('manager_edit_attendance', attendance_id=attendance.id)
 
         attendance.employee_id = employee_id  # Ensure employee_id is provided
-        attendance.project_id = request.POST.get('project')
-        attendance.location = request.POST.get('location')
-        attendance.attendance_status = request.POST.get('attendance_status')
+        attendance.project_id = request.POST.get('project') or None
+        attendance.location = request.POST.get('location') or None
+        attendance.attendance_status = request.POST.get('attendance_status') or None
         attendance.status = request.POST.get('status', 'default_status')  # Default value for status if not provided
-        attendance.rejection_reason = request.POST.get('rejection_reason')
+        attendance.rejection_reason = request.POST.get('rejection_reason') or ''
 
         attendance.save()
 
@@ -1863,12 +1867,26 @@ def view_work_order(request, pk):
     # Convert Decimal to float for template rendering
     total_hours = float(total_hours)
 
+    from service_logs.models import EmployeeServiceLog
+    try:
+        _viewer_emp = request.user.employee_profile
+    except Exception:
+        _viewer_emp = None
+
+    # Manager sees all logs; others see only their own
+    _sl_qs = EmployeeServiceLog.objects.filter(
+        time_log__work_order=work_order
+    ).select_related('employee', 'employee__user').order_by('date', 'start_time')
+    if not (_viewer_emp and _viewer_emp.is_manager):
+        _sl_qs = _sl_qs.filter(employee=_viewer_emp) if _viewer_emp else _sl_qs.none()
+
     return render(request, 'Manager/view_work_order.html', {
         'work_order': work_order,
         'work_order_detail': work_order_detail,
         'live_members': live_members,
         'all_members': all_members,
         'calculated_hours': total_hours,
+        'service_logs': _sl_qs,
     })
 
 
@@ -1900,9 +1918,29 @@ def manager_update_work_order_view(request, pk):
                     work_order_detail.save()
 
                     # ---------------------------
-                    # Clear old WorkOrderTime entries
+                    # Clear old auto-created service logs and WorkOrderTime entries
                     # ---------------------------
+                    EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
                     WorkOrderTime.objects.filter(work_order=work_order).delete()
+
+                    # Resolve employee from request user with fallback
+                    _employee = None
+                    try:
+                        _employee = request.user.employee_profile
+                    except Exception:
+                        pass
+
+                    if not _employee:
+                        if work_order.project and work_order.project.manager:
+                            _employee = work_order.project.manager
+                        elif work_order.job_assigned_to.exists():
+                            first_user = work_order.job_assigned_to.first()
+                            _employee = getattr(first_user, 'employee_profile', None)
+                        elif work_order.all_members.exists():
+                            first_user = work_order.all_members.first()
+                            _employee = getattr(first_user, 'employee_profile', None)
+                        else:
+                            _employee = Employee.objects.first()
 
                     # Save multiple WorkOrderTime rows
                     for date, start, finish in zip(
@@ -1916,6 +1954,7 @@ def manager_update_work_order_view(request, pk):
                                 date=parse_date(date) if date else None,
                                 start_time=parse_time(start) if start else None,
                                 finish_time=parse_time(finish) if finish else None,
+                                employee=_employee,
                             )
 
                     # ---------------------------
@@ -2025,6 +2064,9 @@ def manager_update_work_order_view(request, pk):
                         WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
 
                     messages.success(request, "Work order updated successfully.")
+                    # Service Log feedback
+                    if _new_time_logs and _employee:
+                        messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
                     return redirect('view_work_order', pk=pk)
 
                 else:

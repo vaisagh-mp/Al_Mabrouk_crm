@@ -32,6 +32,9 @@ from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 from service_logs.models import EmployeeServiceLog
+from django.views.decorators.http import require_POST
+from django.core.exceptions import PermissionDenied
+from .attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
 
 
 # Home
@@ -253,19 +256,27 @@ def dashboard(request):
         completion_percentage = (completed_projects / total_projects * 100) if total_projects > 0 else 0
         
         # Fetching project details with manager name
-        projects = Project.objects.prefetch_related('teams__employees__user').order_by('-created_at')[:5]
+        projects = Project.objects.select_related('manager__user').prefetch_related('teams__employees__user').order_by('-created_at')[:5]
 
         project_details = []
         for p in projects:
             members = [
-                f"{e.user.first_name} {e.user.last_name}"
+                (f"{e.user.first_name} {e.user.last_name}".strip() or e.user.username)
                 for t in p.teams.all()
                 for e in t.employees.all()
+                if e.user
             ]
+            leader_name = "N/A"
+            if p.manager and p.manager.user:
+                full_name = p.manager.user.get_full_name()
+                leader_name = full_name if full_name else p.manager.user.username
+            elif p.manager:
+                leader_name = getattr(p.manager, 'name', 'N/A')
+
             project_details.append({
                 "id": p.id,
                 "name": p.name,
-                "leader_name": p.manager.user.get_full_name(),
+                "leader_name": leader_name,
                 "priority": p.priority,
                 "status": p.status,
                 "teams_members": members,
@@ -494,24 +505,27 @@ def manager_attendance_list_view(request):
 # attendance list
 @login_required
 def attendance_list_view(request):
-    search_query = request.GET.get('search', '')
-    attendance_records = Attendance.objects.select_related('employee').order_by('-login_time')
-
-    if search_query:
-        attendance_records = attendance_records.filter(
-            employee__user__username__icontains=search_query
-        ).order_by('-login_time')
-
-    paginator = Paginator(attendance_records, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'role': 'Admin',
-        'attendance_records': page_obj,
-        'search_query': search_query,
-    }
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    export_format = request.GET.get('export')
+    if export_format in ('summary_excel', 'summary_csv', 'excel'):
+        context = _register_context(request)
+        return summary_excel_response(
+            context['summary_rows_all'],
+            context['summary_totals'],
+            context['start'],
+            context['end']
+        )
+    context = _register_context(request)
+    context['role'] = 'Admin'
     return render(request, 'Admin/attendance_list.html', context)
+
+
+@login_required
+def admin_set_day_status(request, employee_id, date):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    return handle_set_day_status(request, employee_id, date, role='admin')
 
 def attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
@@ -682,14 +696,17 @@ def edit_attendance(request, attendance_id):
             # Handle DateTime fields safely
             def parse_datetime_field(field_name):
                 value = request.POST.get(field_name)
-                if value:
-                    try:
-                        return datetime.strptime(value, '%Y-%m-%d %H:%M')
-                    except ValueError:
+                if value and value.strip():
+                    value = value.strip()
+                    dt = parse_datetime(value)
+                    if dt:
+                        return timezone.make_aware(dt, timezone.get_current_timezone()) if timezone.is_naive(dt) else dt
+                    for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'):
                         try:
-                            return datetime.strptime(value, '%Y-%m-%dT%H:%M')
+                            parsed = datetime.strptime(value, fmt)
+                            return timezone.make_aware(parsed, timezone.get_current_timezone())
                         except ValueError:
-                            return None
+                            pass
                 return None
 
             attendance.login_time = parse_datetime_field('login_time')
@@ -721,7 +738,10 @@ def edit_attendance(request, attendance_id):
 
 # Delete attendance
 @login_required
+@require_POST
 def delete_attendance(request, attendance_id):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     attendance = get_object_or_404(Attendance, id=attendance_id)
     attendance.delete()
     # Add a success message
@@ -926,7 +946,7 @@ def admin_project_summary_view(request, project_id):
         "project_name": project.name,
         "client_name": project.client_name,
         "vessel_name": project.vessel_name,
-        "project_manager": project.manager.user.username,
+        "project_manager": project.manager.user.username if (project.manager and project.manager.user) else "N/A",
         "code": project.code,
         "category": project.category,
         "purchase_and_expenses": project.purchase_and_expenses,
@@ -956,6 +976,8 @@ def admin_project_summary_view(request, project_id):
         "total_employee_cost": round(total_employee_cost, 2),
         "avg_hourly_cost": round(avg_hourly_cost, 2),
         "total_expenses": round(total_expenses, 2),
+        "service_reference": project.service_reference,
+        "project": project,
     }
 
     context = {"project_data": project_data,  "team": team, 'role': 'Admin'}
@@ -1928,12 +1950,18 @@ def admin_view_work_order(request, pk):
         .aggregate(total=Sum('estimated_hours'))['total'] or 0
     )
 
+    from service_logs.models import EmployeeServiceLog
+    service_logs = EmployeeServiceLog.objects.filter(
+        time_log__work_order=work_order
+    ).select_related('employee', 'employee__user').order_by('date', 'start_time')
+
     return render(request, 'Admin/view_work_order.html', {
         'work_order': work_order,
         'work_order_detail': work_order_detail,
         'live_members': live_members,
         'all_members': all_members,
         'calculated_hours': total_hours,
+        'service_logs': service_logs,
     })
 
 
@@ -1969,23 +1997,46 @@ def admin_update_work_order_view(request, pk):
                     work_order_detail.save()
 
                     # ---------------------------
-                    # Clear old WorkOrderTime entries
+                    # Clear old auto-created service logs and WorkOrderTime entries
                     # ---------------------------
+                    EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
                     WorkOrderTime.objects.filter(work_order=work_order).delete()
 
+                    # Resolve employee from request user with fallback
+                    _employee = None
+                    try:
+                        _employee = request.user.employee_profile
+                    except Exception:
+                        pass
+
+                    if not _employee:
+                        if work_order.project and work_order.project.manager:
+                            _employee = work_order.project.manager
+                        elif work_order.job_assigned_to.exists():
+                            first_user = work_order.job_assigned_to.first()
+                            _employee = getattr(first_user, 'employee_profile', None)
+                        elif work_order.all_members.exists():
+                            first_user = work_order.all_members.first()
+                            _employee = getattr(first_user, 'employee_profile', None)
+                        else:
+                            _employee = Employee.objects.first()
+
                     # Save multiple WorkOrderTime rows
+                    _new_time_logs = []
                     for date, start, finish in zip(
                         request.POST.getlist('time_date[]'),
                         request.POST.getlist('start_time[]'),
                         request.POST.getlist('finish_time[]')
                     ):
                         if start or finish:
-                            WorkOrderTime.objects.create(
+                            _tl = WorkOrderTime.objects.create(
                                 work_order=work_order,
                                 date=parse_date(date) if date else None,
                                 start_time=parse_time(start) if start else None,
                                 finish_time=parse_time(finish) if finish else None,
+                                employee=_employee,
                             )
+                            _new_time_logs.append(_tl)
 
                     # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
@@ -2091,6 +2142,9 @@ def admin_update_work_order_view(request, pk):
                         WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
 
                     messages.success(request, "Work order updated successfully.")
+                    # Service Log feedback
+                    if _new_time_logs and _employee:
+                        messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
                     return redirect('admin_view_work_order', pk=pk)
 
                 else:

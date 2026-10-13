@@ -3,6 +3,19 @@
 {% load static %}
 {% block content %}
 
+<style>
+.att-reg-icon-btn {
+    background: none;
+    border: none;
+    padding: 7px 9px;
+    cursor: pointer;
+}
+.att-reg-icon-btn:hover {
+    border-radius: 50%;
+    background-color: rgb(212, 222, 241);
+}
+</style>
+
 <div class="emply-list-wraper">
     <div class="pg-title">
         <h1>Attendance</h1>
@@ -74,10 +87,10 @@
                     <td>{{ record.total_hours_of_work|format_work_duration }}</td>
                     <td class="list-action-col">
                         <a href="{% url 'edit_attendance' record.id %}"><i class="far fa-edit"></i></a>
-                        <a href="{% url 'delete_attendance' record.id %}"
-                            onclick="return confirm('Are you sure you want to delete this attendance?');">
-                            <i class="far fa-trash-alt"></i>
-                        </a>
+                        <form method="post" action="{% url 'delete_attendance' record.id %}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this attendance?');">
+                          {% csrf_token %}
+                          <button type="submit" class="att-reg-icon-btn"><i class="far fa-trash-alt"></i></button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}

@@ -2,6 +2,24 @@
 {% load static %}
 {% block content %}
 
+<style>
+.hr-leave-card {
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px !important;
+}
+.hr-leave-card .widget-title { margin-bottom: 12px; }
+.hr-leave-card .leave-details {
+  row-gap: 12px;
+  margin: 4px 0 0;
+}
+.hr-leave-card .aply-lv-btn {
+  margin-top: auto;   /* pins the button to the bottom inside the border */
+  padding-top: 12px;
+}
+.hr-leave-card .apply-btn { margin-top: 0; }
+</style>
+
 <div class="dashbrd-wraper">
   <div class="pg-title">
       <h1>HR Dashboard</h1>
@@ -105,31 +123,23 @@
       <!-- Leave Details Card -->
       <div class="col-lg-4 col-md-6">
           <div class="widget-box leave-card-widget">
-              <div class="leave-card">
+              <div class="leave-card hr-leave-card">
                   <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
                   <div class="widget-title">
                       <h4>Leave Details</h4>
                   </div>
                   <div class="leave-details">
-                      <!-- <div>
-                          <span class="label">Total Leaves</span>
-                          <span class="value">{{ total_leaves }}</span>
-                      </div> -->
-                      <!-- <div>
-                          <span class="label">Taken</span>
-                          <span class="value">{{ leaves_taken }}</span>
-                      </div> -->
                       <div>
                           <span class="label">Annual Leave</span>
-                          <span class="value">{{ annual_leave_taken }}</span>
+                          <span class="value">{{ balance_annual_leave }}</span>
                       </div>
-                      <!-- <div>
-                          <span class="label">Casual Leave</span>
-                          <span class="value">{{ casual_leave_taken }}</span>
-                      </div> -->
                       <div>
                           <span class="label">Sick Leave</span>
-                          <span class="value">{{ sick_leave_taken }}</span>
+                          <span class="value">{{ balance_sick_leave }}</span>
+                      </div>
+                      <div>
+                          <span class="label">Taken</span>
+                          <span class="value">{{ leaves_taken }}</span>
                       </div>
                       <div>
                           <span class="label">Request</span>
@@ -139,10 +149,6 @@
                           <span class="label">Worked Days</span>
                           <span class="value">{{ worked_days }}</span>
                       </div>
-                      <!-- <div>
-                          <span class="label">Loss of Pay</span>
-                          <span class="value">{{ loss_of_pay_days }}</span>
-                      </div> -->
                   </div>
                   <div class="aply-lv-btn">
                       <a href="{% url 'hr_apply_leave' %}" class="apply-btn">Apply New Leave</a>
@@ -151,13 +157,24 @@
           </div>
       </div>
 
-      <!-- Leave Details Chart Card -->
+      <!-- Presence Overview Chart Card -->
       <div class="col-lg-4 col-md-6 lv-chrt-col">
           <div class="widget-box leave-card-widget">
-              <div class="widget-title">
-                  <h4>Leave Details</h4>
+              <div class="leave-card">
+                  <div class="widget-title">
+                      <h4>Monthly Presence</h4>
+                      <div class="month-selector">
+                          <select id="presence-month" class="year-btn">
+                              {% for m in months %}
+                                  <option value="{{ m.value }}" {% if m.value == current_month %}selected{% endif %}>
+                                      {{ m.name }}
+                                  </option>
+                              {% endfor %}
+                          </select>
+                      </div>
+                  </div>
+                  <div id="leaveChart" style="width:90%;margin: auto;"></div>
               </div>
-              <div id="leaveChart"></div>
           </div>
       </div>
 

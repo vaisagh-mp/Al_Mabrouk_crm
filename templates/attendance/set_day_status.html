@@ -1,0 +1,150 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="apply-leave-wraper">
+    <div class="pg-title">
+        <h1>Set Day Status</h1>
+        <p class="att-reg-subtitle">
+            {{ employee.user.get_full_name|default:employee.user.username }} &bull; {{ status_date|date:"d/M/Y, D" }}
+        </p>
+    </div>
+
+    {% if messages %}
+        <div class="container mb-3" style="padding: 0;">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="apply-leave-frm">
+        {% if override %}
+            <div class="att-reg-override-info">
+                Manual status set by <strong>{{ override.updated_by.get_full_name|default:override.updated_by.username|default:"Admin" }}</strong> on {{ override.updated_at|date:"d/M/Y g:i A" }}
+            </div>
+        {% endif %}
+
+        <form method="post" action="">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next_url }}" />
+
+            <div class="form-group">
+                <label for="id_status">Status <span style="color: var(--bs-red);">*</span></label>
+                <select name="status" id="id_status" required>
+                    <option value="" disabled {% if not override %}selected{% endif %}>Select Status</option>
+                    {% for code, label in status_choices %}
+                        <option value="{{ code }}" {% if override and override.status == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_location">Location</label>
+                <select name="location" id="id_location">
+                    <option value="">Default / None</option>
+                    {% for code, label in location_choices %}
+                        <option value="{{ code }}" {% if override and override.location == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="id_note">Note / Reason</label>
+                <input type="text" name="note" id="id_note" value="{{ override.note|default:'' }}" placeholder="Optional note or explanation" maxlength="255" />
+            </div>
+
+            <div class="form-actions att-reg-form-actions">
+                {% if override %}
+                    <button type="submit" name="action" value="clear" class="att-reg-btn-clear" onclick="return confirm('Are you sure you want to clear this manual status override?');">
+                        Clear manual status
+                    </button>
+                {% endif %}
+                <a href="{{ next_url }}" class="att-reg-btn-cancel">Cancel</a>
+                <button type="submit" class="submit-btn att-reg-btn-save">Save Status</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.att-reg-subtitle {
+    color: var(--secondary-font-color);
+    font-size: 14px;
+    margin-top: 5px;
+    margin-bottom: 20px;
+}
+.att-reg-override-info {
+    font-size: 13px;
+    color: var(--secondary-font-color);
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
+}
+.att-reg-override-info strong {
+    color: var(--primary-font-color);
+}
+.att-reg-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+.att-reg-btn-save {
+    background-color: var(--secondary-bg) !important;
+    color: #fff !important;
+    border-radius: 6px !important;
+    padding: 10px 20px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    font-family: "Poppins", serif !important;
+    border: none !important;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+.att-reg-btn-save:hover {
+    opacity: 0.9;
+}
+.att-reg-btn-cancel {
+    background-color: #f8f9fa;
+    color: var(--primary-font-color);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    font-family: "Poppins", serif;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+.att-reg-btn-cancel:hover {
+    background-color: #f1f1f1;
+    color: var(--primary-font-color);
+}
+.att-reg-btn-clear {
+    background: transparent !important;
+    color: var(--bs-red) !important;
+    border: 1px solid var(--bs-red) !important;
+    border-radius: 6px !important;
+    padding: 8px 16px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    font-family: "Poppins", serif !important;
+    cursor: pointer;
+    margin-right: auto;
+    transition: all 0.2s ease;
+}
+.att-reg-btn-clear:hover {
+    background-color: var(--bs-red) !important;
+    color: #fff !important;
+}
+</style>
+{% endblock %}

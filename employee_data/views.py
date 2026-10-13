@@ -1151,13 +1151,25 @@ def employee_view_work_order(request, pk):
 
     # Ensure the logged-in employee is assigned to this work order
     if request.user not in work_order.job_assigned_to.all():
-        return redirect('projects') 
+        return redirect('projects')
+
+    from service_logs.models import EmployeeServiceLog
+    try:
+        _viewer_emp = request.user.employee_profile
+    except Exception:
+        _viewer_emp = None
+
+    _sl_qs = EmployeeServiceLog.objects.filter(
+        time_log__work_order=work_order, employee=_viewer_emp
+    ).select_related('employee', 'employee__user').order_by('date', 'start_time') if _viewer_emp else EmployeeServiceLog.objects.none()
+
     return render(request, 'employee/view_work_order.html', {
         'work_order': work_order,
         'work_order_detail': work_order_detail,
         'live_members': live_members,
         'all_members': all_members,
         'calculated_hours': total_hours,
+        'service_logs': _sl_qs,
     })
 
 @login_required
@@ -1186,9 +1198,18 @@ def employee_update_work_order_view(request, pk):
                 work_order_detail.save()
 
                 # ---------------------------
-                # Clear old WorkOrderTime entries
+                # Clear old auto-created service logs and WorkOrderTime entries
                 # ---------------------------
+                EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
                 WorkOrderTime.objects.filter(work_order=work_order).delete()
+
+                # Resolve employee from request user
+                _employee = None
+                try:
+                    _employee = request.user.employee_profile
+                except Exception:
+                    pass
+
                 # Save multiple WorkOrderTime rows
                 for date, start, finish in zip(
                     request.POST.getlist('time_date[]'),
@@ -1201,6 +1222,7 @@ def employee_update_work_order_view(request, pk):
                             date=parse_date(date) if date else None,
                             start_time=parse_time(start) if start else None,
                             finish_time=parse_time(finish) if finish else None,
+                            employee=_employee,
                         )
 
                 # Clear and save Spares
@@ -1299,6 +1321,9 @@ def employee_update_work_order_view(request, pk):
                     WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
 
                 messages.success(request, "Work order updated successfully.")
+                # Service Log feedback
+                if _employee:
+                    messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
                 return redirect('employee-view-work-order', pk=pk)
 
         except Exception as e:

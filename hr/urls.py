@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_delete_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile
+from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_delete_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile, hr_employee_analytics, hr_get_presence_data, hr_set_day_status
 
 urlpatterns = [
     path('dashboard/', dashboard, name='hr-dashboard'),
@@ -11,6 +11,7 @@ urlpatterns = [
     path('attendance/<int:pk>/', hr_attendance_detail, name='hr_attendance_detail'),
     path('attendance/edit/<int:attendance_id>/', hr_edit_attendance, name='hr_edit_attendance'),
     path('attendance/delete/<int:attendance_id>/', hr_delete_attendance, name='hr_delete_attendance'),
+    path('attendance/day-status/<int:employee_id>/<str:date>/', hr_set_day_status, name='hr_set_day_status'),
 
     path('attendance-status/', attendance, name='hr_attendance_status'),
     path('attendance/log-in/', hr_log_in, name='hr_log_in'),
@@ -33,5 +34,7 @@ urlpatterns = [
 
     path('profile/', hr_profile, name='hr_profile_view'),
     path("update-profile/", hr_update_profile, name="hr_update_profile"),
+    path('analytics/employees/', hr_employee_analytics, name='hr_employee_analytics'),
+    path('get-presence-data/', hr_get_presence_data, name='hr_get_presence_data'),
 
     ]

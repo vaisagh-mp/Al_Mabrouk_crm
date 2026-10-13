@@ -15,6 +15,7 @@ class EmployeeServiceLogAdmin(admin.ModelAdmin):
         'is_holiday',
         'normal_cost',
         'ot_cost',
+        'is_auto_created',
         'created_at',
     )
 
@@ -81,7 +82,7 @@ class EmployeeServiceLogAdmin(admin.ModelAdmin):
             )
         }),
         ('System', {
-            'fields': ('created_at',)
+            'fields': ('time_log', 'is_auto_created', 'created_at',)
         }),
     )
 

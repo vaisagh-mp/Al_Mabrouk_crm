@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
-from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment, WorkOrder
+from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment, WorkOrder, WorkOrderTime
 from django.contrib.auth.models import User
 
 
@@ -156,3 +156,13 @@ def track_all_members(sender, instance, action, pk_set, **kwargs):
         # ✅ CORRECT: Employee → User
         users = User.objects.filter(employee_profile__id__in=pk_set)
         work_order.all_members.add(*users)
+
+
+@receiver(post_save, sender=WorkOrderTime)
+def auto_create_service_log(sender, instance, **kwargs):
+    """
+    After every WorkOrderTime save, create or update the linked EmployeeServiceLog.
+    Import is deferred to avoid circular imports at startup.
+    """
+    from service_logs.services import create_or_update_service_log
+    create_or_update_service_log(instance)

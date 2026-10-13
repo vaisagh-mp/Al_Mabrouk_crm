@@ -37,6 +37,7 @@ class Project(models.Model):
 
     name = models.CharField(max_length=255)
     code = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    service_reference = models.CharField(max_length=100, blank=True, null=True)
     client_name = models.CharField(max_length=255, default="", blank=True)
     vessel_name = models.CharField(max_length=255, default="", blank=True)
     purchase_and_expenses = models.DecimalField(
@@ -429,6 +430,7 @@ class Leave(models.Model):
     LEAVE_TYPE_CHOICES = [
         ('SICK LEAVE', 'Sick Leave'),
         ('ANNUAL LEAVE', 'Annual Leave'),
+        ('PERSONAL LEAVE', 'Personal Leave'),
     ]
 
     STATUS_CHOICES = [
@@ -613,9 +615,13 @@ class WorkOrderTime(models.Model):
     work_order = models.ForeignKey(WorkOrder, related_name="times", on_delete=models.CASCADE)
     date = models.DateField()
     start_time = models.TimeField()
-    finish_time = models.TimeField()
+    finish_time = models.TimeField(null=True, blank=True)
     estimated_hours = models.DecimalField(
         max_digits=5, decimal_places=2, default=0, editable=False
+    )
+    employee = models.ForeignKey(
+        'Employee', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='work_order_times'
     )
 
     def save(self, *args, **kwargs):
@@ -678,3 +684,27 @@ class WorkOrderImage(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class DailyAttendanceStatus(models.Model):
+    STATUS_CHOICES = [
+        ('OFFICE', 'Office'), ('VESSEL', 'Vessel'), ('OFFICE_VESSEL', 'Office+Vessel'),
+        ('ABSENT', 'Absent'), ('ANNUAL_LEAVE', 'Annual Leave'), ('SICK_LEAVE', 'Sick Leave'),
+        ('PERSONAL_LEAVE', 'Personal Leave'), ('TRAINING', 'Training'), ('REST', 'REST'),
+        ('SUNDAY', 'Sunday'), ('HOLIDAY', 'Holiday'),
+    ]
+    LOCATION_CHOICES = [
+        ('OFFICE', 'Office'), ('PORT', 'Port'), ('ANCHORAGE', 'Anchorage'),
+        ('SAILING', 'Sailing'), ('TRAVEL', 'Travel'), ('HOLIDAY', 'Holiday'),
+    ]
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='daily_statuses')
+    date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    location = models.CharField(max_length=20, choices=LOCATION_CHOICES, blank=True, null=True)
+    note = models.CharField(max_length=255, blank=True, default="")
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('employee', 'date')
+        ordering = ['-date']

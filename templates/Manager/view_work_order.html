@@ -236,6 +236,35 @@
     </table>
   </div>
 
+  <!-- Service Logs -->
+  <div class="wo-section">
+    <div class="wo-title">SERVICE LOGS</div>
+    {% if service_logs %}
+    <table class="wo-table" style="width:100%;">
+      <tr>
+        <th>Employee</th>
+        <th>Rank</th>
+        <th>Date</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Total Hrs</th>
+      </tr>
+      {% for sl in service_logs %}
+      <tr>
+        <td>{{ sl.employee.user.get_full_name|default:sl.employee.user.username }}</td>
+        <td>{{ sl.employee.rank|default:"—" }}</td>
+        <td>{{ sl.date|date:"d/m/Y" }}</td>
+        <td>{{ sl.start_time|default:"—" }}</td>
+        <td>{{ sl.end_time|default:"—" }}</td>
+        <td>{{ sl.total_hours }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+      <p>No service logs yet.</p>
+    {% endif %}
+  </div>
+
   <!-- Project Description -->
   <div class="wo-section">
     <div class="wo-title">PROJECT DESCRIPTION:</div>

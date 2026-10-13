@@ -1,6 +1,7 @@
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
+import calendar
 from calendar import monthrange
 from django.utils.timezone import localtime
 from django.utils.dateparse import parse_datetime
@@ -21,9 +22,26 @@ from employee_data.forms import LeaveForm, EmployeeUpdateForm
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator
 from Admin.models import Attendance, Employee, LeaveBalance, Project, TeamMemberStatus, Leave, ActivityLog, Notification, Team
+from django.core.exceptions import PermissionDenied
+from django.urls import reverse
+from django.views.decorators.http import require_POST
+from service_logs.views import build_employee_analytics_context
+from manager.views import compute_presence_data
+from Admin.attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
+
+
+def is_hr(user):
+    """Return True if the logged-in user is HR (or a superuser). Raise 403 otherwise."""
+    if user.is_superuser:
+        return True
+    employee = getattr(user, "employee_profile", None)
+    if employee is not None and getattr(employee, "is_hr", False):
+        return True
+    raise PermissionDenied
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_log_in(request):
     if request.method == "POST":
         employee = get_object_or_404(Employee, user=request.user)
@@ -62,6 +80,7 @@ def hr_log_in(request):
     return hr_render_attendance_page(request)
 
 @login_required
+@user_passes_test(is_hr)
 def hr_log_off(request, attendance_id):
     if request.method == "POST":
         # Get the Employee object associated with the logged-in user
@@ -90,6 +109,7 @@ def hr_log_off(request, attendance_id):
     return redirect("hr-dashboard")  # Redirect to the appropriate page
 
 @login_required
+@user_passes_test(is_hr)
 def hr_render_attendance_page(request):
     employee = get_object_or_404(Employee, user=request.user)
     user_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True).first()
@@ -107,6 +127,7 @@ def hr_render_attendance_page(request):
 
 
 @login_required
+@user_passes_test(is_hr)
 def attendance(request):
     employee = get_object_or_404(Employee, user=request.user)
     attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
@@ -121,6 +142,8 @@ def attendance(request):
     }
     return render(request, 'hr/attendance.html', context)
 
+@login_required
+@user_passes_test(is_hr)
 def hr_update_travel_time(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
 
@@ -167,6 +190,7 @@ def hr_update_travel_time(request, attendance_id):
     })
 
 @login_required
+@user_passes_test(is_hr)
 def dashboard(request):
     user = request.user
     employee = request.user.employee_profile
@@ -233,11 +257,22 @@ def dashboard(request):
         attendance_percentage = (approved_attendance_records / total_days_in_month) * 100 if total_days_in_month else 0
         leave_requests = Leave.objects.filter(user=user, approval_status="PENDING").count()
         leave_balance = LeaveBalance.objects.filter(user=user).first()
-        total_leaves = leave_balance.annual_leave + leave_balance.sick_leave if leave_balance else 0
-        leaves_taken = Leave.objects.filter(user=user, approval_status='APPROVED').count()
-        annual_leave_taken = Leave.objects.filter(user=user, leave_type='ANNUAL', approval_status='APPROVED').count()
-        sick_leave_taken = Leave.objects.filter(user=user, leave_type='SICK', approval_status='APPROVED').count()
-        # casual_leave_taken = Leave.objects.filter(user=user, leave_type='CASUAL', approval_status='APPROVED').count()
+        annual_leave_taken = Leave.objects.filter(
+            user=user,
+            approval_status="APPROVED",
+            leave_type="ANNUAL LEAVE",
+            from_date__year=today.year
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+        sick_leave_taken = Leave.objects.filter(
+            user=user,
+            approval_status="APPROVED",
+            leave_type="SICK LEAVE",
+            from_date__year=today.year
+        ).aggregate(total=Sum('no_of_days'))['total'] or 0
+        leaves_taken = annual_leave_taken + sick_leave_taken
+        balance_annual_leave = max((leave_balance.annual_leave if leave_balance else 0) - annual_leave_taken, 0)
+        balance_sick_leave = max((leave_balance.sick_leave if leave_balance else 0) - sick_leave_taken, 0)
+        total_leaves = (leave_balance.annual_leave + leave_balance.sick_leave) if leave_balance else 0
 
         # Fetching Workdays
         worked_days = hr.work_days
@@ -252,6 +287,12 @@ def dashboard(request):
         # Time Settings
         local_tz = pytz.timezone('Asia/Kolkata')
         current_time = timezone.now().astimezone(local_tz).strftime('%I:%M %p, %d %b %Y')
+
+        chart_data = compute_presence_data(hr, today.year, today.month)
+        months = [
+            {"value": i, "name": calendar.month_name[i]}
+            for i in range(1, 13)
+        ]
 
         context = {
             'hr': hr,
@@ -270,11 +311,12 @@ def dashboard(request):
             'leaves_taken': leaves_taken,
             'annual_leave_taken': annual_leave_taken,
             'sick_leave_taken': sick_leave_taken,
-            # 'casual_leave_taken': casual_leave_taken,
+            'balance_annual_leave': balance_annual_leave,
+            'balance_sick_leave': balance_sick_leave,
             'leave_requests': leave_requests,
-            'worked_days': worked_days,
-            'absent_days': absent_days,
-            'loss_of_pay_days': loss_of_pay_days,
+            'chart_data': chart_data,
+            'months': months,
+            'current_month': today.month,
             "last_punch_in": last_punch_in,
             "last_punch_out": last_punch_out,
             'user_attendance': today_attendance,
@@ -288,6 +330,7 @@ def dashboard(request):
 
 # create employee
 @login_required
+@user_passes_test(is_hr)
 def hr_create_employee(request):
     employee = request.user.employee_profile  
     if not employee.is_hr:
@@ -312,6 +355,7 @@ def hr_create_employee(request):
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_employee_list(request):
     employee = request.user.employee_profile 
     if not employee.is_hr:
@@ -338,26 +382,29 @@ def hr_employee_list(request):
     return render(request, 'hr/employee_list.html', {'page_obj': page_obj})
 
 @login_required
+@user_passes_test(is_hr)
 def hr_attendance_list_view(request):
-    search_query = request.GET.get('search', '')
-    attendance_records = Attendance.objects.select_related('employee')
-
-    if search_query:
-        attendance_records = attendance_records.filter(
-            employee__user__username__icontains=search_query
-        ).order_by('-login_time')
-
-    paginator = Paginator(attendance_records, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'attendance_records': page_obj,
-        'search_query': search_query,
-    }
+    export_format = request.GET.get('export')
+    if export_format in ('summary_excel', 'summary_csv', 'excel'):
+        context = _register_context(request)
+        return summary_excel_response(
+            context['summary_rows_all'],
+            context['summary_totals'],
+            context['start'],
+            context['end']
+        )
+    context = _register_context(request)
+    context['role'] = 'hr'
     return render(request, 'hr/attendance_list.html', context)
 
+
 @login_required
+@user_passes_test(is_hr)
+def hr_set_day_status(request, employee_id, date):
+    return handle_set_day_status(request, employee_id, date, role='hr')
+
+@login_required
+@user_passes_test(is_hr)
 def hr_employee_leave_list(request):
     employee = request.user.employee_profile 
     if not employee.is_hr:
@@ -385,6 +432,7 @@ def hr_employee_leave_list(request):
     return render(request, 'hr/employee_leave_list.html', context)
 
 @login_required
+@user_passes_test(is_hr)
 def hr_employee_manage_leave(request):
     employee = request.user.employee_profile 
     if not employee.is_hr:
@@ -432,30 +480,53 @@ def hr_employee_manage_leave(request):
     return render(request, 'hr/employee_manage_leave.html', {'leaves': page_obj})
 
 @login_required
+@user_passes_test(is_hr)
 def hr_attendance_detail(request, pk):
     attendance = get_object_or_404(Attendance, pk=pk)
     return render(request, 'hr/attendance_detail.html', {'attendance': attendance})
 
 # Edit attendance
 @login_required
+@user_passes_test(is_hr)
 def hr_edit_attendance(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
 
     if request.method == 'POST':
-        attendance.employee_id = request.POST.get('employee')
-        attendance.project_id = request.POST.get('project')
-        attendance.login_time = request.POST.get('login_time')
-        attendance.log_out_time = request.POST.get('log_out_time')
-        attendance.location = request.POST.get('location')
-        attendance.attendance_status = request.POST.get('attendance_status')
-        attendance.status = request.POST.get('status')
-        attendance.rejection_reason = request.POST.get('rejection_reason')
-        attendance.travel_in_time = request.POST.get('travel_in_time')
-        attendance.travel_out_time = request.POST.get('travel_out_time')
-        attendance.save()
+        try:
+            attendance.employee_id = request.POST.get('employee') or None
+            attendance.project_id = request.POST.get('project') or None
 
-        messages.success(request, 'Attendance record has been Updated successfully.')
-        return redirect('hr_attendance_list_view')
+            def parse_datetime_field(field_name):
+                value = request.POST.get(field_name)
+                if value and value.strip():
+                    value = value.strip()
+                    dt = parse_datetime(value)
+                    if dt:
+                        return timezone.make_aware(dt, timezone.get_current_timezone()) if timezone.is_naive(dt) else dt
+                    for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'):
+                        try:
+                            parsed = datetime.strptime(value, fmt)
+                            return timezone.make_aware(parsed, timezone.get_current_timezone())
+                        except ValueError:
+                            pass
+                return None
+
+            attendance.login_time = parse_datetime_field('login_time')
+            attendance.log_out_time = parse_datetime_field('log_out_time')
+            attendance.travel_in_time = parse_datetime_field('travel_in_time')
+            attendance.travel_out_time = parse_datetime_field('travel_out_time')
+
+            attendance.location = request.POST.get('location') or None
+            attendance.attendance_status = request.POST.get('attendance_status') or None
+            attendance.status = request.POST.get('status') or 'PENDING'
+            attendance.rejection_reason = request.POST.get('rejection_reason') or ''
+
+            attendance.save()
+
+            messages.success(request, 'Attendance record has been updated successfully.')
+            return redirect('hr_attendance_list_view')
+        except Exception as e:
+            messages.error(request, f'Error updating attendance: {e}')
 
     employees = Employee.objects.all()
     projects = Project.objects.all()
@@ -467,6 +538,8 @@ def hr_edit_attendance(request, attendance_id):
 
 # Delete attendance
 @login_required
+@user_passes_test(is_hr)
+@require_POST
 def hr_delete_attendance(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
     attendance.delete()
@@ -476,6 +549,7 @@ def hr_delete_attendance(request, attendance_id):
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_employee_profile(request, employee_id):
     # Fetch the employee
     employee = get_object_or_404(Employee, pk=employee_id)
@@ -571,10 +645,6 @@ def hr_employee_profile(request, employee_id):
 
     return render(request, 'hr/employee_profile.html', context)
 
-def is_hr(user):
-    """Check if user is an hr"""
-    employee = user.employee_profile 
-    return employee.is_hr
 
 @login_required
 @user_passes_test(is_hr)
@@ -649,6 +719,9 @@ def hr_edit_employee(request, employee_id):
     return render(request, "hr/edit_employee.html", {"form": form, "employee": employee})
 
 
+@login_required
+@user_passes_test(is_hr)
+@require_POST
 def hr_delete_employee(request, employee_id):
     employee = get_object_or_404(Employee, id=employee_id)
     # Process deletion on POST request
@@ -661,6 +734,7 @@ def hr_delete_employee(request, employee_id):
     return redirect('hr_employee_list')
 
 @login_required
+@user_passes_test(is_hr)
 def hr_apply_leave(request):
     if request.method == 'POST':
         form = LeaveForm(request.POST, request.FILES)
@@ -686,6 +760,7 @@ def hr_apply_leave(request):
     return render(request, 'hr/leave.html', {'form': form})
 
 @login_required
+@user_passes_test(is_hr)
 def hr_upload_medical_certificate(request, leave_id):
     leave = Leave.objects.get(id=leave_id)
     if request.method == 'POST':
@@ -714,6 +789,7 @@ def hr_upload_medical_certificate(request, leave_id):
     return redirect('hr_leave_status')  # Redirect if GET request or no file uploaded
 
 @login_required
+@user_passes_test(is_hr)
 def hr_leave_status(request):
     """View to display the leave status of the logged-in user."""
     leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
@@ -726,6 +802,7 @@ def hr_leave_status(request):
     return render(request, "hr/leavestatus.html", {"leaves": leaves})
 
 @login_required
+@user_passes_test(is_hr)
 def hr_leave_records(request):
     """View to display the leave records for the logged-in user."""
 
@@ -760,11 +837,13 @@ def hr_leave_records(request):
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_fetch_notifications(request):
     notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
     return JsonResponse({"notifications": list(notifications)})
 
 @login_required
+@user_passes_test(is_hr)
 def hr_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in manager as read."""
     notifications = Notification.objects.filter(recipient=request.user, is_read=False)
@@ -776,6 +855,7 @@ def hr_mark_notifications_as_read(request):
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_profile(request):
     # Fetch the employee
     employee = get_object_or_404(Employee, user=request.user)
@@ -858,6 +938,7 @@ def hr_profile(request):
 
 
 @login_required
+@user_passes_test(is_hr)
 def hr_update_profile(request):
     employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
 
@@ -887,3 +968,29 @@ def hr_update_profile(request):
         })
 
     return render(request, "hr/updateprofile.html", {"form": form})
+
+
+@login_required
+@user_passes_test(is_hr)
+def hr_employee_analytics(request):
+    context = build_employee_analytics_context(request)
+    context["base_template"] = "hr/hrbase.html"
+    context["hide_project_links"] = True
+    context["register_url"] = reverse('hr_attendance_list_view')
+    return render(request, "analytics/employee_based.html", context)
+
+
+@login_required
+@user_passes_test(is_hr)
+def hr_get_presence_data(request):
+    try:
+        month = int(request.GET.get("month", date.today().month))
+        year = int(request.GET.get("year", date.today().year))
+        if month < 1 or month > 12:
+            return JsonResponse({"error": "Invalid month"}, status=400)
+        employee = get_object_or_404(Employee, user=request.user)
+        return JsonResponse(compute_presence_data(employee, year, month))
+    except ValueError:
+        return JsonResponse({"error": "Invalid month or year"}, status=400)
+
+

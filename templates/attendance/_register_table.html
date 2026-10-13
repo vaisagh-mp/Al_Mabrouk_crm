@@ -1,0 +1,486 @@
+{% load custom_filters %}
+{% load static %}
+
+<style>
+/* Filter bar card */
+.widget-box.att-reg-filter {
+    margin-bottom: 20px;
+    padding: 15px 20px;
+}
+.att-reg-filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+.att-reg-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.att-reg-filter-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--primary-font-color);
+    margin-bottom: 0;
+}
+.att-reg-filter-group .form-control {
+    height: 40px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: "Poppins", serif;
+    font-size: 13px;
+    padding: 6px 12px;
+    color: var(--primary-font-color);
+}
+.att-reg-input-date {
+    min-width: 140px;
+}
+.att-reg-select {
+    min-width: 150px;
+    background-color: #fff;
+}
+.att-reg-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.att-reg-filter-btn {
+    background: var(--secondary-bg);
+    color: #fff;
+    border-radius: 6px;
+    padding: 8px 18px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: "Poppins", serif;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    transition: background-color 0.2s ease;
+}
+.att-reg-filter-btn:hover {
+    background-color: #154272;
+    color: #fff;
+}
+.att-reg-reset-btn {
+    background: #f8f9fa;
+    color: var(--primary-font-color);
+    border-radius: 6px;
+    padding: 8px 18px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: "Poppins", serif;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    transition: background-color 0.2s ease;
+}
+.att-reg-reset-btn:hover {
+    background-color: #f1f1f1;
+    color: var(--primary-font-color);
+}
+
+/* Summary chips */
+.att-reg-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.att-reg-chip {
+    background: #fff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 10px 16px;
+    min-width: 110px;
+    flex: 1 1 auto;
+    border-left: 3px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.att-reg-chip-office { border-left-color: #155724; }
+.att-reg-chip-vessel { border-left-color: #004085; }
+.att-reg-chip-office-vessel { border-left-color: #0c5460; }
+.att-reg-chip-absent { border-left-color: #721c24; }
+.att-reg-chip-leave { border-left-color: #ffc107; }
+.att-reg-chip-training { border-left-color: #4b2e83; }
+.att-reg-chip-rest { border-left-color: var(--secondary-font-color); }
+
+.att-reg-chip-label {
+    font-size: 13px;
+    color: var(--secondary-font-color);
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+.att-reg-chip-count {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--primary-font-color);
+}
+
+/* Table Card & Overrides */
+.att-reg-table-wrap {
+    margin-bottom: 20px;
+}
+.att-reg-table-wrap th,
+.att-reg-table-wrap td {
+    padding: 14px 10px !important;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.att-reg-table-wrap td.att-reg-wrap-cell {
+    white-space: normal !important;
+}
+.att-reg-weekday {
+    font-size: 11px;
+    color: var(--secondary-font-color);
+    font-weight: normal;
+}
+.att-reg-empty {
+    color: var(--secondary-font-color);
+    text-align: center;
+    padding: 24px;
+}
+
+/* Status Pill Modifiers */
+.status.att-reg-vessel {
+    background-color: #cce5ff;
+    color: #004085;
+}
+.status.att-reg-office-vessel {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+.status.att-reg-training {
+    background-color: #e2d9f3;
+    color: #4b2e83;
+}
+.status.att-reg-rest {
+    background-color: #e9ecef;
+    color: var(--primary-font-color);
+}
+.status.att-reg-sunday {
+    background-color: #ffe5d0;
+    color: #8b4f00;
+}
+
+/* Smaller badges for Pending, Off-day working and Manual */
+.status.att-reg-sm {
+    font-size: 10px;
+    padding: 2px 8px;
+    line-height: 1.2;
+    display: inline-block;
+}
+.status.att-reg-manual {
+    font-size: 10px;
+    padding: 2px 8px;
+    line-height: 1.2;
+    background-color: var(--secondary-bg);
+    color: #fff;
+    display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.att-reg-status-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+/* Multi-value cell stack */
+.att-reg-cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Service Ref / WO badge */
+.service-ref-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #f0fdf4;
+    color: #15803d !important;
+    border: 1px solid #bbf7d0;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-decoration: none !important;
+    transition: all 0.2s ease-in-out;
+}
+.service-ref-badge:hover {
+    background: #16a34a;
+    color: #ffffff !important;
+    border-color: #15803d;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(22, 163, 74, 0.25);
+}
+
+/* Action icons & buttons */
+.list-action-col .fa-calendar-alt,
+.list-action-col .fa-wrench {
+    color: var(--bs-blue);
+}
+.att-reg-icon-btn {
+    background: none;
+    border: none;
+    padding: 7px 9px;
+    cursor: pointer;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.att-reg-icon-btn:hover {
+    border-radius: 50%;
+    background-color: rgb(212, 222, 241);
+}
+</style>
+
+<!-- Filter bar card -->
+<div class="widget-box att-reg-filter">
+    <form method="get" action="" class="att-reg-filter-form">
+        <div class="att-reg-filter-group">
+            <label for="att_reg_start">From:</label>
+            <input type="date" id="att_reg_start" name="start" value="{{ start }}" class="form-control att-reg-input-date" />
+        </div>
+        <div class="att-reg-filter-group">
+            <label for="att_reg_end">To:</label>
+            <input type="date" id="att_reg_end" name="end" value="{{ end }}" class="form-control att-reg-input-date" />
+        </div>
+        <div class="att-reg-filter-group">
+            <input type="text" name="search" class="form-control" value="{{ search_query }}" placeholder="Search by Employee Name" />
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="status" class="form-control att-reg-select">
+                <option value="">All Statuses</option>
+                {% for opt in status_options %}
+                    <option value="{{ opt }}" {% if status_filter == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-btn-group">
+            <button class="att-reg-filter-btn" type="submit" title="Filter">
+                <i class="fa fa-filter" aria-hidden="true"></i> Filter
+            </button>
+            <a href="{% if role|lower == 'admin' %}{% url 'attendance_list_adminview' %}{% else %}{% url 'hr_attendance_list_view' %}{% endif %}" class="att-reg-reset-btn">Reset</a>
+        </div>
+    </form>
+</div>
+
+{% include 'attendance/_summary_table.html' %}
+
+<!-- Summary chips -->
+<div class="att-reg-chips">
+    <div class="att-reg-chip att-reg-chip-office">
+        <span class="att-reg-chip-label">Office</span>
+        <span class="att-reg-chip-count">{{ summary_counts.office }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-vessel">
+        <span class="att-reg-chip-label">Vessel</span>
+        <span class="att-reg-chip-count">{{ summary_counts.vessel }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-office-vessel">
+        <span class="att-reg-chip-label">Office+Vessel</span>
+        <span class="att-reg-chip-count">{{ summary_counts.office_vessel }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-absent">
+        <span class="att-reg-chip-label">Absent</span>
+        <span class="att-reg-chip-count">{{ summary_counts.absent }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-leave">
+        <span class="att-reg-chip-label">Leave</span>
+        <span class="att-reg-chip-count">{{ summary_counts.leave }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-training">
+        <span class="att-reg-chip-label">Training</span>
+        <span class="att-reg-chip-count">{{ summary_counts.training }}</span>
+    </div>
+    <div class="att-reg-chip att-reg-chip-rest">
+        <span class="att-reg-chip-label">REST</span>
+        <span class="att-reg-chip-count">{{ summary_counts.rest }}</span>
+    </div>
+</div>
+
+<!-- White Card Table Wrapper -->
+<div class="widget-box table-wdgt att-reg-table-wrap">
+    <table id="employeeTable" style="min-width: 1200px;">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Rank</th>
+                <th>Status</th>
+                <th>Location</th>
+                <th>Vessel / Job</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Total Hours</th>
+                <th>OT Hrs</th>
+                <th>Service Ref</th>
+                <th>Work Order Number</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <!-- 1. Date -->
+                <td>
+                    <div>{{ row.date|date:"d/M/Y" }}</div>
+                    <div class="att-reg-weekday">{{ row.date|date:"D" }}</div>
+                </td>
+
+                <!-- 2. Name -->
+                <td>
+                    {% if row.attendance_ids|length == 1 %}
+                        <a href="{% if role|lower == 'admin' %}{% url 'attendance_detail' row.attendance_ids.0 %}{% else %}{% url 'hr_attendance_detail' row.attendance_ids.0 %}{% endif %}">{{ row.name }}</a>
+                    {% else %}
+                        {{ row.name }}
+                    {% endif %}
+                </td>
+
+                <!-- 3. Rank -->
+                <td>{{ row.rank }}</td>
+
+                <!-- 4. Status -->
+                <td>
+                    <div class="att-reg-status-col">
+                        <div>
+                            <span class="status {% if row.status_code == 'OFFICE' %}present{% elif row.status_code == 'ANNUAL_LEAVE' %}annual-leave{% elif row.status_code == 'SICK_LEAVE' %}sick-leave{% elif row.status_code == 'PERSONAL_LEAVE' %}leave{% elif row.status_code == 'HOLIDAY' %}completed{% elif row.status_code == 'ABSENT' %}cancelled{% elif row.status_code == 'VESSEL' %}att-reg-vessel{% elif row.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif row.status_code == 'TRAINING' %}att-reg-training{% elif row.status_code == 'REST' %}att-reg-rest{% elif row.status_code == 'SUNDAY' %}att-reg-sunday{% endif %}">
+                                {{ row.status_label }}
+                            </span>
+                            {% if row.override_id %}
+                                <span class="status att-reg-manual" title="Manual override">manual</span>
+                            {% endif %}
+                        </div>
+                        {% if row.has_pending %}
+                            <span class="status pending att-reg-sm" title="Pending approval">Pending</span>
+                        {% endif %}
+                        {% if row.is_off_day %}
+                            <span class="status ongoing att-reg-sm">{{ row.off_day_label }}</span>
+                        {% endif %}
+                    </div>
+                </td>
+
+                <!-- 5. Location -->
+                <td>{{ row.location_label|default:"-" }}</td>
+
+                <!-- 6. Vessel / Job -->
+                <td class="att-reg-wrap-cell">
+                    <div class="att-reg-cell-stack">
+                        {% for item in row.vessel_job %}
+                            <div>{{ item }}</div>
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </div>
+                </td>
+
+                <!-- 7. Start -->
+                <td>{% if row.start %}{{ row.start|time:"g:i A" }}{% else %}-{% endif %}</td>
+
+                <!-- 8. End -->
+                <td>{% if row.end %}{{ row.end|time:"g:i A" }}{% else %}-{% endif %}</td>
+
+                <!-- 9. Total Hours -->
+                <td>{{ row.total_hours|format_work_duration }}</td>
+
+                <!-- 10. OT Hrs -->
+                <td>{% if row.ot_hours and row.ot_hours > 0 %}{{ row.ot_hours|format_work_duration }}{% else %}-{% endif %}</td>
+
+                <!-- 11. Service Ref -->
+                <td class="att-reg-wrap-cell">
+                    <div class="att-reg-cell-stack">
+                        {% for item in row.service_ref %}
+                            {% if item != '-' %}
+                                <span class="service-ref-badge">{{ item }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </div>
+                </td>
+
+                <!-- 12. Work Order Number -->
+                <td class="att-reg-wrap-cell">
+                    <div class="att-reg-cell-stack">
+                        {% for item in row.wo_number %}
+                            {% if item != '-' %}
+                                <span class="service-ref-badge">{{ item }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        {% empty %}
+                            -
+                        {% endfor %}
+                    </div>
+                </td>
+
+                <!-- 13. Action -->
+                <td class="list-action-col">
+                    {% if row.attendance_ids|length == 1 %}
+                        <a href="{% if role|lower == 'admin' %}{% url 'edit_attendance' row.attendance_ids.0 %}{% else %}{% url 'hr_edit_attendance' row.attendance_ids.0 %}{% endif %}" title="Edit Attendance"><i class="far fa-edit"></i></a>
+                    {% endif %}
+
+                    {% if role|lower == 'admin' and row.service_log_ids|length == 1 %}
+                        <a href="{% url 'service_log_edit' row.service_log_ids.0 %}" title="Edit Service Log"><i class="fas fa-wrench"></i></a>
+                    {% endif %}
+
+                    <a href="{% if role|lower == 'admin' %}{% url 'admin_set_day_status' row.employee.id row.date|date:'Y-m-d' %}{% else %}{% url 'hr_set_day_status' row.employee.id row.date|date:'Y-m-d' %}{% endif %}?next={{ request.get_full_path|urlencode }}" title="Set Day Status"><i class="far fa-calendar-alt"></i></a>
+
+                    {% if row.attendance_ids|length == 1 %}
+                        <form method="post" action="{% if role|lower == 'admin' %}{% url 'delete_attendance' row.attendance_ids.0 %}{% else %}{% url 'hr_delete_attendance' row.attendance_ids.0 %}{% endif %}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this attendance record?');">
+                            {% csrf_token %}
+                            <button type="submit" class="att-reg-icon-btn" title="Delete Attendance">
+                                <i class="far fa-trash-alt"></i>
+                            </button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="13" class="att-reg-empty">No attendance records found for this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination Controls -->
+<div class="pagination" id="pagination">
+    {% if rows.has_previous %}
+        <a href="?page={{ rows.previous_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">
+            <button>&laquo; Prev</button>
+        </a>
+    {% endif %}
+
+    {% for num in rows.paginator.page_range %}
+        {% if num >= rows.number|add:'-2' and num <= rows.number|add:'2' %}
+            <a href="?page={{ num }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">
+                <button class="{% if num == rows.number %}active{% endif %}">{{ num }}</button>
+            </a>
+        {% endif %}
+    {% endfor %}
+
+    {% if rows.has_next %}
+        <a href="?page={{ rows.next_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">
+            <button>Next &raquo;</button>
+        </a>
+    {% endif %}
+</div>

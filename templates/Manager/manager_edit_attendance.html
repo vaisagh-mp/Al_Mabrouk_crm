@@ -108,6 +108,7 @@
     <!-- Project Field -->
     <label for="project">Project:</label>
     <select name="project" id="project">
+        <option value="" {% if not attendance.project_id %}selected{% endif %}>-- No Project --</option>
         {% for project in projects %}
         <option value="{{ project.id }}" {% if project.id == attendance.project_id %}selected{% endif %}>
             {{ project.name }}

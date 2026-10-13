@@ -1,0 +1,425 @@
+{% load custom_filters %}
+
+<style>
+/* ================= ATTENDANCE SUMMARY STYLES ================= */
+.att-reg-summary-wrap {
+    margin-bottom: 25px;
+    padding: 20px;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.att-sum-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.att-sum-title-left {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.att-sum-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.att-sum-title-row .widget-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--primary-font-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.att-sum-range-label {
+    font-size: 13px;
+    color: var(--secondary-font-color);
+    font-weight: 500;
+}
+
+.att-sum-status-note {
+    font-size: 12px;
+    color: var(--secondary-font-color);
+    font-style: italic;
+    margin-top: 2px;
+}
+
+.att-sum-export-btn {
+    background: var(--secondary-bg);
+    color: #ffffff !important;
+    border-radius: 6px;
+    padding: 8px 18px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: "Poppins", sans-serif;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    transition: background-color 0.2s ease;
+}
+
+.att-sum-export-btn:hover {
+    background-color: #154272;
+    color: #ffffff !important;
+}
+
+.att-sum-table-scroll {
+    overflow-x: auto;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+.att-sum-table {
+    min-width: 1500px;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    color: var(--primary-font-color);
+}
+
+.att-sum-table th,
+.att-sum-table td {
+    padding: 10px 8px !important;
+    vertical-align: middle;
+    white-space: nowrap !important;
+    min-width: auto !important;
+    max-width: none !important;
+    border-bottom: 1px solid #edf2f7;
+    border-right: 1px solid #edf2f7;
+}
+
+.att-sum-table th:first-child,
+.att-sum-table td:first-child {
+    border-left: 1px solid #edf2f7;
+}
+
+.att-sum-table thead tr:first-child th {
+    border-top: 1px solid #edf2f7;
+}
+
+/* Header Group Rows */
+.att-sum-group-th {
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px 6px !important;
+}
+
+.att-sum-group-work {
+    background-color: #e2e8f0;
+    color: var(--primary-font-color);
+}
+
+.att-sum-group-leave {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.att-sum-group-off {
+    background-color: #e0e7ff;
+    color: #3730a3;
+}
+
+.att-sum-group-hours {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.att-sum-group-absence {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.att-sum-col-th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--primary-font-color);
+    text-align: center;
+}
+
+/* Sticky Employee column */
+.att-sum-sticky-col {
+    position: sticky !important;
+    left: 0 !important;
+    background-color: #ffffff !important;
+    z-index: 2;
+    min-width: 180px !important;
+    max-width: 240px !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.04);
+}
+
+.att-sum-table thead th.att-sum-sticky-col {
+    z-index: 4;
+    background-color: #f8fafc !important;
+    text-align: left;
+}
+
+.att-sum-table tbody tr:hover td.att-sum-sticky-col {
+    background-color: #f5f8fc !important;
+}
+
+.att-sum-table tbody tr:hover td {
+    background-color: #f5f8fc;
+}
+
+.att-sum-table tbody tr:nth-child(even) td.att-sum-sticky-col {
+    background-color: #fafbfc !important;
+}
+
+.att-sum-table tbody tr:nth-child(even) td {
+    background-color: #fafbfc;
+}
+
+.att-sum-emp-link {
+    color: var(--primary-font-color);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.att-sum-emp-link:hover {
+    color: var(--secondary-bg);
+    text-decoration: underline;
+}
+
+.att-sum-offday-pill {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+.att-sum-center {
+    text-align: center;
+}
+
+.att-sum-muted {
+    color: var(--secondary-font-color);
+}
+
+.att-sum-val {
+    color: var(--primary-font-color);
+    font-weight: 600;
+}
+
+/* Tinting for Total Leave Days, Absent Days, Absent Hours */
+.att-sum-tint-leave {
+    background-color: #ffeb99 !important;
+    color: #856404 !important;
+    font-weight: 600 !important;
+}
+
+.att-sum-tint-absent {
+    background-color: #f8d7da !important;
+    color: #721c24 !important;
+    font-weight: 600 !important;
+}
+
+/* TOTAL Footer */
+.att-sum-total-row td {
+    border-top: 2px solid var(--bs-blue, #3f6d95) !important;
+    border-bottom: 2px solid var(--bs-blue, #3f6d95) !important;
+    font-weight: bold;
+    background-color: #f1f5f9 !important;
+}
+
+.att-sum-total-row td.att-sum-sticky-col {
+    background-color: #f1f5f9 !important;
+}
+
+.att-sum-empty {
+    text-align: center;
+    color: var(--secondary-font-color);
+    padding: 30px !important;
+    font-size: 14px;
+}
+</style>
+
+<div class="widget-box table-wdgt att-reg-summary-wrap">
+    <div class="att-sum-header">
+        <div class="att-sum-title-left">
+            <div class="att-sum-title-row">
+                <h4 class="widget-title">ATTENDANCE SUMMARY</h4>
+                {% if summary_range_label %}
+                    <span class="att-sum-range-label">{{ summary_range_label }}</span>
+                {% endif %}
+            </div>
+            {% if status_filter %}
+                <div class="att-sum-status-note">Summary shows all statuses for the selected dates.</div>
+            {% endif %}
+        </div>
+        <div class="att-sum-header-right">
+            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}&export=summary_excel" class="att-sum-export-btn" title="Export Attendance Summary as Excel">
+                <i class="fa fa-download" aria-hidden="true"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="att-sum-table-scroll">
+        <table class="att-sum-table">
+            <thead>
+                <tr>
+                    <th rowspan="2" class="att-sum-sticky-col">Employee</th>
+                    <th rowspan="2" class="att-sum-col-th" style="text-align: left; min-width: 140px;">Designation</th>
+                    <th colspan="3" class="att-sum-group-th att-sum-group-work">Work</th>
+                    <th colspan="6" class="att-sum-group-th att-sum-group-leave">Leave</th>
+                    <th colspan="2" class="att-sum-group-th att-sum-group-off">Off Days</th>
+                    <th colspan="3" class="att-sum-group-th att-sum-group-hours">Hours</th>
+                    <th colspan="2" class="att-sum-group-th att-sum-group-absence">Absence</th>
+                </tr>
+                <tr>
+                    <th class="att-sum-col-th">Office Days</th>
+                    <th class="att-sum-col-th">Vessel Days</th>
+                    <th class="att-sum-col-th">Office+Vessel</th>
+                    <th class="att-sum-col-th">Annual Leave</th>
+                    <th class="att-sum-col-th">Sick Leave</th>
+                    <th class="att-sum-col-th">Personal Leave</th>
+                    <th class="att-sum-col-th">REST Days</th>
+                    <th class="att-sum-col-th">Training Days</th>
+                    <th class="att-sum-col-th">Total Leave Days</th>
+                    <th class="att-sum-col-th">Sunday</th>
+                    <th class="att-sum-col-th">Holiday</th>
+                    <th class="att-sum-col-th">Total Hours</th>
+                    <th class="att-sum-col-th">Gross OT Hrs</th>
+                    <th class="att-sum-col-th">Gross OT Days</th>
+                    <th class="att-sum-col-th">Absent Days</th>
+                    <th class="att-sum-col-th">Absent Hours</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in summary_rows %}
+                <tr>
+                    <td class="att-sum-sticky-col">
+                        <a href="?start={{ start }}&end={{ end }}&search={{ s.employee.user.username|urlencode }}" class="att-sum-emp-link" title="Filter daily register for {{ s.name }}">
+                            {{ s.name }}
+                        </a>
+                        {% if s.off_day_worked > 0 %}
+                            <span class="status ongoing att-sum-offday-pill" title="Worked on off-days">Worked {{ s.off_day_worked }} off-days</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.designation }}</td>
+                    <td class="att-sum-center">
+                        {% if s.office_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.office_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.vessel_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.vessel_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.office_vessel_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.office_vessel_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.annual_leave_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.annual_leave_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.sick_leave_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.sick_leave_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.personal_leave_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.personal_leave_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.rest_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.rest_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.training_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.training_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center {% if s.total_leave_days > 0 %}att-sum-tint-leave{% endif %}">
+                        {% if s.total_leave_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.total_leave_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.sunday_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.sunday_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.holiday_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.holiday_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.total_hours == 0 %}<span class="att-sum-muted">00:00</span>{% else %}<span class="att-sum-val">{{ s.total_hours|format_work_duration }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.gross_ot_hours == 0 %}<span class="att-sum-muted">00:00</span>{% else %}<span class="att-sum-val">{{ s.gross_ot_hours|format_work_duration }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center">
+                        {% if s.gross_ot_days == 0 %}<span class="att-sum-muted">0.00</span>{% else %}<span class="att-sum-val">{{ s.gross_ot_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center {% if s.absent_days > 0 %}att-sum-tint-absent{% endif %}">
+                        {% if s.absent_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.absent_days }}</span>{% endif %}
+                    </td>
+                    <td class="att-sum-center {% if s.absent_hours > 0 %}att-sum-tint-absent{% endif %}">
+                        {% if s.absent_hours == 0 %}<span class="att-sum-muted">00:00</span>{% else %}<span class="att-sum-val">{{ s.absent_hours|format_work_duration }}</span>{% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="18" class="att-sum-empty">No employees match this filter.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if summary_rows %}
+            <tfoot>
+                <tr class="att-sum-total-row">
+                    <td class="att-sum-sticky-col"><strong>TOTAL</strong></td>
+                    <td></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.office_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.vessel_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.office_vessel_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.annual_leave_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.sick_leave_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.personal_leave_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.rest_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.training_days }}</strong></td>
+                    <td class="att-sum-center {% if summary_totals.total_leave_days > 0 %}att-sum-tint-leave{% endif %}"><strong>{{ summary_totals.total_leave_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.sunday_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.holiday_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.total_hours|format_work_duration }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.gross_ot_hours|format_work_duration }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.gross_ot_days }}</strong></td>
+                    <td class="att-sum-center {% if summary_totals.absent_days > 0 %}att-sum-tint-absent{% endif %}"><strong>{{ summary_totals.absent_days }}</strong></td>
+                    <td class="att-sum-center {% if summary_totals.absent_hours > 0 %}att-sum-tint-absent{% endif %}"><strong>{{ summary_totals.absent_hours|format_work_duration }}</strong></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    {% if summary_page_obj and summary_page_obj.paginator.num_pages > 1 %}
+    <div class="crm-pagination" style="margin-top: 15px; margin-bottom: 5px;">
+        {% if summary_page_obj.has_previous %}
+            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if request.GET.page %}&page={{ request.GET.page }}{% endif %}&sum_page={{ summary_page_obj.previous_page_number }}" class="pg-btn">‹</a>
+        {% else %}
+            <span class="pg-btn disabled">‹</span>
+        {% endif %}
+
+        {% for num in summary_page_obj.paginator.page_range %}
+            {% if summary_page_obj.number == num %}
+                <span class="pg-btn active">{{ num }}</span>
+            {% elif num >= summary_page_obj.number|add:-2 and num <= summary_page_obj.number|add:2 %}
+                <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if request.GET.page %}&page={{ request.GET.page }}{% endif %}&sum_page={{ num }}" class="pg-btn">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if summary_page_obj.has_next %}
+            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if request.GET.page %}&page={{ request.GET.page }}{% endif %}&sum_page={{ summary_page_obj.next_page_number }}" class="pg-btn">›</a>
+        {% else %}
+            <span class="pg-btn disabled">›</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
