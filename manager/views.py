@@ -1943,19 +1943,21 @@ def manager_update_work_order_view(request, pk):
                             _employee = Employee.objects.first()
 
                     # Save multiple WorkOrderTime rows
+                    _new_time_logs = []
                     for date, start, finish in zip(
                         request.POST.getlist('time_date[]'),
                         request.POST.getlist('start_time[]'),
                         request.POST.getlist('finish_time[]')
                     ):
                         if start or finish:
-                            WorkOrderTime.objects.create(
+                            _tl = WorkOrderTime.objects.create(
                                 work_order=work_order,
                                 date=parse_date(date) if date else None,
                                 start_time=parse_time(start) if start else None,
                                 finish_time=parse_time(finish) if finish else None,
                                 employee=_employee,
                             )
+                            _new_time_logs.append(_tl)
 
                     # ---------------------------
                     # Clear & re-save Spares, Tools, Documents

@@ -1211,19 +1211,21 @@ def employee_update_work_order_view(request, pk):
                     pass
 
                 # Save multiple WorkOrderTime rows
+                _new_time_logs = []
                 for date, start, finish in zip(
                     request.POST.getlist('time_date[]'),
                     request.POST.getlist('start_time[]'),
                     request.POST.getlist('finish_time[]')
                 ):
                     if start or finish:
-                        WorkOrderTime.objects.create(
+                        _tl = WorkOrderTime.objects.create(
                             work_order=work_order,
                             date=parse_date(date) if date else None,
                             start_time=parse_time(start) if start else None,
                             finish_time=parse_time(finish) if finish else None,
                             employee=_employee,
                         )
+                        _new_time_logs.append(_tl)
 
                 # Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
@@ -1322,7 +1324,7 @@ def employee_update_work_order_view(request, pk):
 
                 messages.success(request, "Work order updated successfully.")
                 # Service Log feedback
-                if _employee:
+                if _new_time_logs and _employee:
                     messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
                 return redirect('employee-view-work-order', pk=pk)
 
