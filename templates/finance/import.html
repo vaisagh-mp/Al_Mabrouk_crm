@@ -1,0 +1,247 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Import Finance Sheets | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Import Finance Data</h1>
+            <span class="text-muted small">Upload Google Sheets (.xlsx or .csv) for Invoice Costing, Jobs P&amp;L, and Spares Accounting</span>
+        </div>
+    </div>
+
+    <!-- Upload Card -->
+    <div class="widget-box p-4 mb-4">
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Invoice Costing Sheet</label>
+                    <input type="file" name="invoices_file" class="form-control" accept=".xlsx,.csv">
+                    <small class="text-muted">Columns: Status, Invoice Date, Project / Service Ref, VESSEL, Invoice No, Amount Without Tax, Credits Applied...</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Jobs P&amp;L Sheet</label>
+                    <input type="file" name="jobs_file" class="form-control" accept=".xlsx,.csv">
+                    <small class="text-muted">Columns: Service Ref, Vessel, Invoice No, Invoice, Engineer, Spare Cost, Travel Port, Travel Cost, Flight, Misc, Other...</small>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Spares Accounting Sheet</label>
+                    <input type="file" name="spares_file" class="form-control" accept=".xlsx,.csv">
+                    <small class="text-muted">Columns: Service Ref, Vessel / Customer, Source, Purchase Cost, Actual Selling Price, Invoice No, Status, Notes...</small>
+                </div>
+            </div>
+
+            <div class="fin-toolbar mt-4">
+                <button type="submit" name="action" value="preview" class="fin-btn fin-btn-outline">
+                    <i class="fas fa-eye me-1"></i> Preview Import (Dry Run)
+                </button>
+                <button type="submit" name="action" value="execute" class="fin-btn">
+                    <i class="fas fa-file-import me-1"></i> Confirm &amp; Execute Import
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% if preview_results %}
+    <!-- Summary Counts -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Created Invoices</div>
+                <div class="fin-aging-val fin-text-green">{{ preview_results.created_invoices }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Updated Invoices</div>
+                <div class="fin-aging-val" style="color: var(--bs-blue);">{{ preview_results.updated_invoices }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Job Costs Added</div>
+                <div class="fin-aging-val" style="color: var(--bs-orange);">{{ preview_results.created_job_costs }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Created Spares</div>
+                <div class="fin-aging-val fin-text-green">{{ preview_results.created_spares }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Updated Spares</div>
+                <div class="fin-aging-val" style="color: var(--bs-blue);">{{ preview_results.updated_spares }}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-2">
+            <div class="fin-aging-card">
+                <div class="fin-aging-title">Skipped Rows</div>
+                <div class="fin-aging-val fin-text-red">{{ preview_results.skipped }}</div>
+            </div>
+        </div>
+    </div>
+
+    {% if preview_results.warnings %}
+    <div class="fin-alert-card fin-alert-warning mb-4" style="background-color: #fff9db; border-left: 4px solid #f59f00; padding: 1rem 1.25rem; border-radius: 6px;">
+        <h6 class="fw-bold mb-2" style="color: #d9480f;"><i class="fas fa-exclamation-triangle me-2"></i>Warnings Encountered</h6>
+        <ul class="mb-0 small ps-3" style="color: #495057;">
+            {% for warn in preview_results.warnings %}
+                <li>{{ warn }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if preview_results.errors %}
+    <div class="fin-alert-card fin-alert-danger mb-4">
+        <h6 class="fw-bold mb-2"><i class="fas fa-times-circle me-2"></i>Errors Encountered</h6>
+        <ul class="mb-0 small ps-3">
+            {% for err in preview_results.errors %}
+                <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+
+    <!-- Invoices Preview -->
+    {% if preview_results.preview.invoices %}
+    <div class="widget-box table-wdgt mb-4">
+        <div class="p-3 border-bottom">
+            <h5 class="mb-0 fw-bold">Invoices Preview ({{ preview_results.preview.invoices|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Invoice No</th>
+                        <th>Date</th>
+                        <th>Service Ref</th>
+                        <th>Vessel</th>
+                        <th>Customer</th>
+                        <th class="text-end">Amount Excl. VAT</th>
+                        <th class="text-end">Credits</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_results.preview.invoices %}
+                    <tr>
+                        <td>
+                            <span class="status {% if row.action == 'Created' %}completed{% else %}in-progress{% endif %}">
+                                {{ row.action }}
+                            </span>
+                        </td>
+                        <td class="fw-bold">{{ row.invoice_number }}</td>
+                        <td>{{ row.invoice_date }}</td>
+                        <td>{{ row.service_ref|default:"—" }}</td>
+                        <td>{{ row.vessel|default:"—" }}</td>
+                        <td>{{ row.customer|default:"—" }}</td>
+                        <td class="text-end font-monospace">{{ row.amount_excl_vat|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ row.credits_applied|floatformat:2 }}</td>
+                        <td><span class="status completed">{{ row.status }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Jobs Preview -->
+    {% if preview_results.preview.jobs %}
+    <div class="widget-box table-wdgt mb-4">
+        <div class="p-3 border-bottom">
+            <h5 class="mb-0 fw-bold">Jobs P&amp;L Costs Preview ({{ preview_results.preview.jobs|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Invoice No</th>
+                        <th>Service Ref</th>
+                        <th>Vessel</th>
+                        <th>Travel Port</th>
+                        <th>Costs Generated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_results.preview.jobs %}
+                    <tr>
+                        <td class="fw-bold">{{ row.invoice_number }}</td>
+                        <td>{{ row.service_ref|default:"—" }}</td>
+                        <td>{{ row.vessel|default:"—" }}</td>
+                        <td>{{ row.travel_port|default:"—" }}</td>
+                        <td>{{ row.costs_created }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Spares Preview -->
+    {% if preview_results.preview.spares %}
+    <div class="widget-box table-wdgt mb-4">
+        <div class="p-3 border-bottom">
+            <h5 class="mb-0 fw-bold">Spares Accounting Preview ({{ preview_results.preview.spares|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Action</th>
+                        <th>Service Ref</th>
+                        <th>Vessel / Customer</th>
+                        <th class="text-end">Purchase Cost</th>
+                        <th class="text-end">Selling Price</th>
+                        <th class="text-end">Profit</th>
+                        <th class="text-end">Markup %</th>
+                        <th>Invoice No</th>
+                        <th>Status</th>
+                        <th>Alerts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_results.preview.spares %}
+                    <tr>
+                        <td>
+                            <span class="status {% if row.action == 'Created' %}completed{% else %}in-progress{% endif %}">
+                                {{ row.action }}
+                            </span>
+                        </td>
+                        <td>{{ row.service_ref|default:"—" }}</td>
+                        <td>{{ row.vessel_customer|default:"—" }}</td>
+                        <td class="text-end font-monospace">{{ row.purchase_cost|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ row.selling_price|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fw-bold {% if row.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ row.profit|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{% if row.markup_pct is not None %}{{ row.markup_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                        <td>{{ row.invoice_number|default:"—" }}</td>
+                        <td><span class="status in-progress">{{ row.status }}</span></td>
+                        <td>
+                            {% for a in row.alerts %}
+                                <span class="status cancelled d-inline-block me-1 mb-1">{{ a }}</span>
+                            {% empty %}
+                                <span class="text-muted small">None</span>
+                            {% endfor %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

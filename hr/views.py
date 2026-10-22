@@ -28,6 +28,18 @@ from django.views.decorators.http import require_POST
 from service_logs.views import build_employee_analytics_context
 from manager.views import compute_presence_data
 from Admin.attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
+from Admin.attendance_autoclose import close_stale_sessions, capped_logout
+from Admin.office_staff_helpers import (
+    get_staff_attendance_context,
+    handle_staff_punch_in,
+    handle_staff_punch_out,
+    handle_staff_apply_leave,
+    fetch_user_notifications,
+    mark_user_notifications_read,
+    get_staff_profile_context,
+    handle_staff_update_profile,
+    handle_staff_update_travel_time,
+)
 
 
 def is_hr(user):
@@ -44,37 +56,13 @@ def is_hr(user):
 @user_passes_test(is_hr)
 def hr_log_in(request):
     if request.method == "POST":
-        employee = get_object_or_404(Employee, user=request.user)
-        project_id = request.POST.get("project")
-        location = request.POST.get("location")
-        attendance_status = request.POST.get("attendance_status")
+        try:
+            employee = get_object_or_404(Employee, user=request.user)
+        except AttributeError:
+            messages.error(request, "Your user is not associated with an employee record.")
+            return redirect("hr_attendance_dashboard")
 
-        # Retrieve the travel times from the POST data
-        travel_in_time_str = request.POST.get("travel_in_time")
-        travel_out_time_str = request.POST.get("travel_out_time")
-        travel_in_time = parse_datetime(travel_in_time_str) if travel_in_time_str else None
-        travel_out_time = parse_datetime(travel_out_time_str) if travel_out_time_str else None
-
-        attendance, created = Attendance.objects.get_or_create(
-            employee=employee,
-            project_id=project_id,
-            log_out_time__isnull=True,  # Prevent multiple active punch-ins
-            defaults={
-                "location": location,
-                "attendance_status": attendance_status,
-                "login_time": now(),
-                "travel_in_time": travel_in_time,  # from hidden field (or fallback to now)
-                "travel_out_time": travel_out_time,
-                "status": "APPROVED",
-                "total_hours_of_work": 0,  # Default value
-            },
-        )
-
-        if created:
-            messages.success(request, "You have successfully logged in.")
-        else:
-            messages.error(request, "You are already logged in. Please log off before logging in again.")
-
+        handle_staff_punch_in(request, employee)
         return redirect("hr_attendance_status")
 
     return hr_render_attendance_page(request)
@@ -83,28 +71,14 @@ def hr_log_in(request):
 @user_passes_test(is_hr)
 def hr_log_off(request, attendance_id):
     if request.method == "POST":
-        # Get the Employee object associated with the logged-in user
         try:
             employee = get_object_or_404(Employee, user=request.user)
         except AttributeError:
             messages.error(request, "Your user is not associated with an employee record.")
             return redirect("hr_attendance_dashboard")
         
-        # Get the Attendance record
         attendance = get_object_or_404(Attendance, id=attendance_id, employee=employee)
-
-        # Update the log-out time
-        if attendance.log_out_time is None:
-            attendance.log_out_time = now()
-            # attendance.travel_out_time = now()
-            # Calculate total hours worked
-            attendance.total_hours_of_work = (
-                (attendance.log_out_time - attendance.login_time).total_seconds() / 3600
-            )
-            attendance.save()
-            messages.success(request, "You have successfully logged off.")
-        else:
-            messages.error(request, "You have already logged off.")
+        handle_staff_punch_out(request, attendance)
 
     return redirect("hr-dashboard")  # Redirect to the appropriate page
 
@@ -112,18 +86,9 @@ def hr_log_off(request, attendance_id):
 @user_passes_test(is_hr)
 def hr_render_attendance_page(request):
     employee = get_object_or_404(Employee, user=request.user)
-    user_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True).first()
+    context = get_staff_attendance_context(request, employee)
+    return render(request, "hr/punchin.html", context)
 
-    attendance_status_choices = Attendance.ATTENDANCE_STATUS
-    location_choices = Attendance.LOCATION_CHOICES
-    projects = Project.objects.all()
-
-    return render(request, "hr/punchin.html", {
-        "attendance_status_choices": attendance_status_choices,
-        "location_choices": location_choices,
-        "projects": projects,
-        "user_attendance": user_attendance,
-    })
 
 
 @login_required
@@ -145,49 +110,7 @@ def attendance(request):
 @login_required
 @user_passes_test(is_hr)
 def hr_update_travel_time(request, attendance_id):
-    attendance = get_object_or_404(Attendance, id=attendance_id)
-
-    if request.method == 'POST':
-        # Extract values for datetime fields only
-        login_time = request.POST.get('login_time')
-        log_out_time = request.POST.get('log_out_time')
-        travel_in_time = request.POST.get('travel_in_time')
-        travel_out_time = request.POST.get('travel_out_time')
-
-        # Parse datetime fields
-        if login_time:
-            attendance.login_time = datetime.strptime(login_time, '%Y-%m-%dT%H:%M')
-        if log_out_time:
-            attendance.log_out_time = datetime.strptime(log_out_time, '%Y-%m-%dT%H:%M')
-        if travel_in_time:
-            attendance.travel_in_time = datetime.strptime(travel_in_time, '%Y-%m-%dT%H:%M')
-        if travel_out_time:
-            attendance.travel_out_time = datetime.strptime(travel_out_time, '%Y-%m-%dT%H:%M')
-
-        # Handle other fields (but don't update project, attendance_status, and status)
-        employee_id = request.POST.get('employee')
-        if not employee_id:
-            messages.error(request, "Employee is required.")
-            return redirect('hr_attendance_status')
-
-        attendance.employee_id = employee_id  # Ensure employee_id is provided
-        # Exclude project, attendance_status, and status from form submission
-        attendance.rejection_reason = request.POST.get('rejection_reason')
-        
-        # Don't update the "project", "attendance_status", and "status" fields
-
-        attendance.save()
-
-        messages.success(request, 'Travel time has been updated successfully.')
-        return redirect('hr_attendance_status')
-
-    employees = Employee.objects.all()
-    projects = Project.objects.all()
-    return render(request, 'hr/update_travel_time.html', {
-        'attendance': attendance,
-        'employees': employees,
-        'projects': projects,
-    })
+    return handle_staff_update_travel_time(request, attendance_id, 'hr_attendance_status', 'hr/update_travel_time.html')
 
 @login_required
 @user_passes_test(is_hr)
@@ -205,7 +128,7 @@ def dashboard(request):
 
         #Total Employees
         total_employees = Employee.objects.filter(
-            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True)
+            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
         ).count()
 
         #Total Leave Requests
@@ -739,21 +662,8 @@ def hr_apply_leave(request):
     if request.method == 'POST':
         form = LeaveForm(request.POST, request.FILES)
         if form.is_valid():
-            leave_application = form.save(commit=False)
-            leave_application.user = request.user  # Assign current user
-            leave_application.no_of_days = (leave_application.to_date - leave_application.from_date).days + 1  # Include both dates
-            leave_application.save()
-
-            # Send notification to all admins
-            admins = User.objects.filter(is_superuser=True)  # Get all admin users
-            for admin in admins:
-                Notification.objects.create(
-                    recipient=admin,
-                    message=f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}."
-                )
-
-            messages.success(request, "Leave request submitted successfully.")
-            return redirect('hr_leave_status')  # Redirect after success
+            handle_staff_apply_leave(request, form)
+            return redirect('hr_leave_status')
     else:
         form = LeaveForm()
 
@@ -839,135 +749,27 @@ def hr_leave_records(request):
 @login_required
 @user_passes_test(is_hr)
 def hr_fetch_notifications(request):
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
-    return JsonResponse({"notifications": list(notifications)})
+    return JsonResponse({"notifications": fetch_user_notifications(request.user)})
+
 
 @login_required
 @user_passes_test(is_hr)
 def hr_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in manager as read."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
-    
-    if notifications.exists():
-        notifications.update(is_read=True)  # Bulk update for efficiency
-    
-    return JsonResponse({"message": "Notifications marked as read"})
+    return JsonResponse(mark_user_notifications_read(request.user))
 
 
 @login_required
 @user_passes_test(is_hr)
 def hr_profile(request):
-    # Fetch the employee
-    employee = get_object_or_404(Employee, user=request.user)
-    teams = employee.teams_assigned.all()
-
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
-
-    # Count statuses for the employee's projects
-    completed_projects = team_member_statuses.filter(
-        status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(
-        Q(status='COMPLETED') | Q(status='ONGOING')).count()
-    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
-
-    # Get the related projects from the team member status
-    all_projects = [
-        {
-            'project': status.team.project,
-            'manager': status.team.project.manager,
-            'status': status.status
-        }
-        for status in team_member_statuses
-    ]
-
-    # Calculate attendance percentage
-    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    # approved_attendance_records = Attendance.objects.filter(
-    #     employee=employee, status='APPROVED'
-    # ).count()
-    # attendance_percentage = (
-    #     (approved_attendance_records / 30) * 100
-    #     if total_attendance_records > 0
-    #     else 0
-    # )
-
-    # Get the current year and month
-    current_year = date.today().year
-    current_month = date.today().month
-
-    # Get the total number of days in the current month
-    total_days_in_month = monthrange(current_year, current_month)[1]
-
-    # Calculate total and approved attendance records for the current month
-    total_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        status='APPROVED',
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    # Calculate attendance percentage
-    attendance_percentage = (
-        (approved_attendance_records / total_days_in_month) * 100
-        if total_attendance_records > 0
-        else 0
-    )
-
-    # Count total projects and pending projects
-    total_projects = completed_projects + pending_projects + assigned_projects
-    total_pending_projects = total_projects - completed_projects
-
-    # Context for template
-    context = {
-        'employee': employee,
-        'teams': teams,
-        'all_projects': all_projects,
-        'attendance_percentage': round(attendance_percentage, 1),
-        'total_projects': total_projects,
-        'completed_projects': completed_projects,
-        'pending_projects': total_pending_projects,
-    }
-
+    context = get_staff_profile_context(request.user)
     return render(request, 'hr/profile.html', context)
 
 
 @login_required
 @user_passes_test(is_hr)
 def hr_update_profile(request):
-    employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
-
-    if request.method == "POST":
-        form = EmployeeUpdateForm(request.POST, request.FILES, instance=employee)
-        if form.is_valid():
-            user = request.user
-            user.first_name = form.cleaned_data["first_name"]
-            user.last_name = form.cleaned_data["last_name"]
-            user.email = form.cleaned_data["email"]
-
-            # Save new password if provided
-            if form.cleaned_data["password"]:
-                user.set_password(form.cleaned_data["password"])
-
-            user.save()
-            form.save()
-
-            messages.success(request, "Your profile has been updated successfully.")
-            return redirect("hr_profile_view")
-
-    else:
-        form = EmployeeUpdateForm(instance=employee, initial={
-            "first_name": request.user.first_name,
-            "last_name": request.user.last_name,
-            "email": request.user.email,
-        })
-
-    return render(request, "hr/updateprofile.html", {"form": form})
+    return handle_staff_update_profile(request, 'hr_profile_view', 'hr/updateprofile.html')
 
 
 @login_required

@@ -164,5 +164,12 @@ def auto_create_service_log(sender, instance, **kwargs):
     After every WorkOrderTime save, create or update the linked EmployeeServiceLog.
     Import is deferred to avoid circular imports at startup.
     """
+    if instance.employee is None:
+        import logging
+        logging.getLogger(__name__).warning(
+            "WorkOrderTime id=%s has no employee set – skipping service log.",
+            instance.pk,
+        )
+        return
     from service_logs.services import create_or_update_service_log
     create_or_update_service_log(instance)

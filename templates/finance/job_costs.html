@@ -1,0 +1,153 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Direct Job Costs: {{ invoice.invoice_number }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar mb-4">
+        <div class="pg-title mb-0">
+            <h1>Direct Job Costs</h1>
+            <span class="text-muted small">Manage travel, flights, misc, and other direct expenses for {{ invoice.invoice_number }}</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_jobs_pnl' %}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-arrow-left me-1"></i> Back to Jobs P&amp;L
+            </a>
+        </div>
+    </div>
+
+    <!-- Invoice Header Overview -->
+    <div class="widget-box p-3 mb-4">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <span class="text-muted small d-block">Invoice Number</span>
+                <span class="fw-bold font-monospace fs-5">{{ invoice.invoice_number }}</span>
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted small d-block">Service Reference / Vessel</span>
+                <span class="fw-bold">{{ invoice.service_ref|default:"—" }}</span>
+                {% if invoice.vessel %}<span class="text-muted small d-block">({{ invoice.vessel }})</span>{% endif %}
+            </div>
+            <div class="col-md-3">
+                <span class="text-muted small d-block">Customer</span>
+                <span class="fw-semibold">{{ invoice.customer|default:"—" }}</span>
+            </div>
+            <div class="col-md-3 text-md-end">
+                <span class="text-muted small d-block">Net Invoice (Collection Value)</span>
+                <span class="fw-bold font-monospace text-primary fs-5">{{ invoice.collection_value|floatformat:2|intcomma }} AED</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Existing Costs List -->
+        <div class="col-lg-8">
+            <div class="widget-box table-wdgt">
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">Direct Cost Breakdown</h5>
+                    <span class="badge bg-secondary">{{ costs|length }} cost line{{ costs|length|pluralize }}</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th class="text-end">Amount (AED)</th>
+                                <th>Port</th>
+                                <th>Description</th>
+                                <th>Date</th>
+                                <th>Source</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in costs %}
+                            <tr>
+                                <td>
+                                    <span class="status in-progress">{{ c.get_cost_type_display }}</span>
+                                </td>
+                                <td class="text-end font-monospace fw-bold">{{ c.amount|floatformat:2|intcomma }}</td>
+                                <td>{{ c.travel_port|default:"—" }}</td>
+                                <td>{{ c.description|default:"—" }}</td>
+                                <td class="small text-muted">{{ c.date|date:"d-M-Y"|default:"—" }}</td>
+                                <td>
+                                    <span class="badge {% if c.source == 'MANUAL' %}bg-primary{% elif c.source == 'IMPORT' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                                        {{ c.get_source_display }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <form method="post" action="{% url 'fin_job_cost_delete' c.id %}" onsubmit="return confirm('Are you sure you want to remove this cost line?');">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2" title="Delete Cost">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">
+                                    No direct job costs recorded for this invoice yet.
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        {% if costs %}
+                        <tfoot class="table-light fw-bold">
+                            <tr>
+                                <td>Total Direct Costs</td>
+                                <td class="text-end font-monospace">{{ total_costs|floatformat:2|intcomma }}</td>
+                                <td colspan="5"></td>
+                            </tr>
+                        </tfoot>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Cost Line Form -->
+        <div class="col-lg-4">
+            <div class="widget-box p-3">
+                <h5 class="fw-bold mb-3 border-bottom pb-2">Add Direct Cost</h5>
+                <form method="post" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Cost Type <span class="text-danger">*</span></label>
+                        {{ form.cost_type }}
+                        {% if form.cost_type.errors %}<div class="text-danger small mt-1">{{ form.cost_type.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Amount (AED) <span class="text-danger">*</span></label>
+                        {{ form.amount }}
+                        {% if form.amount.errors %}<div class="text-danger small mt-1">{{ form.amount.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Port</label>
+                        {{ form.travel_port }}
+                        <small class="text-muted">Required or relevant for travel costs (e.g. Khorfakkan, Dubai)</small>
+                        {% if form.travel_port.errors %}<div class="text-danger small mt-1">{{ form.travel_port.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Date</label>
+                        {{ form.date }}
+                        {% if form.date.errors %}<div class="text-danger small mt-1">{{ form.date.errors.0 }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        {{ form.description }}
+                        {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>{% endif %}
+                    </div>
+                    <button type="submit" class="fin-btn w-100">
+                        <i class="fas fa-plus me-1"></i> Add Cost Line
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

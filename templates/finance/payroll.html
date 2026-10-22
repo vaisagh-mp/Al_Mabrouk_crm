@@ -1,0 +1,201 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Payroll — {{ month_display }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Payroll Management</h1>
+            <span class="text-muted small">Month: <strong>{{ month_display }}</strong></span>
+        </div>
+        <div class="fin-toolbar">
+            <!-- Month Picker Form -->
+            <form method="get" action="{% url 'fin_payroll' %}" class="d-flex align-items-center gap-2">
+                <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm" style="width: 160px;" onchange="this.form.submit()">
+                <button type="submit" class="fin-btn">View</button>
+            </form>
+
+            <!-- Generate / Refresh Draft Form -->
+            <form method="post" action="{% url 'fin_payroll_generate' %}">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <button type="submit" class="fin-btn" onclick="return confirm('Generate or refresh draft payroll for {{ month_display }}? Existing approved or paid records will not be overwritten.');">
+                    <i class="fas fa-sync-alt me-1"></i> Generate Draft
+                </button>
+            </form>
+
+            <!-- Approve All Drafts Form -->
+            {% if has_draft %}
+            <form method="post" action="{% url 'fin_payroll_approve_all' %}">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <button type="submit" class="fin-btn" onclick="return confirm('Approve all DRAFT payroll records for {{ month_display }}?');">
+                    <i class="fas fa-check-double me-1"></i> Approve Drafts
+                </button>
+            </form>
+            {% endif %}
+
+            <!-- Mark as Paid Form -->
+            {% if has_approved or has_draft %}
+            <form method="post" action="{% url 'fin_payroll_mark_paid' %}">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <button type="submit" class="fin-btn" onclick="return confirm('Mark all draft & approved payroll records for {{ month_display }} as PAID?');">
+                    <i class="fas fa-dollar-sign me-1"></i> Mark Paid
+                </button>
+            </form>
+            {% endif %}
+
+            <!-- Export Excel -->
+            <a href="{% url 'fin_payroll_export_excel' %}?month={{ selected_month }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Designation</th>
+                        <th class="text-end">Basic (AED)</th>
+                        <th class="text-end">Allowances (AED)</th>
+                        <th class="text-end">OT (AED)</th>
+                        <th class="text-end">Deductions (AED)</th>
+                        <th class="text-center">Unpaid Days</th>
+                        <th class="text-end">Absence Ded. (AED)</th>
+                        <th class="text-end">Gross (AED)</th>
+                        <th class="text-end">Net Pay (AED)</th>
+                        <th class="text-center">Days (W/A/L)</th>
+                        <th class="text-center">Vessel / OT Hrs</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in payrolls %}
+                    <tr>
+                        <td>
+                            <strong>{{ p.employee.user.get_full_name|default:p.employee.user.username }}</strong>
+                            {% if p.notes %}
+                            <div class="text-muted small text-truncate" style="max-width: 200px;" title="{{ p.notes }}">
+                                <i class="fas fa-sticky-note me-1 text-warning"></i>{{ p.notes }}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td><span class="text-secondary small">{{ p.employee.rank|default:"—" }}</span></td>
+                        <td class="text-end font-monospace">{{ p.basic_salary|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-green">+{{ p.allowances|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-green">+{{ p.ot_amount|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-red">-{{ p.deductions|floatformat:2 }}</td>
+                        <td class="text-center">{{ p.absent_days_unpaid|floatformat:0 }}</td>
+                        <td class="text-end font-monospace fin-text-red">
+                            {% if p.absence_waived %}
+                                <s class="text-muted">-{{ p.absence_deduction|floatformat:2 }}</s>
+                                <span class="badge bg-secondary ms-1" title="{{ p.notes }}">waived</span>
+                            {% else %}
+                                -{{ p.absence_deduction|floatformat:2 }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace fw-bold">{{ p.gross|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fw-bold" style="color: var(--bs-blue);">{{ p.net_pay|floatformat:2 }}</td>
+                        <td class="text-center small">
+                            <span class="fin-day-pill" title="Worked Days">{{ p.worked_days }}W</span>
+                            <span class="fin-day-pill fin-day-absent" title="Absent Days">{{ p.absent_days }}A</span>
+                            <span class="fin-day-pill fin-day-leave" title="Leave Days">{{ p.leave_days }}L</span>
+                        </td>
+                        <td class="text-center small">
+                            <span>{{ p.vessel_hours|floatformat:1 }}h</span> /
+                            <span>{{ p.ot_hours|floatformat:1 }}h OT</span>
+                            {% if p.ot_mismatch %}
+                                <i class="fas fa-exclamation-triangle text-warning ms-1" title="OT hours/amount mismatch"></i>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if p.status == 'DRAFT' %}
+                                <span class="status pending">Draft</span>
+                            {% elif p.status == 'APPROVED' %}
+                                <span class="status in-progress">Approved</span>
+                            {% elif p.status == 'PAID' %}
+                                <span class="status completed">Paid</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center text-nowrap">
+                            {% if p.status == 'DRAFT' %}
+                                {% if is_finance_admin %}
+                                <form id="del-payroll-{{ p.id }}" action="{% url 'fin_payroll_delete' p.id %}" method="POST" style="display: none;">
+                                    {% csrf_token %}
+                                </form>
+                                {% endif %}
+                                <div class="list-action-col d-inline-flex align-items-center">
+                                    <a href="{% url 'fin_payroll_edit' p.id %}" title="Edit Allowances / Deductions / Waiver / Notes">
+                                        <i class="far fa-edit"></i>
+                                    </a>
+                                    {% if is_finance_admin %}
+                                    <a href="#" onclick="if(confirm('Delete payroll record for {{ p.employee.user.get_full_name|default:p.employee.user.username|escapejs }}?')) document.getElementById('del-payroll-{{ p.id }}').submit(); return false;" title="Delete Payroll">
+                                        <i class="far fa-trash-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            {% elif p.status == 'APPROVED' %}
+                                {% if is_finance_admin %}
+                                <form id="revert-payroll-{{ p.id }}" action="{% url 'fin_payroll_revert' p.id %}" method="POST" style="display: none;">
+                                    {% csrf_token %}
+                                </form>
+                                <form id="del-payroll-{{ p.id }}" action="{% url 'fin_payroll_delete' p.id %}" method="POST" style="display: none;">
+                                    {% csrf_token %}
+                                </form>
+                                <div class="list-action-col d-inline-flex align-items-center">
+                                    <a href="{% url 'fin_payroll_edit' p.id %}" title="Edit Allowances / Deductions / Notes">
+                                        <i class="far fa-edit"></i>
+                                    </a>
+                                    <a href="#" onclick="if(confirm('Revert payroll for {{ p.employee.user.get_full_name|default:p.employee.user.username|escapejs }} from APPROVED to DRAFT?')) document.getElementById('revert-payroll-{{ p.id }}').submit(); return false;" title="Revert to Draft">
+                                        <i class="fas fa-undo"></i>
+                                    </a>
+                                    <a href="#" onclick="if(confirm('Delete payroll record for {{ p.employee.user.get_full_name|default:p.employee.user.username|escapejs }}?')) document.getElementById('del-payroll-{{ p.id }}').submit(); return false;" title="Delete Payroll">
+                                        <i class="far fa-trash-alt"></i>
+                                    </a>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small" title="Locked"><i class="fas fa-lock"></i></span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small" title="Paid (Locked)"><i class="fas fa-lock"></i></span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="14" class="text-center py-4 text-muted">
+                            <i class="fas fa-info-circle me-1"></i> No payroll records for {{ month_display }}. Click <strong>"Generate Draft"</strong> to create draft payrolls.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if payrolls %}
+                <tfoot class="fw-bold">
+                    <tr>
+                        <td colspan="2">TOTAL ({{ payrolls|length }} Employees)</td>
+                        <td class="text-end font-monospace">{{ totals.basic|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-green">+{{ totals.allowances|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-green">+{{ totals.ot|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fin-text-red">-{{ totals.deductions|floatformat:2 }}</td>
+                        <td class="text-center">{{ totals.unpaid_days|floatformat:0 }}</td>
+                        <td class="text-end font-monospace fin-text-red">-{{ totals.absence_deduction|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ totals.gross|floatformat:2 }}</td>
+                        <td class="text-end font-monospace" style="color: var(--bs-blue);">{{ totals.net|floatformat:2 }}</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

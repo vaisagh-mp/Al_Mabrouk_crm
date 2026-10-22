@@ -1,0 +1,169 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Employees Cost &amp; Labour Analysis | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Employees Cost &amp; Labour Utilisation</h1>
+            <span class="text-muted small">Detailed breakdown of employee salaries, OT, vessel billable utilisation, and revenue contribution.</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_employee_cost_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Period From</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Period To</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4 d-flex gap-2">
+                <button type="submit" class="fin-btn flex-grow-1">Apply Range</button>
+                <a href="{% url 'fin_employee_cost' %}" class="fin-btn fin-btn-outline">Reset to This Month</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Employee Cost Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">Labour Cost &amp; Profitability Contribution</h5>
+            <small class="text-muted">Showing {{ rows|length }} employee(s) in active register</small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>
+                            <a href="?sort={% if sort_by == 'name' %}-name{% else %}name{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'name' or sort_by == '-name' %} active{% endif %}">
+                                Employee Name {% if sort_by == 'name' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-name' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort={% if sort_by == 'designation' %}-designation{% else %}designation{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'designation' or sort_by == '-designation' %} active{% endif %}">
+                                Designation {% if sort_by == 'designation' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-designation' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'monthly_salary' %}-monthly_salary{% else %}monthly_salary{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'monthly_salary' or sort_by == '-monthly_salary' %} active{% endif %}">
+                                Monthly Salary {% if sort_by == 'monthly_salary' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-monthly_salary' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'payroll_cost' %}-payroll_cost{% else %}payroll_cost{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'payroll_cost' or sort_by == '-payroll_cost' %} active{% endif %}">
+                                Payroll Cost in Period {% if sort_by == 'payroll_cost' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-payroll_cost' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'ot_cost' %}-ot_cost{% else %}ot_cost{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'ot_cost' or sort_by == '-ot_cost' %} active{% endif %}">
+                                OT Cost {% if sort_by == 'ot_cost' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-ot_cost' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'vessel_hours' %}-vessel_hours{% else %}vessel_hours{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'vessel_hours' or sort_by == '-vessel_hours' %} active{% endif %}">
+                                Vessel Hours {% if sort_by == 'vessel_hours' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-vessel_hours' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'office_hours' %}-office_hours{% else %}office_hours{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'office_hours' or sort_by == '-office_hours' %} active{% endif %}">
+                                Office Hours {% if sort_by == 'office_hours' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-office_hours' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'billable_utilisation' %}-billable_utilisation{% else %}billable_utilisation{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'billable_utilisation' or sort_by == '-billable_utilisation' %} active{% endif %}">
+                                Utilisation % {% if sort_by == 'billable_utilisation' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-billable_utilisation' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == '-attributed_revenue' %}attributed_revenue{% else %}-attributed_revenue{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'attributed_revenue' or sort_by == '-attributed_revenue' %} active{% endif %}">
+                                Attributed Revenue {% if sort_by == 'attributed_revenue' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-attributed_revenue' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == '-contribution' %}contribution{% else %}-contribution{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'contribution' or sort_by == '-contribution' %} active{% endif %}">
+                                Contribution {% if sort_by == 'contribution' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-contribution' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td class="fw-semibold">{{ r.name }}</td>
+                        <td>{{ r.designation }}</td>
+                        <td class="text-end font-monospace">{{ r.monthly_salary|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">
+                            {{ r.payroll_cost|floatformat:2 }}
+                            {% if r.is_estimated %}
+                                <span class="status hold" title="Estimated based on base salary prorations and calculated overtime">Est.</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace">{{ r.ot_cost|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ r.vessel_hours|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ r.office_hours|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">
+                            <span class="status {% if r.billable_utilisation >= 75 %}completed{% elif r.billable_utilisation >= 40 %}in-progress{% else %}hold{% endif %}">
+                                {{ r.billable_utilisation }}%
+                            </span>
+                        </td>
+                        <td class="text-end font-monospace">
+                            {% if r.attributed_revenue is not None %}
+                                {{ r.attributed_revenue|floatformat:2 }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace fw-bold">
+                            {% if r.contribution is not None %}
+                                <span class="{% if r.contribution < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                                    {{ r.contribution|floatformat:2 }}
+                                </span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">No employee data found for the selected date range.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if rows %}
+                <tfoot class="border-top fw-bold">
+                    <tr>
+                        <td colspan="2">TOTAL</td>
+                        <td class="text-end font-monospace">{{ totals.total_salary|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ totals.total_payroll_cost|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ totals.total_ot_cost|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ totals.total_vessel_hours|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ totals.total_office_hours|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">
+                            <span class="status ongoing">{{ totals.avg_utilisation }}%</span>
+                        </td>
+                        <td class="text-end font-monospace">{{ totals.total_attributed_revenue|floatformat:2 }}</td>
+                        <td class="text-end font-monospace {% if totals.total_contribution < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                            {{ totals.total_contribution|floatformat:2 }}
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

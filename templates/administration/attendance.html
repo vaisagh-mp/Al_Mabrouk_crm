@@ -47,6 +47,9 @@
                     <td>
                         {% if record.log_out_time %}
                         {{ record.log_out_time|time:"h:i A" }}
+                        {% if record.auto_punched_out %}
+                            <span class="status hold" title="Auto punch-out at midnight">Auto</span>
+                        {% endif %}
                         {% else %}
                         <span class="text-danger">Not logged out</span>
                         {% endif %}

@@ -1,0 +1,92 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Edit Payroll — {{ payroll.employee.user.get_full_name|default:payroll.employee.user.username }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="apply-leave-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="pg-title">
+        <h1>Edit Payroll ({{ payroll.get_status_display }})</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>{{ payroll.employee.user.get_full_name|default:payroll.employee.user.username }}</h4>
+        </div>
+
+        <p class="text-muted small mb-3">
+            Designation: {{ payroll.employee.rank|default:"—" }} | Month: {{ payroll.month|date:"F Y" }}
+        </p>
+
+        <div class="row g-2 mb-3 p-3 rounded" style="background-color: #f8f9fa; border: 1px solid #e9ecef;">
+            <div class="col-6">
+                <span class="text-muted small">Basic Salary:</span>
+                <div class="fw-bold font-monospace">AED {{ payroll.basic_salary|floatformat:2 }}</div>
+            </div>
+            <div class="col-6">
+                <span class="text-muted small">Calculated Overtime (OT):</span>
+                <div class="fw-bold font-monospace fin-text-green">AED {{ payroll.ot_amount|floatformat:2 }}</div>
+            </div>
+            <div class="col-6">
+                <span class="text-muted small">Unpaid Absent Days:</span>
+                <div class="fw-bold font-monospace">{{ payroll.absent_days_unpaid|floatformat:0 }}</div>
+            </div>
+            <div class="col-6">
+                <span class="text-muted small">Absence Deduction (Basic ÷ 26 × unpaid days):</span>
+                <div class="fw-bold font-monospace fin-text-red">
+                    {% if payroll.absence_waived %}<s>AED {{ payroll.absence_deduction|floatformat:2 }}</s> <span class="badge bg-secondary">waived</span>{% else %}AED {{ payroll.absence_deduction|floatformat:2 }}{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for err in form.non_field_errors %}{{ err }}<br>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-group mb-3">
+                <label for="{{ form.allowances.id_for_label }}">Allowances (AED)</label>
+                {{ form.allowances }}
+                {% if form.allowances.errors %}
+                    <div class="fin-text-red small">{{ form.allowances.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">Transport, accommodation, meal or other additional allowances.</small>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.deductions.id_for_label }}">Deductions (AED)</label>
+                {{ form.deductions }}
+                {% if form.deductions.errors %}
+                    <div class="fin-text-red small">{{ form.deductions.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">Manual deductions only (advances, penalties, etc.). Unpaid absences are deducted automatically above.</small>
+            </div>
+
+            <div class="form-check mb-3">
+                {{ form.absence_waived }}
+                <label class="form-check-label" for="{{ form.absence_waived.id_for_label }}">Waive absence deduction</label>
+                <div><small class="text-muted">Tick only if the absent days should not reduce pay (e.g. missing punch-ins). A note is required.</small></div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                    <div class="fin-text-red small">{{ form.notes.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">Explanation of adjustments or special payroll notes.</small>
+            </div>
+
+            <div class="form-actions d-flex justify-content-end gap-2 mt-4">
+                <a href="{% url 'fin_payroll' %}?month={{ payroll.month|date:'Y-m' }}" class="fin-btn fin-btn-outline">Cancel</a>
+                <button type="submit" class="fin-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

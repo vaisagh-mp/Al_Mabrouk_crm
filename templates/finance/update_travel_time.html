@@ -1,0 +1,59 @@
+{% extends 'finance/financebase.html' %}
+{% load custom_filters %}
+{% load static %}
+{% block content %}
+
+<div class="apply-leave-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="pg-title">
+        <h1>Update Travel Time</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>Edit Attendance Record</h4>
+        </div>
+
+        <form method="POST" action="{% url 'fin_update_travel_time' attendance.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="employee" value="{{ attendance.employee.id }}">
+            
+            <div class="form-group">
+                <label for="employee">Employee</label>
+                <input type="text" class="form-control" id="employee" value="{{ attendance.employee.user.username }}" readonly>
+            </div>
+
+            <div class="form-group">
+                <label for="login_time">Login Time</label>
+                <input type="datetime-local" class="form-control" id="login_time" name="login_time" value="{{ attendance.login_time|date:'Y-m-d\TH:i' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="log_out_time">Log Out Time</label>
+                <input type="datetime-local" class="form-control" id="log_out_time" name="log_out_time" value="{{ attendance.log_out_time|date:'Y-m-d\TH:i' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="travel_in_time">Travel In Time</label>
+                <input type="datetime-local" class="form-control" id="travel_in_time" name="travel_in_time" value="{{ attendance.travel_in_time|date:'Y-m-d\TH:i' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="travel_out_time">Travel Out Time</label>
+                <input type="datetime-local" class="form-control" id="travel_out_time" name="travel_out_time" value="{{ attendance.travel_out_time|date:'Y-m-d\TH:i' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="rejection_reason">Reason For Rejection</label>
+                <input type="text" class="form-control" id="rejection_reason" name="rejection_reason" value="{{ attendance.rejection_reason|default:'' }}">
+            </div>
+
+            <div class="form-actions mt-4">
+                <button type="submit" class="apply-btn">Update Travel Time</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

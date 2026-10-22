@@ -1,0 +1,254 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Spares Accounting | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Spares Accounting</h1>
+            <span class="text-muted small">Spare sales tracking, purchase costs, profit margins, and discrepancy alerts</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_spare_add' %}" class="fin-btn">
+                <i class="fas fa-plus me-1"></i> Add Spare Sale
+            </a>
+            <a href="{% url 'fin_spares_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Top KPI Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-sm-6">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Total Purchase Cost</span>
+                <div class="fin-aging-val font-monospace" style="color: var(--bs-blue);">AED {{ summary.total_purchase|floatformat:2|intcomma }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Total Selling Price</span>
+                <div class="fin-aging-val font-monospace text-primary">AED {{ summary.total_selling|floatformat:2|intcomma }}</div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Actual Spare Profit</span>
+                <div class="fin-aging-val font-monospace {% if summary.total_profit < 0 %}text-danger{% else %}text-success{% endif %}">
+                    AED {{ summary.total_profit|floatformat:2|intcomma }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Avg Markup %</span>
+                <div class="fin-aging-val font-monospace" style="color: var(--bs-indigo);">
+                    {{ summary.avg_markup_pct|floatformat:1 }}%
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-6">
+            <div class="fin-aging-card {% if summary.alerts_count > 0 %}border-danger{% endif %}">
+                <span class="fin-aging-title">Rows With Alerts</span>
+                <div class="fin-aging-val font-monospace {% if summary.alerts_count > 0 %}text-danger{% else %}text-muted{% endif %}">
+                    {{ summary.alerts_count }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Ref / Vessel / Invoice / Note" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="all">All Statuses</option>
+                    {% for val, label in statuses %}
+                    <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Source</label>
+                <select name="source" class="form-select form-select-sm">
+                    <option value="all">All Sources</option>
+                    {% for val, label in sources %}
+                    <option value="{{ val }}" {% if selected_source == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="alerts_only" value="1" id="alertsOnlyCheck" {% if alerts_only %}checked{% endif %}>
+                    <label class="form-check-label small fw-bold text-danger" for="alertsOnlyCheck">
+                        <i class="fas fa-exclamation-triangle me-1"></i> Show Alerts Only
+                    </label>
+                </div>
+            </div>
+            <div class="col-md-2 d-flex justify-content-end gap-2">
+                <button type="submit" class="fin-btn fin-btn-sm flex-grow-1">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+                <a href="{% url 'fin_spares' %}" class="fin-btn fin-btn-outline fin-btn-sm">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'service_ref' %}-service_ref{% else %}service_ref{% endif %}" class="fin-sort-link {% if sort_by == 'service_ref' or sort_by == '-service_ref' %}active{% endif %}">
+                                Service Ref <i class="fas {% if sort_by == 'service_ref' %}fa-sort-up{% elif sort_by == '-service_ref' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'vessel_customer' %}-vessel_customer{% else %}vessel_customer{% endif %}" class="fin-sort-link {% if sort_by == 'vessel_customer' or sort_by == '-vessel_customer' %}active{% endif %}">
+                                Vessel / Customer <i class="fas {% if sort_by == 'vessel_customer' %}fa-sort-up{% elif sort_by == '-vessel_customer' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-center">Source</th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'purchase_cost' %}-purchase_cost{% else %}purchase_cost{% endif %}" class="fin-sort-link {% if sort_by == 'purchase_cost' or sort_by == '-purchase_cost' %}active{% endif %}">
+                                Purchase Cost <i class="fas {% if sort_by == 'purchase_cost' %}fa-sort-up{% elif sort_by == '-purchase_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'selling_price' %}-selling_price{% else %}selling_price{% endif %}" class="fin-sort-link {% if sort_by == 'selling_price' or sort_by == '-selling_price' %}active{% endif %}">
+                                Actual Selling Price <i class="fas {% if sort_by == 'selling_price' %}fa-sort-up{% elif sort_by == '-selling_price' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'profit' %}-profit{% else %}profit{% endif %}" class="fin-sort-link {% if sort_by == 'profit' or sort_by == '-profit' %}active{% endif %}">
+                                Actual Spare Profit <i class="fas {% if sort_by == 'profit' %}fa-sort-up{% elif sort_by == '-profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'markup_pct' %}-markup_pct{% else %}markup_pct{% endif %}" class="fin-sort-link {% if sort_by == 'markup_pct' or sort_by == '-markup_pct' %}active{% endif %}">
+                                Actual Markup % <i class="fas {% if sort_by == 'markup_pct' %}fa-sort-up{% elif sort_by == '-markup_pct' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>Invoice No</th>
+                        <th class="text-center">Status</th>
+                        <th>Notes</th>
+                        <th>Alert</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in page_obj %}
+                    <tr class="{% if s.profit < 0 %}fin-loss-row{% endif %}">
+                        <td class="fw-semibold">{{ s.service_ref|default:"—" }}</td>
+                        <td>{{ s.vessel_customer|default:"—" }}</td>
+                        <td class="text-center">
+                            <span class="badge {% if s.source == 'SPARES_ONLY' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {{ s.get_source_display }}
+                            </span>
+                        </td>
+                        <td class="text-end font-monospace">{{ s.purchase_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ s.selling_price|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-bold {% if s.profit < 0 %}text-danger{% endif %}">
+                            {% if s.profit < 0 %}({{ s.profit|stringformat:".2f"|slice:"1:" }}){% else %}{{ s.profit|floatformat:2|intcomma }}{% endif %}
+                        </td>
+                        <td class="text-end font-monospace {% if s.markup_pct < 0 %}text-danger{% endif %}">
+                            {% if s.markup_pct is not None %}{{ s.markup_pct|floatformat:1 }}%{% else %}—{% endif %}
+                        </td>
+                        <td class="font-monospace fw-semibold">
+                            {% if s.invoice %}
+                                <a href="{% url 'fin_invoice_edit' s.invoice.id %}">{{ s.invoice.invoice_number }}</a>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if s.status == 'INVOICED' %}
+                                <span class="status completed">Invoiced</span>
+                            {% elif s.status == 'DELIVERED' %}
+                                <span class="status in-progress">Delivered</span>
+                            {% elif s.status == 'ORDERED' %}
+                                <span class="status hold">Ordered</span>
+                            {% else %}
+                                <span class="status pending">Quoted</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-truncate" style="max-width: 140px;" title="{{ s.notes }}">{{ s.notes|default:"—" }}</td>
+                        <td>
+                            {% for a in s.alerts %}
+                                <span class="status cancelled d-inline-block me-1 mb-1">{{ a }}</span>
+                            {% empty %}
+                                <span class="text-muted small">—</span>
+                            {% endfor %}
+                        </td>
+                        <td class="text-center text-nowrap">
+                            <a href="{% url 'fin_spare_edit' s.id %}" class="fin-btn fin-btn-outline fin-btn-sm" title="Edit Spare Sale">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if is_finance_admin %}
+                            <form method="post" action="{% url 'fin_spare_delete' s.id %}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this spare sale?');">
+                                {% csrf_token %}
+                                <button type="submit" class="fin-btn-danger" title="Delete Spare Sale">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12" class="text-center text-muted py-4">
+                            No spare sales found matching the current filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if page_obj %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-uppercase">Total</td>
+                        <td class="text-end font-monospace">{{ summary.total_purchase|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ summary.total_selling|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if summary.total_profit < 0 %}text-danger{% endif %}">
+                            {% if summary.total_profit < 0 %}({{ summary.total_profit|stringformat:".2f"|slice:"1:" }}){% else %}{{ summary.total_profit|floatformat:2|intcomma }}{% endif %}
+                        </td>
+                        <td class="text-end font-monospace">{{ summary.avg_markup_pct|floatformat:1 }}%</td>
+                        <td colspan="5"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+            <span class="text-muted small">
+                Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} spare sales
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.next_page_number }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

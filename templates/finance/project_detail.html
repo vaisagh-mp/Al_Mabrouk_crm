@@ -1,0 +1,235 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Project Detail - {{ project.name }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <a href="{% url 'fin_projects' %}" class="fin-btn fin-btn-outline fin-btn-sm" title="Back to Projects"><i class="fas fa-arrow-left"></i></a>
+                <div class="pg-title mb-0">
+                    <h1>{{ project.name }}</h1>
+                </div>
+                {% if project.code %}<span class="status hold">#{{ project.code }}</span>{% endif %}
+            </div>
+            <p class="mb-0" style="color: var(--secondary-font-color);">Client: <strong>{{ project.client_name|default:"N/A" }}</strong> | Vessel: <strong>{{ project.vessel_name|default:"N/A" }}</strong></p>
+        </div>
+        <div class="fin-toolbar mt-2 mt-md-0">
+            <a href="{% url 'fin_project_invoice_edit' project.id %}?next={{ request.get_full_path|urlencode }}" class="fin-btn">
+                <i class="fas fa-file-invoice me-1"></i> Invoice
+            </a>
+            {% if request.user.is_superuser %}
+                <a href="{% url 'project-summary' project.id %}" class="fin-btn fin-btn-outline">
+                    Admin Summary
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="kpi-icon fin-round bg-blue"><i class="fas fa-hand-holding-usd"></i></div>
+                <div class="kpi-content">
+                    <h3>AED {{ cost_breakdown.revenue|floatformat:2|intcomma }}{% if cost_breakdown.is_legacy_invoice %} <span class="fin-text-muted">(legacy)</span>{% endif %}</h3>
+                    <span class="fin-kpi-label">Invoiced Revenue</span>
+                    <small class="d-block mt-1 fin-detail-subtext">Received: AED {{ cost_breakdown.amount_received|floatformat:2|intcomma }}</small>
+                    <small class="d-block fin-text-red fin-detail-subtext">Outstanding: AED {{ cost_breakdown.outstanding|floatformat:2|intcomma }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="kpi-icon fin-round bg-red"><i class="fas fa-calculator"></i></div>
+                <div class="kpi-content">
+                    <h3>AED {{ cost_breakdown.total_cost|floatformat:2|intcomma }}</h3>
+                    <span class="fin-kpi-label">Total Project Cost</span>
+                    <small class="d-block mt-1 fin-detail-subtext">Employee: AED {{ cost_breakdown.employee_cost|floatformat:2|intcomma }}</small>
+                    <small class="d-block fin-detail-subtext">Spares: AED {{ cost_breakdown.spares_cost|floatformat:2|intcomma }} | Other: AED {{ cost_breakdown.other_job_costs|floatformat:2|intcomma }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="kpi-icon fin-round bg-green"><i class="fas fa-chart-line"></i></div>
+                <div class="kpi-content">
+                    <h3 class="{% if cost_breakdown.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                        AED {{ cost_breakdown.profit|floatformat:2|intcomma }}
+                    </h3>
+                    <span class="fin-kpi-label">Profit / Loss</span>
+                    <small class="d-block mt-1 fin-detail-subtext">Profit %: <strong>{% if cost_breakdown.margin_pct is not None %}{{ cost_breakdown.margin_pct }}%{% else %}—{% endif %}</strong></small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="kpi-card">
+                <div class="kpi-icon fin-round bg-orange"><i class="fas fa-user-clock"></i></div>
+                <div class="kpi-content">
+                    <h3>{{ cost_breakdown.employee_hours|floatformat:1 }} <span class="fin-kpi-unit">Hrs</span></h3>
+                    <span class="fin-kpi-label">Engineer Utilization</span>
+                    <small class="d-block mt-1 fin-detail-subtext">Hours: <strong>{{ cost_breakdown.employee_hours|floatformat:1 }}</strong> | Days: <strong>{{ cost_breakdown.engineer_days }}</strong></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoices Section -->
+    <div class="widget-box table-wdgt p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0"><i class="fas fa-file-invoice me-2"></i> Invoices</h5>
+            <a href="{% url 'fin_invoice_add' %}?project={{ project.id }}" class="fin-btn fin-btn-sm">
+                <i class="fas fa-plus me-1"></i> Add Invoice
+            </a>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Amount excl. VAT</th>
+                    <th>Received</th>
+                    <th>Outstanding</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invoices %}
+                <tr>
+                    <td>
+                        <a href="{% url 'fin_invoice_edit' inv.id %}" class="fw-bold">
+                            {{ inv.invoice_number }}
+                        </a>
+                    </td>
+                    <td>{{ inv.invoice_date|date:"Y-m-d"|default:"—" }}</td>
+                    <td>{{ inv.get_invoice_type_display|default:inv.invoice_type }}</td>
+                    <td>AED {{ inv.amount_excl_vat|floatformat:2|intcomma }}</td>
+                    <td>AED {{ inv.amount_received|floatformat:2|intcomma }}</td>
+                    <td>AED {{ inv.outstanding|floatformat:2|intcomma }}</td>
+                    <td>
+                        {% if inv.status == 'PAID' %}
+                            <span class="status completed">Paid</span>
+                        {% elif inv.status == 'OVERDUE' %}
+                            <span class="status cancelled">Overdue</span>
+                        {% elif inv.status == 'PARTIAL' %}
+                            <span class="status in-progress">Partial</span>
+                        {% elif inv.status == 'CANCELLED' %}
+                            <span class="status cancelled">Cancelled</span>
+                        {% else %}
+                            <span class="status pending">Open</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <p class="mb-2" style="color: var(--secondary-font-color);">No invoice yet</p>
+                        <a href="{% url 'fin_invoice_add' %}?project={{ project.id }}" class="fin-btn fin-btn-sm">
+                            <i class="fas fa-plus me-1"></i> Add Invoice
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Service Logs Section -->
+    <div class="widget-box table-wdgt p-4 mb-4">
+        <h5 class="fw-bold mb-3"><i class="fas fa-clipboard-list me-2"></i> Service Logs (Labour Cost)</h5>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Engineer</th>
+                    <th>Time</th>
+                    <th>Total Hours</th>
+                    <th>OT Hours</th>
+                    <th>Normal Cost</th>
+                    <th>OT Cost</th>
+                    <th>Total Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in service_logs %}
+                <tr>
+                    <td>{{ l.date|date:"Y-m-d" }}</td>
+                    <td>{{ l.employee.user.get_full_name|default:l.employee.user.username }}</td>
+                    <td>{{ l.start_time|time:"H:i" }} - {{ l.end_time|time:"H:i"|default:"Open" }}</td>
+                    <td>{{ l.total_hours|default:"0.00" }}</td>
+                    <td>
+                        {{ l.ot_hours|default:"0.00" }}
+                        {% if l.ot_mismatch %}
+                            <i class="fas fa-exclamation-triangle text-warning ms-1" data-bs-toggle="tooltip" title="OT cost/hours mismatch — recalculate"></i>
+                        {% endif %}
+                    </td>
+                    <td>AED {{ l.normal_cost|default:"0.00"|floatformat:2|intcomma }}</td>
+                    <td>AED {{ l.ot_cost|default:"0.00"|floatformat:2|intcomma }}</td>
+                    <td class="fw-bold">AED {{ l.line_total_cost|floatformat:2|intcomma }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center py-3" style="color: var(--secondary-font-color);">No service logs found for this project.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if service_logs %}
+            <tfoot>
+                <tr class="fw-bold" style="background-color: var(--bs-light, #f8f9fa); border-top: 2px solid #dee2e6;">
+                    <td colspan="3" class="text-end">Total:</td>
+                    <td>{{ service_logs_totals.total_hours|floatformat:2 }}</td>
+                    <td>{{ service_logs_totals.ot_hours|floatformat:2 }}</td>
+                    <td>AED {{ service_logs_totals.normal_cost|floatformat:2|intcomma }}</td>
+                    <td>AED {{ service_logs_totals.ot_cost|floatformat:2|intcomma }}</td>
+                    <td>AED {{ service_logs_totals.total_cost|floatformat:2|intcomma }}</td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+
+    <!-- Linked Direct Expenses Section -->
+    <div class="widget-box table-wdgt p-4">
+        <h5 class="fw-bold mb-3"><i class="fas fa-receipt me-2"></i> Linked Direct Expenses</h5>
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th>Amount (AED)</th>
+                    <th>VAT (AED)</th>
+                    <th>Receipt</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in expenses %}
+                <tr>
+                    <td>{{ e.date|date:"Y-m-d" }}</td>
+                    <td>{{ e.category.name }}</td>
+                    <td>{{ e.description|default:"—" }}</td>
+                    <td>AED {{ e.amount|floatformat:2 }}</td>
+                    <td>AED {{ e.vat_amount|floatformat:2 }}</td>
+                    <td class="list-action-col">
+                        {% if e.receipt %}
+                            <a href="{{ e.receipt.url }}" target="_blank" title="View Receipt"><i class="fas fa-paperclip"></i></a>
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-3" style="color: var(--secondary-font-color);">No direct expenses linked to this project.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -9,6 +9,7 @@ class EmployeeCreationForm(forms.ModelForm):
         ('manager', 'Manager'),
         ('administration', 'Administration'),
         ('hr', 'HR'),
+        ('accountant', 'Accountant'),
     ]
 
     role = forms.ChoiceField(
@@ -60,8 +61,8 @@ class EmployeeCreationForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password"])
-        if self.cleaned_data.get("role") == "manager":
-            user.is_staff = True  # Mark as staff if manager
+        if self.cleaned_data.get("role") in ["manager", "hr", "accountant", "administration"]:
+            user.is_staff = True  # Mark as staff if manager, HR, accountant or administration
 
         if commit:
             user.save()
@@ -73,6 +74,7 @@ class EmployeeCreationForm(forms.ModelForm):
                 is_manager=(self.cleaned_data.get("role") == "manager"),
                 is_administration=(self.cleaned_data.get("role") == "administration"),
                 is_hr=(self.cleaned_data.get("role") == "hr"),
+                is_accountant=(self.cleaned_data.get("role") == "accountant"),
                 date_of_birth=self.cleaned_data.get("date_of_birth"),
                 phone_number=self.cleaned_data.get("phone_number"),
                 date_of_join=self.cleaned_data.get("date_of_join"),
@@ -197,6 +199,7 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
         ('manager', 'Manager'),
         ('administration', 'Administration'),
         ('hr', 'HR'),
+        ('accountant', 'Accountant'),
     ]
 
     role = forms.ChoiceField(
@@ -252,6 +255,7 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
         employee.is_manager = False
         employee.is_administration = False
         employee.is_hr = False
+        employee.is_accountant = False
 
         # Set the selected role
         if role == "employee":
@@ -262,6 +266,8 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
             employee.is_administration = True
         elif role == "hr":
             employee.is_hr = True
+        elif role == "accountant":
+            employee.is_accountant = True
 
         if commit:
             employee.save()

@@ -644,27 +644,18 @@ def admstrn_project_summary_view(request, project_id):
             total_hours = sum(record.total_hours_of_work or 0 for record in attendance_records)
             engineer_project_hours[engineer.user.username] = round(total_hours, 2)
 
-    total_expenses = project.calculate_expenses()
-    profit = project.calculate_profit()
-    profit_percent = project.calculate_profit_percentage()
     work_days = project.calculate_total_work_days()
 
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
-        "project_manager": project.manager.user.username,
+        "project_manager": project.manager.user.username if (project.manager and project.manager.user) else "N/A",
         "code": project.code,
         "category": project.category,
-        "purchase_and_expenses": project.purchase_and_expenses,
-        "invoice_amount": project.invoice_amount,
         "engineers": engineers,
         "engineer_salaries": engineer_salaries,
         "engineer_project_hours": engineer_project_hours,
         "total_work_days": work_days,
-        "currency_code": project.currency_code,
-        "total_expenses": round(total_expenses, 2),
-        "profit": profit,
-        "profit_percent": profit_percent,
         "status": project.status,
         "total_engineer_salary": round(total_engineer_salary, 2),
         "project_create": project.created_at,
@@ -675,9 +666,11 @@ def admstrn_project_summary_view(request, project_id):
         "status_choices": status_choices,
         "job_card": project.job_card.url if project.job_card else None,
         "attachment_file": project.attachment.url if project.attachment else None,
+        "service_reference": project.service_reference,
+        "project": project,
     }
 
-    context = {"project_data": project_data,'role': 'Administration',}
+    context = {"project_data": project_data, 'role': 'Administration'}
     return render(request, 'administration/projectsummary.html', context)
 
 @login_required

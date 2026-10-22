@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
 
     'employee_data',
     'Admin',
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     'administration',
     'hr',
     'service_logs',
+    'finance',
 
 ]
 
@@ -85,6 +87,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'finance.context_processors.finance_role',
             ],
         },
     },

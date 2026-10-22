@@ -1,0 +1,294 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Receivables &amp; Aging | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Accounts Receivable &amp; Aging</h1>
+            <span class="text-muted small">Track outstanding client balances, invoice aging brackets, and payment receipts.</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_receivables_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Aging Summary Cards Grid -->
+    <div class="row g-3 mb-4">
+        <!-- Total Outstanding -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title" style="color: var(--bs-blue);">Total Outstanding</div>
+                <div class="fin-aging-val" style="color: var(--bs-blue);">{{ summary.total_outstanding|floatformat:2 }}</div>
+                <small class="text-muted">{{ summary.total_count }} invoice(s)</small>
+            </div>
+        </div>
+
+        <!-- 0-30 Days -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title fin-text-green">0 – 30 Days</div>
+                <div class="fin-aging-val fin-text-green">{{ summary.bucket_0_30.amount|floatformat:2 }}</div>
+                <small class="text-muted">{{ summary.bucket_0_30.count }} invoice(s)</small>
+            </div>
+        </div>
+
+        <!-- 31-60 Days -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title" style="color: var(--bs-blue);">31 – 60 Days</div>
+                <div class="fin-aging-val" style="color: var(--bs-blue);">{{ summary.bucket_31_60.amount|floatformat:2 }}</div>
+                <small class="text-muted">{{ summary.bucket_31_60.count }} invoice(s)</small>
+            </div>
+        </div>
+
+        <!-- 61-90 Days -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title" style="color: var(--bs-orange);">61 – 90 Days</div>
+                <div class="fin-aging-val" style="color: var(--bs-orange);">{{ summary.bucket_61_90.amount|floatformat:2 }}</div>
+                <small class="text-muted">{{ summary.bucket_61_90.count }} invoice(s)</small>
+            </div>
+        </div>
+
+        <!-- 90+ Days -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title fin-text-red">90+ Days</div>
+                <div class="fin-aging-val fin-text-red">{{ summary.bucket_90_plus.amount|floatformat:2 }}</div>
+                <small class="text-muted">{{ summary.bucket_90_plus.count }} invoice(s)</small>
+            </div>
+        </div>
+
+        <!-- Oldest Invoice -->
+        <div class="col-sm-6 col-lg-4 col-xl-2">
+            <div class="fin-aging-card h-100">
+                <div class="fin-aging-title">Oldest Invoice</div>
+                {% if summary.oldest_project %}
+                    <div class="fw-bold text-truncate" title="{{ summary.oldest_project.name }}">{{ summary.oldest_project.name }}</div>
+                    <small class="fin-text-red fw-bold">{{ summary.oldest_days }} days overdue</small>
+                {% else %}
+                    <div class="text-muted">—</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold">Search Project / Invoice / Client</label>
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Filter by name, client, invoice no..." class="form-control form-control-sm">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Client</label>
+                <select name="client" class="form-select form-select-sm">
+                    <option value="">All Clients</option>
+                    {% for c in clients %}
+                        <option value="{{ c }}" {% if c == selected_client %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Aging Bucket</label>
+                <select name="bucket" class="form-select form-select-sm">
+                    <option value="all" {% if selected_bucket == 'all' or not selected_bucket %}selected{% endif %}>All Buckets</option>
+                    <option value="0-30" {% if selected_bucket == '0-30' %}selected{% endif %}>0 – 30 Days</option>
+                    <option value="31-60" {% if selected_bucket == '31-60' %}selected{% endif %}>31 – 60 Days</option>
+                    <option value="61-90" {% if selected_bucket == '61-90' %}selected{% endif %}>61 – 90 Days</option>
+                    <option value="90+" {% if selected_bucket == '90+' %}selected{% endif %}>90+ Days</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="fin-btn flex-grow-1">Filter</button>
+                <a href="{% url 'fin_receivables' %}" class="fin-btn fin-btn-outline">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Receivables Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">Outstanding Invoices</h5>
+            <small class="text-muted">Showing {{ page_obj.paginator.count }} invoice(s)</small>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>
+                            <a href="?sort={% if sort_by == 'name' %}-name{% else %}name{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'name' or sort_by == '-name' %} active{% endif %}">
+                                Project {% if sort_by == 'name' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-name' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort={% if sort_by == 'client_name' %}-client_name{% else %}client_name{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'client_name' or sort_by == '-client_name' %} active{% endif %}">
+                                Client / Vessel {% if sort_by == 'client_name' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-client_name' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">Invoice No</th>
+                        <th class="text-center">
+                            <a href="?sort={% if sort_by == 'invoice_date' %}-invoice_date{% else %}invoice_date{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'invoice_date' or sort_by == '-invoice_date' %} active{% endif %}">
+                                Invoice Date {% if sort_by == 'invoice_date' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-invoice_date' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'invoice_amount' %}-invoice_amount{% else %}invoice_amount{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'invoice_amount' or sort_by == '-invoice_amount' %} active{% endif %}">
+                                Invoice Amount {% if sort_by == 'invoice_amount' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-invoice_amount' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">Amount Received</th>
+                        <th class="text-end">
+                            <a href="?sort={% if sort_by == 'outstanding_amount' %}-outstanding_amount{% else %}outstanding_amount{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'outstanding_amount' or sort_by == '-outstanding_amount' %} active{% endif %}">
+                                Outstanding {% if sort_by == 'outstanding_amount' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-outstanding_amount' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">
+                            <a href="?sort={% if sort_by == 'days_outstanding' %}-days_outstanding{% else %}days_outstanding{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'days_outstanding' or sort_by == '-days_outstanding' %} active{% endif %}">
+                                Days Due {% if sort_by == 'days_outstanding' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-days_outstanding' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-center">Aging Bracket</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page_obj %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'fin_project_detail' r.id %}" class="fw-bold text-decoration-none" style="color: var(--bs-blue);">
+                                {{ r.name }}
+                            </a>
+                            {% if r.code %}<div class="text-muted small">#{{ r.code }}</div>{% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-semibold">{{ r.client_name|default:"—" }}</div>
+                            <small class="text-muted">{{ r.vessel_name|default:"—" }}</small>
+                        </td>
+                        <td class="text-center font-monospace small">{{ r.invoice_number }}</td>
+                        <td class="text-center small">{{ r.invoice_date|date:"Y-m-d"|default:"—" }}</td>
+                        <td class="text-end font-monospace">{{ r.invoice_amount|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ r.amount_received|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fw-bold fin-text-red">{{ r.outstanding_amount|floatformat:2 }}</td>
+                        <td class="text-center font-monospace">
+                            {% if r.days_outstanding is not None %}
+                                {{ r.days_outstanding }}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.aging_bucket == '0-30' %}
+                                <span class="status completed">0–30 Days</span>
+                            {% elif r.aging_bucket == '31-60' %}
+                                <span class="status in-progress">31–60 Days</span>
+                            {% elif r.aging_bucket == '61-90' %}
+                                <span class="status hold">61–90 Days</span>
+                            {% else %}
+                                <span class="status cancelled">90+ Days</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.payment_status == 'PAID' %}
+                                <span class="status completed">Paid</span>
+                            {% elif r.payment_status == 'PARTIAL' %}
+                                <span class="status in-progress">Partial</span>
+                            {% else %}
+                                <span class="status pending">Unpaid</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="fin-btn fin-btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal-{{ r.id }}" title="Record Client Payment">
+                                <i class="fas fa-money-bill-wave me-1"></i> Record Payment
+                            </button>
+
+                            <!-- Modal for Record Payment -->
+                            <div class="modal fade text-start" id="recordPaymentModal-{{ r.id }}" tabindex="-1" aria-labelledby="modalLabel-{{ r.id }}" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="post" action="{% url 'fin_receivables_record_payment' r.id %}">
+                                            {% csrf_token %}
+                                            <div class="modal-header">
+                                                <h5 class="modal-title fw-bold" id="modalLabel-{{ r.id }}">Record Payment: {{ r.name }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="p-3 rounded mb-3" style="background-color: #f8f9fa; border: 1px solid #e9ecef;">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Total Invoice Amount:</span>
+                                                        <span class="fw-bold font-monospace">{{ r.invoice_amount|floatformat:2 }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Previously Received:</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.amount_received|floatformat:2 }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between border-top pt-1">
+                                                        <span class="fw-bold fin-text-red">Current Balance Due:</span>
+                                                        <span class="fw-bold fin-text-red font-monospace">{{ r.outstanding_amount|floatformat:2 }} AED</span>
+                                                    </div>
+                                                </div>
+
+                                                <div class="form-group mb-3">
+                                                    <label class="form-label fw-bold">Payment Amount (AED) <span class="fin-text-red">*</span></label>
+                                                    <input type="number" step="0.01" min="0.01" max="{{ r.outstanding_amount }}" name="amount" value="{{ r.outstanding_amount }}" class="form-control" required>
+                                                    <small class="text-muted">Must be greater than 0 and not exceed balance due.</small>
+                                                </div>
+
+                                                <div class="form-group mb-3">
+                                                    <label class="form-label fw-bold">Payment Date <span class="fin-text-red">*</span></label>
+                                                    <input type="date" name="payment_date" value="{% now 'Y-m-d' %}" class="form-control" required>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="fin-btn fin-btn-outline" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="fin-btn">
+                                                    <i class="fas fa-check me-1"></i> Save Payment
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="text-center py-4 text-muted">No outstanding receivables found matching the criteria.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination" id="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Previous</a>
+            {% endif %}
+
+            {% for p in page_obj.paginator.page_range %}
+                {% if page_obj.number == p %}
+                    <button class="active">{{ p }}</button>
+                {% elif p > page_obj.number|add:"-3" and p < page_obj.number|add:"3" %}
+                    <a href="?page={{ p }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

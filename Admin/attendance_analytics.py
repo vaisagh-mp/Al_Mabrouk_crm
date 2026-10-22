@@ -231,14 +231,19 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
             for d_info in cal_dates:
                 d = d_info['date']
                 r = emp_dates.get(d)
-                if r:
+                if d > today and not (r and ((r.get('total_hours') or Decimal('0.00')) > 0 or r.get('override'))):
+                    code = 'NONE'
+                    label = 'Upcoming'
+                    t_hours = Decimal('0.00')
+                    ot_h = Decimal('0.00')
+                elif r:
                     code = r.get('status_code', 'OFFICE')
                     label = r.get('status_label') or code.replace('_', ' ').title()
                     t_hours = r.get('total_hours') or Decimal('0.00')
                     ot_h = r.get('ot_hours') or Decimal('0.00')
                 else:
                     code = 'NONE'
-                    label = 'Upcoming' if d > today else 'No data'
+                    label = 'No data'
                     t_hours = Decimal('0.00')
                     ot_h = Decimal('0.00')
 

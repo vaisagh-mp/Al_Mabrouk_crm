@@ -1,0 +1,417 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Profit &amp; Loss Statement | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <div class="pg-title mb-0">
+            <h1>Profit &amp; Loss Statement</h1>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_pnl_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Date Range & Period Filter Card -->
+    <div class="widget-box fin-filter-card mb-4">
+        <form method="get" id="pnlFilterForm">
+            <input type="hidden" name="period" id="periodInput" value="{{ period }}">
+            <div class="fin-filter-row">
+                <!-- Left: Period Chips -->
+                <div class="fin-period-chips" id="periodChips">
+                    <a href="?period=this_month" class="fin-period-chip {% if period == 'this_month' %}active{% endif %}" data-period="this_month">This Month</a>
+                    <a href="?period=last_month" class="fin-period-chip {% if period == 'last_month' %}active{% endif %}" data-period="last_month">Last Month</a>
+                    <a href="?period=this_quarter" class="fin-period-chip {% if period == 'this_quarter' %}active{% endif %}" data-period="this_quarter">This Quarter</a>
+                    <a href="?period=this_year" class="fin-period-chip {% if period == 'this_year' %}active{% endif %}" data-period="this_year">This Year (YTD)</a>
+                    <a href="?period=last_year" class="fin-period-chip {% if period == 'last_year' %}active{% endif %}" data-period="last_year">Last Year</a>
+                    <a href="?period=all_time" class="fin-period-chip {% if period == 'all_time' %}active{% endif %}" data-period="all_time">All Time</a>
+                    <button type="button" class="fin-period-chip {% if period == 'custom' %}active{% endif %}" id="customChip" data-period="custom">Custom</button>
+                </div>
+
+                <!-- Right: Date Inputs & Buttons -->
+                <div class="fin-date-inputs">
+                    <div class="fin-input-group">
+                        <i class="far fa-calendar-alt fin-input-icon"></i>
+                        <input type="date" name="start_date" id="startDateInput" value="{{ start_date }}" class="fin-date-input" aria-label="Start Date">
+                    </div>
+                    <div class="fin-input-group">
+                        <i class="far fa-calendar-alt fin-input-icon"></i>
+                        <input type="date" name="end_date" id="endDateInput" value="{{ end_date }}" class="fin-date-input" aria-label="End Date">
+                    </div>
+                    <button type="submit" class="fin-btn">Apply</button>
+                    <a href="{% url 'fin_pnl' %}" class="fin-btn fin-btn-outline">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Chart Section -->
+    <div class="widget-box p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
+            <div>
+                <h5 class="mb-0 fw-bold">Revenue, Costs &amp; Profit Trends</h5>
+                <small class="text-muted">Comparing invoiced revenues, costs, gross profit, and net profit</small>
+            </div>
+            <div class="btn-group btn-group-sm mt-2 mt-sm-0" role="group">
+                <a href="?period=week{% if querystring_without_period %}&amp;{{ querystring_without_period }}{% endif %}"
+                   class="{% if period == 'week' %}fin-srh-btn{% else %}fin-reset-btn{% endif %}">Weekly</a>
+                <a href="?period=month{% if querystring_without_period %}&amp;{{ querystring_without_period }}{% endif %}"
+                   class="{% if period == 'month' or period == 'this_year' or not period %}fin-srh-btn{% else %}fin-reset-btn{% endif %}">Monthly</a>
+                <a href="?period=year{% if querystring_without_period %}&amp;{{ querystring_without_period }}{% endif %}"
+                   class="{% if period == 'year' %}fin-srh-btn{% else %}fin-reset-btn{% endif %}">Yearly</a>
+            </div>
+        </div>
+        <div class="pnl-chart-container">
+            <canvas id="pnlChart"></canvas>
+        </div>
+    </div>
+
+    <!-- C2 Table: Performance Statement -->
+    <div class="widget-box table-wdgt p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 fw-bold">Performance Statement</h5>
+            <small class="text-muted">Click on a row to expand reconciliation and breakdown</small>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="pnl-th-toggle"></th>
+                        <th>Month</th>
+                        <th class="text-end">Revenue</th>
+                        <th class="text-end">Spares Cost</th>
+                        <th class="text-end">Job Direct Costs</th>
+                        <th class="text-end">Gross Profit</th>
+                        <th class="text-end">Gross Margin %</th>
+                        <th class="text-end">Payroll</th>
+                        <th class="text-end">Overheads</th>
+                        <th class="text-end">Net Profit/Loss</th>
+                        <th class="text-end">Net Margin %</th>
+                        <th class="text-center">Engineer Days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in buckets %}
+                    <tr role="button" data-bs-toggle="collapse" data-bs-target="#detail-{{ forloop.counter }}" aria-expanded="false" class="cursor-pointer">
+                        <td class="text-center">
+                            <i class="fas fa-chevron-right collapse-icon" id="icon-{{ forloop.counter }}"></i>
+                        </td>
+                        <td>
+                            <span>{{ b.label }}</span>
+                            {% if b.estimated %}
+                                <span class="status hold ms-1" title="Estimated Payroll">Est.</span>
+                            {% endif %}
+                            {% if b.ytd %}
+                                <span class="status ongoing ms-1" title="Year-to-Date">YTD</span>
+                            {% elif b.mtd %}
+                                <span class="status ongoing ms-1" title="Month-to-Date">MTD</span>
+                            {% endif %}
+                            {% if b.no_data %}
+                                <span class="status cancelled ms-1" title="No Data Recorded">No Data</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">AED {{ b.revenue|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ b.spares_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ b.job_direct_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end fw-semibold {% if b.gross_profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                            {% if b.gross_profit < 0 %}
+                                (AED {{ b.gross_profit|stringformat:".2f"|slice:"1:"|floatformat:2|intcomma }})
+                            {% else %}
+                                AED {{ b.gross_profit|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if b.gross_margin_pct is not None %}
+                                <span class="{% if b.gross_margin_pct < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ b.gross_margin_pct }}%</span>
+                            {% else %}
+                                <span>—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">AED {{ b.payroll_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ b.overhead_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end fw-bold {% if b.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                            {% if b.profit < 0 %}
+                                (AED {{ b.profit|stringformat:".2f"|slice:"1:"|floatformat:2|intcomma }})
+                            {% else %}
+                                AED {{ b.profit|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if b.margin_pct is not None %}
+                                <span class="{% if b.margin_pct < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ b.margin_pct }}%</span>
+                            {% else %}
+                                <span>—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ b.engineer_days }}</td>
+                    </tr>
+                    <!-- Expandable Reconciliation Row -->
+                    <tr>
+                        <td colspan="12" class="pnl-expandable-cell">
+                            <div class="collapse" id="detail-{{ forloop.counter }}">
+                                <div class="widget-box p-3 mb-2">
+                                    <div class="row g-3">
+                                        <!-- Column 1: Payroll -->
+                                        <div class="col-md-4">
+                                            <h6 class="fw-bold mb-2">Payroll Breakdown</h6>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Total Company Payroll:</span>
+                                                <span>AED {{ b.details.payroll_cost|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Allocated to Jobs (Eng):</span>
+                                                <span>AED {{ b.details.allocated_engineer_cost|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Unallocated Payroll:</span>
+                                                <span class="{% if b.details.unallocated_payroll < 0 %}fin-text-red{% endif %}">
+                                                    AED {{ b.details.unallocated_payroll|floatformat:2|intcomma }}
+                                                </span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small text-muted">
+                                                <span>Included OT:</span>
+                                                <span>AED {{ b.details.payroll_ot_cost|floatformat:2|intcomma }}</span>
+                                            </div>
+                                        </div>
+                                        <!-- Column 2: Direct Costs -->
+                                        <div class="col-md-4">
+                                            <h6 class="fw-bold mb-2">Direct Costs Breakdown</h6>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Spares Cost:</span>
+                                                <span>AED {{ b.details.spares_cost|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Job Costs (Travel/Flights/Misc):</span>
+                                                <span>AED {{ b.details.job_costs|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Project Purchases:</span>
+                                                <span>AED {{ b.details.project_purchases|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between small mb-1">
+                                                <span>Direct Project Expenses:</span>
+                                                <span>AED {{ b.details.project_expenses|floatformat:2|intcomma }}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between border-top pt-1 mt-1">
+                                                <strong>Total Direct Cost:</strong>
+                                                <strong>AED {{ b.details.project_direct_cost|floatformat:2|intcomma }}</strong>
+                                            </div>
+                                        </div>
+                                        <!-- Column 3: Overheads -->
+                                        <div class="col-md-4">
+                                            <h6 class="fw-bold mb-2">Overhead Breakdown</h6>
+                                            {% if b.details.overhead_by_category %}
+                                                {% for cat in b.details.overhead_by_category %}
+                                                    <div class="d-flex justify-content-between small mb-1">
+                                                        <span>{{ cat.name }}:</span>
+                                                        <span>AED {{ cat.amount|floatformat:2|intcomma }}</span>
+                                                    </div>
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="small text-muted">No overhead recorded in this period.</span>
+                                            {% endif %}
+                                            <div class="d-flex justify-content-between border-top pt-1 mt-1">
+                                                <strong>Total Overhead:</strong>
+                                                <strong>AED {{ b.details.overhead_cost|floatformat:2|intcomma }}</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% if b.details.reconciliation %}
+                                    <div class="row mt-3 pt-2 border-top">
+                                        <div class="col-12">
+                                            <h6 class="fw-bold mb-2"><i class="fas fa-balance-scale me-1"></i> Job P&amp;L to Company P&amp;L Reconciliation</h6>
+                                            <div class="d-flex flex-wrap gap-4 small">
+                                                <div><strong>Job Revenue:</strong> AED {{ b.details.reconciliation.job_revenue|floatformat:2|intcomma }}</div>
+                                                <div><strong>Job Direct Cost:</strong> -AED {{ b.details.reconciliation.job_direct_cost|floatformat:2|intcomma }}</div>
+                                                <div><strong>Allocated Eng Cost:</strong> -AED {{ b.details.reconciliation.job_engineer_cost|floatformat:2|intcomma }}</div>
+                                                <div><strong>Job Gross Profit:</strong> <span class="fw-semibold">AED {{ b.details.reconciliation.job_gross_profit|floatformat:2|intcomma }}</span></div>
+                                                <div><strong>Unallocated Payroll:</strong> -({{ b.details.reconciliation.unallocated_payroll|floatformat:2|intcomma }})</div>
+                                                <div><strong>Project Expenses:</strong> -AED {{ b.details.reconciliation.project_expenses|floatformat:2|intcomma }}</div>
+                                                <div><strong>Overhead:</strong> -AED {{ b.details.reconciliation.overhead_cost|floatformat:2|intcomma }}</div>
+                                                <div><strong>Company Net Profit:</strong> <span class="{% if b.details.reconciliation.company_net_profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %} fw-bold">AED {{ b.details.reconciliation.company_net_profit|floatformat:2|intcomma }}</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12" class="text-center py-4 text-muted">No financial records found for the selected range.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if buckets %}
+                <tfoot>
+                    <tr class="fw-bold pnl-total-row">
+                        <td></td>
+                        <td>TOTAL</td>
+                        <td class="text-end">AED {{ totals.revenue|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ totals.spares_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ totals.job_direct_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end {% if totals.gross_profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                            {% if totals.gross_profit < 0 %}
+                                (AED {{ totals.gross_profit|stringformat:".2f"|slice:"1:"|floatformat:2|intcomma }})
+                            {% else %}
+                                AED {{ totals.gross_profit|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if totals.gross_margin_pct is not None %}
+                                <span class="{% if totals.gross_margin_pct < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ totals.gross_margin_pct }}%</span>
+                            {% else %}
+                                <span>—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">AED {{ totals.payroll_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end">AED {{ totals.overhead_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end {% if totals.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                            {% if totals.profit < 0 %}
+                                (AED {{ totals.profit|stringformat:".2f"|slice:"1:"|floatformat:2|intcomma }})
+                            {% else %}
+                                AED {{ totals.profit|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if totals.margin_pct is not None %}
+                                <span class="{% if totals.margin_pct < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ totals.margin_pct }}%</span>
+                            {% else %}
+                                <span>—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ totals.engineer_days }}</td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chartData = JSON.parse('{{ chart_json|escapejs }}');
+    const ctx = document.getElementById('pnlChart').getContext('2d');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: chartData.labels,
+            datasets: [
+                {
+                    label: 'Revenue (AED)',
+                    data: chartData.revenue,
+                    backgroundColor: '#3f6d95',
+                    borderColor: '#2f5270',
+                    borderWidth: 1,
+                    order: 3,
+                },
+                {
+                    label: 'Total Cost (AED)',
+                    data: chartData.total_cost,
+                    backgroundColor: '#ff5200',
+                    borderColor: '#cc4200',
+                    borderWidth: 1,
+                    order: 3,
+                },
+                {
+                    label: 'Gross Profit (AED)',
+                    data: chartData.gross_profit || [],
+                    type: 'line',
+                    borderColor: '#00a8a8',
+                    backgroundColor: '#00a8a8',
+                    pointBackgroundColor: '#00a8a8',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    order: 1,
+                },
+                {
+                    label: 'Net Profit / Loss (AED)',
+                    data: chartData.profit,
+                    type: 'line',
+                    borderColor: '#4caf50',
+                    backgroundColor: '#4caf50',
+                    pointBackgroundColor: '#4caf50',
+                    borderWidth: 2,
+                    tension: 0.1,
+                    order: 2,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'AED ' + Number(value).toLocaleString();
+                        }
+                    }
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += 'AED ' + Number(context.parsed.y).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                });
+                            }
+                            return label;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Accordion chevron rotate
+    document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function(row) {
+        row.addEventListener('click', function() {
+            const icon = this.querySelector('.collapse-icon');
+            if (icon) {
+                icon.classList.toggle('fa-chevron-down');
+                icon.classList.toggle('fa-chevron-right');
+            }
+        });
+    });
+
+    // Custom chip toggle
+    const customChip = document.getElementById('customChip');
+    const periodInput = document.getElementById('periodInput');
+    if (customChip && periodInput) {
+        customChip.addEventListener('click', function() {
+            document.querySelectorAll('.fin-period-chip').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            periodInput.value = 'custom';
+            const startIn = document.getElementById('startDateInput');
+            if (startIn) startIn.focus();
+        });
+    }
+});
+</script>
+{% endblock %}

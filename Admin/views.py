@@ -7,6 +7,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.contrib.auth import update_session_auth_hash
 from django.urls import reverse
+from urllib.parse import urlencode
 from django.http import HttpResponseForbidden
 from datetime import date
 from datetime import timedelta
@@ -17,7 +18,8 @@ from collections import defaultdict
 from django.utils.timezone import now
 from django.db.models import Prefetch
 from django.http import HttpResponse
-from django.utils.dateparse import parse_date, parse_time
+from django.utils.dateparse import parse_date, parse_time, parse_datetime
+from django.utils import timezone
 from datetime import datetime
 from django.contrib.auth.models import User
 from django.http import JsonResponse
@@ -31,6 +33,7 @@ from dateutil.relativedelta import relativedelta
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
+from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates
 from service_logs.models import EmployeeServiceLog
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
@@ -686,6 +689,8 @@ def manage_manager_attendance(request):
 # Edit attendance
 @login_required
 def edit_attendance(request, attendance_id):
+    if not request.user.is_superuser:
+        raise PermissionDenied
     attendance = get_object_or_404(Attendance, id=attendance_id)
 
     if request.method == 'POST':
@@ -855,66 +860,50 @@ def admin_project_summary_view(request, project_id):
     attendance_qs = Attendance.objects.filter(project=project).select_related("employee", "employee__user")
     service_logs_qs = EmployeeServiceLog.objects.filter(project=project).select_related("employee", "employee__user")
 
-    employee_hours = defaultdict(Decimal)
-    employee_costs = defaultdict(Decimal)
+    from finance.services import get_project_financials
+    financials = get_project_financials(project)
 
-    # 1. Aggregate hours & costs from Service Logs
-    for log in service_logs_qs:
-        emp = log.employee
-        hours = Decimal(log.total_hours or 0)
-        cost = Decimal(log.normal_cost or 0) + Decimal(log.ot_cost or 0)
-
-        employee_hours[emp] += hours
-        employee_costs[emp] += cost
-
-    # 2. Support Attendance records if any exist
-    for record in attendance_qs:
-        emp = record.employee
-        hours = Decimal(record.total_hours_of_work or 0)
-        hourly_cost = emp.salary / Decimal(26 * 8) if emp.salary else Decimal(0)
-        cost = hourly_cost * hours
-
-        employee_hours[emp] += hours
-        employee_costs[emp] += cost
-
-    total_employee_hours = sum(employee_hours.values())
-    total_employee_cost = sum(employee_costs.values())
-
-    avg_hourly_cost = (
-        total_employee_cost / total_employee_hours
-        if total_employee_hours else Decimal(0)
-    )
+    total_employee_hours = financials['employee_hours']
+    total_employee_cost = financials['employee_cost']
+    total_expenses = financials['total_cost']
+    profit = financials['profit']
+    profit_percent = financials['profit_pct']
 
     engineers = []
     engineer_salaries = {}
     total_engineer_salary = Decimal(0)
     engineer_project_hours = {}
 
-    for emp, hours in employee_hours.items():
-        username = emp.user.username
-        engineers.append(username)
-        engineer_salaries[username] = emp.salary or Decimal(0)
-        total_engineer_salary += (emp.salary or Decimal(0))
-        engineer_project_hours[username] = round(hours, 2)
+    for log in service_logs_qs:
+        emp = log.employee
+        if emp and emp.user:
+            username = emp.user.username
+            if username not in engineers:
+                engineers.append(username)
+                engineer_salaries[username] = emp.salary or Decimal(0)
+                total_engineer_salary += (emp.salary or Decimal(0))
+                engineer_project_hours[username] = Decimal(0)
+            engineer_project_hours[username] += round(Decimal(log.total_hours or 0), 2)
+
+    for record in attendance_qs:
+        emp = record.employee
+        if emp and emp.user:
+            username = emp.user.username
+            if username not in engineers:
+                engineers.append(username)
+                engineer_salaries[username] = emp.salary or Decimal(0)
+                total_engineer_salary += (emp.salary or Decimal(0))
+                engineer_project_hours[username] = Decimal(0)
+            engineer_project_hours[username] += round(Decimal(record.total_hours_of_work or 0), 2)
 
     # Include assigned team employees if not already in list
     for team_obj in teams:
         for emp in team_obj.employees.all():
-            if emp.user.username not in engineers:
+            if emp and emp.user and emp.user.username not in engineers:
                 engineers.append(emp.user.username)
                 engineer_salaries[emp.user.username] = emp.salary or Decimal(0)
                 total_engineer_salary += (emp.salary or Decimal(0))
                 engineer_project_hours[emp.user.username] = Decimal(0)
-
-    total_expenses = (
-        project.purchase_and_expenses
-        + total_employee_cost
-    )
-    profit = project.invoice_amount - total_expenses
-    profit_percent = (
-        (profit / project.invoice_amount) * 100
-        if project.invoice_amount else Decimal(0)
-    )
 
     # Calculate Total Work Days
     log_dates = set(service_logs_qs.order_by().values_list("date", flat=True).distinct())
@@ -942,15 +931,21 @@ def admin_project_summary_view(request, project_id):
 
     completed_date = completed_log.changed_at if completed_log else None
 
+    first_invoice = project.invoices.filter(is_cancelled=False).first()
+    search_term = first_invoice.invoice_number if first_invoice else (project.service_reference or project.name or project.code or '')
+    fin_jobs_pnl_url = f"{reverse('fin_jobs_pnl')}?{urlencode({'search': search_term})}" if search_term else reverse('fin_jobs_pnl')
+
     project_data = {
         "project_name": project.name,
         "client_name": project.client_name,
         "vessel_name": project.vessel_name,
+        "service_reference": project.service_reference,
         "project_manager": project.manager.user.username if (project.manager and project.manager.user) else "N/A",
         "code": project.code,
         "category": project.category,
-        "purchase_and_expenses": project.purchase_and_expenses,
-        "invoice_amount": project.invoice_amount,
+        "purchase_and_expenses": financials['other_job_costs'],
+        "invoice_amount": financials['invoiced_amount'],
+        "financials": financials,
         "engineers": engineers,
         "engineer_salaries": engineer_salaries,
         "engineer_project_hours": engineer_project_hours,
@@ -974,13 +969,12 @@ def admin_project_summary_view(request, project_id):
 
         "total_employee_hours": round(total_employee_hours, 2),
         "total_employee_cost": round(total_employee_cost, 2),
-        "avg_hourly_cost": round(avg_hourly_cost, 2),
         "total_expenses": round(total_expenses, 2),
         "service_reference": project.service_reference,
         "project": project,
     }
 
-    context = {"project_data": project_data,  "team": team, 'role': 'Admin'}
+    context = {"project_data": project_data, "team": team, 'role': 'Admin', 'fin_jobs_pnl_url': fin_jobs_pnl_url}
     return render(request, 'Admin/project.html', context)
 
 
@@ -1438,6 +1432,7 @@ def admin_edit_employee(request, employee_id):
             employee.is_manager = False
             employee.is_administration = False
             employee.is_hr = False
+            employee.is_accountant = False
 
             # Update role based on form input
             selected_role = request.POST.get("role")
@@ -1453,6 +1448,9 @@ def admin_edit_employee(request, employee_id):
             elif selected_role == "hr":
                 employee.is_hr = True
                 user.is_staff = True   # HR is staff
+            elif selected_role == "accountant":
+                employee.is_accountant = True
+                user.is_staff = True   # Accountant is staff
 
             employee.save()
             user.save()
@@ -1470,6 +1468,8 @@ def admin_edit_employee(request, employee_id):
             initial_role = "administration"
         elif employee.is_hr:
             initial_role = "hr"
+        elif employee.is_accountant:
+            initial_role = "accountant"
     
         form = ManagerEmployeeUpdateForm(instance=employee, initial={
             "username": user.username,
@@ -1966,7 +1966,10 @@ def admin_view_work_order(request, pk):
 
 
 def is_superadmin(user):
-    return user.is_superuser or (hasattr(user, 'employee_profile') and user.employee_profile.role == 'superadmin')
+    if user.is_superuser:
+        return True
+    profile = getattr(user, 'employee_profile', None)
+    return getattr(profile, 'role', None) == 'superadmin'
 
 @login_required
 @user_passes_test(is_superadmin)
@@ -1991,9 +1994,8 @@ def admin_update_work_order_view(request, pk):
                     work_order.save()
 
                     # Update WorkOrderDetail
-                    work_order_detail.start_date = parse_date(request.POST.get('start_date'))
-                    work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
-                    work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
+                    _wo_warnings = []
+                    apply_detail_dates(work_order_detail, request.POST, _wo_warnings)
                     work_order_detail.save()
 
                     # ---------------------------
@@ -2023,20 +2025,21 @@ def admin_update_work_order_view(request, pk):
 
                     # Save multiple WorkOrderTime rows
                     _new_time_logs = []
-                    for date, start, finish in zip(
+                    _time_rows, _time_warnings = clean_time_rows(
                         request.POST.getlist('time_date[]'),
                         request.POST.getlist('start_time[]'),
-                        request.POST.getlist('finish_time[]')
-                    ):
-                        if start or finish:
-                            _tl = WorkOrderTime.objects.create(
-                                work_order=work_order,
-                                date=parse_date(date) if date else None,
-                                start_time=parse_time(start) if start else None,
-                                finish_time=parse_time(finish) if finish else None,
-                                employee=_employee,
-                            )
-                            _new_time_logs.append(_tl)
+                        request.POST.getlist('finish_time[]'),
+                    )
+                    _wo_warnings.extend(_time_warnings)
+                    for _row in _time_rows:
+                        _tl = WorkOrderTime.objects.create(
+                            work_order=work_order,
+                            date=_row['date'],
+                            start_time=_row['start'],
+                            finish_time=_row['finish'],
+                            employee=_employee,
+                        )
+                        _new_time_logs.append(_tl)
 
                     # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
@@ -2051,11 +2054,14 @@ def admin_update_work_order_view(request, pk):
                         request.POST.getlist('spare_quantity[]')
                     ):
                         if name.strip():
+                            _q = clean_quantity(qty, f"Spare '{name.strip()}'", _wo_warnings)
+                            if _q is None:
+                                continue
                             Spare.objects.create(
                                 work_order=work_order,
                                 name=name.strip(),
                                 unit=unit.strip(),
-                                quantity=int(qty or 0)
+                                quantity=_q
                             )
 
                     # Save new consumed spares
@@ -2065,11 +2071,14 @@ def admin_update_work_order_view(request, pk):
                         request.POST.getlist('consumed_spare_quantity[]')
                     ):
                         if name.strip():
+                            _q = clean_quantity(qty, f"Consumed spare '{name.strip()}'", _wo_warnings)
+                            if _q is None:
+                                continue
                             SpareConsumed.objects.create(
                                 work_order=work_order,
                                 name=name.strip(),
                                 unit=unit.strip(),
-                                quantity=int(qty or 0)
+                                quantity=_q
                             )
 
                     # Save Tools
@@ -2078,10 +2087,13 @@ def admin_update_work_order_view(request, pk):
                         request.POST.getlist('tool_quantity[]')
                     ):
                         if name.strip():
+                            _q = clean_quantity(qty, f"Tool '{name.strip()}'", _wo_warnings)
+                            if _q is None:
+                                continue
                             Tool.objects.create(
                                 work_order=work_order,
                                 name=name.strip(),
-                                quantity=int(qty or 0)
+                                quantity=_q
                             )
 
                     # Save Documents
@@ -2142,6 +2154,8 @@ def admin_update_work_order_view(request, pk):
                         WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
 
                     messages.success(request, "Work order updated successfully.")
+                    for _w in _wo_warnings:
+                        messages.warning(request, _w)
                     # Service Log feedback
                     if _new_time_logs and _employee:
                         messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")

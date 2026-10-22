@@ -17,6 +17,8 @@ from django.http import HttpResponse
 
 from Admin.models import Employee, Attendance, Leave, Holiday, DailyAttendanceStatus
 from service_logs.models import EmployeeServiceLog
+from service_logs.ot import split_day_ot
+from Admin.attendance_autoclose import close_stale_sessions
 
 OFFICE_LOCATIONS = {'BDO', 'DMC', 'ABU'}
 TRAVEL_LOCATIONS = {'OVERSEAS'}
@@ -116,7 +118,7 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
     employee_qs = Employee.objects.filter(
         user__is_active=True
     ).filter(
-        Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True)
+        Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
     ).select_related('user')
 
     search_query = (search or "").strip()
@@ -264,6 +266,8 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
             end = None
             total_hours = Decimal('0.00')
             ot_hours = Decimal('0.00')
+            vessel_ot_hours = Decimal('0.00')
+            office_ot_hours = Decimal('0.00')
             vessel_job = ['-']
             service_ref = ['-']
             wo_number = ['-']
@@ -347,10 +351,13 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                         end = max(l.end_time for l in logs_sorted)
 
                     total_hours = sum((l.total_hours or Decimal('0')) for l in logs_sorted).quantize(Decimal('0.01'))
-                    ot_hours = sum((l.ot_hours or Decimal('0')) for l in logs_sorted).quantize(Decimal('0.01'))
+                    split_info = split_day_ot([], logs_sorted, d)
+                    ot_hours = split_info['ot_hours']
+                    vessel_ot_hours = ot_hours
+                    office_ot_hours = Decimal('0.00')
 
                 elif day_atts and not day_logs:
-                    # Office work only
+                    # Office work only: office-only days have no OT
                     v_list = []
                     for a in atts_sorted:
                         v = (a.vessel.name if a.vessel else None) or (a.project.vessel_name if a.project else None) or (a.project.name if a.project else None)
@@ -376,16 +383,18 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                         location_label = _attendance_location(atts_sorted[0])
 
                     valid_logins = [timezone.localtime(a.login_time) for a in atts_sorted if a.login_time]
-                    start = min(t.time() for t in valid_logins) if valid_logins else None
+                    start = min(valid_logins).time() if valid_logins else None
 
                     if any(a.log_out_time is None for a in atts_sorted) or not any(a.log_out_time for a in atts_sorted):
                         end = None
                     else:
                         valid_logouts = [timezone.localtime(a.log_out_time) for a in atts_sorted if a.log_out_time]
-                        end = max(t.time() for t in valid_logouts) if valid_logouts else None
+                        end = max(valid_logouts).time() if valid_logouts else None
 
                     total_hours = sum((a.total_hours_of_work or Decimal('0')) for a in atts_sorted).quantize(Decimal('0.01'))
-                    ot_hours = max(total_hours - Decimal('8.00'), Decimal('0.00')).quantize(Decimal('0.01'))
+                    ot_hours = Decimal('0.00')
+                    vessel_ot_hours = Decimal('0.00')
+                    office_ot_hours = Decimal('0.00')
 
                 else:
                     # Office+Vessel work
@@ -460,16 +469,26 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                     else:
                         total_hours = Decimal('0.00')
 
-                    ot_hours = max(total_hours - Decimal('8.00'), Decimal('0.00')).quantize(Decimal('0.01'))
+                    split_info = split_day_ot(atts_sorted, logs_sorted, d)
+                    ot_hours = split_info['ot_hours']
+                    vessel_ot_hours = sum(split_info['vessel_ot_by_log_id'].values(), Decimal('0.00')).quantize(Decimal('0.01'))
+                    office_ot_hours = split_info['office_ot_hours']
                     start = min(all_starts).time() if all_starts else None
                     if has_open or not all_ends:
                         end = None
                     else:
                         end = max(all_ends).time()
+            elif any(l.end_time is not None for l in day_logs):
+                # Any other status with closed service logs
+                split_info = split_day_ot(day_atts, day_logs, d)
+                ot_hours = split_info['ot_hours']
+                vessel_ot_hours = sum(split_info['vessel_ot_by_log_id'].values(), Decimal('0.00')).quantize(Decimal('0.01'))
+                office_ot_hours = split_info['office_ot_hours']
 
             name = emp.user.get_full_name() or emp.user.username
             rank = emp.rank or "-"
 
+            # OT = hours above 10 per day on days with vessel work (office+vessel combined). Office-only days have no OT. See service_logs/ot.py.
             row = {
                 'date': d,
                 'employee': emp,
@@ -483,6 +502,8 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                 'end': end,
                 'total_hours': total_hours,
                 'ot_hours': ot_hours,
+                'vessel_ot_hours': vessel_ot_hours,
+                'office_ot_hours': office_ot_hours,
                 'service_ref': service_ref,
                 'wo_number': wo_number,
                 'attendance_ids': attendance_ids,
@@ -491,6 +512,7 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                 'has_pending': has_pending,
                 'is_off_day': is_off_day,
                 'off_day_label': off_day_label,
+                'auto_punched_out': any(getattr(a, 'auto_punched_out', False) for a in day_atts),
             }
             rows.append(row)
 
@@ -793,6 +815,12 @@ def summary_excel_response(summary_rows, totals, start, end):
     # Freeze panes at C3 (keeps Employee & Designation columns and Headers sticky)
     ws.freeze_panes = "C3"
 
+    # Note / Footer
+    footer_text = "OT = hours over 10 per day on vessel days (office + vessel combined). Office-only days have no OT."
+    cell_footer = ws.cell(row=current_row + 2, column=1, value=footer_text)
+    cell_footer.font = Font(name="Calibri", size=10, italic=True, color="6C757D")
+    ws.oddFooter.center.text = footer_text
+
     # Auto-fit column widths
     for col in ws.columns:
         col_letter = get_column_letter(col[0].column)
@@ -899,6 +927,7 @@ def _register_context(request):
     Handles start/end clamping, search, status filtering, summary counts,
     and pagination (10 per page).
     """
+    close_stale_sessions()
     today = timezone.localtime(timezone.now()).date()
     default_start = today.replace(day=1)
     default_end = today

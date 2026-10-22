@@ -1,5 +1,6 @@
 {% extends 'Admin/adminbase.html' %}
 {% load custom_filters %}
+{% load humanize %}
 {% load static %}
 {% block content %}
 
@@ -57,6 +58,10 @@
                   <span style="color: #1a1a1a"
                     ><b> {{ project_data.vessel_name |default:"N/A"}}</b></span
                   >
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Service Reference:</h6>
+                  <span style="color: #1a1a1a"><b>{{ project_data.service_reference|default:"N/A" }}</b></span>
                 </div>
                 <div class="pjct-info-item">
                   <h6>Project Manager:</h6>
@@ -365,41 +370,52 @@
           <td>{{ project_data.status }}</td>
         </tr>
         <tr>
-          <td>Invoice Amount</td>
-          <td>{{ project_data.invoice_amount }} AED</td>
-        </tr>
-        <tr>
-          <td>Expenses</td>
-          <td>{{ project_data.purchase_and_expenses }} AED</td>
-        </tr>
-        <tr>
           <td>Total Work Days</td>
           <td>{{ project_data.total_work_days }} Days</td>
         </tr>
-        
         <tr>
           <td>Engineers</td>
           <td>{{ project_data.engineers|join:", "|default:"-" }}</td>
         </tr>
         <tr>
-          <td>Man-Hours</td>
-          <td>{{ project_data.total_employee_hours|format_hours_minutes }}</td>
+          <td>Invoice Amount</td>
+          <td>
+            {{ project_data.financials.invoiced_amount|floatformat:2|intcomma }} AED{% if project_data.financials.is_legacy_invoice %} <span class="fin-text-muted">(legacy)</span>{% endif %}
+            {% if fin_jobs_pnl_url %}
+              <a href="{{ fin_jobs_pnl_url }}" class="ms-2 fin-sort-link" title="View in Jobs P&L"><i class="fas fa-external-link-alt me-1"></i>View in Jobs P&L</a>
+            {% endif %}
+          </td>
         </tr>
         <tr>
-          <td>Avg Employee Cost / Hour</td>
-          <td>{{ project_data.avg_hourly_cost|floatformat:2 }} AED/hr</td>
+          <td>Employee Cost</td>
+          <td>
+            <div>{{ project_data.financials.employee_cost|floatformat:2|intcomma }} AED</div>
+            <small class="fin-text-muted">{{ project_data.financials.employee_hours|format_hours_minutes }}</small>
+          </td>
+        </tr>
+        <tr>
+          <td>Spares Cost</td>
+          <td>{{ project_data.financials.spares_cost|floatformat:2|intcomma }} AED</td>
+        </tr>
+        <tr>
+          <td>Other Job Costs (Travel/Flight/Misc/Other)</td>
+          <td>{{ project_data.financials.other_job_costs|floatformat:2|intcomma }} AED</td>
         </tr>
         <tr>
           <td>Total Expenses</td>
-          <td>{{ project_data.total_expenses|floatformat:2 }} AED</td>
+          <td>{{ project_data.financials.total_cost|floatformat:2|intcomma }} AED</td>
         </tr>
         <tr>
           <td>Profit</td>
-          <td>{{ project_data.profit|floatformat:2 }} AED</td>
+          <td class="fw-bold {% if project_data.financials.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+            {{ project_data.financials.profit|floatformat:2|intcomma }} AED
+          </td>
         </tr>
         <tr>
-          <td>Profit Percentage</td>
-          <td>{{ project_data.profit_percent|floatformat:1 }}%</td>
+          <td>Profit %</td>
+          <td class="fw-bold {% if project_data.financials.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+            {{ project_data.financials.profit_pct|floatformat:1 }}%
+          </td>
         </tr>
       </tbody>
     </table>

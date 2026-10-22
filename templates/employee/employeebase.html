@@ -5,7 +5,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Almabrouk CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <title>Blessed Marine Services CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <link rel="icon" type="image/png" href="{% static 'assets/images/pwa-logo.png' %}" />
     <!-- Bootstrap -->
     <link
       rel="stylesheet"
@@ -205,7 +206,7 @@
         </a>
         <div class="sidebar-content">
           <div class="sidebar-brand">
-            <a href="{% url 'employee_dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.webp' %}"
+            <a href="{% url 'employee_dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.png' %}"
               alt="Almabrouk Marine Logo" /></a>
             <div id="close-sidebar">
               <i class="fas fa-times"></i>
@@ -738,13 +739,23 @@ document.getElementById("presence-month").addEventListener("change", function() 
       <td><input type="text" name="doc_status[]" value="${status}"></td>`;
   }
 
-  function addTimeRow(date = '', start = '', finish = '') {
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  }
+
+  const currentUserName = "{{ request.user.get_full_name|default:request.user.username|escapejs }}";
+
+  function addTimeRow(date = '', start = '', finish = '', memberName = '') {
     const table = document.querySelector('#timeTable tbody');
+    if (!table) return;
     const row = table.insertRow();
+    const escapedMemberName = escapeHtml(memberName);
+    const displayName = escapedMemberName || escapeHtml(currentUserName);
     row.innerHTML = `
-      <td><input type="date" name="time_date[]" value="${date}"></td>
-      <td><input type="time" name="start_time[]" value="${start}"></td>
-      <td><input type="time" name="finish_time[]" value="${finish}"></td>`;
+      <td><span class="member-name-text" style="font-weight: 500;">${displayName}</span></td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
   }
 
   window.onload = function () {
@@ -768,7 +779,8 @@ document.getElementById("presence-month").addEventListener("change", function() 
       addTimeRow(
         t.date || '',
         t.start_time ? t.start_time.slice(0, 5) : '',
-        t.finish_time ? t.finish_time.slice(0, 5) : ''
+        t.finish_time ? t.finish_time.slice(0, 5) : '',
+        t.member_name || ''
       )
     );
   };

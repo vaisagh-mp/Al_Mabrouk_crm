@@ -23,8 +23,8 @@ def create_or_update_service_log(time_log):
         with transaction.atomic():
             # Guard: employee must be set on the time_log
             if time_log.employee is None:
-                logger.warning(
-                    "WorkOrderTime id=%s has no employee set — skipping service log.",
+                logging.getLogger(__name__).warning(
+                    "WorkOrderTime id=%s has no employee set – skipping service log.",
                     time_log.pk,
                 )
                 return

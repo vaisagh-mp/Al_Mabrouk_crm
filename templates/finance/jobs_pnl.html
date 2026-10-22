@@ -1,0 +1,223 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Jobs P&amp;L | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Jobs P&amp;L</h1>
+            <span class="text-muted small">Job-by-job profitability, engineer allocations, and direct costs</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_jobs_pnl_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Month</label>
+                <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Start Date</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">End Date</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    {% for val, label in statuses %}
+                    <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Invoice Type</label>
+                <select name="invoice_type" class="form-select form-select-sm">
+                    <option value="all">All Types</option>
+                    {% for val, label in invoice_types %}
+                    <option value="{{ val }}" {% if selected_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Inv / Ref / Vessel / Client" class="form-control form-control-sm">
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                <button type="submit" class="fin-btn fin-btn-sm">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+                <a href="{% url 'fin_jobs_pnl' %}" class="fin-btn fin-btn-outline fin-btn-sm">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'service_ref' %}-service_ref{% else %}service_ref{% endif %}" class="fin-sort-link {% if sort_by == 'service_ref' or sort_by == '-service_ref' %}active{% endif %}">
+                                Service Ref <i class="fas {% if sort_by == 'service_ref' %}fa-sort-up{% elif sort_by == '-service_ref' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'vessel' %}-vessel{% else %}vessel{% endif %}" class="fin-sort-link {% if sort_by == 'vessel' or sort_by == '-vessel' %}active{% endif %}">
+                                Vessel <i class="fas {% if sort_by == 'vessel' %}fa-sort-up{% elif sort_by == '-vessel' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'invoice_number' %}-invoice_number{% else %}invoice_number{% endif %}" class="fin-sort-link {% if sort_by == 'invoice_number' or sort_by == '-invoice_number' %}active{% endif %}">
+                                Invoice No <i class="fas {% if sort_by == 'invoice_number' %}fa-sort-up{% elif sort_by == '-invoice_number' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'net_invoice' %}-net_invoice{% else %}net_invoice{% endif %}" class="fin-sort-link {% if sort_by == 'net_invoice' or sort_by == '-net_invoice' %}active{% endif %}">
+                                Invoice <i class="fas {% if sort_by == 'net_invoice' %}fa-sort-up{% elif sort_by == '-net_invoice' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'engineer' %}-engineer{% else %}engineer{% endif %}" class="fin-sort-link {% if sort_by == 'engineer' or sort_by == '-engineer' %}active{% endif %}">
+                                Engineer <i class="fas {% if sort_by == 'engineer' %}fa-sort-up{% elif sort_by == '-engineer' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spare_cost' %}-spare_cost{% else %}spare_cost{% endif %}" class="fin-sort-link {% if sort_by == 'spare_cost' or sort_by == '-spare_cost' %}active{% endif %}">
+                                Spare Cost <i class="fas {% if sort_by == 'spare_cost' %}fa-sort-up{% elif sort_by == '-spare_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>Travel Port</th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'travel_cost' %}-travel_cost{% else %}travel_cost{% endif %}" class="fin-sort-link {% if sort_by == 'travel_cost' or sort_by == '-travel_cost' %}active{% endif %}">
+                                Travel <i class="fas {% if sort_by == 'travel_cost' %}fa-sort-up{% elif sort_by == '-travel_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'flight' %}-flight{% else %}flight{% endif %}" class="fin-sort-link {% if sort_by == 'flight' or sort_by == '-flight' %}active{% endif %}">
+                                Flight <i class="fas {% if sort_by == 'flight' %}fa-sort-up{% elif sort_by == '-flight' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'misc' %}-misc{% else %}misc{% endif %}" class="fin-sort-link {% if sort_by == 'misc' or sort_by == '-misc' %}active{% endif %}">
+                                Misc <i class="fas {% if sort_by == 'misc' %}fa-sort-up{% elif sort_by == '-misc' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'other' %}-other{% else %}other{% endif %}" class="fin-sort-link {% if sort_by == 'other' or sort_by == '-other' %}active{% endif %}">
+                                Other <i class="fas {% if sort_by == 'other' %}fa-sort-up{% elif sort_by == '-other' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'total_cost' %}-total_cost{% else %}total_cost{% endif %}" class="fin-sort-link {% if sort_by == 'total_cost' or sort_by == '-total_cost' %}active{% endif %}">
+                                Total Cost <i class="fas {% if sort_by == 'total_cost' %}fa-sort-up{% elif sort_by == '-total_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'profit' %}-profit{% else %}profit{% endif %}" class="fin-sort-link {% if sort_by == 'profit' or sort_by == '-profit' %}active{% endif %}">
+                                Profit / (Loss) <i class="fas {% if sort_by == 'profit' %}fa-sort-up{% elif sort_by == '-profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'margin_pct' %}-margin_pct{% else %}margin_pct{% endif %}" class="fin-sort-link {% if sort_by == 'margin_pct' or sort_by == '-margin_pct' %}active{% endif %}">
+                                Margin % <i class="fas {% if sort_by == 'margin_pct' %}fa-sort-up{% elif sort_by == '-margin_pct' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-center">Month</th>
+                        <th>Notes</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page_obj %}
+                    <tr class="{% if r.is_loss %}fin-loss-row{% endif %}">
+                        <td class="fw-semibold">{{ r.service_ref }}</td>
+                        <td>{{ r.vessel }}</td>
+                        <td class="fw-bold font-monospace">{{ r.invoice_number }}</td>
+                        <td class="text-end font-monospace">{{ r.net_invoice|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.engineer|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.spare_cost|floatformat:2|intcomma }}</td>
+                        <td class="small">{{ r.travel_port }}</td>
+                        <td class="text-end font-monospace">{{ r.travel_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.flight|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.misc|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.other|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-semibold">{{ r.total_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-bold {% if r.is_loss %}text-danger{% endif %}">
+                            {{ r.profit_display }}
+                        </td>
+                        <td class="text-end font-monospace {% if r.is_loss %}text-danger{% endif %}">
+                            {{ r.margin_pct_display }}
+                        </td>
+                        <td class="text-center text-nowrap small text-muted">{{ r.month }}</td>
+                        <td class="small text-truncate" style="max-width: 140px;" title="{{ r.notes }}">{{ r.notes|default:"—" }}</td>
+                        <td class="text-center text-nowrap">
+                            <a href="{% url 'fin_job_costs' r.id %}" class="fin-btn fin-btn-sm" title="Manage Direct Job Costs">
+                                <i class="fas fa-coins me-1"></i> Costs
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="17" class="text-center text-muted py-4">
+                            No job records found matching the current filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if page_obj %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="3" class="text-uppercase">Total</td>
+                        <td class="text-end font-monospace">{{ totals.net_invoice|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.engineer|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.spare_cost|floatformat:2|intcomma }}</td>
+                        <td></td>
+                        <td class="text-end font-monospace">{{ totals.travel_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.flight|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.misc|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.other|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.total_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if totals.profit < 0 %}text-danger{% endif %}">{{ totals.profit_display }}</td>
+                        <td class="text-end font-monospace {% if totals.avg_margin_pct < 0 %}text-danger{% endif %}">{{ totals.avg_margin_pct_display }}</td>
+                        <td colspan="3"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+            <span class="text-muted small">
+                Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} jobs
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.next_page_number }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

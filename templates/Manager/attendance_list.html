@@ -87,7 +87,7 @@
                     <td>{{ record.get_attendance_status_display }}</td>
                     <td>{{ record.login_time.date|date:"d/M/Y" }}</td>
                     <td>{{ record.login_time|time:"g:ia" }}</td>
-                    <td>{{ record.log_out_time|time:"g:ia" }}</td>
+                    <td>{{ record.log_out_time|time:"g:ia" }}{% if record.auto_punched_out %} <span class="status hold" title="Auto punch-out at midnight">Auto</span>{% endif %}</td>
                     <td>{{ record.total_hours_of_work|format_work_duration }}</td>
                     <td>{{ record.get_location_display|default:"N/A" }}</td>
                     <!-- <td>{{ record.get_vessel|default:"N/A" }}</td> -->

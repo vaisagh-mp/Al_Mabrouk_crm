@@ -1,0 +1,131 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar mb-4">
+        <div class="pg-title mb-0">
+            <h1>{{ title }}</h1>
+            <span class="text-muted small">{% if is_edit %}Update existing invoice details and costing{% else %}Create a new invoice record{% endif %}</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_invoices' %}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-arrow-left me-1"></i> Back to Invoices
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-8">
+            <div class="widget-box p-4">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger mb-4">
+                        {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Invoice Information</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Invoice Number <span class="text-danger">*</span></label>
+                            {{ form.invoice_number }}
+                            {% if form.invoice_number.errors %}<div class="text-danger small mt-1">{{ form.invoice_number.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Invoice Date <span class="text-danger">*</span></label>
+                            {{ form.invoice_date }}
+                            {% if form.invoice_date.errors %}<div class="text-danger small mt-1">{{ form.invoice_date.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Due Date</label>
+                            {{ form.due_date }}
+                            <small class="text-muted">Defaults to date + 30 days if left blank</small>
+                            {% if form.due_date.errors %}<div class="text-danger small mt-1">{{ form.due_date.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Invoice Type <span class="text-danger">*</span></label>
+                            {{ form.invoice_type }}
+                            {% if form.invoice_type.errors %}<div class="text-danger small mt-1">{{ form.invoice_type.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Linked Project</label>
+                            {{ form.project }}
+                            <small class="text-muted">Optional. Prefills reference, vessel, and customer</small>
+                            {% if form.project.errors %}<div class="text-danger small mt-1">{{ form.project.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Vessel &amp; Customer Details</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Service Reference</label>
+                            {{ form.service_ref }}
+                            {% if form.service_ref.errors %}<div class="text-danger small mt-1">{{ form.service_ref.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Vessel Name</label>
+                            {{ form.vessel }}
+                            {% if form.vessel.errors %}<div class="text-danger small mt-1">{{ form.vessel.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Customer / Client</label>
+                            {{ form.customer }}
+                            {% if form.customer.errors %}<div class="text-danger small mt-1">{{ form.customer.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Amounts &amp; Status</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Amount Without Tax (AED) <span class="text-danger">*</span></label>
+                            {{ form.amount_excl_vat }}
+                            {% if form.amount_excl_vat.errors %}<div class="text-danger small mt-1">{{ form.amount_excl_vat.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">VAT Amount (AED)</label>
+                            {{ form.vat_amount }}
+                            {% if form.vat_amount.errors %}<div class="text-danger small mt-1">{{ form.vat_amount.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Credits Applied (AED)</label>
+                            {{ form.credits_applied }}
+                            {% if form.credits_applied.errors %}<div class="text-danger small mt-1">{{ form.credits_applied.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check mt-2">
+                                {{ form.is_cancelled }}
+                                <label class="form-check-label fw-bold text-danger" for="{{ form.is_cancelled.id_for_label }}">
+                                    Mark Invoice as Cancelled / Void
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Notes</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}<div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                        <a href="{% if next %}{{ next }}{% else %}{% url 'fin_invoices' %}{% endif %}" class="fin-btn fin-btn-outline">Cancel</a>
+                        <button type="submit" class="fin-btn">
+                            <i class="fas fa-save me-1"></i> Save Invoice
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

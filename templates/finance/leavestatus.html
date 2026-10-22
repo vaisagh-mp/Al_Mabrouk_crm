@@ -1,0 +1,120 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+    
+    <div class="pg-title">
+        <h1>Leave Statuses</h1>
+    </div>
+
+    <div class="leave-tab-wrapper">
+        <a href="{% url 'fin_apply_leave' %}">Apply</a>
+        <a href="{% url 'fin_leave_status' %}" class="active">My Leave</a>
+        <a href="{% url 'fin_leave_records' %}">Leave Records</a>
+    </div>
+
+    <!-- Leave List -->
+    <div class="widget-box table-wdgt">
+        <table id="leaveTable">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Leave Type</th>
+                    <th>From Date</th>
+                    <th>To Date</th>
+                    <th>No. of Days</th>
+                    <th>Status</th>
+                    <th>Reason</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for leave in leaves %}
+                <tr>
+                    <td><span>{{ leave.user.username }}</span></td>
+                    <td>
+                        <span class="status 
+                            {% if leave.leave_type == 'SICK LEAVE' %}sick-leave
+                            {% elif leave.leave_type == 'ANNUAL LEAVE' %}annual-leave
+                            {% else %}casual-leave{% endif %}">
+                            {{ leave.get_leave_type_display }}
+                        </span>
+                    </td>
+                    <td>{{ leave.from_date|date:"d/m/Y" }}</td>
+                    <td>{{ leave.to_date|date:"d/m/Y" }}</td>
+                    <td>{{ leave.no_of_days }}</td>
+                    <td>
+                        <span class="status 
+                            {% if leave.approval_status == 'APPROVED' %}completed
+                            {% elif leave.approval_status == 'REJECTED' %}cancelled
+                            {% else %}pending{% endif %}">
+                            {{ leave.approval_status }}
+                        </span>
+                    </td>
+                    <td>{{ leave.reason }}</td>
+                    <td class="list-action-col">
+                        <button type="button" title="Upload Medical Certificate" class="certi-upld-btn" data-bs-toggle="modal" data-bs-target="#uploadModal{{ leave.id }}">
+                            <i class="fas fa-upload"></i>
+                        </button>
+                    </td>
+
+                    <!-- Modal for Uploading Medical Certificate -->
+                    <div class="modal fade" id="uploadModal{{ leave.id }}" tabindex="-1" aria-labelledby="uploadModalLabel{{ leave.id }}" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content shadow-lg rounded-3">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="uploadModalLabel{{ leave.id }}">
+                                        Upload Medical Certificate for {{ leave.user.username }}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body p-4">
+                                    <form method="POST" enctype="multipart/form-data" action="{% url 'fin_upload_medical_certificate' leave.id %}">
+                                        {% csrf_token %}
+                                        <div class="mb-3">
+                                            <label for="medical_certificate_{{ leave.id }}" class="form-label fw-bold">Medical Certificate</label>
+                                            <input type="file" class="form-control border-2 rounded" id="medical_certificate_{{ leave.id }}" name="medical_certificate" {% if leave.medical_certificate %} disabled {% endif %} required>
+                                        </div>
+                                        <div class="text-center mt-4">
+                                            {% if leave.medical_certificate %}
+                                                <button type="button" class="apply-btn w-100" disabled>✔ Uploaded</button>
+                                            {% else %}
+                                                <button type="submit" class="apply-btn w-100">Upload</button>
+                                            {% endif %}
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">No leave applications found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table> 
+    </div>
+
+    <div class="pagination" id="pagination">
+        {% if leaves.has_previous %}
+        <a href="?page={{ leaves.previous_page_number }}">Previous</a>
+        {% endif %}
+        {% for num in leaves.paginator.page_range %}
+            {% if num == leaves.number %}
+                <button class="active">{{ num }}</button>
+            {% else %}
+                <a href="?page={{ num }}">{{ num }}</a>
+            {% endif %}
+        {% endfor %}
+        {% if leaves.has_next %}
+        <a href="?page={{ leaves.next_page_number }}">Next</a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

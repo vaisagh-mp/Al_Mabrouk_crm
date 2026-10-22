@@ -1,12 +1,12 @@
 {% load static %}
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Almabrouk CRM</title>
+    <title>Blessed Marine Services CRM</title>
+    <!-- Logo on the browser tab -->
+    <link rel="icon" type="image/png" href="{% static 'assets/images/pwa-logo.png' %}" />
     <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
     <link href="https://use.fontawesome.com/releases/v5.0.6/css/all.css" rel="stylesheet" />
     <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
@@ -14,10 +14,12 @@
 <body>
     <div class="container login-wrapper">
         <div class="login-container">
-            <h1>Almabrouk</h1>
+            <!-- Logo instead of the text heading -->
+            <img src="{% static 'assets/images/reportlogo.png' %}"
+                 alt="Blessed Marine Services"
+                 class="login-logo">
             <p>Log in to access your tools and information.</p>
-            
-            <!-- Display error messages -->
+
             {% if messages %}
                 <div class="alert alert-danger">
                     {% for message in messages %}
@@ -35,7 +37,7 @@
 
             <a href="#">Forgot password?</a>
             <div class="footer">
-                <p>&copy; 2024 Almabrouk</p>
+                <p>&copy; 2024 Blessed Marine Services</p>
             </div>
         </div>
     </div>
@@ -44,4 +46,3 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 </body>
 </html>
-

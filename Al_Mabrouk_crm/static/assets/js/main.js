@@ -48,9 +48,9 @@ function toggleSidebar() {
 
   // Change logo when sidebar is collapsed
   if (sidebar.classList.contains("collapsed")) {
-    logo.src = "/static/assets/images/collapsed-logo.webp"; // Change this to your collapsed logo
+    logo.src = "/static/assets/images/collapsed-logo.png"; // Change this to your collapsed logo
   } else {
-    logo.src = "/static/assets/images/almabrouk-logo.webp";
+    logo.src = "/static/assets/images/almabrouk-logo.png";
   }
 }
 

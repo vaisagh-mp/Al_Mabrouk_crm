@@ -1,0 +1,195 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Expenses | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Expenses Management</h1>
+            <span class="text-muted small">Track overheads and project expenditures</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_expense_add' %}" class="fin-btn">
+                <i class="fas fa-plus me-1"></i> Add Expense
+            </a>
+            <a href="{% url 'fin_expense_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Start Date</label>
+                <input type="date" name="start_date" value="{{ selected_start_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">End Date</label>
+                <input type="date" name="end_date" value="{{ selected_end_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Kind</label>
+                <select name="kind" class="form-select form-select-sm">
+                    <option value="">All Kinds</option>
+                    <option value="OVERHEAD" {% if selected_kind == 'OVERHEAD' %}selected{% endif %}>Overhead</option>
+                    <option value="PROJECT" {% if selected_kind == 'PROJECT' %}selected{% endif %}>Project</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Category</label>
+                <select name="category" class="form-select form-select-sm">
+                    <option value="">All Categories</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>
+                        {{ c.name }} ({{ c.get_kind_display }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Project</label>
+                <select name="project" class="form-select form-select-sm">
+                    <option value="">All Projects</option>
+                    {% for prj in projects %}
+                    <option value="{{ prj.id }}" {% if selected_project == prj.id|stringformat:"s" %}selected{% endif %}>
+                        #{{ prj.id }} {{ prj.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <div class="input-group input-group-sm">
+                    <input type="text" name="search" value="{{ selected_search }}" placeholder="Vendor / desc / ref" class="form-control">
+                    <button type="submit" class="srh-btn"><i class="fas fa-search"></i></button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Filter Summary Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Total Net Amount (Excl. VAT)</span>
+                <div class="fin-aging-val" style="color: var(--bs-blue);">AED {{ totals.amount|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Total VAT Amount</span>
+                <div class="fin-aging-val" style="color: var(--bs-orange);">AED {{ totals.vat_amount|floatformat:2 }}</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="fin-aging-card">
+                <span class="fin-aging-title">Total Gross Amount (Incl. VAT)</span>
+                <div class="fin-aging-val fin-text-green">AED {{ totals.total_incl_vat|floatformat:2 }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Category</th>
+                        <th>Kind</th>
+                        <th class="text-end">Amount (AED)</th>
+                        <th class="text-end">VAT (AED)</th>
+                        <th>Vendor</th>
+                        <th>Ref No</th>
+                        <th>Project</th>
+                        <th>Attachment</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exp in page_obj %}
+                    <tr>
+                        <td>{{ exp.date|date:"Y-m-d" }}</td>
+                        <td><strong>{{ exp.category.name }}</strong></td>
+                        <td>
+                            {% if exp.category.kind == 'PROJECT' %}
+                                <span class="status in-progress">Project</span>
+                            {% else %}
+                                <span class="status hold">Overhead</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace fw-bold">{{ exp.amount|floatformat:2 }}</td>
+                        <td class="text-end font-monospace text-muted">{{ exp.vat_amount|floatformat:2 }}</td>
+                        <td>{{ exp.vendor|default:"—" }}</td>
+                        <td><span class="text-secondary small">{{ exp.reference_no|default:"—" }}</span></td>
+                        <td>
+                            {% if exp.project %}
+                                <span class="fin-day-pill">#{{ exp.project.id }} {{ exp.project.name }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if exp.attachment %}
+                                <a href="{{ exp.attachment.url }}" target="_blank" class="btn btn-outline-secondary btn-sm py-0 px-2">
+                                    <i class="fas fa-paperclip"></i> View
+                                </a>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <form id="delete-form-{{ exp.id }}" action="{% url 'fin_expense_delete' exp.id %}" method="POST" style="display: none;">
+                                {% csrf_token %}
+                            </form>
+                            <div class="list-action-col">
+                                <a href="{% url 'fin_expense_edit' exp.id %}" title="Edit">
+                                    <i class="far fa-edit"></i>
+                                </a>
+                                <a href="#" onclick="if(confirm('Delete this expense record (AED {{ exp.amount }})?')) document.getElementById('delete-form-{{ exp.id }}').submit(); return false;" title="Delete">
+                                    <i class="far fa-trash-alt"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">
+                            <i class="fas fa-info-circle me-1"></i> No expense records found matching filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="pagination" id="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&start_date={{ selected_start_date }}&end_date={{ selected_end_date }}&category={{ selected_category }}&kind={{ selected_kind }}&project={{ selected_project }}&search={{ selected_search }}">Previous</a>
+            {% endif %}
+
+            {% for p in page_obj.paginator.page_range %}
+                {% if page_obj.number == p %}
+                    <button class="active">{{ p }}</button>
+                {% elif p > page_obj.number|add:"-3" and p < page_obj.number|add:"3" %}
+                    <a href="?page={{ p }}&start_date={{ selected_start_date }}&end_date={{ selected_end_date }}&category={{ selected_category }}&kind={{ selected_kind }}&project={{ selected_project }}&search={{ selected_search }}">{{ p }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&start_date={{ selected_start_date }}&end_date={{ selected_end_date }}&category={{ selected_category }}&kind={{ selected_kind }}&project={{ selected_project }}&search={{ selected_search }}">Next</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

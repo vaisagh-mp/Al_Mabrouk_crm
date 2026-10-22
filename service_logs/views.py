@@ -5,11 +5,15 @@ from .models import EmployeeServiceLog
 from Admin.models import Project, Employee, ActivityLog, Attendance
 from Admin.attendance_register import build_attendance_register
 from Admin.attendance_analytics import build_attendance_analytics
+from Admin.attendance_autoclose import close_stale_sessions
+from .ot import calculate_office_ot_cost
 from django.urls import reverse
 from django.http import HttpResponseForbidden
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404
-from django.db.models import Sum, Count, Avg, Q
+from django.db.models import Sum, Count, Avg, Q, Max
+from finance.permissions import can_view_finance
+from finance.services import get_projects_financials_map
 from django.db.models.functions import TruncWeek, TruncMonth, TruncYear
 from decimal import Decimal
 from collections import defaultdict
@@ -277,79 +281,113 @@ def analytics_project(request):
     # =====================================================
     # PROJECT ANALYTICS
     # =====================================================
+    # Aggregate service-log hours/costs per project in one query
+    proj_log_aggs = list(
+        logs.values('project_id')
+        .annotate(
+            total_hours=Sum('total_hours'),
+            normal_cost=Sum('normal_cost'),
+            ot_cost=Sum('ot_cost'),
+        )
+    )
+    proj_log_map = {
+        row['project_id']: {
+            'total_hours': row['total_hours'] or Decimal('0.00'),
+            'normal_cost': row['normal_cost'] or Decimal('0.00'),
+            'ot_cost': row['ot_cost'] or Decimal('0.00'),
+        }
+        for row in proj_log_aggs
+    }
+
+    # Aggregate per employee in one query
+    emp_log_aggs = list(
+        logs.values('project_id', 'employee_id', 'employee__user__username')
+        .annotate(
+            hours=Sum('total_hours'),
+            ot_hours=Sum('ot_hours'),
+            normal_cost=Sum('normal_cost'),
+            ot_cost=Sum('ot_cost'),
+        )
+        .order_by('employee__user__username')
+    )
+    emp_log_map = defaultdict(list)
+    for row in emp_log_aggs:
+        hrs = row['hours'] or Decimal('0.00')
+        ot_hrs = row['ot_hours'] or Decimal('0.00')
+        n_cost = row['normal_cost'] or Decimal('0.00')
+        o_cost = row['ot_cost'] or Decimal('0.00')
+        utilization = round((hrs / Decimal(26 * 8)) * 100, 2) if hrs else 0
+        emp_log_map[row['project_id']].append({
+            "name": row['employee__user__username'],
+            "hours": hrs,
+            "ot_hours": ot_hrs,
+            "utilization": utilization,
+            "normal_cost": n_cost,
+            "ot_cost": o_cost,
+            "total_cost": n_cost + o_cost,
+        })
+
+    project_ids = [pid for pid in proj_log_map.keys() if pid]
+    projects = list(Project.objects.filter(id__in=project_ids))
+
+    financials_map = get_projects_financials_map(projects)
+
     project_analytics = []
+    total_hours_all = Decimal('0.00')
+    total_cost_all = Decimal('0.00')
+    total_revenue_all = Decimal('0.00')
+    total_profit_all = Decimal('0.00')
+    total_employee_cost_all = Decimal('0.00')
 
-    projects = Project.objects.filter(service_logs__in=logs).distinct()
+    client_stats = defaultdict(lambda: {"projects": 0, "profit": Decimal('0.00')})
 
-    total_hours_all = Decimal(0)
-    total_cost_all = Decimal(0)
-    total_revenue_all = Decimal(0)
-    total_profit_all = Decimal(0)
-    total_employee_cost_all = Decimal(0)
-
-    client_stats = defaultdict(lambda: {"projects": 0, "profit": Decimal(0)})
+    user_can_view_finance = can_view_finance(request.user)
 
     for project in projects:
-        project_logs = logs.filter(project=project)
-
-        total_hours = project_logs.aggregate(
-            h=Sum("total_hours")
-        )["h"] or Decimal(0)
-
-        normal_cost = project_logs.aggregate(
-            n=Sum("normal_cost")
-        )["n"] or Decimal(0)
-
-        ot_cost = project_logs.aggregate(
-            o=Sum("ot_cost")
-        )["o"] or Decimal(0)
-
-        total_cost = normal_cost + ot_cost + project.purchase_and_expenses
-        total_employee_cost_all += (normal_cost + ot_cost)
-        revenue = project.invoice_amount
-        profit = revenue - total_cost
-        profit_percent = (profit / revenue) * 100 if revenue else Decimal(0)
-
-        # KPI accumulation
+        p_log = proj_log_map.get(project.id, {
+            'total_hours': Decimal('0.00'),
+            'normal_cost': Decimal('0.00'),
+            'ot_cost': Decimal('0.00'),
+        })
+        total_hours = p_log['total_hours']
+        emp_cost = p_log['normal_cost'] + p_log['ot_cost']
+        total_employee_cost_all += emp_cost
         total_hours_all += total_hours
-        total_cost_all += total_cost
-        total_revenue_all += revenue
-        total_profit_all += profit
 
-        # Client aggregation
-        client_name = project.client_name or "N/A"
-        client_stats[client_name]["projects"] += 1
-        client_stats[client_name]["profit"] += profit
+        fin = financials_map.get(project.id, {})
+        project_emp_cost = fin.get('employee_cost', Decimal('0.00'))
+        revenue = fin.get('invoiced_amount', Decimal('0.00')) if user_can_view_finance else None
+        is_legacy = bool(fin.get('is_legacy_invoice') and (fin.get('invoiced_amount') or Decimal('0.00')) > Decimal('0.00')) if user_can_view_finance else False
+        expense = fin.get('total_cost', Decimal('0.00')) if user_can_view_finance else None
+        spares_cost = fin.get('spares_cost', Decimal('0.00')) if user_can_view_finance else None
+        other_job_costs = fin.get('other_job_costs', Decimal('0.00')) if user_can_view_finance else None
+        profit = fin.get('profit', Decimal('0.00')) if user_can_view_finance else None
+        profit_percent = fin.get('profit_pct') if (user_can_view_finance and (fin.get('invoiced_amount') or Decimal('0.00')) > Decimal('0.00')) else None
 
-        # Employee breakdown
-        employees_data = []
-        for emp_id in project_logs.order_by().values_list("employee_id", flat=True).distinct():
-            emp_logs = project_logs.filter(employee_id=emp_id)
-            emp = emp_logs.first().employee
+        if user_can_view_finance:
+            total_cost_all += fin.get('total_cost', Decimal('0.00'))
+            total_revenue_all += fin.get('invoiced_amount', Decimal('0.00'))
+            total_profit_all += fin.get('profit', Decimal('0.00'))
 
-            hours = emp_logs.aggregate(h=Sum("total_hours"))["h"] or Decimal(0)
-            ot_hours = emp_logs.aggregate(o=Sum("ot_hours"))["o"] or Decimal(0)
-            n_cost = emp_logs.aggregate(n=Sum("normal_cost"))["n"] or Decimal(0)
-            o_cost = emp_logs.aggregate(o=Sum("ot_cost"))["o"] or Decimal(0)
+            client_name = project.client_name or "N/A"
+            client_stats[client_name]["projects"] += 1
+            client_stats[client_name]["profit"] += fin.get('profit', Decimal('0.00'))
+        else:
+            client_name = project.client_name or "N/A"
+            client_stats[client_name]["projects"] += 1
 
-            utilization = round((hours / Decimal(26 * 8)) * 100, 2) if hours else 0
-
-            employees_data.append({
-                "name": emp.user.username,
-                "hours": hours,
-                "ot_hours": ot_hours,
-                "utilization": utilization,
-                "normal_cost": n_cost,
-                "ot_cost": o_cost,
-                "total_cost": n_cost + o_cost,
-            })
+        employees_data = emp_log_map.get(project.id, [])
 
         project_analytics.append({
             "project": project,
             "total_hours": total_hours,
-            "employee_cost": normal_cost + ot_cost,   # employee only
-            "expense": total_cost,                     # employee + purchase
+            "period_employee_cost": emp_cost,
+            "employee_cost": project_emp_cost,
+            "spares_cost": spares_cost,
+            "other_job_costs": other_job_costs,
+            "expense": expense,
             "revenue": revenue,
+            "is_legacy_invoice": is_legacy,
             "profit": profit,
             "profit_percent": profit_percent,
             "employees": employees_data,
@@ -358,11 +396,18 @@ def analytics_project(request):
     # ---------- SORTING ----------
     sort = request.GET.get("sort", "desc")  # default high → low
 
-    project_analytics_sorted = sorted(
-        project_analytics,
-        key=lambda x: x["profit"],
-        reverse=True if sort == "desc" else False
-    )
+    if user_can_view_finance:
+        project_analytics_sorted = sorted(
+            project_analytics,
+            key=lambda x: x["profit"] if x["profit"] is not None else Decimal('0.00'),
+            reverse=True if sort == "desc" else False
+        )
+    else:
+        project_analytics_sorted = sorted(
+            project_analytics,
+            key=lambda x: x["employee_cost"],
+            reverse=True if sort == "desc" else False
+        )
 
     # ---------- PAGINATION ----------
     paginator = Paginator(project_analytics_sorted, 10)  # 10 projects per page
@@ -375,11 +420,11 @@ def analytics_project(request):
             {
                 "name": name,
                 "projects": data["projects"],
-                "profit": data["profit"],
+                "profit": data["profit"] if user_can_view_finance else None,
             }
             for name, data in client_stats.items()
         ],
-        key=lambda x: x["profit"],
+        key=lambda x: x["profit"] if user_can_view_finance else x["projects"],
         reverse=True
     )[:5]
 
@@ -400,34 +445,45 @@ def analytics_project(request):
     current_map = defaultdict(lambda: {"projects": set(), "revenue": Decimal(0)})
     last_year_map = defaultdict(lambda: {"projects": set(), "revenue": Decimal(0)})
 
-    for log in logs:
-        key = get_key(log.date)
-        if log.project_id not in current_map[key]["projects"]:
-            current_map[key]["projects"].add(log.project_id)
-            current_map[key]["revenue"] += log.project.invoice_amount
+    log_dates_pids = list(logs.values_list('date', 'project_id'))
+    for log_date, pid in log_dates_pids:
+        key = get_key(log_date)
+        if pid not in current_map[key]["projects"]:
+            current_map[key]["projects"].add(pid)
+            if user_can_view_finance:
+                current_map[key]["revenue"] += financials_map.get(pid, {}).get('invoiced_amount', Decimal('0.00'))
 
     last_year_start = start_date.replace(year=start_date.year - 1)
     last_year_end = end_date.replace(year=end_date.year - 1)
 
-    last_year_logs = EmployeeServiceLog.objects.select_related("project").filter(
-        date__range=(last_year_start, last_year_end)
+    last_year_logs = list(
+        EmployeeServiceLog.objects.filter(
+            date__range=(last_year_start, last_year_end)
+        ).values_list('date', 'project_id')
     )
+    last_year_pids = list({pid for _, pid in last_year_logs if pid})
+    last_year_fin_map = get_projects_financials_map(last_year_pids) if (user_can_view_finance and last_year_pids) else {}
 
-    for log in last_year_logs:
-        shifted_date = log.date.replace(year=log.date.year + 1)
+    for log_date, pid in last_year_logs:
+        shifted_date = log_date.replace(year=log_date.year + 1)
         key = get_key(shifted_date)
 
-        if log.project_id not in last_year_map[key]["projects"]:
-            last_year_map[key]["projects"].add(log.project_id)
-            last_year_map[key]["revenue"] += log.project.invoice_amount
+        if pid not in last_year_map[key]["projects"]:
+            last_year_map[key]["projects"].add(pid)
+            if user_can_view_finance:
+                last_year_map[key]["revenue"] += last_year_fin_map.get(pid, {}).get('invoiced_amount', Decimal('0.00'))
 
     labels = sorted(current_map.keys())
 
     projects_current = [len(current_map[k]["projects"]) for k in labels]
     projects_last_year = [len(last_year_map[k]["projects"]) for k in labels]
 
-    revenue_current = [float(current_map[k]["revenue"]) for k in labels]
-    revenue_last_year = [float(last_year_map[k]["revenue"]) for k in labels]
+    if user_can_view_finance:
+        revenue_current = [float(current_map[k]["revenue"]) for k in labels]
+        revenue_last_year = [float(last_year_map[k]["revenue"]) for k in labels]
+    else:
+        revenue_current = []
+        revenue_last_year = []
 
     # =====================================================
     # 🔹 SERVICE COMPLETION TABLE DATA (with Custom Date Picker & Pagination)
@@ -449,31 +505,43 @@ def analytics_project(request):
         except ValueError:
             pass
 
-    all_projects = Project.objects.exclude(status="CANCELLED").order_by("-created_at")
+    all_projects = list(Project.objects.exclude(status="CANCELLED").order_by("-created_at"))
+    all_pids = [p.id for p in all_projects]
+
+    last_dates_qs = EmployeeServiceLog.objects.filter(project_id__in=all_pids).values('project_id').annotate(last_date=Max('date'))
+    last_date_map = {row['project_id']: row['last_date'] for row in last_dates_qs}
+
+    logs_with_ref = (
+        EmployeeServiceLog.objects.filter(project_id__in=all_pids, service_reference__isnull=False)
+        .exclude(service_reference="")
+        .order_by('project_id', '-date')
+        .values('project_id', 'service_reference', 'vessel_name')
+    )
+    ref_map = {}
+    for row in logs_with_ref:
+        if row['project_id'] not in ref_map:
+            ref_map[row['project_id']] = (row['service_reference'], row['vessel_name'])
+
+    completed_logs = (
+        ActivityLog.objects.filter(project_id__in=all_pids, new_status="COMPLETED")
+        .order_by('project_id', '-changed_at')
+        .values('project_id', 'changed_at')
+    )
+    comp_date_map = {}
+    for row in completed_logs:
+        if row['project_id'] not in comp_date_map:
+            comp_date_map[row['project_id']] = row['changed_at'].date()
+
     profit_map = {item["project"].id: (item["profit"], item["profit_percent"]) for item in project_analytics}
 
     service_completions = []
     for proj in all_projects:
-        proj_logs = EmployeeServiceLog.objects.filter(project=proj)
-        last_att_date = proj_logs.order_by("-date").values_list("date", flat=True).first()
+        last_att_date = last_date_map.get(proj.id)
+        s_ref, v_name = ref_map.get(proj.id, (None, None))
+        service_ref = s_ref or proj.code or "-"
+        vessel = proj.vessel_name or v_name or "-"
 
-        service_ref = (
-            proj_logs.filter(service_reference__isnull=False)
-            .exclude(service_reference="")
-            .order_by("-date")
-            .values_list("service_reference", flat=True)
-            .first()
-            or proj.code
-            or "-"
-        )
-        vessel = proj.vessel_name or (proj_logs.first().vessel_name if proj_logs.first() else "-")
-
-        completed_log = (
-            ActivityLog.objects.filter(project=proj, new_status="COMPLETED")
-            .order_by("-changed_at")
-            .first()
-        )
-        comp_date = completed_log.changed_at.date() if completed_log else (proj.deadline_date if proj.status == "COMPLETED" else None)
+        comp_date = comp_date_map.get(proj.id) or (proj.deadline_date if proj.status == "COMPLETED" else None)
 
         # Custom date range filter for Service Completion
         if sc_start_date or sc_end_date:
@@ -496,7 +564,11 @@ def analytics_project(request):
             if not match:
                 continue
 
-        p_profit, p_profit_pct = profit_map.get(proj.id, (Decimal(0), Decimal(0)))
+        if user_can_view_finance:
+            p_profit, p_profit_pct = profit_map.get(proj.id, (Decimal('0.00'), None))
+        else:
+            p_profit = None
+            p_profit_pct = None
 
         service_completions.append({
             "service_ref": service_ref,
@@ -518,6 +590,7 @@ def analytics_project(request):
         request,
         "analytics/project_based.html",
         {
+            "can_view_finance": user_can_view_finance,
             "project_analytics": project_analytics,
             "projects_page": projects_page,
             "sort": sort,
@@ -528,10 +601,10 @@ def analytics_project(request):
             # KPI values
             "kpi_total_projects": len(project_analytics),
             "kpi_total_hours": total_hours_all,
-            "kpi_total_cost": total_cost_all,
-            "kpi_revenue": total_revenue_all,
-            "kpi_profit": total_profit_all,
-            "kpi_expense": total_cost_all,
+            "kpi_total_cost": total_cost_all if user_can_view_finance else None,
+            "kpi_revenue": total_revenue_all if user_can_view_finance else None,
+            "kpi_profit": total_profit_all if user_can_view_finance else None,
+            "kpi_expense": total_cost_all if user_can_view_finance else None,
             "kpi_employee_cost": total_employee_cost_all,
 
             # 🔹 charts
@@ -606,6 +679,7 @@ def _parse_filter_date(date_text):
 
 
 def build_employee_analytics_context(request):
+    close_stale_sessions()
     # ---------- Date Filter ----------
     date_str = (request.GET.get("date") or "").strip()
     start_date, end_date = None, None
@@ -663,7 +737,7 @@ def build_employee_analytics_context(request):
         Employee.objects.filter(
             user__is_active=True
         ).filter(
-            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True)
+            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
         ).select_related('user').order_by('user__username')
     )
 
@@ -696,28 +770,26 @@ def build_employee_analytics_context(request):
             st = r['status_code']
             if st == 'OFFICE':
                 day_office = r['total_hours'] or Decimal(0)
+                office_hours += day_office
+                if rate > 0 and day_office > 0:
+                    day_normal = min(day_office, Decimal(10))
+                    office_normal_cost += day_normal * rate
             elif st == 'OFFICE_VESSEL':
                 day_log_hours = sum((l.total_hours or Decimal(0)) for l in emp_logs_by_date.get(r['date'], []))
                 day_office = max((r['total_hours'] or Decimal(0)) - day_log_hours, Decimal(0))
+                office_hours += day_office
+                if rate > 0 and day_office > 0:
+                    off_ot = r.get('office_ot_hours') or Decimal(0)
+                    off_normal = max(day_office - off_ot, Decimal(0))
+                    office_normal_cost += off_normal * rate
             else:
                 day_office = Decimal(0)
 
-            office_hours += day_office
-
-            if rate > 0 and day_office > 0:
-                day_normal = min(day_office, Decimal(8))
-                day_ot = max(day_office - Decimal(8), Decimal(0))
-                mult = Decimal('2.0') if r['is_off_day'] else Decimal('1.5')
-                office_normal_cost += day_normal * rate
-                office_ot_cost += day_ot * rate * mult
+        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs)
 
         total_hours = vessel_hours + office_hours
 
-        ot_hours = sum(
-            (r['ot_hours'] or Decimal(0))
-            for r in emp_rows
-            if r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL')
-        )
+        ot_hours = sum((r['ot_hours'] or Decimal(0)) for r in emp_rows)
 
         vessel_normal_cost = sum((l.normal_cost or Decimal(0)) for l in emp_logs)
         vessel_ot_cost = sum((l.ot_cost or Decimal(0)) for l in emp_logs)
@@ -725,6 +797,7 @@ def build_employee_analytics_context(request):
         normal_cost = vessel_normal_cost + office_normal_cost
         ot_cost = vessel_ot_cost + office_ot_cost
         total_cost = normal_cost + ot_cost
+
 
         days_worked = sum(1 for r in emp_rows if r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL'))
         days_absent = sum(1 for r in emp_rows if r['status_code'] == 'ABSENT')

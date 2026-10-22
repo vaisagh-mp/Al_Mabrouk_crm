@@ -1,0 +1,257 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Project Profitability | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <div class="pg-title mb-0">
+            <h1>Project Profitability</h1>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_projects_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Invoice From</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Invoice To</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Client</label>
+                <select name="client" class="form-select form-select-sm">
+                    <option value="">All Clients</option>
+                    {% for c in clients %}
+                        <option value="{{ c }}" {% if c == selected_client %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Category</label>
+                <select name="category" class="form-select form-select-sm">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat == selected_category %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Invoiced</label>
+                <select name="invoiced_status" class="form-select form-select-sm">
+                    <option value="all" {% if selected_invoiced_status == 'all' or not selected_invoiced_status %}selected{% endif %}>All</option>
+                    <option value="invoiced" {% if selected_invoiced_status == 'invoiced' %}selected{% endif %}>Invoiced</option>
+                    <option value="not_invoiced" {% if selected_invoiced_status == 'not_invoiced' %}selected{% endif %}>Not invoiced</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold">Payment Status</label>
+                <select name="payment_status" class="form-select form-select-sm">
+                    <option value="">All Payment Statuses</option>
+                    {% for code, label in payment_statuses %}
+                        <option value="{{ code }}" {% if code == selected_payment_status %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-12 d-flex justify-content-between align-items-center mt-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="loss_only" id="lossOnlyCheck" value="1" {% if loss_only %}checked{% endif %}>
+                    <label class="form-check-label small fw-bold fin-text-red" for="lossOnlyCheck">
+                        Loss-making only
+                    </label>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="fin-btn">Filter</button>
+                    <a href="{% url 'fin_projects' %}" class="fin-btn fin-btn-outline">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="widget-box table-wdgt p-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 fw-bold">Project Financial Breakdown</h5>
+            <small style="color: var(--secondary-font-color);">Showing {{ page_obj.paginator.count }} project(s)</small>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>
+                        <a href="?sort={% if sort_by == 'name' %}-name{% else %}name{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'name' or sort_by == '-name' %} active{% endif %}">
+                            Project {% if sort_by == 'name' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-name' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>Client / Vessel</th>
+                    <th>Category</th>
+                    <th>Invoice No</th>
+                    <th>
+                        <a href="?sort={% if sort_by == 'invoice_date' %}-invoice_date{% else %}invoice_date{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'invoice_date' or sort_by == '-invoice_date' %} active{% endif %}">
+                            Invoice Date {% if sort_by == 'invoice_date' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-invoice_date' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?sort={% if sort_by == 'revenue' %}-revenue{% else %}revenue{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'revenue' or sort_by == '-revenue' %} active{% endif %}">
+                            Revenue {% if sort_by == 'revenue' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-revenue' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>Labour Cost</th>
+                    <th>Purchases</th>
+                    <th>Expenses</th>
+                    <th>
+                        <a href="?sort={% if sort_by == 'total_cost' %}-total_cost{% else %}total_cost{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'total_cost' or sort_by == '-total_cost' %} active{% endif %}">
+                            Total Cost {% if sort_by == 'total_cost' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-total_cost' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?sort={% if sort_by == '-profit' %}profit{% else %}-profit{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'profit' or sort_by == '-profit' %} active{% endif %}">
+                            Profit / Loss {% if sort_by == 'profit' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-profit' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>
+                        <a href="?sort={% if sort_by == '-margin_pct' %}margin_pct{% else %}-margin_pct{% endif %}{% if querystring_without_sort %}&{{ querystring_without_sort }}{% endif %}" class="fin-sort-link{% if sort_by == 'margin_pct' or sort_by == '-margin_pct' %} active{% endif %}">
+                            Margin % {% if sort_by == 'margin_pct' %}<i class="fas fa-sort-up"></i>{% elif sort_by == '-margin_pct' %}<i class="fas fa-sort-down"></i>{% else %}<i class="fas fa-sort"></i>{% endif %}
+                        </a>
+                    </th>
+                    <th>Eng. Days</th>
+                    <th>Rev / Day</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in page_obj %}
+                <tr class="{% if r.is_loss %}fin-loss-row{% endif %}">
+                    <td>
+                        {% if request.user.is_superuser %}
+                            <a href="{% url 'project-summary' r.id %}" class="fw-bold" title="View Full Project Summary">
+                                {{ r.name }}
+                            </a>
+                        {% else %}
+                            <a href="{% url 'fin_project_detail' r.id %}" class="fw-bold" title="View Project Finance Details">
+                                {{ r.name }}
+                            </a>
+                        {% endif %}
+                        {% if r.code %}<div class="small" style="color: var(--secondary-font-color);">#{{ r.code }}</div>{% endif %}
+                    </td>
+                    <td>
+                        <div class="fw-semibold">{{ r.client_name|default:"—" }}</div>
+                        <small style="color: var(--secondary-font-color);">{{ r.vessel_name|default:"—" }}</small>
+                    </td>
+                    <td>{{ r.category|default:"—" }}</td>
+                    <td>
+                        {% if not r.invoiced and r.invoice_no == '—' %}
+                            <span class="status pending">Not invoiced</span>
+                        {% else %}
+                            {{ r.invoice_no|default:"—" }}
+                        {% endif %}
+                    </td>
+                    <td>{{ r.invoice_date|date:"Y-m-d"|default:"—" }}</td>
+                    <td>{{ r.revenue|floatformat:2 }}{% if r.is_legacy %} <span class="fin-text-muted">(legacy)</span>{% endif %}</td>
+                    <td>{{ r.labour_cost|floatformat:2 }}</td>
+                    <td>{{ r.materials|floatformat:2 }}</td>
+                    <td>{{ r.other_expenses|floatformat:2 }}</td>
+                    <td>{{ r.total_cost|floatformat:2 }}</td>
+                    <td class="fw-bold {% if r.is_loss %}fin-text-red{% elif r.profit > 0 %}fin-text-green{% endif %}">
+                        {{ r.profit|floatformat:2 }}
+                    </td>
+                    <td>
+                        {% if not r.invoiced and not r.is_legacy or r.margin_pct is None %}
+                            <span>—</span>
+                        {% else %}
+                            <span class="{% if r.is_loss %}fin-text-red{% else %}fin-text-green{% endif %}">{{ r.margin_pct }}%</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ r.engineer_days }}</td>
+                    <td>
+                        {% if r.revenue_per_engineer_day is not None %}
+                            {{ r.revenue_per_engineer_day|floatformat:2 }}
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if r.status == 'Paid' %}
+                            <span class="status completed">Paid</span>
+                        {% elif r.status == 'Partial' %}
+                            <span class="status in-progress">Partial</span>
+                        {% elif r.status == 'Overdue' %}
+                            <span class="status cancelled">Overdue</span>
+                        {% elif r.status == 'Open' %}
+                            <span class="status pending">Open</span>
+                        {% else %}
+                            <span class="status pending">Not invoiced</span>
+                        {% endif %}
+                    </td>
+                    <td class="list-action-col">
+                        <a href="{% url 'fin_project_invoice_edit' r.id %}?next={{ request.get_full_path|urlencode }}" title="Invoice">
+                            <i class="fas fa-file-invoice"></i>
+                        </a>
+                        <a href="{% url 'fin_project_detail' r.id %}" title="Finance Details">
+                            <i class="far fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="16" class="text-center py-4" style="color: var(--secondary-font-color);">No projects found matching the specified filters.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if page_obj %}
+            <tfoot>
+                <tr class="fw-bold" style="border-top: 2px solid #ccc;">
+                    <td colspan="5">TOTAL (Filtered Queryset)</td>
+                    <td>{{ totals.revenue|floatformat:2 }}</td>
+                    <td>{{ totals.labour_cost|floatformat:2 }}</td>
+                    <td>{{ totals.materials|floatformat:2 }}</td>
+                    <td>{{ totals.other_expenses|floatformat:2 }}</td>
+                    <td>{{ totals.total_cost|floatformat:2 }}</td>
+                    <td class="{% if totals.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                        {{ totals.profit|floatformat:2 }}
+                    </td>
+                    <td>
+                        {% if totals.margin_pct is not None %}
+                            <span class="{% if totals.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ totals.margin_pct }}%</span>
+                        {% else %}
+                            <span>—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ totals.engineer_days }}</td>
+                    <td colspan="3"></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination mt-4" id="pagination">
+            {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Previous</a>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <button class="active">{{ num }}</button>
+            {% else %}
+            <a href="?page={{ num }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">{{ num }}</a>
+            {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

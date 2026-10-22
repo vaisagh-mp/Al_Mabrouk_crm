@@ -1,0 +1,175 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="punch-in-wrapper">
+    {% include 'finance/_messages.html' %}
+    <div class="pg-title">
+        <h1>Punch In / Out</h1>
+    </div>
+
+    <!-- Attendance Status -->
+    <section>
+        <h2>Attendance Status</h2>
+        <form id="attendance-form" method="POST" action="{% url 'fin_log_in' %}">
+            {% csrf_token %}
+            <select id="attendance-status" name="attendance_status" onchange="updateStatusText()">
+                <option value="" disabled selected>Select Status</option>
+                {% for status, display in attendance_status_choices %}
+                    <option value="{{ status }}" {% if status == user_attendance.attendance_status %}selected{% endif %}>{{ display }}</option>
+                {% endfor %}
+            </select>
+            <p id="selected-status" class="mt-4 text-gray-600">Status: <span class="font-bold text-blue-500"> 
+                {% if user_attendance %}
+                    {{ user_attendance.attendance_status|default:"Not Selected" }}
+                {% else %}
+                    Not Selected
+                {% endif %}
+            </span></p>
+        </form>
+    </section>
+
+    <!-- Project Selection -->
+    <section>
+        <h2>Select Project</h2>
+
+        <select id="project-select" class="searchable-select" name="project" form="attendance-form" style="width: 100%;">
+            <option value="" disabled selected>Select a project</option>
+            {% for project in projects %}
+            <option value="{{ project.id }}">{{ project.name }}</option>
+            {% endfor %}
+        </select>
+    </section>
+
+    <!-- Location Selection -->
+    <section>
+        <h2>Select Location</h2>
+        <select id="location-select" name="location" form="attendance-form" onchange="updateLocationText()">
+            <option value="" disabled selected>Select a location</option>
+            {% for code, name in location_choices %}
+                <option value="{{ code }}" {% if code == user_attendance.location %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+        <p id="selected-location" class="mt-4 text-gray-600">Location: <span class="font-bold text-blue-500">
+            {% if user_attendance %}
+                {{ user_attendance.location|default:"Not Selected" }}
+            {% else %}
+                Not Selected
+            {% endif %}
+        </span></p>
+    </section>
+
+    <!-- Punch Status -->
+    <section>
+        <h2>Attendance</h2>
+        <p id="status" class="text-gray-600 text-lg">
+            Status: 
+            {% if user_attendance and user_attendance.log_out_time is None %}
+                <span class="font-bold text-green-500">Punched In</span>
+            {% else %}
+                <span class="font-bold text-red-500">Punched Out</span>
+            {% endif %}
+        </p>
+    
+        {% if user_attendance and user_attendance.log_out_time is None %}
+        <!-- Punch Out Form -->
+        <form method="POST" action="{% url 'fin_log_off' user_attendance.id %}">
+            {% csrf_token %}
+            <button type="submit" class="bg-red-500 mt-4">Punch Out</button>
+        </form>
+        {% else %}
+            <!-- Hidden fields for travel times -->
+            <input type="hidden" form="attendance-form" name="travel_in_time" id="hidden-travel-in-time" value="">
+            <input type="hidden" form="attendance-form" name="travel_out_time" id="hidden-travel-out-time" value="">
+
+            <button id="punch-button" class="bg-blue-500 mt-4" onclick="submitForm()">Punch In</button>
+        {% endif %}
+    </section>
+
+</div>
+
+<script>
+    function submitForm() {
+        document.getElementById("attendance-form").submit();
+    }
+</script>
+
+<script>
+    function updateStatusText() {
+        var selectedStatus = document.getElementById("attendance-status").value;
+        var statusText = selectedStatus ? selectedStatus : "Not Selected";
+        document.getElementById("selected-status").innerHTML = "Status: <span class='font-bold text-blue-500'>" + statusText + "</span>";
+    }
+    function updateLocationText() {
+        var selectedLocation = document.getElementById("location-select").value;
+        var locationText = selectedLocation ? selectedLocation : "Not Selected";
+        document.getElementById("selected-location").innerHTML = "Location: <span class='font-bold text-blue-500'>" + locationText + "</span>";
+    }
+</script>
+
+<script>
+    const travelStart = document.getElementById('travel-start');
+    const travelStop = document.getElementById('travel-stop');
+    const travelTimer = document.getElementById('travel-timer');
+    let timerInterval, startTime;
+
+    if (travelStart && travelStop) {
+        travelStart.addEventListener('click', () => {
+          travelStart.disabled = true;
+          travelStop.disabled = false;
+          startTime = new Date();
+          timerInterval = setInterval(() => {
+            const currentTime = new Date();
+            const elapsedTime = new Date(currentTime - startTime);
+            const hours = String(elapsedTime.getUTCHours()).padStart(2, '0');
+            const minutes = String(elapsedTime.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(elapsedTime.getUTCSeconds()).padStart(2, '0');
+            if (travelTimer) travelTimer.innerHTML = `Travel Duration: <span class="font-bold text-blue-500">${hours}:${minutes}:${seconds}</span>`;
+          }, 1000);
+        });
+
+        travelStop.addEventListener('click', () => {
+          travelStart.disabled = false;
+          travelStop.disabled = true;
+          clearInterval(timerInterval);
+        });
+    }
+</script>
+
+<script>
+    let travelStartTime = null;
+    let travelStopTime = null;
+    const travelStartButton = document.getElementById('travel-start');
+    const travelStopButton = document.getElementById('travel-stop');
+    const travelTimerDisplay = document.getElementById('travel-timer') ? document.getElementById('travel-timer').querySelector('span') : null;
+    const hiddenTravelInInput = document.getElementById('hidden-travel-in-time');
+    const hiddenTravelOutInput = document.getElementById('hidden-travel-out-time');
+    let timerIntervals;
+
+    if (travelStartButton && travelStopButton) {
+        travelStartButton.addEventListener('click', () => {
+            travelStartTime = new Date();
+            if (hiddenTravelInInput) hiddenTravelInInput.value = travelStartTime.toISOString();
+            travelStartButton.disabled = true;
+            travelStopButton.disabled = false;
+            timerIntervals = setInterval(() => {
+                const nowTime = new Date();
+                const elapsed = new Date(nowTime - travelStartTime);
+                const hours = String(elapsed.getUTCHours()).padStart(2, '0');
+                const minutes = String(elapsed.getUTCMinutes()).padStart(2, '0');
+                const seconds = String(elapsed.getUTCSeconds()).padStart(2, '0');
+                if (travelTimerDisplay) travelTimerDisplay.textContent = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        });
+
+        travelStopButton.addEventListener('click', () => {
+            travelStopTime = new Date();
+            if (hiddenTravelOutInput) hiddenTravelOutInput.value = travelStopTime.toISOString();
+            clearInterval(timerIntervals);
+            travelStopButton.disabled = true;
+            travelStartButton.disabled = false;
+        });
+    }
+</script>
+{% endblock %}

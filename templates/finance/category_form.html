@@ -1,0 +1,64 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Category Details | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="apply-leave-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="pg-title">
+        <h1>Expense Category</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>{{ title }}</h4>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for err in form.non_field_errors %}{{ err }}<br>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-group mb-3">
+                <label for="{{ form.name.id_for_label }}">Category Name <span class="fin-text-red">*</span></label>
+                {{ form.name }}
+                {% if form.name.errors %}
+                    <div class="fin-text-red small">{{ form.name.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.kind.id_for_label }}">Kind <span class="fin-text-red">*</span></label>
+                {{ form.kind }}
+                {% if form.kind.errors %}
+                    <div class="fin-text-red small">{{ form.kind.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">OVERHEAD = general office / company operating cost. PROJECT = direct cost tied to specific projects.</small>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.sort_order.id_for_label }}">Sort Order</label>
+                {{ form.sort_order }}
+                {% if form.sort_order.errors %}
+                    <div class="fin-text-red small">{{ form.sort_order.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-check mb-4">
+                {{ form.is_active }}
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+            </div>
+
+            <div class="form-actions d-flex justify-content-end gap-2">
+                <a href="{% url 'fin_categories' %}" class="fin-btn fin-btn-outline">Cancel</a>
+                <button type="submit" class="fin-btn">Save Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

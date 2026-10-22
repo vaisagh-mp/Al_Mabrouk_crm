@@ -6,7 +6,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Almabrouk CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <title>Blessed Marine Services CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <link rel="icon" type="image/png" href="{% static 'assets/images/pwa-logo.png' %}" />
     <!-- Bootstrap -->
     <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
     <!-- Fontawesome -->
@@ -16,7 +17,7 @@
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261016b" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
 </head>
 
@@ -97,8 +98,8 @@
             </a>
             <div class="sidebar-content">
               <div class="sidebar-brand">
-                <a href="{% url 'admin-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.webp' %}"
-                    alt="Almabrouk Marine Logo" /></a>
+                <a href="{% url 'admin-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.png' %}"
+                    alt="Blessed Marine Services Logo" /></a>
                 <div id="close-sidebar">
                   <i class="fas fa-times"></i>
                 </div>
@@ -230,6 +231,13 @@
                               </li>
                           </ul>
                       </div>
+                  </li>
+
+                  <li>
+                    <a href="{% url 'fin_dashboard' %}">
+                      <i class="fas fa-coins"></i>
+                      <span>Finance</span>
+                    </a>
                   </li>
 
 

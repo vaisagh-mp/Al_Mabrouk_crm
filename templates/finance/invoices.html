@@ -1,0 +1,332 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block title %}Invoice Costing | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Invoice Costing</h1>
+            <span class="text-muted small">Comprehensive invoice profitability, costing, and collection tracking</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_invoice_add' %}" class="fin-btn">
+                <i class="fas fa-plus me-1"></i> Add Invoice
+            </a>
+            <a href="{% url 'fin_invoices_export_excel' %}?{{ querystring_for_export }}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters Card -->
+    <div class="widget-box p-3 mb-4">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Month</label>
+                <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Start Date</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">End Date</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select name="status" class="form-select form-select-sm">
+                    {% for val, label in statuses %}
+                    <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Invoice Type</label>
+                <select name="invoice_type" class="form-select form-select-sm">
+                    <option value="all">All Types</option>
+                    {% for val, label in invoice_types %}
+                    <option value="{{ val }}" {% if selected_type == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <input type="text" name="search" value="{{ search_query }}" placeholder="Inv / Ref / Vessel / Client" class="form-control form-control-sm">
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2 mt-3">
+                <button type="submit" class="fin-btn fin-btn-sm">
+                    <i class="fas fa-filter me-1"></i> Filter
+                </button>
+                <a href="{% url 'fin_invoices' %}" class="fin-btn fin-btn-outline fin-btn-sm">
+                    Reset
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Table Card -->
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th class="text-center">Status</th>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'invoice_date' %}-invoice_date{% else %}invoice_date{% endif %}" class="fin-sort-link {% if sort_by == 'invoice_date' or sort_by == '-invoice_date' %}active{% endif %}">
+                                Date <i class="fas {% if sort_by == 'invoice_date' %}fa-sort-up{% elif sort_by == '-invoice_date' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th>Ref / Project</th>
+                        <th>Vessel</th>
+                        <th>
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'invoice_number' %}-invoice_number{% else %}invoice_number{% endif %}" class="fin-sort-link {% if sort_by == 'invoice_number' or sort_by == '-invoice_number' %}active{% endif %}">
+                                Invoice No <i class="fas {% if sort_by == 'invoice_number' %}fa-sort-up{% elif sort_by == '-invoice_number' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'amount_excl_vat' %}-amount_excl_vat{% else %}amount_excl_vat{% endif %}" class="fin-sort-link {% if sort_by == 'amount_excl_vat' or sort_by == '-amount_excl_vat' %}active{% endif %}">
+                                Amount (excl. tax) <i class="fas {% if sort_by == 'amount_excl_vat' %}fa-sort-up{% elif sort_by == '-amount_excl_vat' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'credits_applied' %}-credits_applied{% else %}credits_applied{% endif %}" class="fin-sort-link {% if sort_by == 'credits_applied' or sort_by == '-credits_applied' %}active{% endif %}">
+                                Credits <i class="fas {% if sort_by == 'credits_applied' %}fa-sort-up{% elif sort_by == '-credits_applied' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spares_revenue' %}-spares_revenue{% else %}spares_revenue{% endif %}" class="fin-sort-link {% if sort_by == 'spares_revenue' or sort_by == '-spares_revenue' %}active{% endif %}">
+                                Spares Rev <i class="fas {% if sort_by == 'spares_revenue' %}fa-sort-up{% elif sort_by == '-spares_revenue' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spare_cost' %}-spare_cost{% else %}spare_cost{% endif %}" class="fin-sort-link {% if sort_by == 'spare_cost' or sort_by == '-spare_cost' %}active{% endif %}">
+                                Spare Cost <i class="fas {% if sort_by == 'spare_cost' %}fa-sort-up{% elif sort_by == '-spare_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spares_profit' %}-spares_profit{% else %}spares_profit{% endif %}" class="fin-sort-link {% if sort_by == 'spares_profit' or sort_by == '-spares_profit' %}active{% endif %}">
+                                Spares Profit <i class="fas {% if sort_by == 'spares_profit' %}fa-sort-up{% elif sort_by == '-spares_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'other_cost' %}-other_cost{% else %}other_cost{% endif %}" class="fin-sort-link {% if sort_by == 'other_cost' or sort_by == '-other_cost' %}active{% endif %}">
+                                Other Cost <i class="fas {% if sort_by == 'other_cost' %}fa-sort-up{% elif sort_by == '-other_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'total_net_profit' %}-total_net_profit{% else %}total_net_profit{% endif %}" class="fin-sort-link {% if sort_by == 'total_net_profit' or sort_by == '-total_net_profit' %}active{% endif %}">
+                                Total Net Profit <i class="fas {% if sort_by == 'total_net_profit' %}fa-sort-up{% elif sort_by == '-total_net_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'collection_value' %}-collection_value{% else %}collection_value{% endif %}" class="fin-sort-link {% if sort_by == 'collection_value' or sort_by == '-collection_value' %}active{% endif %}">
+                                Collection Value <i class="fas {% if sort_by == 'collection_value' %}fa-sort-up{% elif sort_by == '-collection_value' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-end">
+                            <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'over_due' %}-over_due{% else %}over_due{% endif %}" class="fin-sort-link {% if sort_by == 'over_due' or sort_by == '-over_due' %}active{% endif %}">
+                                Over Due <i class="fas {% if sort_by == 'over_due' %}fa-sort-up{% elif sort_by == '-over_due' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                            </a>
+                        </th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page_obj %}
+                    <tr class="{% if r.is_loss %}fin-loss-row{% endif %}">
+                        <td class="text-center">
+                            {% if r.status == 'PAID' %}
+                                <span class="status completed">Paid</span>
+                            {% elif r.status == 'OVERDUE' %}
+                                <span class="status cancelled">Overdue</span>
+                            {% elif r.status == 'PARTIAL' %}
+                                <span class="status in-progress">Partial</span>
+                            {% elif r.status == 'CANCELLED' %}
+                                <span class="status cancelled">Cancelled</span>
+                            {% else %}
+                                <span class="status pending">Open</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap">{{ r.invoice_date|date:"d-M-Y"|default:"—" }}</td>
+                        <td>
+                            <div class="fw-semibold">{{ r.service_ref|default:"—" }}</div>
+                            {% if r.customer %}<small class="text-muted">{{ r.customer }}</small>{% endif %}
+                        </td>
+                        <td>{{ r.vessel|default:"—" }}</td>
+                        <td class="fw-bold font-monospace">{{ r.invoice_number }}{% if r.is_legacy or r.invoice_number|slice:":7" == "LEGACY-" %} <span class="status hold ms-1">Legacy</span>{% endif %}</td>
+                        <td class="text-end font-monospace">{{ r.amount_excl_vat|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.credits_applied|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.spares_revenue|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ r.spare_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if r.spares_profit < 0 %}text-danger{% endif %}">
+                            {% if r.spares_profit < 0 %}({{ r.spares_profit|stringformat:".2f"|slice:"1:" }}){% else %}{{ r.spares_profit|floatformat:2|intcomma }}{% endif %}
+                        </td>
+                        <td class="text-end font-monospace">{{ r.other_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-bold {% if r.is_loss %}text-danger{% endif %}">
+                            {{ r.total_net_profit_display }}
+                        </td>
+                        <td class="text-end font-monospace fw-semibold">{{ r.collection_value|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if r.over_due > 0 %}fin-text-danger{% endif %}">
+                            {{ r.over_due|floatformat:2|intcomma }}
+                        </td>
+                        <td class="text-center text-nowrap">
+                            <button type="button" class="fin-btn fin-btn-sm" data-bs-toggle="modal" data-bs-target="#recordPaymentModal-{{ r.id }}" title="Record Payment">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </button>
+                            <button type="button" class="fin-btn fin-btn-outline fin-btn-sm" data-bs-toggle="modal" data-bs-target="#applyCreditModal-{{ r.id }}" title="Apply Credit">
+                                <i class="fas fa-tag"></i>
+                            </button>
+                            <a href="{% url 'fin_invoice_edit' r.id %}" class="fin-btn fin-btn-outline fin-btn-sm" title="Edit Invoice">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if is_finance_admin %}
+                            <form method="post" action="{% url 'fin_invoice_delete' r.id %}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete invoice {{ r.invoice_number }}?');">
+                                {% csrf_token %}
+                                <button type="submit" class="fin-btn-danger" title="Delete Invoice">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+
+                            <!-- Record Payment Modal -->
+                            <div class="modal fade text-start" id="recordPaymentModal-{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="post" action="{% url 'fin_invoice_record_payment' r.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title fw-bold">Record Payment: {{ r.invoice_number }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="p-3 rounded mb-3 bg-light border">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Collection Value:</span>
+                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Previously Received:</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.invoice.amount_received|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between border-top pt-1">
+                                                        <span class="fw-bold text-danger">Current Balance Due:</span>
+                                                        <span class="fw-bold text-danger font-monospace">{{ r.invoice.outstanding|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Payment Amount (AED) <span class="text-danger">*</span></label>
+                                                    <input type="number" step="0.01" min="0.01" max="{{ r.invoice.outstanding }}" name="amount_received" value="{{ r.invoice.outstanding }}" class="form-control" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Payment Date <span class="text-danger">*</span></label>
+                                                    <input type="date" name="payment_received_date" value="{% now 'Y-m-d' %}" class="form-control" required>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="fin-btn fin-btn-outline" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="fin-btn">Save Payment</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Apply Credit Modal -->
+                            <div class="modal fade text-start" id="applyCreditModal-{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <form method="post" action="{% url 'fin_invoice_apply_credit' r.id %}">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title fw-bold">Apply Credit: {{ r.invoice_number }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <div class="p-3 rounded mb-3 bg-light border">
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Amount Without Tax:</span>
+                                                        <span class="fw-bold font-monospace">{{ r.amount_excl_vat|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between mb-1">
+                                                        <span class="text-muted">Credits Previously Applied:</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.credits_applied|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    <div class="d-flex justify-content-between border-top pt-1">
+                                                        <span class="fw-bold">Max Additional Credit:</span>
+                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Credit Amount (AED) <span class="text-danger">*</span></label>
+                                                    <input type="number" step="0.01" min="0.01" max="{{ r.collection_value }}" name="credit_amount" class="form-control" required>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Credit Notes</label>
+                                                    <textarea name="notes" rows="2" class="form-control" placeholder="Reason for credit..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="fin-btn fin-btn-outline" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="fin-btn">Apply Credit</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="15" class="text-center text-muted py-4">
+                            No invoices found matching the current filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if page_obj %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="5" class="text-uppercase">Total</td>
+                        <td class="text-end font-monospace">{{ totals.amount_excl_vat|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.credits_applied|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.spares_revenue|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.spare_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.spares_profit|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">{{ totals.other_cost|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if totals.total_net_profit < 0 %}text-danger{% endif %}">{{ totals.total_net_profit_display }}</td>
+                        <td class="text-end font-monospace">{{ totals.collection_value|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace {% if totals.over_due > 0 %}fin-text-danger{% endif %}">{{ totals.over_due|floatformat:2|intcomma }}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+
+        {% if page_obj.has_other_pages %}
+        <div class="p-3 border-top d-flex justify-content-between align-items-center">
+            <span class="text-muted small">
+                Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} invoices
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.previous_page_number }}">Previous</a></li>
+                {% endif %}
+                <li class="page-item disabled"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?{{ querystring_without_page }}&page={{ page_obj.next_page_number }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

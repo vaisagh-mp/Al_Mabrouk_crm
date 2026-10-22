@@ -1,4 +1,4 @@
-{% extends 'Manager/managerbase.html' %} {% load custom_filters %} {% load static %} {% block content %}
+{% extends 'Manager/managerbase.html' %} {% load custom_filters %} {% load humanize %} {% load static %} {% block content %}
 
 <style>
   .emply-list-wraper .btn {
@@ -52,6 +52,10 @@
                   <span style="color: #1a1a1a"
                     ><b> {{ project_data.vessel_name |default:"N/A"}}</b></span
                   >
+                </div>
+                <div class="pjct-info-item">
+                  <h6>Service Reference:</h6>
+                  <span style="color: #1a1a1a"><b>{{ project_data.service_reference|default:"N/A" }}</b></span>
                 </div>
                 <div class="pjct-info-item">
                   <h6>Category:</h6>
@@ -361,6 +365,42 @@
       </div>
     </div>
   </section>
+
+  <!-- Project Financials -->
+  <div class="widget-box table-wdgt">
+    <table class="vertical-table">
+      <tbody>
+        <tr>
+          <td>Project Name</td>
+          <td>{{ project_data.project_name }}</td>
+        </tr>
+        <tr>
+          <td>Code</td>
+          <td>{{ project_data.code }}</td>
+        </tr>
+        <tr>
+          <td>Service Reference</td>
+          <td>{{ project_data.service_reference|default:"-" }}</td>
+        </tr>
+        <tr>
+          <td>Category</td>
+          <td>{{ project_data.category }}</td>
+        </tr>
+        <tr>
+          <td>Status</td>
+          <td>{{ project_data.status }}</td>
+        </tr>
+        <tr>
+          <td>Total Work Days</td>
+          <td>{{ project_data.total_work_days }} Days</td>
+        </tr>
+        <tr>
+          <td>Engineers</td>
+          <td>{{ project_data.engineers|join:", "|default:"-" }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 

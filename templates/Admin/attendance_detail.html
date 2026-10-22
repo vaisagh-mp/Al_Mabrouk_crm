@@ -25,7 +25,7 @@
                 </tr>
                 <tr>
                     <th>Log Out Time</th>
-                    <td>{{ attendance.log_out_time }}</td>
+                    <td>{{ attendance.log_out_time }}{% if attendance.auto_punched_out %} <span class="status hold" title="Auto punch-out at midnight">Auto</span>{% endif %}</td>
                 </tr>
                 <tr>
                     <th>Total Hours of Work</th>

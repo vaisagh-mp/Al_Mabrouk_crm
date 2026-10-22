@@ -22,6 +22,10 @@ from Admin.attendance_analytics import (
     BRADFORD_MONITOR, BRADFORD_ACTION
 )
 from service_logs.models import EmployeeServiceLog
+from unittest.mock import patch
+from django.contrib.messages import get_messages
+from django.core.management import call_command
+from Admin.attendance_autoclose import close_stale_sessions, capped_logout, session_cutoff
 
 
 class AttendanceRegisterTests(TestCase):
@@ -55,7 +59,9 @@ class AttendanceRegisterTests(TestCase):
         self.assertEqual(row['status_label'], 'Office')
         self.assertEqual(row['location_label'], 'Office')
         self.assertEqual(row['total_hours'], Decimal('9.00'))
-        self.assertEqual(row['ot_hours'], Decimal('1.00'))
+        self.assertEqual(row['ot_hours'], Decimal('0.00'))
+        self.assertEqual(row['vessel_ot_hours'], Decimal('0.00'))
+        self.assertEqual(row['office_ot_hours'], Decimal('0.00'))
         self.assertEqual(row['rank'], 'Senior Technician')
         self.assertEqual(row['start'], time(9, 0))
         self.assertEqual(row['end'], time(18, 0))
@@ -159,7 +165,9 @@ class AttendanceRegisterTests(TestCase):
         self.assertEqual(row['status_label'], 'Office+Vessel')
         # Union from 08:00 to 18:00 = 10.00 hours (sum would be 9 + 5 = 14)
         self.assertEqual(row['total_hours'], Decimal('10.00'))
-        self.assertEqual(row['ot_hours'], Decimal('2.00'))
+        self.assertEqual(row['ot_hours'], Decimal('0.00'))
+        self.assertEqual(row['vessel_ot_hours'], Decimal('0.00'))
+        self.assertEqual(row['office_ot_hours'], Decimal('0.00'))
         self.assertEqual(row['start'], time(8, 0))
         self.assertEqual(row['end'], time(18, 0))
 
@@ -197,7 +205,9 @@ class AttendanceRegisterTests(TestCase):
         self.assertEqual(row['vessel_job'], ['Vessel Alpha', 'Vessel Beta'])
         self.assertEqual(row['service_ref'], ['REF-A', 'REF-B'])
         self.assertEqual(row['total_hours'], Decimal('13.00'))
-        self.assertEqual(row['ot_hours'], Decimal('1.00'))
+        self.assertEqual(row['ot_hours'], Decimal('3.00'))
+        self.assertEqual(row['vessel_ot_hours'], Decimal('3.00'))
+        self.assertEqual(row['office_ot_hours'], Decimal('0.00'))
 
     def test_approved_leaves_across_three_days(self):
         """approved Annual / Sick / Personal leave across 3 days → 3 rows with the right status"""
@@ -489,6 +499,58 @@ class AttendanceViewAndPermissionTests(TestCase):
         res = self.client.post(del_url)
         self.assertEqual(res.status_code, 302)
         self.assertFalse(Attendance.objects.filter(id=att.id).exists())
+
+    def test_admin_edit_attendance_superuser(self):
+        self.client.login(username='admin_user', password='password123')
+        att = Attendance.objects.create(employee=self.normal_emp, status='APPROVED')
+        edit_url = reverse('edit_attendance', kwargs={'attendance_id': att.id})
+
+        post_data = {
+            'employee': str(self.normal_emp.id),
+            'project': '',
+            'login_time': '2026-07-01T08:00',
+            'log_out_time': '2026-07-01T17:00',
+            'location': 'Office',
+            'status': 'APPROVED',
+        }
+        res = self.client.post(edit_url, post_data)
+        self.assertEqual(res.status_code, 302)
+
+        att.refresh_from_db()
+        self.assertTrue(timezone.is_aware(att.login_time))
+        self.assertTrue(timezone.is_aware(att.log_out_time))
+
+        dubai_tz = pytz.timezone('Asia/Dubai')
+        login_local = timezone.localtime(att.login_time, dubai_tz)
+        logout_local = timezone.localtime(att.log_out_time, dubai_tz)
+
+        self.assertEqual(login_local.date(), date(2026, 7, 1))
+        self.assertEqual(login_local.time(), time(8, 0))
+        self.assertEqual(logout_local.date(), date(2026, 7, 1))
+        self.assertEqual(logout_local.time(), time(17, 0))
+
+    def test_admin_edit_attendance_non_superuser_forbidden(self):
+        att = Attendance.objects.create(employee=self.normal_emp, status='APPROVED')
+        edit_url = reverse('edit_attendance', kwargs={'attendance_id': att.id})
+        post_data = {
+            'employee': str(self.normal_emp.id),
+            'login_time': '2026-07-01T08:00',
+            'log_out_time': '2026-07-01T17:00',
+        }
+
+        # Normal user -> 403 on GET and POST
+        self.client.login(username='normal_user', password='password123')
+        res_get = self.client.get(edit_url)
+        self.assertEqual(res_get.status_code, 403)
+        res_post = self.client.post(edit_url, post_data)
+        self.assertEqual(res_post.status_code, 403)
+
+        # HR user (non-superuser) -> 403 on GET and POST
+        self.client.login(username='hr_user', password='password123')
+        res_hr_get = self.client.get(edit_url)
+        self.assertEqual(res_hr_get.status_code, 403)
+        res_hr_post = self.client.post(edit_url, post_data)
+        self.assertEqual(res_hr_post.status_code, 403)
 
     def test_hr_wrench_hidden_and_admin_visible(self):
         """HR attendance page hides wrench icon; Admin attendance page shows it for service logs"""
@@ -1136,6 +1198,369 @@ class AttendanceAnalyticsTests(TestCase):
         self.assertEqual(leave_kpi['prev_value'], 1)
         self.assertEqual(leave_kpi['delta'], Decimal('100.0'))
         self.assertIsNone(leave_kpi['is_good'])
+
+
+class AutoPunchOutTests(TestCase):
+    def setUp(self):
+        self.tz = timezone.get_current_timezone()
+        self.client = Client()
+        self.user = User.objects.create_user(username='john_doe', first_name='John', last_name='Doe', password='pass')
+        self.employee = Employee.objects.create(
+            user=self.user,
+            is_employee=True,
+            rank='Senior Technician',
+            salary=Decimal('5000.00'),
+        )
+
+    def test_punch_in_yesterday_morning_closed_at_today_midnight(self):
+        """Punch-in yesterday 09:00, no punch-out -> close_stale_sessions() -> log_out = today 00:00, 15.00 hours, auto_punched_out True."""
+        today_local = timezone.localdate()
+        yesterday = today_local - timedelta(days=1)
+        login_dt = timezone.make_aware(datetime.combine(yesterday, time(9, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        count = close_stale_sessions()
+        self.assertEqual(count, 1)
+
+        att.refresh_from_db()
+        expected_logout = timezone.make_aware(datetime.combine(today_local, time.min), self.tz)
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), expected_logout)
+        self.assertEqual(att.total_hours_of_work, Decimal('15.00'))
+        self.assertTrue(att.auto_punched_out)
+
+    def test_punch_in_yesterday_2330_closed_at_0000(self):
+        """Punch-in 23:30 yesterday -> closed at 00:00 -> 0.50 hours."""
+        today_local = timezone.localdate()
+        yesterday = today_local - timedelta(days=1)
+        login_dt = timezone.make_aware(datetime.combine(yesterday, time(23, 30)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        count = close_stale_sessions()
+        self.assertEqual(count, 1)
+
+        att.refresh_from_db()
+        expected_logout = timezone.make_aware(datetime.combine(today_local, time.min), self.tz)
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), expected_logout)
+        self.assertEqual(att.total_hours_of_work, Decimal('0.50'))
+        self.assertTrue(att.auto_punched_out)
+
+    def test_punch_in_three_days_ago_closed_at_its_cutoff(self):
+        """Punch-in 3 days ago -> closed at 00:00 after punch-in date (not today), 15.00 hours for 09:00 punch-in."""
+        today_local = timezone.localdate()
+        d3 = today_local - timedelta(days=3)
+        login_dt = timezone.make_aware(datetime.combine(d3, time(9, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        count = close_stale_sessions()
+        self.assertEqual(count, 1)
+
+        att.refresh_from_db()
+        expected_logout = timezone.make_aware(datetime.combine(d3 + timedelta(days=1), time.min), self.tz)
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), expected_logout)
+        self.assertEqual(att.total_hours_of_work, Decimal('15.00'))
+        self.assertTrue(att.auto_punched_out)
+
+    def test_today_open_session_not_closed(self):
+        """Today's open session is NOT closed."""
+        today_local = timezone.localdate()
+        login_dt = timezone.make_aware(datetime.combine(today_local, time(8, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        count = close_stale_sessions()
+        self.assertEqual(count, 0)
+
+        att.refresh_from_db()
+        self.assertIsNone(att.log_out_time)
+        self.assertFalse(att.auto_punched_out)
+
+    def test_log_off_next_day_capped_with_warning(self):
+        """log_off pressed the next day at 10:00 -> log_out = 00:00 cutoff, auto_punched_out True, warning shown."""
+        today_local = timezone.localdate()
+        yesterday = today_local - timedelta(days=1)
+        login_dt = timezone.make_aware(datetime.combine(yesterday, time(9, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        next_day_10am = timezone.make_aware(datetime.combine(today_local, time(10, 0)), self.tz)
+        self.client.login(username='john_doe', password='pass')
+        with patch('django.utils.timezone.now', return_value=next_day_10am):
+            res = self.client.post(reverse('log_off', kwargs={'attendance_id': att.id}), follow=True)
+
+        att.refresh_from_db()
+        expected_logout = timezone.make_aware(datetime.combine(today_local, time.min), self.tz)
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), expected_logout)
+        self.assertTrue(att.auto_punched_out)
+        self.assertEqual(att.total_hours_of_work, Decimal('15.00'))
+
+        msgs = list(get_messages(res.wsgi_request))
+        self.assertTrue(any("was closed at 12:00 AM on" in str(m) for m in msgs))
+
+    def test_log_off_same_day_normal_now(self):
+        """log_off on the same day -> normal now(), auto_punched_out False."""
+        today_local = timezone.localdate()
+        login_dt = timezone.make_aware(datetime.combine(today_local, time(9, 0)), self.tz)
+        logout_dt = timezone.make_aware(datetime.combine(today_local, time(17, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        self.client.login(username='john_doe', password='pass')
+        with patch('django.utils.timezone.now', return_value=logout_dt):
+            res = self.client.post(reverse('log_off', kwargs={'attendance_id': att.id}), follow=True)
+
+        att.refresh_from_db()
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), logout_dt)
+        self.assertFalse(att.auto_punched_out)
+        self.assertEqual(att.total_hours_of_work, Decimal('8.00'))
+
+        msgs = list(get_messages(res.wsgi_request))
+        self.assertTrue(any("successfully logged off" in str(m) for m in msgs))
+
+    def test_employee_login_with_stale_session_caps_and_creates_new(self):
+        """Employee log_in with a stale session -> stale session capped at cutoff, new session created."""
+        today_local = timezone.localdate()
+        yesterday = today_local - timedelta(days=1)
+        login_dt = timezone.make_aware(datetime.combine(yesterday, time(9, 0)), self.tz)
+
+        att_stale = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        self.client.login(username='john_doe', password='pass')
+        res = self.client.post(reverse('log_in'), {
+            'attendance_status': 'PRESENT',
+            'location': 'BDO'
+        }, follow=True)
+
+        att_stale.refresh_from_db()
+        expected_cutoff = timezone.make_aware(datetime.combine(today_local, time.min), self.tz)
+        self.assertEqual(timezone.localtime(att_stale.log_out_time, self.tz), expected_cutoff)
+        self.assertTrue(att_stale.auto_punched_out)
+
+        new_att = Attendance.objects.filter(employee=self.employee, log_out_time__isnull=True).first()
+        self.assertIsNotNone(new_att)
+        self.assertNotEqual(new_att.id, att_stale.id)
+
+        msgs = list(get_messages(res.wsgi_request))
+        self.assertTrue(any("was closed automatically at 12:00 AM" in str(m) for m in msgs))
+
+    def test_hr_login_with_open_session_on_different_project_blocked(self):
+        """hr_log_in with an open session on a different project -> blocked."""
+        today_local = timezone.localdate()
+        login_dt = timezone.make_aware(datetime.combine(today_local, time(9, 0)), self.tz)
+        proj1 = Project.objects.create(name='Proj1')
+        proj2 = Project.objects.create(name='Proj2')
+
+        hr_u = User.objects.create_user(username='hr_tester', password='pass')
+        hr_e = Employee.objects.create(user=hr_u, is_hr=True)
+
+        Attendance.objects.create(
+            employee=hr_e,
+            project=proj1,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        self.client.login(username='hr_tester', password='pass')
+        res = self.client.post(reverse('hr_log_in'), {
+            'project': proj2.id,
+            'location': 'BDO',
+            'attendance_status': 'PRESENT'
+        }, follow=True)
+
+        msgs = list(get_messages(res.wsgi_request))
+        self.assertTrue(any("You are already logged in" in str(m) for m in msgs))
+        self.assertEqual(Attendance.objects.filter(employee=hr_e).count(), 1)
+
+    def test_admin_edit_attendance_after_midnight_not_capped(self):
+        """Admin edit_attendance with log_out after midnight -> saved as entered (not capped)."""
+        super_u = User.objects.create_superuser(username='super_editor', password='pass', email='se@test.com')
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=timezone.now(),
+            location='BDO',
+            status='APPROVED',
+        )
+
+        self.client.login(username='super_editor', password='pass')
+        res = self.client.post(reverse('edit_attendance', kwargs={'attendance_id': att.id}), {
+            'employee': self.employee.id,
+            'login_time': '2026-07-01T20:00',
+            'log_out_time': '2026-07-02T04:00',
+            'location': 'BDO',
+            'attendance_status': 'PRESENT',
+        })
+        self.assertEqual(res.status_code, 302)
+
+        att.refresh_from_db()
+        expected_logout = timezone.make_aware(datetime(2026, 7, 2, 4, 0), self.tz)
+        self.assertEqual(timezone.localtime(att.log_out_time, self.tz), expected_logout)
+        self.assertEqual(att.total_hours_of_work, Decimal('8.00'))
+        self.assertFalse(att.auto_punched_out)
+
+    def test_auto_punch_out_command_dry_run_and_fix_closed(self):
+        """auto_punch_out --dry-run changes nothing; --fix-closed caps a 40h session to its cutoff."""
+        today_local = timezone.localdate()
+        d4 = today_local - timedelta(days=4)
+        login_open = timezone.make_aware(datetime.combine(d4, time(8, 0)), self.tz)
+        att_open = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_open,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        login_40h = timezone.make_aware(datetime.combine(d4, time(8, 0)), self.tz)
+        logout_40h = timezone.make_aware(datetime.combine(d4 + timedelta(days=2), time(0, 0)), self.tz)
+        att_40h = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_40h,
+            log_out_time=logout_40h,
+            total_hours_of_work=Decimal('40.00'),
+            location='BDO',
+            status='APPROVED',
+        )
+
+        # --dry-run
+        call_command('auto_punch_out', dry_run=True, fix_closed=True)
+        att_open.refresh_from_db()
+        self.assertIsNone(att_open.log_out_time)
+        att_40h.refresh_from_db()
+        self.assertEqual(att_40h.total_hours_of_work, Decimal('40.00'))
+
+        # Actual run with --fix-closed
+        call_command('auto_punch_out', fix_closed=True)
+        att_open.refresh_from_db()
+        cutoff_d4 = timezone.make_aware(datetime.combine(d4 + timedelta(days=1), time.min), self.tz)
+        self.assertEqual(timezone.localtime(att_open.log_out_time, self.tz), cutoff_d4)
+        self.assertTrue(att_open.auto_punched_out)
+
+        att_40h.refresh_from_db()
+        self.assertEqual(timezone.localtime(att_40h.log_out_time, self.tz), cutoff_d4)
+        self.assertEqual(att_40h.total_hours_of_work, Decimal('16.00'))
+        self.assertTrue(att_40h.auto_punched_out)
+
+    def test_register_end_column_midnight_with_earlier_session(self):
+        """Register End column: session ending 00:00 next day + earlier session ending 17:00 -> end shows 00:00 and the Auto pill."""
+        test_date = date(2026, 6, 2)
+        s1_in = timezone.make_aware(datetime.combine(test_date, time(8, 0)), self.tz)
+        s1_out = timezone.make_aware(datetime.combine(test_date, time(17, 0)), self.tz)
+        Attendance.objects.create(
+            employee=self.employee,
+            login_time=s1_in,
+            log_out_time=s1_out,
+            location='BDO',
+            status='APPROVED'
+        )
+
+        s2_in = timezone.make_aware(datetime.combine(test_date, time(18, 0)), self.tz)
+        s2_out = timezone.make_aware(datetime.combine(test_date + timedelta(days=1), time(0, 0)), self.tz)
+        Attendance.objects.create(
+            employee=self.employee,
+            login_time=s2_in,
+            log_out_time=s2_out,
+            auto_punched_out=True,
+            location='BDO',
+            status='APPROVED'
+        )
+
+        rows = build_attendance_register(test_date, test_date)
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row['end'], time(0, 0))
+        self.assertTrue(row['auto_punched_out'])
+
+        from django.template import Context, Template
+        t = Template('{% load static %}{% include "attendance/_register_table.html" %}')
+        rendered = t.render(Context({
+            'rows': rows,
+            'page_obj': rows,
+            'all_rows': rows,
+            'summary_rows': [],
+            'summary_totals': {},
+            'summary_counts': {},
+            'role': 'Admin'
+        }))
+        self.assertIn('12:00 AM', rendered)
+        self.assertIn('<span class="status hold" title="Auto punch-out at midnight">Auto</span>', rendered)
+
+    def test_closing_stale_session_recalculates_day_ot_signal(self):
+        """Closing a stale session on a day with a service log recalculates that day's OT (signal still fires)."""
+        today_local = timezone.localdate()
+        d2 = today_local - timedelta(days=2)
+        login_dt = timezone.make_aware(datetime.combine(d2, time(8, 0)), self.tz)
+
+        att = Attendance.objects.create(
+            employee=self.employee,
+            login_time=login_dt,
+            location='BDO',
+            status='APPROVED',
+        )
+
+        proj = Project.objects.create(name='P_OT')
+        slog = EmployeeServiceLog.objects.create(
+            employee=self.employee,
+            project=proj,
+            date=d2,
+            start_time=time(14, 0),
+            end_time=time(22, 0),
+            service_type='VESSEL',
+        )
+        self.assertEqual(slog.ot_hours, Decimal('0.00'))
+
+        close_stale_sessions()
+
+        att.refresh_from_db()
+        self.assertTrue(att.auto_punched_out)
+        self.assertEqual(att.total_hours_of_work, Decimal('16.00'))
+
+        slog.refresh_from_db()
+        self.assertGreater(slog.ot_hours, Decimal('0.00'))
+
+    def test_close_stale_sessions_at_most_one_query_when_clean(self):
+        """close_stale_sessions adds at most 1 query when nothing is stale."""
+        Attendance.objects.all().delete()
+        with CaptureQueriesContext(connection) as ctx:
+            count = close_stale_sessions()
+        self.assertEqual(count, 0)
+        self.assertLessEqual(len(ctx), 1)
 
 
 

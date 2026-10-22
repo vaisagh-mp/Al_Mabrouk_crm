@@ -19,6 +19,8 @@ def custom_login(request):
                 return redirect('admstrn-dashboard')
             elif employee.is_hr:
                 return redirect('hr-dashboard')  # Adjust if HR has a separate dashboard
+            elif employee.is_accountant:
+                return redirect('fin_dashboard')
             else:
                 return redirect('employee_dashboard')  
         except ObjectDoesNotExist:
@@ -48,6 +50,8 @@ def custom_login(request):
                         return redirect('admstrn-dashboard')
                     elif employee.is_hr:
                         return redirect('hr-dashboard')  # Adjust as needed
+                    elif employee.is_accountant:
+                        return redirect('fin_dashboard')
                     else:
                         return redirect('employee_dashboard')
                 except ObjectDoesNotExist:

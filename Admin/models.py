@@ -40,8 +40,10 @@ class Project(models.Model):
     service_reference = models.CharField(max_length=100, blank=True, null=True)
     client_name = models.CharField(max_length=255, default="", blank=True)
     vessel_name = models.CharField(max_length=255, default="", blank=True)
+    # DEPRECATED: Replaced by finance.JobCost lines. Kept for backwards compatibility.
     purchase_and_expenses = models.DecimalField(
         max_digits=12, decimal_places=2, default=0.00)
+    # DEPRECATED: Replaced by finance.Invoice. Kept for backwards compatibility; stop writing in new code.
     invoice_amount = models.DecimalField(
         max_digits=12, decimal_places=2, default=0.00)
     currency_code = models.CharField(max_length=10, default="AED")
@@ -59,6 +61,24 @@ class Project(models.Model):
     deadline_date = models.DateField(null=True, blank=True)
     attachment = models.FileField(upload_to='project_attachments/', blank=True, null=True)
     job_card = models.FileField(upload_to='job_cards/', blank=True, null=True)
+
+    PAYMENT_STATUS_CHOICES = [
+        ('UNPAID', 'Unpaid'),
+        ('PARTIAL', 'Partial'),
+        ('PAID', 'Paid'),
+    ]
+    # DEPRECATED: Replaced by finance.Invoice. Kept for backwards compatibility; stop writing in new code.
+    invoice_number = models.CharField(max_length=50, blank=True, null=True)
+    invoice_date = models.DateField(null=True, blank=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='UNPAID')
+    amount_received = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    payment_received_date = models.DateField(null=True, blank=True)
+
+    @property
+    def outstanding_amount(self):
+        inv = self.invoice_amount or Decimal('0.00')
+        rec = self.amount_received or Decimal('0.00')
+        return max(inv - rec, Decimal('0.00'))
 
 
     def save(self, *args, **kwargs):
@@ -264,6 +284,7 @@ class Employee(models.Model):
     is_manager = models.BooleanField(default=False)
     is_administration = models.BooleanField(default=False)
     is_hr = models.BooleanField(default=False)
+    is_accountant = models.BooleanField(default=False)
 
     rank = models.CharField(max_length=255, blank=True, null=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
@@ -298,6 +319,8 @@ class Employee(models.Model):
             return "Administration"
         if self.is_hr:
             return "HR"
+        if self.is_accountant:
+            return "Accountant"
         return "Unknown"
     
     def delete(self, *args, **kwargs):
@@ -390,6 +413,7 @@ class Attendance(models.Model):
     travel_in_time = models.DateTimeField(null=True, blank=True)
     travel_out_time = models.DateTimeField(null=True, blank=True)
     total_travel_time = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    auto_punched_out = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         """Calculate total travel time and total work time before saving."""

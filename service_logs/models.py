@@ -118,10 +118,32 @@ class EmployeeServiceLog(models.Model):
             models.Index(fields=['project']),
         ]
 
+    @property
+    def line_total_cost(self):
+        return (self.normal_cost or Decimal('0')) + (self.ot_cost or Decimal('0'))
+
+    @property
+    def ot_mismatch(self):
+        ot_h = self.ot_hours or Decimal('0')
+        ot_c = self.ot_cost or Decimal('0')
+        return (ot_c > Decimal('0') and ot_h == Decimal('0')) or (ot_h > Decimal('0') and ot_c == Decimal('0'))
+
     def save(self, *args, **kwargs):
+        from service_logs.ot import recalculate_day_ot
+
         calculated_fields = {'total_hours', 'ot_hours', 'ot_type', 'normal_cost', 'ot_cost'}
         if 'update_fields' in kwargs and kwargs['update_fields'] is not None:
             kwargs['update_fields'] = set(kwargs['update_fields']) | calculated_fields
+
+        old_emp_id = None
+        old_date = None
+        if self.pk:
+            try:
+                old_inst = EmployeeServiceLog.objects.only('employee_id', 'date').get(pk=self.pk)
+                old_emp_id = old_inst.employee_id
+                old_date = old_inst.date
+            except EmployeeServiceLog.DoesNotExist:
+                pass
 
         # If no end_time yet, zero everything out and skip calculation
         if self.end_time is None:
@@ -131,6 +153,10 @@ class EmployeeServiceLog(models.Model):
             self.normal_cost = Decimal('0')
             self.ot_cost = Decimal('0')
             super().save(*args, **kwargs)
+            recalculate_day_ot(self.employee_id, self.date)
+            if (old_emp_id and old_date) and (old_emp_id != self.employee_id or old_date != self.date):
+                recalculate_day_ot(old_emp_id, old_date)
+            self.refresh_from_db(fields=['ot_hours', 'ot_type', 'normal_cost', 'ot_cost'])
             return
 
         start_dt = datetime.combine(self.date, self.start_time)
@@ -142,34 +168,10 @@ class EmployeeServiceLog(models.Model):
         hours = Decimal(str((end_dt - start_dt).total_seconds() / 3600))
         self.total_hours = round(hours, 2)
 
-        # =====================
-        # OT CALCULATION
-        # =====================
-        if self.total_hours > 8:
-            self.ot_hours = round(self.total_hours - 8, 2)
-            # Preserve is_holiday when setting OT type
-            self.ot_type = 'HOLIDAY' if self.is_holiday else 'WEEKDAY'
-        else:
-            self.ot_hours = Decimal('0')
-            self.ot_type = None
-            # Do NOT reset is_holiday to False here
-
-        # =====================
-        # COST CALCULATION
-        # =====================
-        if self.employee.salary:
-            monthly_salary = self.employee.salary
-            hourly_rate = monthly_salary / Decimal(26 * 8)
-
-            self.normal_cost = round(min(self.total_hours, Decimal('8')) * hourly_rate, 2)
-
-            if self.ot_hours > 0:
-                ot_multiplier = Decimal('2') if self.is_holiday else Decimal('1.5')
-                self.ot_cost = round(self.ot_hours * hourly_rate * ot_multiplier, 2)
-            else:
-                self.ot_cost = Decimal('0')
-        else:
-            self.normal_cost = Decimal('0')
-            self.ot_cost = Decimal('0')
-
         super().save(*args, **kwargs)
+
+        recalculate_day_ot(self.employee_id, self.date)
+        if (old_emp_id and old_date) and (old_emp_id != self.employee_id or old_date != self.date):
+            recalculate_day_ot(old_emp_id, old_date)
+
+        self.refresh_from_db(fields=['ot_hours', 'ot_type', 'normal_cost', 'ot_cost'])

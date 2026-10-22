@@ -515,6 +515,7 @@
                 <div class="kpi-content">
                     <h3>{{ att.kpis.gross_ot_hours.value|format_hours_minutes }}</h3>
                     <span>Gross OT Hours</span>
+                    <span style="font-size: 11px; color: var(--secondary-font-color); display: block; margin-top: 2px;">Vessel days, over 10h</span>
                     {% if att.kpis.gross_ot_hours.delta is not None %}
                         <span class="att-an-delta {% if att.kpis.gross_ot_hours.is_good is None %}muted{% elif att.kpis.gross_ot_hours.is_good %}good{% else %}bad{% endif %}">
                             {% if att.kpis.gross_ot_hours.delta > 0 %}▲{% elif att.kpis.gross_ot_hours.delta < 0 %}▼{% endif %} {{ att.kpis.gross_ot_hours.delta|abs_value }}% vs prev
@@ -787,53 +788,6 @@
 /* body{
     margin-bottom: 50px !important;
 } */
-.kpi-box {
-    margin-bottom: 30px;
-}
-
-.kpi-box .row{
-    row-gap: 20px;
-}
-.kpi-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: #fff;
-    padding: 18px;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-    transition: all 0.25s ease;
-}
-
-.kpi-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 28px rgba(0,0,0,0.1);
-}
-
-.kpi-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-size: 18px;
-}
-
-.kpi-content h3 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 700;
-    color: #111827;
-}
-
-.kpi-content span {
-    font-size: 10px;
-    color: #6b7280;
-    font-weight: 500;
-}
-
 
 .table-header-inline {
     display: flex;
@@ -1098,9 +1052,6 @@
 
 
 /* Color helpers */
-.bg-blue { background: #3d6999; }
-.bg-indigo { background: #6366f1; }
-.bg-orange { background: #f59e0b; }
 .bg-success { background: #16a34a; }
 .bg-red { background: #dc2626; }
 .bg-violet { background: #7c3aed; }
@@ -1389,7 +1340,7 @@ a.att-an-cal-cell:hover {
 <!-- ================= FLATPICKR ================= -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 
 <script>

@@ -393,7 +393,7 @@
                 <td>{% if row.start %}{{ row.start|time:"g:i A" }}{% else %}-{% endif %}</td>
 
                 <!-- 8. End -->
-                <td>{% if row.end %}{{ row.end|time:"g:i A" }}{% else %}-{% endif %}</td>
+                <td>{% if row.end %}{{ row.end|time:"g:i A" }}{% if row.auto_punched_out %} <span class="status hold" title="Auto punch-out at midnight">Auto</span>{% endif %}{% else %}-{% endif %}</td>
 
                 <!-- 9. Total Hours -->
                 <td>{{ row.total_hours|format_work_duration }}</td>

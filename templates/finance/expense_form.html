@@ -1,0 +1,114 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="apply-leave-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="pg-title">
+        <h1>{{ title }}</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>Expense Information</h4>
+        </div>
+
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for err in form.non_field_errors %}{{ err }}<br>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="row g-3">
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.date.id_for_label }}">Expense Date <span class="fin-text-red">*</span></label>
+                    {{ form.date }}
+                    {% if form.date.errors %}
+                        <div class="fin-text-red small">{{ form.date.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.category.id_for_label }}">Category <span class="fin-text-red">*</span></label>
+                    {{ form.category }}
+                    {% if form.category.errors %}
+                        <div class="fin-text-red small">{{ form.category.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.amount.id_for_label }}">Net Amount (AED, excl. VAT) <span class="fin-text-red">*</span></label>
+                    {{ form.amount }}
+                    {% if form.amount.errors %}
+                        <div class="fin-text-red small">{{ form.amount.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.vat_amount.id_for_label }}">VAT Amount (AED)</label>
+                    {{ form.vat_amount }}
+                    {% if form.vat_amount.errors %}
+                        <div class="fin-text-red small">{{ form.vat_amount.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.vendor.id_for_label }}">Vendor / Supplier</label>
+                    {{ form.vendor }}
+                    {% if form.vendor.errors %}
+                        <div class="fin-text-red small">{{ form.vendor.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.reference_no.id_for_label }}">Invoice / Reference No</label>
+                    {{ form.reference_no }}
+                    {% if form.reference_no.errors %}
+                        <div class="fin-text-red small">{{ form.reference_no.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-12 form-group">
+                    <label for="{{ form.project.id_for_label }}">Project (Required for PROJECT categories)</label>
+                    {{ form.project }}
+                    {% if form.project.errors %}
+                        <div class="fin-text-red small">{{ form.project.errors.0 }}</div>
+                    {% endif %}
+                    <small class="text-muted">Select the associated project if this is a direct project cost (materials, subcontractor, launch, etc.).</small>
+                </div>
+
+                <div class="col-md-12 form-group">
+                    <label for="{{ form.description.id_for_label }}">Description / Remarks</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="fin-text-red small">{{ form.description.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-12 form-group">
+                    <label for="{{ form.attachment.id_for_label }}">Attachment (Invoice / Receipt PDF or Image)</label>
+                    {{ form.attachment }}
+                    {% if form.attachment.errors %}
+                        <div class="fin-text-red small">{{ form.attachment.errors.0 }}</div>
+                    {% endif %}
+                    {% if expense and expense.attachment %}
+                        <div class="mt-2 small">
+                            Current: <a href="{{ expense.attachment.url }}" target="_blank">{{ expense.attachment.name }}</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="form-actions d-flex justify-content-end gap-2 mt-4">
+                <a href="{% url 'fin_expenses' %}" class="fin-btn fin-btn-outline">Cancel</a>
+                <button type="submit" class="fin-btn">Save Expense</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

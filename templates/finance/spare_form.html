@@ -1,0 +1,109 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar mb-4">
+        <div class="pg-title mb-0">
+            <h1>{{ title }}</h1>
+            <span class="text-muted small">{% if is_edit %}Update existing spare sale record{% else %}Record a new spare sale item{% endif %}</span>
+        </div>
+        <div class="fin-toolbar">
+            <a href="{% url 'fin_spares' %}" class="fin-btn fin-btn-outline">
+                <i class="fas fa-arrow-left me-1"></i> Back to Spares
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-8">
+            <div class="widget-box p-4">
+                <form method="post" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger mb-4">
+                        {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if legacy_warning %}
+                    <div class="alert alert-warning mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{{ legacy_warning }}
+                    </div>
+                    {% endif %}
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Item &amp; Reference</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Service Reference</label>
+                            {{ form.service_ref }}
+                            {% if form.service_ref.errors %}<div class="text-danger small mt-1">{{ form.service_ref.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Vessel / Customer</label>
+                            {{ form.vessel_customer }}
+                            {% if form.vessel_customer.errors %}<div class="text-danger small mt-1">{{ form.vessel_customer.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Source <span class="text-danger">*</span></label>
+                            {{ form.source }}
+                            {% if form.source.errors %}<div class="text-danger small mt-1">{{ form.source.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Linked Project</label>
+                            {{ form.project }}
+                            <small class="text-muted">Optional</small>
+                            {% if form.project.errors %}<div class="text-danger small mt-1">{{ form.project.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Linked Invoice</label>
+                            {{ form.invoice }}
+                            <small class="text-muted">Optional</small>
+                            {% if form.invoice.errors %}<div class="text-danger small mt-1">{{ form.invoice.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Cost, Price &amp; Status</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Purchase Cost (AED) <span class="text-danger">*</span></label>
+                            {{ form.purchase_cost }}
+                            {% if form.purchase_cost.errors %}<div class="text-danger small mt-1">{{ form.purchase_cost.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Actual Selling Price (AED) <span class="text-danger">*</span></label>
+                            {{ form.selling_price }}
+                            {% if form.selling_price.errors %}<div class="text-danger small mt-1">{{ form.selling_price.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Status <span class="text-danger">*</span></label>
+                            {{ form.status }}
+                            {% if form.status.errors %}<div class="text-danger small mt-1">{{ form.status.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Notes</label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}<div class="text-danger small mt-1">{{ form.notes.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                        <a href="{% url 'fin_spares' %}" class="fin-btn fin-btn-outline">Cancel</a>
+                        <button type="submit" class="fin-btn">
+                            <i class="fas fa-save me-1"></i> Save Spare Sale
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

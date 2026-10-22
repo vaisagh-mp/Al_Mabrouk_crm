@@ -18,6 +18,8 @@ from .forms import LeaveForm, EmployeeUpdateForm
 from django.utils.dateparse import parse_date, parse_time
 from django.db import transaction
 from Admin.forms import EngineerWorkOrderDetailForm, SpareForm, ToolForm, DocumentForm
+from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates
+from decimal import Decimal
 from datetime import date, timedelta,time
 from django.db.models import Sum
 from django.db.models import Q, F
@@ -28,6 +30,9 @@ from django.utils import timezone
 from django.utils.timezone import localtime
 import pytz
 import calendar
+from Admin.attendance_autoclose import close_stale_sessions, capped_logout
+from Admin.work_order_helpers import get_work_order_time_summary, _js
+from service_logs.models import EmployeeServiceLog
 
 @login_required
 def employee_dashboard(request):
@@ -762,6 +767,7 @@ def project_details(request, project_id):
         "project_name": project.name,
         "client_name": project.client_name,
         "vessel_name": project.vessel_name,
+        "service_reference": project.service_reference,
         "project_manager": project.manager,
         "code": project.code,
         "category": project.category,
@@ -887,6 +893,11 @@ def resubmit_project_status(request):
 def log_in(request):
     if request.method == "POST":
         employee = get_object_or_404(Employee, user=request.user)
+        stale_closed = close_stale_sessions(employee)
+        if stale_closed:
+            for d in getattr(stale_closed, 'dates', []):
+                messages.warning(request, f"Your session from {d} was not punched out and was closed automatically at 12:00 AM.")
+
         project_id = request.POST.get("project")
         location = request.POST.get("location")
         attendance_status = request.POST.get("attendance_status")
@@ -897,13 +908,10 @@ def log_in(request):
         travel_in_time = parse_datetime(travel_in_time_str) if travel_in_time_str else None
         travel_out_time = parse_datetime(travel_out_time_str) if travel_out_time_str else None
 
-        today = localdate()
-
-        # First punch restriction
+        # Close any same-day open sessions with now()
         open_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True)
         for record in open_attendance:
             record.log_out_time = now()
-            record.total_hours_of_work = (record.log_out_time - record.login_time).total_seconds() / 3600
             record.save()
 
         Attendance.objects.create(
@@ -915,7 +923,6 @@ def log_in(request):
             travel_in_time=travel_in_time,
             travel_out_time=travel_out_time,
             status="APPROVED",
-            total_hours_of_work=0,
             vessel_id=vessel_id if vessel_id else None
         )
 
@@ -932,12 +939,19 @@ def log_off(request, attendance_id):
         attendance = get_object_or_404(Attendance, id=attendance_id, employee=employee)
 
         if attendance.log_out_time is None:
-            attendance.log_out_time = now()
-            attendance.total_hours_of_work = (
-                (attendance.log_out_time - attendance.login_time).total_seconds() / 3600
-            )
+            logout_dt, was_capped = capped_logout(attendance)
+            attendance.log_out_time = logout_dt
+            if was_capped:
+                attendance.auto_punched_out = True
             attendance.save()
-            messages.success(request, "You have successfully logged off.")
+            if was_capped:
+                capped_date = timezone.localtime(logout_dt).date()
+                messages.warning(
+                    request,
+                    f"This session was closed at 12:00 AM on {capped_date} because the punch-out was after midnight."
+                )
+            else:
+                messages.success(request, "You have successfully logged off.")
         else:
             messages.error(request, "You have already logged off.")
 
@@ -947,6 +961,11 @@ def log_off(request, attendance_id):
 @login_required
 def render_attendance_page(request):
     employee = get_object_or_404(Employee, user=request.user)
+    stale_closed = close_stale_sessions(employee)
+    if stale_closed:
+        for d in getattr(stale_closed, 'dates', []):
+            messages.warning(request, f"Your session from {d} was not punched out and was closed automatically at 12:00 AM.")
+
     user_attendance = Attendance.objects.filter(
         employee=employee, 
         log_out_time__isnull=True
@@ -1142,18 +1161,12 @@ def employee_view_work_order(request, pk):
     # FIX: use the correct field
     all_members = work_order.all_members.all()
 
-    total_hours = (
-        WorkOrderTime.objects.filter(work_order=work_order)
-        .aggregate(total=Sum('estimated_hours'))['total'] or 0
-    )
-
-    total_hours = float(total_hours)
+    time_entries, member_totals, total_hours = get_work_order_time_summary(work_order)
 
     # Ensure the logged-in employee is assigned to this work order
     if request.user not in work_order.job_assigned_to.all():
         return redirect('projects')
 
-    from service_logs.models import EmployeeServiceLog
     try:
         _viewer_emp = request.user.employee_profile
     except Exception:
@@ -1168,6 +1181,8 @@ def employee_view_work_order(request, pk):
         'work_order_detail': work_order_detail,
         'live_members': live_members,
         'all_members': all_members,
+        'time_entries': time_entries,
+        'member_totals': member_totals,
         'calculated_hours': total_hours,
         'service_logs': _sl_qs,
     })
@@ -1178,7 +1193,16 @@ def employee_update_work_order_view(request, pk):
 
     if request.user not in work_order.job_assigned_to.all():
         messages.error(request, "You are not authorized to update this work order.")
-        return redirect('employee-dashboard')
+        return redirect('employee_dashboard')
+
+    try:
+        _employee = request.user.employee_profile
+    except Exception:
+        _employee = None
+
+    if not _employee:
+        messages.error(request, "Your user has no employee profile — ask Admin to create one.")
+        return redirect('employee-view-work-order', pk=pk)
 
     work_order_detail, _ = WorkOrderDetail.objects.get_or_create(work_order=work_order)
 
@@ -1192,40 +1216,41 @@ def employee_update_work_order_view(request, pk):
                     work_order.save()
 
                 # Update WorkOrderDetail
-                work_order_detail.start_date = parse_date(request.POST.get('start_date'))
-                work_order_detail.completion_date = parse_date(request.POST.get('completion_date'))
-                work_order_detail.estimated_hours = request.POST.get('estimated_hours') or None
+                _wo_warnings = []
+                apply_detail_dates(work_order_detail, request.POST, _wo_warnings)
                 work_order_detail.save()
 
                 # ---------------------------
-                # Clear old auto-created service logs and WorkOrderTime entries
+                # Clear old auto-created service logs and WorkOrderTime entries for this employee only
                 # ---------------------------
-                EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
-                WorkOrderTime.objects.filter(work_order=work_order).delete()
-
-                # Resolve employee from request user
-                _employee = None
-                try:
-                    _employee = request.user.employee_profile
-                except Exception:
-                    pass
+                if _employee:
+                    EmployeeServiceLog.objects.filter(
+                        time_log__work_order=work_order,
+                        employee=_employee,
+                        is_auto_created=True
+                    ).delete()
+                    WorkOrderTime.objects.filter(
+                        work_order=work_order,
+                        employee=_employee
+                    ).delete()
 
                 # Save multiple WorkOrderTime rows
                 _new_time_logs = []
-                for date, start, finish in zip(
+                _time_rows, _time_warnings = clean_time_rows(
                     request.POST.getlist('time_date[]'),
                     request.POST.getlist('start_time[]'),
-                    request.POST.getlist('finish_time[]')
-                ):
-                    if start or finish:
-                        _tl = WorkOrderTime.objects.create(
-                            work_order=work_order,
-                            date=parse_date(date) if date else None,
-                            start_time=parse_time(start) if start else None,
-                            finish_time=parse_time(finish) if finish else None,
-                            employee=_employee,
-                        )
-                        _new_time_logs.append(_tl)
+                    request.POST.getlist('finish_time[]'),
+                )
+                _wo_warnings.extend(_time_warnings)
+                for _row in _time_rows:
+                    _tl = WorkOrderTime.objects.create(
+                        work_order=work_order,
+                        date=_row['date'],
+                        start_time=_row['start'],
+                        finish_time=_row['finish'],
+                        employee=_employee,
+                    )
+                    _new_time_logs.append(_tl)
 
                 # Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
@@ -1235,11 +1260,14 @@ def employee_update_work_order_view(request, pk):
                     request.POST.getlist('spare_quantity[]')
                 ):
                     if name.strip():
+                        _q = clean_quantity(qty, f"Spare '{name.strip()}'", _wo_warnings)
+                        if _q is None:
+                            continue
                         Spare.objects.create(
                             work_order=work_order,
                             name=name.strip(),
                             unit=unit.strip(),
-                            quantity=int(qty or 0)
+                            quantity=_q
                         )
 
                 # Save new consumed spares
@@ -1250,11 +1278,14 @@ def employee_update_work_order_view(request, pk):
                     request.POST.getlist('consumed_spare_quantity[]')
                 ):
                     if name.strip():
+                        _q = clean_quantity(qty, f"Consumed spare '{name.strip()}'", _wo_warnings)
+                        if _q is None:
+                            continue
                         SpareConsumed.objects.create(
                             work_order=work_order,
                             name=name.strip(),
                             unit=unit.strip(),
-                            quantity=int(qty or 0)
+                            quantity=_q
                         )    
 
                 # Clear and save Tools
@@ -1264,10 +1295,13 @@ def employee_update_work_order_view(request, pk):
                     request.POST.getlist('tool_quantity[]')
                 ):
                     if name.strip():
+                        _q = clean_quantity(qty, f"Tool '{name.strip()}'", _wo_warnings)
+                        if _q is None:
+                            continue
                         Tool.objects.create(
                             work_order=work_order,
                             name=name.strip(),
-                            quantity=int(qty or 0)
+                            quantity=_q
                         )
 
                 # Clear and save Documents
@@ -1323,6 +1357,8 @@ def employee_update_work_order_view(request, pk):
                     WorkOrderImage.objects.filter(id__in=delete_ids, work_order=work_order).delete()
 
                 messages.success(request, "Work order updated successfully.")
+                for _w in _wo_warnings:
+                    messages.warning(request, _w)
                 # Service Log feedback
                 if _new_time_logs and _employee:
                     messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
@@ -1336,25 +1372,39 @@ def employee_update_work_order_view(request, pk):
     tools = Tool.objects.filter(work_order=work_order)
     documents = Document.objects.filter(work_order=work_order)
 
+    times_data = []
+    my_times_qs = WorkOrderTime.objects.filter(work_order=work_order)
+    if _employee:
+        my_times_qs = my_times_qs.filter(employee=_employee)
+    else:
+        my_times_qs = my_times_qs.none()
+
+    for t in my_times_qs.select_related('employee__user'):
+        name = ''
+        if t.employee and t.employee.user:
+            name = t.employee.user.get_full_name() or t.employee.user.username
+        times_data.append({
+            'id': t.id,
+            'date': t.date.isoformat() if t.date else '',
+            'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
+            'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
+            'member_name': name or (request.user.get_full_name() or request.user.username),
+        })
+
     context = {
         'work_order': work_order,
         'work_order_detail': work_order_detail,
-        'time_logs': WorkOrderTime.objects.filter(work_order=work_order),
-        'times': json.dumps(
-            list(WorkOrderTime.objects.filter(work_order=work_order).values( 'date', 'start_time', 'finish_time'
-            )),
-            cls=DjangoJSONEncoder
-        ),
-        'spares': json.dumps(list(spares.values()), cls=DjangoJSONEncoder),
-        'spares_consumed': json.dumps(
+        'time_logs': my_times_qs,
+        'times': _js(times_data),
+        'spares': _js(list(spares.values())),
+        'spares_consumed': _js(
             list(
                 SpareConsumed.objects.filter(work_order=work_order)
                 .values('name', 'unit', 'quantity')
-            ),
-            cls=DjangoJSONEncoder
+            )
         ),
-        'tools': json.dumps(list(tools.values()), cls=DjangoJSONEncoder),
-        'documents': json.dumps(list(documents.values()), cls=DjangoJSONEncoder),
+        'tools': _js(list(tools.values())),
+        'documents': _js(list(documents.values())),
     }
 
     return render(request, 'employee/update_work_order.html', context)

@@ -6,7 +6,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Almabrouk CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <title>Blessed Marine Services CRM{% if role %} - {{ role }}{% else %} Dashboard{% endif %}</title>
+    <link rel="icon" type="image/png" href="{% static 'assets/images/pwa-logo.png' %}" />
     <!-- Bootstrap -->
     <link rel="stylesheet" href="{% static 'assets/vendor/bootstrap/css/bootstrap.min.css' %}" />
     <!-- Fontawesome -->
@@ -114,7 +115,7 @@
             </a>
             <div class="sidebar-content">
               <div class="sidebar-brand">
-                <a href="{% url 'admstrn-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.webp' %}"
+                <a href="{% url 'admstrn-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.png' %}"
                   alt="Almabrouk Marine Logo" /></a>
                 <div id="close-sidebar">
                   <i class="fas fa-times"></i>
@@ -300,147 +301,6 @@
         <script src="{% static 'assets/vendor/apexchart/js/scripts.js' %}"></script>
         <!-- Main.js -->
         <script src="{% static 'assets/js/main.js' %}"></script>
-
-        <script>
-          var options = {
-            series: [
-              {
-                data: randomizeArray(sparklineData),
-              },
-            ],
-            chart: {
-              type: "area",
-              height: 160,
-              sparkline: {
-                enabled: true,
-              },
-            },
-            stroke: {
-              curve: "straight",
-            },
-            fill: {
-              opacity: 0.3,
-            },
-            yaxis: {
-              min: 0,
-            },
-            // colors: ["#DCE6EC"],
-            title: {
-              text: "{{ total_revenue|default:0|floatformat:0}} AED",
-              offsetX: 0,
-              style: {
-                fontSize: "24px",
-              },
-            },
-            subtitle: {
-              text: "Revenue",
-              offsetX: 0,
-              style: {
-                fontSize: "14px",
-              },
-            },
-          };
-    
-          var chart = new ApexCharts(
-            document.querySelector("#revenue-chart"),
-            options
-          );
-          chart.render();
-    
-          var optionsSpark2 = {
-            series: [
-              {
-                data: randomizeArray(sparklineData),
-              },
-            ],
-            chart: {
-              type: "area",
-              height: 160,
-              sparkline: {
-                enabled: true,
-              },
-            },
-            stroke: {
-              curve: "straight",
-            },
-            fill: {
-              opacity: 0.3,
-            },
-            yaxis: {
-              min: 0,
-            },
-            // colors: ["#DCE6EC"],
-            title: {
-              text: "{{ total_expenses|default:0|floatformat:0}} AED",
-              offsetX: 0,
-              style: {
-                fontSize: "24px",
-              },
-            },
-            subtitle: {
-              text: "Expenses",
-              offsetX: 0,
-              style: {
-                fontSize: "14px",
-              },
-            },
-          };
-    
-          var chartSpark2 = new ApexCharts(
-            document.querySelector("#expence-chart"),
-            optionsSpark2
-          );
-          chartSpark2.render();
-    
-          var optionsSpark3 = {
-            series: [
-              {
-                data: randomizeArray(sparklineData),
-              },
-            ],
-            chart: {
-              type: "area",
-              height: 160,
-              sparkline: {
-                enabled: true,
-              },
-            },
-            stroke: {
-              curve: "straight",
-            },
-            fill: {
-              opacity: 0.3,
-            },
-            xaxis: {
-              crosshairs: {
-                width: 1,
-              },
-            },
-            yaxis: {
-              min: 0,
-            },
-            title: {
-              text: "{{ total_profit|default:0|floatformat:0}} AED",
-              offsetX: 0,
-              style: {
-                fontSize: "24px",
-              },
-            },
-            subtitle: {
-              text: "Profits",
-              offsetX: 0,
-              style: {
-                fontSize: "14px",
-              },
-            },
-          };
-    
-          var chartSpark3 = new ApexCharts(
-            document.querySelector("#profit-chart"),
-            optionsSpark3
-          );
-          chartSpark3.render();
-        </script>
     
       <!-- Punch In Chart -->
       <script>

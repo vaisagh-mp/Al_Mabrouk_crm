@@ -1,5 +1,5 @@
 {% extends "Admin/adminbase.html" %}
-{% load static %}
+{% load static humanize %}
 {% block content %}
 
 <div class="pg-title">
@@ -22,7 +22,7 @@
 <div class="kpi-box">
     <div class="row rg-24">
 
-        <div class="col-lg-2 col-6 col-md-4">
+        <div class="col-lg-{% if can_view_finance %}2{% else %}4{% endif %} col-6 col-md-4">
             <div class="kpi-card">
                 <div class="kpi-icon bg-blue">
                     <i class="fas fa-briefcase"></i>
@@ -34,37 +34,38 @@
             </div>
         </div>
 
-        <div class="col-lg-2 col-6 col-md-4">
+        <div class="col-lg-{% if can_view_finance %}2{% else %}4{% endif %} col-6 col-md-4">
             <div class="kpi-card">
                 <div class="kpi-icon bg-indigo">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_total_hours|floatformat:2 }}</h3>
+                    <h3>{{ kpi_total_hours|floatformat:2|intcomma }}</h3>
                     <span>Work Hours</span>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-2 col-6 col-md-4">
+        <div class="col-lg-{% if can_view_finance %}2{% else %}4{% endif %} col-6 col-md-4">
             <div class="kpi-card">
                 <div class="kpi-icon bg-orange">
                     <i class="fas fa-user-tie"></i>
                 </div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_employee_cost|floatformat:2 }}</h3>
-                    <span>Emp Cost</span>
+                    <h3>{{ kpi_employee_cost|floatformat:2|intcomma }}</h3>
+                    <span>Emp Cost (period)</span>
                 </div>
             </div>
         </div>
 
+        {% if can_view_finance %}
         <div class="col-lg-2 col-6 col-md-4">
             <div class="kpi-card">
                 <div class="kpi-icon bg-green">
                     <i class="fas fa-coins"></i>
                 </div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_revenue|floatformat:2 }}</h3>
+                    <h3>{{ kpi_revenue|floatformat:2|intcomma }}</h3>
                     <span>Revenue</span>
                 </div>
             </div>
@@ -76,7 +77,7 @@
                     <i class="fas fa-chart-line"></i>
                 </div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_profit|floatformat:2 }}</h3>
+                    <h3>{{ kpi_profit|floatformat:2|intcomma }}</h3>
                     <span>Profit</span>
                 </div>
             </div>
@@ -88,11 +89,12 @@
                     <i class="fas fa-wallet"></i>
                 </div>
                 <div class="kpi-content">
-                    <h3>{{ kpi_expense|floatformat:2 }}</h3>
+                    <h3>{{ kpi_expense|floatformat:2|intcomma }}</h3>
                     <span>Expense</span>
                 </div>
             </div>
         </div>
+        {% endif %}
 
     </div>
 </div>
@@ -131,13 +133,15 @@
     </div>
 
     <div class="row rg-30">
-        <div class="col-md-6">
+        <div class="{% if can_view_finance %}col-md-6{% else %}col-md-12{% endif %}">
             <canvas id="projectsChart" height="120"></canvas>
         </div>
 
+        {% if can_view_finance %}
         <div class="col-md-6">
             <canvas id="revenueChart" height="120"></canvas>
         </div>
+        {% endif %}
     </div>
 
 </div>
@@ -147,17 +151,17 @@
 <!-- ================= TOP TABLES ================= -->
 <div class="row rg-30 mt-30">
 
-    <!-- TOP 5 PROJECTS -->
+    <!-- TOP 5 PROJECTS (left, wider) + TOP CLIENTS (right) on one row; stacked below 1200px -->
 
-    <div class="col-md-6">
-        <div class="widget-box analytics-table-card">
+    <div class="col-xl-8 col-12 d-flex">
+        <div class="widget-box analytics-table-card w-100">
             <div class="table-header-inline">
-                <h4>Projects by Profit</h4>
+                <h4>{% if can_view_finance %}Projects by Profit{% else %}Projects by Employee Cost{% endif %}</h4>
 
                 <form method="get" class="sort-form">
                     <input type="hidden" name="page" value="{{ projects_page.number }}">
                     <div class="sort-wrapper">
-                        <label for="sortSelect">Sort by Profit</label>
+                        <label for="sortSelect">{% if can_view_finance %}Sort by Profit{% else %}Sort by Employee Cost{% endif %}</label>
 
                         <div class="select-box">
                             <select id="sortSelect" name="sort" onchange="this.form.submit()">
@@ -176,15 +180,24 @@
 
             </div>
 
-            <div class="table-wdgt">
+            <div class="table-wdgt" style="overflow-x: auto;">
                 <table class="widget-box-table">
                     <thead>
                         <tr>
-                            <th style="width: 28%;">Project</th>
-                            <th style="width: 22%;">Vessel</th>
-                            <th style="width: 18%;">Expense</th>
-                            <th style="width: 17%;">Profit</th>
-                            <th style="width: 15%;">Profit %</th>
+                            <th>Project</th>
+                            <th>Vessel</th>
+                            {% if can_view_finance %}
+                            <th>Revenue</th>
+                            <th>Employee Cost</th>
+                            <th>Spares</th>
+                            <th>Other Costs</th>
+                            <th>Total Cost</th>
+                            <th>Profit</th>
+                            <th>Profit %</th>
+                            {% else %}
+                            <th>Employee Cost</th>
+                            <th>Hours</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -193,24 +206,38 @@
                             <td>
                                 <a href="javascript:void(0)" class="open-project-modal"
                                     data-project="{{ p.project.id }}" data-project-name="{{ p.project.name }}"
+                                    {% if can_view_finance %}
                                     data-profit="{{ p.profit|floatformat:2 }}"
-                                    data-profit-percent="{{ p.profit_percent|floatformat:2 }}"
+                                    data-profit-percent="{% if p.profit_percent is not None %}{{ p.profit_percent|floatformat:2 }}%{% else %}—{% endif %}"
+                                    {% endif %}
                                     title="{{ p.project.name }}">
                                     {{ p.project.name }}
                                 </a>
                             </td>
                             <td title="{{ p.project.vessel_name }}">{{ p.project.vessel_name|default:"-" }}</td>
-                            <td>{{ p.expense|floatformat:2 }}</td>
-                            <td>{{ p.profit|floatformat:2 }}</td>
-                            <td>{{ p.profit_percent|floatformat:2 }}%</td>
+                            {% if can_view_finance %}
+                            <td>
+                                {{ p.revenue|floatformat:2|intcomma }}{% if p.is_legacy_invoice %} (legacy){% endif %}
+                            </td>
+                            <td>{{ p.employee_cost|floatformat:2|intcomma }}</td>
+                            <td>{{ p.spares_cost|floatformat:2|intcomma }}</td>
+                            <td>{{ p.other_job_costs|floatformat:2|intcomma }}</td>
+                            <td>{{ p.expense|floatformat:2|intcomma }}</td>
+                            <td>{{ p.profit|floatformat:2|intcomma }}</td>
+                            <td>{% if p.profit_percent is not None %}{{ p.profit_percent|floatformat:2 }}%{% else %}—{% endif %}</td>
+                            {% else %}
+                            <td>{{ p.employee_cost|floatformat:2|intcomma }}</td>
+                            <td>{{ p.total_hours|floatformat:2|intcomma }}</td>
+                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" align="center">No projects found</td>
+                            <td colspan="{% if can_view_finance %}9{% else %}4{% endif %}" align="center">No projects found</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                <p class="text-muted small mt-2 mb-0">{% if can_view_finance %}Revenue and costs are project totals (all invoices); hours are for the selected period.{% else %}Employee cost is the project total; hours are for the selected period.{% endif %}</p>
                 <div class="pagination mt-10">
 
                     {% if projects_page.has_previous %}
@@ -238,8 +265,8 @@
 
     <!-- TOP CLIENTS -->
 
-    <div class="col-md-6">
-        <div class="widget-box analytics-table-card">
+    <div class="col-xl-4 col-12 d-flex">
+        <div class="widget-box analytics-table-card w-100">
             <h4>Top 5 Clients</h4>
             <div class="table-wdgt">
                 <table class="widget-box-table">
@@ -247,7 +274,9 @@
                         <tr>
                             <th style="width: 45%;">Client</th>
                             <th style="width: 25%;">No. of Projects</th>
+                            {% if can_view_finance %}
                             <th style="width: 30%;">Total Profit</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -255,13 +284,15 @@
                         <tr>
                             <td title="{{ client.name }}">{{ client.name|default:"N/A" }}</td>
                             <td>{{ client.projects }}</td>
+                            {% if can_view_finance %}
                             <td>
-                                {{client.profit|floatformat:2}}
+                                {{ client.profit|floatformat:2|intcomma }}
                             </td>
+                            {% endif %}
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="3" align="center">No client data</td>
+                            <td colspan="{% if can_view_finance %}3{% else %}2{% endif %}" align="center">No client data</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -309,6 +340,10 @@
                     <th>Last Attendance Date</th>
                     <th>Status</th>
                     <th>Completion Date</th>
+                    {% if can_view_finance %}
+                    <th>Profit</th>
+                    <th>Profit %</th>
+                    {% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -326,8 +361,10 @@
                     <td>
                         <a href="javascript:void(0)" class="open-project-modal"
                             data-project="{{ item.project.id }}" data-project-name="{{ item.project.name }}"
+                            {% if can_view_finance %}
                             data-profit="{{ item.profit|floatformat:2 }}"
-                            data-profit-percent="{{ item.profit_percent|floatformat:2 }}">
+                            data-profit-percent="{% if item.profit_percent is not None %}{{ item.profit_percent|floatformat:2 }}%{% else %}—{% endif %}"
+                            {% endif %}>
                             {{ item.project.name }}
                         </a>
                     </td>
@@ -344,10 +381,14 @@
                         </span>
                     </td>
                     <td>{{ item.completion_date|date:"d M Y"|default:"-" }}</td>
+                    {% if can_view_finance %}
+                    <td>{{ item.profit|floatformat:2|intcomma }}</td>
+                    <td>{% if item.profit_percent is not None %}{{ item.profit_percent|floatformat:2 }}%{% else %}—{% endif %}</td>
+                    {% endif %}
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" align="center">No service completion records found</td>
+                    <td colspan="{% if can_view_finance %}8{% else %}6{% endif %}" align="center">No service completion records found</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -387,14 +428,16 @@
             <div class="modal-header crm-modal-header">
                 <div>
                     <h4 class="modal-title" id="modalProjectTitle"></h4>
+                    {% if can_view_finance %}
                     <div class="modal-subtitle">
                         <span class="badge badge-profit">
                             Profit: <span id="modalProfit"></span>
                         </span>
                         <span class="badge badge-percent">
-                            <span id="modalProfitPercent"></span>% Margin
+                            <span id="modalProfitPercent"></span> Margin
                         </span>
                     </div>
+                    {% endif %}
                 </div>
 
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -430,7 +473,7 @@
                                 <th>Utilization</th>
                                 <th>Normal Cost</th>
                                 <th>OT Cost</th>
-                                <th>Total Cost</th>
+                                <th>Total</th>
                             </tr>
                         </thead>
                         <tbody id="modalEmployeeTable">
@@ -886,7 +929,7 @@
     document.addEventListener("DOMContentLoaded", function () {
 
         const modalEl = document.getElementById("projectAnalyticsModal");
-        const modalInstance = new bootstrap.Modal(modalEl);
+        const modalInstance = (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) ? new bootstrap.Modal(modalEl) : null;
 
         document.querySelectorAll(".open-project-modal").forEach(link => {
             link.addEventListener("click", function () {
@@ -897,24 +940,32 @@
                 const profitPercent = this.dataset.profitPercent;
 
                 // ---------- HEADER ----------
-                document.getElementById("modalProjectTitle").innerText = projectName;
-                document.getElementById("modalProfit").innerText = profit;
-                document.getElementById("modalProfitPercent").innerText = profitPercent;
+                const titleEl = document.getElementById("modalProjectTitle");
+                if (titleEl) titleEl.innerText = projectName || '';
+                const profitEl = document.getElementById("modalProfit");
+                if (profitEl) profitEl.innerText = profit || '';
+                const profitPctEl = document.getElementById("modalProfitPercent");
+                if (profitPctEl) profitPctEl.innerText = profitPercent || '';
 
                 // ---------- RESET KPI STRIP ----------
-                document.getElementById("modalEmployeeCount").innerText = "–";
-                document.getElementById("modalTotalHours").innerText = "–";
-                document.getElementById("modalTotalCost").innerText = "–";
+                const empCountEl = document.getElementById("modalEmployeeCount");
+                if (empCountEl) empCountEl.innerText = "–";
+                const totalHoursEl = document.getElementById("modalTotalHours");
+                if (totalHoursEl) totalHoursEl.innerText = "–";
+                const totalCostEl = document.getElementById("modalTotalCost");
+                if (totalCostEl) totalCostEl.innerText = "–";
 
                 // ---------- TABLE ----------
                 const tableBody = document.getElementById("modalEmployeeTable");
-                tableBody.innerHTML = `
-                <tr>
-                    <td colspan="7" class="text-center text-muted">
-                        Loading project analytics…
-                    </td>
-                </tr>
-            `;
+                if (tableBody) {
+                    tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">
+                            Loading project analytics…
+                        </td>
+                    </tr>
+                    `;
+                }
 
                 fetch(`/service-logs/analytics/project/${projectId}/`)
                     .then(res => {
@@ -922,7 +973,7 @@
                         return res.json();
                     })
                     .then(data => {
-
+                        if (!tableBody) return;
                         tableBody.innerHTML = "";
 
                         if (!data.length) {
@@ -932,7 +983,7 @@
                                     No employee data available
                                 </td>
                             </tr>
-                        `;
+                            `;
                             return;
                         }
 
@@ -960,99 +1011,106 @@
                                 <td>${emp.ot_cost.toFixed(2)}</td>
                                 <td><strong>${emp.total_cost.toFixed(2)}</strong></td>
                             </tr>
-                        `;
+                            `;
                         });
 
                         // ---------- UPDATE KPI STRIP ----------
-                        document.getElementById("modalEmployeeCount").innerText = data.length;
-                        document.getElementById("modalTotalHours").innerText = totalHours.toFixed(2);
-                        document.getElementById("modalTotalCost").innerText = totalCost.toFixed(2);
+                        if (empCountEl) empCountEl.innerText = data.length;
+                        if (totalHoursEl) totalHoursEl.innerText = totalHours.toFixed(2);
+                        if (totalCostEl) totalCostEl.innerText = totalCost.toFixed(2);
                     })
                     .catch(err => {
                         console.error(err);
-                        tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="7" class="text-center text-danger">
-                                Error loading project analytics
-                            </td>
-                        </tr>
-                    `;
+                        if (tableBody) {
+                            tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="7" class="text-center text-danger">
+                                    Error loading project analytics
+                                </td>
+                            </tr>
+                            `;
+                        }
                     });
 
-                modalInstance.show();
+                if (modalInstance) modalInstance.show();
             });
         });
 
     });
 </script>
 
-
 <script>
-    const projectsCtx = document.getElementById("projectsChart").getContext("2d");
-
-    new Chart(projectsCtx, {
-        type: "line",
-        data: {
-            labels: {{ labels|safe }},
-            datasets: [
-                {
-                    label: "Projects (Current)",
-                    data: {{ projects_current|safe }},
-                    borderColor: "#3d6999",
-                    backgroundColor: "rgba(61,105,153,0.1)",
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: "Projects (Last Year)",
-                    data: {{ projects_last_year|safe }},
-                    borderColor: "#a0aec0",
-                    borderDash: [5, 5],
-                    tension: 0.4
+    const projectsEl = document.getElementById("projectsChart");
+    if (projectsEl) {
+        const projectsCtx = projectsEl.getContext("2d");
+        new Chart(projectsCtx, {
+            type: "line",
+            data: {
+                labels: {{ labels|safe }},
+                datasets: [
+                    {
+                        label: "Projects (Current)",
+                        data: {{ projects_current|safe }},
+                        borderColor: "#3d6999",
+                        backgroundColor: "rgba(61,105,153,0.1)",
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: "Projects (Last Year)",
+                        data: {{ projects_last_year|safe }},
+                        borderColor: "#a0aec0",
+                        borderDash: [5, 5],
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: "bottom" }
                 }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: "bottom" }
             }
-        }
-    });
+        });
+    }
 </script>
 
+{% if can_view_finance %}
 <script>
-    const revenueCtx = document.getElementById("revenueChart").getContext("2d");
-
-    new Chart(revenueCtx, {
-        type: "line",
-        data: {
-            labels: {{ labels|safe }},
-            datasets: [
-                {
-                    label: "Revenue (Current)",
-                    data: {{ revenue_current|safe }},
-                    borderColor: "#16a34a",
-                    backgroundColor: "rgba(22,163,74,0.12)",
-                    tension: 0.4,
-                    fill: true
-                },
-                {
-                    label: "Revenue (Last Year)",
-                    data: {{ revenue_last_year|safe }},
-                    borderColor: "#9ca3af",
-                    borderDash: [5, 5],
-                    tension: 0.4
+    const revenueEl = document.getElementById("revenueChart");
+    if (revenueEl) {
+        const revenueCtx = revenueEl.getContext("2d");
+        new Chart(revenueCtx, {
+            type: "line",
+            data: {
+                labels: {{ labels|safe }},
+                datasets: [
+                    {
+                        label: "Revenue (Current)",
+                        data: {{ revenue_current|safe }},
+                        borderColor: "#16a34a",
+                        backgroundColor: "rgba(22,163,74,0.12)",
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: "Revenue (Last Year)",
+                        data: {{ revenue_last_year|safe }},
+                        borderColor: "#9ca3af",
+                        borderDash: [5, 5],
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: "bottom" }
                 }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: "bottom" }
             }
-        }
-    });
+        });
+    }
 </script>
+{% endif %}
 
 {% endblock %}

@@ -1,0 +1,714 @@
+{% extends 'finance/financebase.html' %}
+{% load static humanize %}
+
+{% block content %}
+<div class="dashbrd-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-4">
+        <div class="pg-title mb-0">
+            <h1>Finance Executive Dashboard</h1>
+        </div>
+    </div>
+
+    <!-- Date Range & Period Filter Card -->
+    <div class="widget-box fin-filter-card mb-4">
+        <form method="get" id="dashboardFilterForm">
+            <input type="hidden" name="period" id="periodInput" value="{{ period }}">
+            <div class="fin-filter-row">
+                <!-- Left: Period Chips -->
+                <div class="fin-period-chips" id="periodChips">
+                    <a href="?period=this_month" class="fin-period-chip {% if period == 'this_month' %}active{% endif %}" data-period="this_month">This Month</a>
+                    <a href="?period=last_month" class="fin-period-chip {% if period == 'last_month' %}active{% endif %}" data-period="last_month">Last Month</a>
+                    <a href="?period=this_quarter" class="fin-period-chip {% if period == 'this_quarter' %}active{% endif %}" data-period="this_quarter">This Quarter</a>
+                    <a href="?period=ytd" class="fin-period-chip {% if period == 'ytd' %}active{% endif %}" data-period="ytd">YTD</a>
+                    <button type="button" class="fin-period-chip {% if period == 'custom' %}active{% endif %}" id="customChip" data-period="custom">Custom</button>
+                </div>
+
+                <!-- Right: Date Inputs & Buttons -->
+                <div class="fin-date-inputs">
+                    <div class="fin-input-group">
+                        <i class="far fa-calendar-alt fin-input-icon"></i>
+                        <input type="date" name="start_date" id="startDateInput" value="{{ start_date|date:'Y-m-d' }}" class="fin-date-input" aria-label="Start Date">
+                    </div>
+                    <div class="fin-input-group">
+                        <i class="far fa-calendar-alt fin-input-icon"></i>
+                        <input type="date" name="end_date" id="endDateInput" value="{{ end_date|date:'Y-m-d' }}" class="fin-date-input" aria-label="End Date">
+                    </div>
+                    <button type="submit" class="fin-btn">Apply</button>
+                    <a href="{% url 'fin_dashboard' %}" class="fin-btn fin-btn-outline">Reset</a>
+                </div>
+            </div>
+
+            <!-- Subline comparison text -->
+            <div class="fin-filter-subline">
+                Showing {{ start_date|date:"d M Y" }} – {{ end_date|date:"d M Y" }}{% if prev_start and prev_end %} · compared with {{ prev_start|date:"d M Y" }} – {{ prev_end|date:"d M Y" }}{% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Client Concentration Warning Banner (if > 40%) -->
+    {% if has_high_client_concentration %}
+    <div class="fin-alert-card mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle me-3"></i>
+            <div>
+                <strong>High Client Concentration Warning:</strong>
+                The top client accounts for <strong>{{ top_client_concentration }}%</strong> of total period revenue (threshold is 40%). Diversification recommended.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 8 KPI Cards Grid -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Revenue -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-blue">
+                    <i class="fas fa-hand-holding-usd"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Revenue</span>
+                    {% if kpis.revenue.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.revenue.value|floatformat:2|intcomma }}<span class="fin-kpi-unit">AED</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.revenue.delta is not None %}
+                            <span class="att-an-delta {% if kpis.revenue.is_good is None %}muted{% elif kpis.revenue.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.revenue.delta > 0 %}▲ +{% elif kpis.revenue.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.revenue.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Total Cost -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-red">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Total Cost</span>
+                    {% if kpis.total_cost.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.total_cost.value|floatformat:2|intcomma }}<span class="fin-kpi-unit">AED</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.total_cost.delta is not None %}
+                            <span class="att-an-delta {% if kpis.total_cost.is_good is None %}muted{% elif kpis.total_cost.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.total_cost.delta > 0 %}▲ +{% elif kpis.total_cost.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.total_cost.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Operating Profit -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-green">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Operating Profit</span>
+                    {% if kpis.profit.value is not None %}
+                        <h3 class="fin-kpi-val {% if kpis.profit.value > 0 %}fin-val-green{% elif kpis.profit.value < 0 %}fin-val-red{% endif %}">
+                            {{ kpis.profit.value|floatformat:2|intcomma }}<span class="fin-kpi-unit">AED</span>
+                        </h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.profit.delta is not None %}
+                            <span class="att-an-delta {% if kpis.profit.is_good is None %}muted{% elif kpis.profit.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.profit.delta > 0 %}▲ +{% elif kpis.profit.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.profit.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Net Margin -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-orange">
+                    <i class="fas fa-percentage"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Net Margin</span>
+                    {% if kpis.margin_pct.value is not None %}
+                        <h3 class="fin-kpi-val {% if kpis.margin_pct.value > 0 %}fin-val-green{% elif kpis.margin_pct.value < 0 %}fin-val-red{% endif %}">
+                            {{ kpis.margin_pct.value }}<span class="fin-kpi-unit">%</span>
+                        </h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.margin_pct.delta is not None %}
+                            <span class="att-an-delta {% if kpis.margin_pct.is_good is None %}muted{% elif kpis.margin_pct.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.margin_pct.delta > 0 %}▲ +{% elif kpis.margin_pct.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.margin_pct.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Outstanding Receivables -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-indigo">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Outstanding Receivables</span>
+                    {% if kpis.receivables.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.receivables.value|floatformat:2|intcomma }}<span class="fin-kpi-unit">AED</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        <span class="att-an-delta muted">{{ kpis.receivables.count }} invoice{{ kpis.receivables.count|pluralize }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Rev / Engineer Day -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-blue">
+                    <i class="fas fa-user-clock"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Rev / Engineer Day</span>
+                    {% if kpis.rev_per_engineer_day.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.rev_per_engineer_day.value|floatformat:2|intcomma }}<span class="fin-kpi-unit">AED</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.rev_per_engineer_day.delta is not None %}
+                            <span class="att-an-delta {% if kpis.rev_per_engineer_day.is_good is None %}muted{% elif kpis.rev_per_engineer_day.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.rev_per_engineer_day.delta > 0 %}▲ +{% elif kpis.rev_per_engineer_day.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.rev_per_engineer_day.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Payroll % of Revenue -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-orange">
+                    <i class="fas fa-money-check-alt"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Payroll % of Revenue</span>
+                    {% if kpis.payroll_pct_revenue.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.payroll_pct_revenue.value }}<span class="fin-kpi-unit">%</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.payroll_pct_revenue.delta is not None %}
+                            <span class="att-an-delta {% if kpis.payroll_pct_revenue.is_good is None %}muted{% elif kpis.payroll_pct_revenue.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.payroll_pct_revenue.delta > 0 %}▲ +{% elif kpis.payroll_pct_revenue.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.payroll_pct_revenue.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. Engineer Days -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="kpi-card h-100">
+                <div class="kpi-icon fin-round bg-indigo">
+                    <i class="fas fa-calendar-check"></i>
+                </div>
+                <div class="kpi-content">
+                    <span class="fin-kpi-label">Engineer Days</span>
+                    {% if kpis.engineer_days.value is not None %}
+                        <h3 class="fin-kpi-val">{{ kpis.engineer_days.value }}<span class="fin-kpi-unit">days</span></h3>
+                    {% else %}
+                        <h3 class="fin-kpi-val fin-val-muted">—</h3>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if kpis.engineer_days.delta is not None %}
+                            <span class="att-an-delta {% if kpis.engineer_days.is_good is None %}muted{% elif kpis.engineer_days.is_good %}good{% else %}bad{% endif %}">
+                                {% if kpis.engineer_days.delta > 0 %}▲ +{% elif kpis.engineer_days.delta < 0 %}▼ {% else %}• {% endif %}{{ kpis.engineer_days.delta }}% vs prev period
+                            </span>
+                        {% else %}
+                            <span class="att-an-delta muted">No comparison</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section: Mini 12-Month Chart & Cost Doughnut -->
+    <div class="row g-4 mb-4">
+        <!-- 12-Month Trend Mini Chart -->
+        <div class="col-lg-8">
+            <div class="widget-box p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-0 fw-bold">Revenue vs Total Cost (Last 12 Months)</h5>
+                        <small style="color: var(--secondary-font-color);">Monthly billing and total operational expense trajectory</small>
+                    </div>
+                    <a href="{% url 'fin_pnl' %}" class="fin-btn fin-btn-sm">
+                        View Full P&amp;L <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+                <div style="height: 290px; position: relative;">
+                    <canvas id="miniPnlChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost Breakdown Doughnut -->
+        <div class="col-lg-4">
+            <div class="widget-box p-4 h-100">
+                <h5 class="mb-1 fw-bold">Cost Breakdown</h5>
+                <small class="d-block mb-3" style="color: var(--secondary-font-color);">Payroll, Overtime, Project Direct &amp; Overheads</small>
+                <div style="height: 250px; position: relative;">
+                    <canvas id="costDoughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Row: Top 5 Clients & Project Category Margins -->
+    <div class="row g-4 mb-4">
+        <!-- Top 5 Clients -->
+        <div class="col-lg-6">
+            <div class="widget-box table-wdgt p-4 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="mb-0 fw-bold">Top 5 Clients by Revenue</h5>
+                        <small style="color: var(--secondary-font-color);">Invoiced revenue, project volume and net margin</small>
+                    </div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Client Name</th>
+                            <th>Revenue (AED)</th>
+                            <th>Profit (AED)</th>
+                            <th>Margin %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for c in top_5_clients %}
+                        <tr>
+                            <td><span>{{ c.name }}</span></td>
+                            <td>{{ c.revenue|floatformat:2|intcomma }}</td>
+                            <td class="{% if c.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                                {{ c.profit|floatformat:2|intcomma }}
+                            </td>
+                            <td>
+                                <span class="status {% if c.margin_pct >= 30 %}completed{% elif c.margin_pct > 0 %}in-progress{% else %}cancelled{% endif %}">
+                                    {{ c.margin_pct }}%
+                                </span>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No client billing in this period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Project Category Margins Chart -->
+        <div class="col-lg-6">
+            <div class="widget-box p-4 h-100">
+                <h5 class="mb-1 fw-bold">Margins by Project Category</h5>
+                <small class="d-block mb-3" style="color: var(--secondary-font-color);">Profitability comparison across project types</small>
+                <div style="height: 270px; position: relative;">
+                    <canvas id="categoryMarginChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Highlights: Top 5 Profitable vs 5 Least Profitable -->
+    <div class="row g-4 mb-4">
+        <!-- Top 5 Most Profitable -->
+        <div class="col-lg-6">
+            <div class="widget-box table-wdgt p-4 h-100">
+                <h5 class="mb-3 fw-bold fin-text-green">
+                    <i class="fas fa-award me-1"></i> Top 5 Most Profitable Projects
+                </h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Revenue</th>
+                            <th>Total Cost</th>
+                            <th>Profit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in top_5_profitable_projects %}
+                        <tr>
+                            <td>
+                                <a href="{{ p.url }}">
+                                    {{ p.name }}
+                                </a>
+                                <small class="d-block" style="color: var(--secondary-font-color);">{{ p.client_name|default:"—" }}{% if p.invoice_count > 1 %} · {{ p.invoice_count }} invoices{% endif %}</small>
+                            </td>
+                            <td>{{ p.revenue|floatformat:2|intcomma }}</td>
+                            <td>{{ p.total_cost|floatformat:2|intcomma }}</td>
+                            <td class="fin-text-green fw-bold">{{ p.profit|floatformat:2|intcomma }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">No projects recorded.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 5 Least Profitable / Loss-Making -->
+        <div class="col-lg-6">
+            <div class="widget-box table-wdgt p-4 h-100">
+                <h5 class="mb-3 fw-bold fin-text-red">
+                    <i class="fas fa-exclamation-circle me-1"></i> 5 Least Profitable / Loss-Making Projects
+                </h5>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Revenue</th>
+                            <th>Total Cost</th>
+                            <th>Profit / Loss</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in least_5_profitable_projects %}
+                        <tr class="{% if p.is_loss %}fin-loss-row{% endif %}">
+                            <td>
+                                <a href="{{ p.url }}">
+                                    {{ p.name }}
+                                </a>
+                                <small class="d-block" style="color: var(--secondary-font-color);">{{ p.client_name|default:"—" }}{% if p.invoice_count > 1 %} · {{ p.invoice_count }} invoices{% endif %}</small>
+                            </td>
+                            <td>{{ p.revenue|floatformat:2|intcomma }}</td>
+                            <td>{{ p.total_cost|floatformat:2|intcomma }}</td>
+                            <td class="fw-bold {% if p.profit < 0 %}fin-text-red{% endif %}">
+                                {{ p.profit|floatformat:2|intcomma }}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center">Not enough projects in this period</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Insight Panels: Break-even & Expense Trend -->
+    <div class="row g-4 mb-4">
+        <!-- Break-even Panel -->
+        <div class="col-lg-6">
+            <div class="widget-box p-4 h-100">
+                <h5 class="mb-1 fw-bold">Break-Even Analysis</h5>
+                <small class="d-block mb-3" style="color: var(--secondary-font-color);">Based on average fixed costs of last completed full months (MTD &amp; no-data months excluded)</small>
+
+                {% if break_even_panel %}
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <div class="fin-insight-box">
+                            <small class="text-uppercase fw-bold" style="color: var(--secondary-font-color);">Avg Monthly Fixed Cost</small>
+                            <h4 class="mb-0 fw-bold">{{ break_even_panel.avg_monthly_fixed_cost|floatformat:2|intcomma }} <span class="fin-kpi-unit">AED</span></h4>
+                            <small style="color: var(--secondary-font-color);">Payroll base + Overheads</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="fin-insight-box">
+                            <small class="text-uppercase fw-bold" style="color: var(--secondary-font-color);">Contribution Margin</small>
+                            <h4 class="mb-0 fw-bold">{{ break_even_panel.contribution_margin_pct }}%</h4>
+                            <small style="color: var(--secondary-font-color);">(Revenue − Direct Costs) / Revenue</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="fin-insight-box">
+                            <small class="text-uppercase fw-bold" style="color: var(--bs-blue);">Break-Even Monthly Revenue</small>
+                            {% if break_even_panel.break_even_revenue is not None %}
+                                <h4 class="mb-0 fw-bold">{{ break_even_panel.break_even_revenue|floatformat:2|intcomma }} <span class="fin-kpi-unit">AED</span></h4>
+                                <small style="color: var(--secondary-font-color);">Target to cover fixed expenses</small>
+                            {% else %}
+                                <div class="fw-bold fin-text-red mt-1">Not reachable at current margins</div>
+                                <small style="color: var(--secondary-font-color);">Contribution margin &le; 0%</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="fin-insight-box">
+                            <small class="text-uppercase fw-bold" style="color: var(--bs-blue);">Required Engineer Days</small>
+                            {% if break_even_panel.break_even_engineer_days is not None %}
+                                <h4 class="mb-0 fw-bold">{{ break_even_panel.break_even_engineer_days }} <span class="fin-kpi-unit">days</span></h4>
+                                <small style="color: var(--secondary-font-color);">At {{ break_even_panel.avg_rev_per_eng_day|floatformat:2|intcomma }} AED / day</small>
+                            {% else %}
+                                <h4 class="mb-0 fw-bold">—</h4>
+                                <small style="color: var(--secondary-font-color);">N/A</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="py-4 text-center" style="color: var(--secondary-font-color);">Insufficient historical months to compute rolling fixed cost average.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Expense Trend Panel -->
+        <div class="col-lg-6">
+            <div class="widget-box table-wdgt p-4 h-100">
+                <h5 class="mb-1 fw-bold">Overhead Expense Trend</h5>
+                <small class="d-block mb-3" style="color: var(--secondary-font-color);">MTD vs prorated 3-mo avg (+25% growth flagged)</small>
+
+                {% if expense_trend_panel %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Prorated 3-Mo Avg</th>
+                            <th>This Month (MTD)</th>
+                            <th>Trend</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in expense_trend_panel %}
+                        <tr>
+                            <td>
+                                <span>{{ e.category }}</span>
+                                {% if e.is_flagged %}
+                                    <span class="status cancelled" title="Increased by 25% or more over 3-month baseline">Alert +25%</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ e.prorated_avg|floatformat:2|intcomma }}</td>
+                            <td>{{ e.current_mtd|floatformat:2|intcomma }}</td>
+                            <td>
+                                {% if e.delta_pct is not None %}
+                                    <span class="{% if e.is_flagged %}fin-text-red fw-bold{% elif e.delta_pct > 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
+                                        {% if e.delta_pct > 0 %}+{% endif %}{{ e.delta_pct }}%
+                                    </span>
+                                {% else %}
+                                    <span>—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="py-4 text-center" style="color: var(--secondary-font-color);">No overhead expense categories recorded yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Data-Quality Alerts Panel -->
+    {% if alerts %}
+    <div class="widget-box p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 fw-bold" style="color: var(--bs-orange);">
+                <i class="fas fa-shield-alt me-1"></i> Financial Data-Quality Health Alerts ({{ alerts|length }})
+            </h5>
+            <small style="color: var(--secondary-font-color);">Proactive validation across invoices, logs, payroll, and employee records</small>
+        </div>
+        <div class="row g-3">
+            {% for a in alerts %}
+            <div class="col-md-6 col-lg-4">
+                <div class="fin-alert-card {% if a.type == 'danger' %}fin-alert-danger{% elif a.type == 'info' %}fin-alert-info{% endif %} h-100 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="{{ a.icon }} me-2"></i>
+                            <h6 class="mb-0 fw-bold">{{ a.title }}</h6>
+                        </div>
+                        <p class="small mb-3" style="color: var(--secondary-font-color);">{{ a.description }}</p>
+                    </div>
+                    <div>
+                        <a href="{{ a.link }}" class="fin-btn fin-btn-sm">
+                            {{ a.link_text }} &raquo;
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Date filter custom selection switcher
+    const startInput = document.getElementById('startDateInput');
+    const endInput = document.getElementById('endDateInput');
+    const periodInput = document.getElementById('periodInput');
+    const customChip = document.getElementById('customChip');
+    const periodChips = document.querySelectorAll('.fin-period-chip');
+
+    function switchToCustom() {
+        if (periodInput) periodInput.value = 'custom';
+        periodChips.forEach(c => c.classList.remove('active'));
+        if (customChip) customChip.classList.add('active');
+    }
+
+    if (startInput) startInput.addEventListener('change', switchToCustom);
+    if (endInput) endInput.addEventListener('change', switchToCustom);
+    if (customChip) {
+        customChip.addEventListener('click', function(e) {
+            e.preventDefault();
+            switchToCustom();
+            if (startInput) startInput.focus();
+        });
+    }
+
+    // 1. Mini 12-Month Chart
+    const miniChartEl = document.getElementById('miniPnlChart');
+    if (miniChartEl) {
+        const miniData = JSON.parse('{{ mini_chart_json|escapejs }}');
+        new Chart(miniChartEl.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: miniData.labels,
+                datasets: [
+                    {
+                        label: 'Revenue (AED)',
+                        data: miniData.revenue,
+                        borderColor: '#3f6d95',
+                        backgroundColor: 'rgba(63, 109, 149, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    },
+                    {
+                        label: 'Total Cost (AED)',
+                        data: miniData.total_cost,
+                        borderColor: '#f44336',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        borderDash: [5, 5]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return Number(value).toLocaleString() + ' AED';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 2. Cost Breakdown Doughnut Chart
+    const doughnutEl = document.getElementById('costDoughnutChart');
+    if (doughnutEl) {
+        const doughnutData = JSON.parse('{{ cost_doughnut_json|escapejs }}');
+        new Chart(doughnutEl.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: doughnutData.labels,
+                datasets: [{
+                    data: doughnutData.values,
+                    backgroundColor: [
+                        '#3f6d95', '#4caf50', '#ff5200', '#f44336',
+                        '#9467bd', '#8c564b', '#e8c00b', '#838282', '#3d6999'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 12,
+                            font: { size: 10 }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // 3. Category Margin Bar Chart
+    const catMarginEl = document.getElementById('categoryMarginChart');
+    if (catMarginEl) {
+        const catData = JSON.parse('{{ category_margins_json|escapejs }}');
+        new Chart(catMarginEl.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: catData.map(c => c.category),
+                datasets: [{
+                    label: 'Margin %',
+                    data: catData.map(c => c.margin_pct),
+                    backgroundColor: catData.map(c => c.margin_pct >= 0 ? '#4caf50' : '#f44336'),
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

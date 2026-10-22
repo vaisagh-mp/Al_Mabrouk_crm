@@ -109,7 +109,7 @@
 
 <footer>
   Dubai Maritime City, Warehouse No: 310, P.O. Box: 19276<br>
-  Tel: +971 507349177 &nbsp;|&nbsp; Email: automation@blessedmarineautomation.com
+  Tel: +971 507349177 &nbsp;|&nbsp; Email: automation@blessedmarineservices.com
 </footer>
 
 <h4 style="text-align: center; color: #3d6999;">WORK ORDER REPORT</h4>
@@ -156,41 +156,49 @@
   <table class="wo-table">
     <tr>
       <th>WORK DETAILS</th>
-      <td colspan="3">{{ work_order.job_scope }}</td>
+      <td colspan="4">{{ work_order.job_scope }}</td>
     </tr>
     <tr>
       <th>START DATE</th>
-      <td colspan="3">{{ work_order_detail.start_date|default:"--/--/--" }}</td>
+      <td colspan="4">{{ work_order_detail.start_date|default:"--/--/--" }}</td>
     </tr>
     <tr>
       <th>COMPLETION DATE</th>
-      <td colspan="3">{{ work_order_detail.completion_date|default:"--/--/--" }}</td>
+      <td colspan="4">{{ work_order_detail.completion_date|default:"--/--/--" }}</td>
     </tr>
     <tr>
       <th>ESTIMATED HOURS:</th>
-      <td colspan="3">{{ work_order_detail.estimated_hours|default:"00:00" }}</td>
+      <td colspan="4">{{ work_order_detail.estimated_hours|default:"00:00" }}</td>
     </tr>
     <tr>
-    <th>TOTAL HOURS:</th>
-    <td colspan="3">{{ calculated_hours|floatformat:2 }} hours</td>
-</tr>
-<tr>
-    <th>Date</th>
-    <th colspan="2">START TIME(s)</th>
-    <th colspan="2">FINISH TIME(s)</th>
-</tr>
-{% for t in work_order.times.all %}
-<tr>
-    <td>{{ t.date|date:"d/m/Y" }}</td>
-    <td colspan="2">{{ t.start_time|default:"00:00" }}</td>
-    <td colspan="2">{{ t.finish_time|default:"00:00" }}</td>
-</tr>
-{% empty %}
-<tr>
-    <td colspan="5">No time entries</td>
-</tr>
-{% endfor %}
-
+      <th>Date</th>
+      <th>MEMBER</th>
+      <th>START TIME(s)</th>
+      <th>FINISH TIME(s)</th>
+      <th>HOURS</th>
+    </tr>
+    {% for t in time_entries %}
+    <tr>
+      <td>{{ t.date|date:"d/m/Y" }}</td>
+      <td>{{ t.employee.user.get_full_name|default:t.employee.user.username|default:"—" }}</td>
+      <td>{{ t.start_time|default:"00:00" }}</td>
+      <td>{{ t.finish_time|default:"00:00" }}</td>
+      <td>{{ t.estimated_hours|floatformat:2 }}</td>
+    </tr>
+    {% empty %}
+    <tr>
+      <td colspan="5">No time entries</td>
+    </tr>
+    {% endfor %}
+    {% for m in member_totals %}
+    <tr>
+      <td colspan="5" style="text-align: right; font-weight: bold;">{{ m.name }} — {{ m.hours|floatformat:2 }} h</td>
+    </tr>
+    {% endfor %}
+    <tr>
+      <th>TOTAL HOURS:</th>
+      <td colspan="4">{{ calculated_hours|floatformat:2 }} hours</td>
+    </tr>
   </table>
 
   <div class="section">
