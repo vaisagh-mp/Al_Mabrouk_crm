@@ -24,7 +24,7 @@
     <div class="apply-leave-frm">
         {% if override %}
             <div class="att-reg-override-info">
-                Manual status set by <strong>{{ override.updated_by.get_full_name|default:override.updated_by.username|default:"Admin" }}</strong> on {{ override.updated_at|date:"d/M/Y g:i A" }}
+                Manual status set by <strong>{% if override.updated_by %}{{ override.updated_by.get_full_name|default:override.updated_by.username }}{% else %}Admin{% endif %}</strong> on {{ override.updated_at|date:"d/M/Y g:i A" }}
             </div>
         {% endif %}
 

@@ -135,7 +135,7 @@
       {% for t in time_entries %}
       <tr>
           <td>{{ t.date|date:"d/m/Y" }}</td>
-          <td>{{ t.employee.user.get_full_name|default:t.employee.user.username|default:"—" }}</td>
+          <td>{% if t.employee and t.employee.user %}{{ t.employee.user.get_full_name|default:t.employee.user.username }}{% else %}—{% endif %}</td>
           <td>{{ t.start_time|default:"00:00" }}</td>
           <td>{{ t.finish_time|default:"00:00" }}</td>
           <td>{{ t.estimated_hours|floatformat:2 }}</td>
