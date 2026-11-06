@@ -6,6 +6,7 @@ Every case checks that saving never ends in the generic
 """
 import datetime
 import io
+import json
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -175,20 +176,26 @@ class WorkOrderSaveBase:
         self.assertTrue(any('whole number' in m for m in msgs), msgs)
         self.assertEqual(Spare.objects.filter(work_order=self.wo).count(), 0)
 
-    @override_settings(MEDIA_ROOT='/tmp/wo_test_media')
     def test_f_image_upload_and_delete(self):
-        self.login()
-        old = WorkOrderImage.objects.create(
-            work_order=self.wo, name='Old', image=SimpleUploadedFile('old.png', _png_bytes(), content_type='image/png'),
-        )
-        data = self.base_data(**{
-            'image_names[]': ['New photo'], 'image_descriptions[]': ['desc'],
-            'delete_image_ids': [str(old.id)],
-        })
-        upload = SimpleUploadedFile('new.png', _png_bytes(), content_type='image/png')
-        resp, msgs = self.post(data, files={'project_images[]': [upload]})
-        self.assert_saved(resp, msgs)
-        self.assertFalse(WorkOrderImage.objects.filter(id=old.id).exists())
+        import tempfile
+        import shutil
+        temp_dir = tempfile.mkdtemp()
+        try:
+            with self.settings(MEDIA_ROOT=temp_dir):
+                self.login()
+                old = WorkOrderImage.objects.create(
+                    work_order=self.wo, name='Old', image=SimpleUploadedFile('old.png', _png_bytes(), content_type='image/png'),
+                )
+                data = self.base_data(**{
+                    'image_names[]': ['New photo'], 'image_descriptions[]': ['desc'],
+                    'delete_image_ids': [str(old.id)],
+                })
+                upload = SimpleUploadedFile('new.png', _png_bytes(), content_type='image/png')
+                resp, msgs = self.post(data, files={'project_images[]': [upload]})
+                self.assert_saved(resp, msgs)
+                self.assertFalse(WorkOrderImage.objects.filter(id=old.id).exists())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_g_save_twice_no_duplicates(self):
         self.login()
@@ -287,13 +294,114 @@ class AdminWorkOrderSaveTests(WorkOrderSaveBase, TestCase):
     def login(self):
         self.client.force_login(self.admin_user)
 
+    def test_admin_saves_existing_rows_preserves_engineers_a_and_b(self):
+        WorkOrderTime.objects.create(
+            work_order=self.wo, date=datetime.date(2026, 9, 1),
+            start_time=datetime.time(8), finish_time=datetime.time(12),
+            employee=self.emp_a,
+        )
+        WorkOrderTime.objects.create(
+            work_order=self.wo, date=datetime.date(2026, 9, 2),
+            start_time=datetime.time(8), finish_time=datetime.time(12),
+            employee=self.emp_b,
+        )
+        self.login()
+        resp, msgs = self.post(self.base_data(**{
+            'time_date[]': ['2026-09-01', '2026-09-02'],
+            'start_time[]': ['08:00', '08:00'],
+            'finish_time[]': ['16:00', '16:00'],
+            'time_employee[]': [str(self.emp_a.id), str(self.emp_b.id)],
+        }))
+        self.assert_saved(resp, msgs)
+        rows = list(WorkOrderTime.objects.filter(work_order=self.wo).order_by('date'))
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0].employee, self.emp_a)
+        self.assertEqual(rows[1].employee, self.emp_b)
+
+        slogs = list(EmployeeServiceLog.objects.filter(time_log__work_order=self.wo).order_by('date'))
+        self.assertEqual(len(slogs), 2)
+        self.assertEqual(slogs[0].employee, self.emp_a)
+        self.assertEqual(slogs[1].employee, self.emp_b)
+
+    def test_admin_update_deactivated_engineer_keeps_rows(self):
+        WorkOrderTime.objects.create(
+            work_order=self.wo, date=datetime.date(2026, 9, 1),
+            start_time=datetime.time(8), finish_time=datetime.time(16),
+            employee=self.emp_a,
+        )
+        self.user_a.is_active = False
+        self.user_a.save()
+
+        self.login()
+        get_resp = self.client.get(reverse(self.url_name, kwargs={'pk': self.wo.pk}))
+        self.assertEqual(get_resp.status_code, 200)
+        assigned_members = json.loads(get_resp.context['assigned_members'])
+        self.assertNotIn(self.emp_a.id, [m['id'] for m in assigned_members])
+        times = json.loads(get_resp.context['times'])
+        self.assertEqual(times[0]['employee_id'], self.emp_a.id)
+        self.assertIn('(inactive)', times[0]['member_name'])
+
+        resp, msgs = self.post(self.base_data(**{
+            'time_date[]': ['2026-09-01'],
+            'start_time[]': ['08:00'],
+            'finish_time[]': ['16:00'],
+            'time_employee[]': [str(self.emp_a.id)],
+        }))
+        self.assert_saved(resp, msgs)
+        rows = list(WorkOrderTime.objects.filter(work_order=self.wo))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].employee, self.emp_a)
+        slog = EmployeeServiceLog.objects.get(time_log__work_order=self.wo)
+        self.assertEqual(slog.employee, self.emp_a)
+
+    def test_admin_saves_new_row_for_engineer_b_booked_to_b(self):
+        self.login()
+        resp, msgs = self.post(self.base_data(**{
+            'time_date[]': ['2026-09-01'],
+            'start_time[]': ['08:00'],
+            'finish_time[]': ['16:00'],
+            'time_employee[]': [str(self.emp_b.id)],
+        }))
+        self.assert_saved(resp, msgs)
+        row = WorkOrderTime.objects.get(work_order=self.wo)
+        self.assertEqual(row.employee, self.emp_b)
+        slog = EmployeeServiceLog.objects.get(time_log__work_order=self.wo)
+        self.assertEqual(slog.employee, self.emp_b)
+
+    def test_admin_saves_blank_employee_goes_to_project_manager(self):
+        self.login()
+        resp, msgs = self.post(self.base_data(**{
+            'time_date[]': ['2026-09-01'],
+            'start_time[]': ['08:00'],
+            'finish_time[]': ['16:00'],
+            'time_employee[]': [''],
+        }))
+        self.assert_saved(resp, msgs)
+        row = WorkOrderTime.objects.get(work_order=self.wo)
+        self.assertEqual(row.employee, self.manager_emp)
+        self.assertNotEqual(row.employee, self.admin_emp)
+
+        # When work order has no project/manager, row is skipped with warning, never booked to admin
+        wo2 = WorkOrder.objects.create(project=None, client='X', assigned_date=datetime.date(2026, 9, 1))
+        resp2, msgs2 = self.post(self.base_data(**{
+            'time_date[]': ['2026-09-01'],
+            'start_time[]': ['08:00'],
+            'finish_time[]': ['16:00'],
+            'time_employee[]': [''],
+        }), wo=wo2)
+        self.assert_saved(resp2, msgs2, wo=wo2)
+        self.assertEqual(WorkOrderTime.objects.filter(work_order=wo2).count(), 0)
+        self.assertTrue(any('Time row 1 was skipped: choose who did the work.' in m for m in msgs2), msgs2)
+
     def test_j_admin_without_employee_profile(self):
         bare_admin = User.objects.create_superuser('wo_admin2', 'b@x.com', 'x')
         self.client.force_login(bare_admin)
         resp, msgs = self.post(self.base_data(**{
             'time_date[]': ['2026-09-01'], 'start_time[]': ['08:00'], 'finish_time[]': ['16:00'],
+            'time_employee[]': [str(self.emp_a.id)],
         }))
         self.assert_no_crash(resp, msgs)
+        self.assertEqual(WorkOrderTime.objects.filter(work_order=self.wo, employee=self.emp_a).count(), 1)
 
     def test_missing_assigned_date_shows_form_error_not_crash(self):
         self.login()

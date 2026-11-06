@@ -40,6 +40,7 @@ from Admin.office_staff_helpers import (
     handle_staff_update_profile,
     handle_staff_update_travel_time,
 )
+from Admin.staff_lifecycle import deactivate_employee, reactivate_employee, delete_blockers
 
 
 def is_hr(user):
@@ -298,11 +299,20 @@ def hr_employee_list(request):
         )
     )
 
+    status_filter = request.GET.get('status', 'active')
+    if status_filter == 'inactive':
+        employees = employees.filter(user__is_active=False)
+    elif status_filter == 'all':
+        pass
+    else:
+        status_filter = 'active'
+        employees = employees.filter(user__is_active=True)
+
     paginator = Paginator(employees, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'hr/employee_list.html', {'page_obj': page_obj})
+    return render(request, 'hr/employee_list.html', {'page_obj': page_obj, 'status_filter': status_filter})
 
 @login_required
 @user_passes_test(is_hr)
@@ -564,6 +574,7 @@ def hr_employee_profile(request, employee_id):
         'manager_completed_projects': manager_completed_projects,
         'manager_pending_projects': manager_pending_projects,
         'manager_assigned_projects': manager_assigned_projects,
+        'delete_blockers': delete_blockers(employee),
     }
 
     return render(request, 'hr/employee_profile.html', context)
@@ -647,14 +658,45 @@ def hr_edit_employee(request, employee_id):
 @require_POST
 def hr_delete_employee(request, employee_id):
     employee = get_object_or_404(Employee, id=employee_id)
-    # Process deletion on POST request
-    if request.method == 'POST':
-        employee.delete()
-        messages.success(request, 'Employee deleted successfully!')
-        return redirect('hr_employee_list')
+    blockers = delete_blockers(employee)
+    if blockers:
+        messages.error(request, f"Cannot delete {employee.name}: has {', '.join(blockers)}. Deactivate instead.")
+        return redirect('hr_employee_profile', employee_id=employee.id)
 
-    # Redirect back if accessed via GET (optional)
+    employee.delete()
+    messages.success(request, 'Employee deleted successfully!')
     return redirect('hr_employee_list')
+
+
+@login_required
+@user_passes_test(is_hr)
+@require_POST
+def hr_deactivate_employee(request, employee_id):
+    employee = get_object_or_404(Employee, id=employee_id)
+    if employee.user == request.user:
+        messages.error(request, "You cannot deactivate your own account.")
+        return redirect('hr_employee_profile', employee_id=employee.id)
+
+    if employee.user and employee.user.is_superuser:
+        messages.error(request, "HR cannot deactivate a superuser account.")
+        return redirect('hr_employee_profile', employee_id=employee.id)
+
+    summary = deactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been deactivated.")
+    reassign = summary.get('managed_projects_to_reassign', []) + summary.get('managed_teams_to_reassign', [])
+    if reassign:
+        messages.warning(request, f"Reassign these projects/teams to another manager: {', '.join(reassign)}.")
+    return redirect('hr_employee_profile', employee_id=employee.id)
+
+
+@login_required
+@user_passes_test(is_hr)
+@require_POST
+def hr_reactivate_employee(request, employee_id):
+    employee = get_object_or_404(Employee, id=employee_id)
+    reactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been reactivated. Add them back to teams if needed.")
+    return redirect('hr_employee_profile', employee_id=employee.id)
 
 @login_required
 @user_passes_test(is_hr)

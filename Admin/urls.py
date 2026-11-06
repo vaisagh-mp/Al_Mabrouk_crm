@@ -24,6 +24,10 @@ urlpatterns = [
     path('manager/edit/<int:manager_id>/', admin_edit_manager, name='admin_edit_manager'),
     path('employee/delete/<int:employee_id>/', admin_delete_employee, name='admin_delete_employee'),
     path('manager/delete/<int:manager_id>/', admin_delete_manager, name='admin_delete_manager'),
+    path('employee/<int:employee_id>/deactivate/', admin_deactivate_employee, name='admin_deactivate_employee'),
+    path('employee/<int:employee_id>/reactivate/', admin_reactivate_employee, name='admin_reactivate_employee'),
+    path('manager/<int:manager_id>/deactivate/', admin_deactivate_manager, name='admin_deactivate_manager'),
+    path('manager/<int:manager_id>/reactivate/', admin_reactivate_manager, name='admin_reactivate_manager'),
 
     path('employee/attendance/', attendance_list_view, name='attendance_list_adminview'),
     path('manager/attendance/', manager_attendance_list_view, name='manager_attendance_list_view'),

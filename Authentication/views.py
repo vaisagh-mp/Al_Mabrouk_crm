@@ -28,6 +28,15 @@ def custom_login(request):
             return redirect('custom-logout')  # Handle missing profile case
 
     if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        if username and password:
+            from django.contrib.auth.models import User
+            inactive_user = User.objects.filter(username=username).first()
+            if inactive_user and not inactive_user.is_active and inactive_user.check_password(password):
+                messages.error(request, "Your account has been deactivated. Please contact HR.")
+                return render(request, 'Auth/login.html', {'form': AuthenticationForm(request)})
+
         form = AuthenticationForm(request, data=request.POST)
         if form.is_valid():
             username = form.cleaned_data['username']

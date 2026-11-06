@@ -1,7 +1,68 @@
 {% extends 'finance/financebase.html' %}
 {% load static %}
 
-{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+{% block title %}{{ title }} | Almabrouk CRM
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const curSelect = document.getElementById('id_currency');
+    const rateInput = document.getElementById('id_exchange_rate');
+    const rateWrapper = document.getElementById('expenseRateWrapper');
+    const dateInput = document.getElementById('{{ form.date.id_for_label }}');
+    const amountInput = document.getElementById('{{ form.amount.id_for_label }}');
+    const previewWrapper = document.getElementById('expenseConversionPreview');
+    const previewText = document.getElementById('expensePreviewText');
+    const rateHelp = document.getElementById('expenseRateHelp');
+
+    function updateVisibilityAndPreview() {
+        if (!curSelect) return;
+        const cur = curSelect.value || 'AED';
+        if (cur === 'AED') {
+            if (rateWrapper) rateWrapper.style.display = 'none';
+            if (previewWrapper) previewWrapper.style.display = 'none';
+            if (rateInput) rateInput.value = '1.000000';
+        } else {
+            if (rateWrapper) rateWrapper.style.display = 'block';
+            const rateVal = parseFloat(rateInput ? rateInput.value : 1) || 0;
+            const amtVal = parseFloat(amountInput ? amountInput.value : 0) || 0;
+            if (rateHelp) rateHelp.textContent = `1 ${cur} = ${rateVal.toFixed(6)} AED`;
+            if (previewWrapper && amtVal > 0 && rateVal > 0) {
+                previewWrapper.style.display = 'block';
+                const aedVal = amtVal * rateVal;
+                previewText.textContent = `${cur} ${amtVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} × ${rateVal.toFixed(6)} = AED ${aedVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else if (previewWrapper) {
+                previewWrapper.style.display = 'none';
+            }
+        }
+    }
+
+    function fetchRate() {
+        if (!curSelect || curSelect.value === 'AED') {
+            updateVisibilityAndPreview();
+            return;
+        }
+        const cur = curSelect.value;
+        const dt = dateInput ? dateInput.value : '';
+        fetch(`/finance/api/exchange-rate/?currency=${encodeURIComponent(cur)}&date=${encodeURIComponent(dt)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.rate && rateInput) {
+                    rateInput.value = data.rate;
+                }
+                updateVisibilityAndPreview();
+            })
+            .catch(() => updateVisibilityAndPreview());
+    }
+
+    if (curSelect) curSelect.addEventListener('change', fetchRate);
+    if (dateInput) dateInput.addEventListener('change', fetchRate);
+    if (rateInput) rateInput.addEventListener('input', updateVisibilityAndPreview);
+    if (amountInput) amountInput.addEventListener('input', updateVisibilityAndPreview);
+
+    updateVisibilityAndPreview();
+});
+</script>
+
+{% endblock %}
 
 {% block content %}
 <div class="apply-leave-wraper">
@@ -42,7 +103,24 @@
                 </div>
 
                 <div class="col-md-6 form-group">
-                    <label for="{{ form.amount.id_for_label }}">Net Amount (AED, excl. VAT) <span class="fin-text-red">*</span></label>
+                    <label for="{{ form.currency.id_for_label }}">Currency <span class="fin-text-red">*</span></label>
+                    {{ form.currency }}
+                    {% if form.currency.errors %}
+                        <div class="fin-text-red small">{{ form.currency.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group" id="expenseRateWrapper" style="{% if form.currency.value == 'AED' or not form.currency.value %}display: none;{% endif %}">
+                    <label for="{{ form.exchange_rate.id_for_label }}">Rate to AED (6 decimals) <span class="fin-text-red">*</span></label>
+                    {{ form.exchange_rate }}
+                    <small class="text-muted" id="expenseRateHelp">1 unit = X AED</small>
+                    {% if form.exchange_rate.errors %}
+                        <div class="fin-text-red small">{{ form.exchange_rate.errors.0 }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="col-md-6 form-group">
+                    <label for="{{ form.amount.id_for_label }}">Net Amount (excl. VAT) <span class="fin-text-red">*</span></label>
                     {{ form.amount }}
                     {% if form.amount.errors %}
                         <div class="fin-text-red small">{{ form.amount.errors.0 }}</div>
@@ -50,11 +128,16 @@
                 </div>
 
                 <div class="col-md-6 form-group">
-                    <label for="{{ form.vat_amount.id_for_label }}">VAT Amount (AED)</label>
+                    <label for="{{ form.vat_amount.id_for_label }}">VAT Amount</label>
                     {{ form.vat_amount }}
                     {% if form.vat_amount.errors %}
                         <div class="fin-text-red small">{{ form.vat_amount.errors.0 }}</div>
                     {% endif %}
+                </div>
+                <div class="col-12" id="expenseConversionPreview" style="display: none;">
+                    <div class="alert alert-info py-2 px-3 small mb-0">
+                        <i class="fas fa-coins me-1"></i> <span id="expensePreviewText"></span>
+                    </div>
                 </div>
 
                 <div class="col-md-6 form-group">

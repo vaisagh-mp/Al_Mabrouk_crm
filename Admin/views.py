@@ -26,6 +26,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from manager.forms import TeamForm
 from django.contrib.auth.forms import UserCreationForm
+from finance.currency import CURRENCY_CHOICES
 from .forms import EmployeeCreationForm, AdminTeamForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm, WorkOrderForm, VesselForm
 from django.core.serializers.json import DjangoJSONEncoder
 import json
@@ -33,11 +34,13 @@ from dateutil.relativedelta import relativedelta
 from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
-from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates
+from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates, _js
+from Admin.work_order_sync import sync_work_order_from_project
 from service_logs.models import EmployeeServiceLog
 from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 from .attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
+from Admin.staff_lifecycle import deactivate_employee, reactivate_employee, delete_blockers
 
 
 # Home
@@ -445,12 +448,21 @@ def employee_list(request):
         )
     ).order_by('-user__date_joined')
 
+    status_filter = request.GET.get('status', 'active')
+    if status_filter == 'inactive':
+        employees = employees.filter(user__is_active=False)
+    elif status_filter == 'all':
+        pass
+    else:
+        status_filter = 'active'
+        employees = employees.filter(user__is_active=True)
+
     paginator = Paginator(employees, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     return render(request, 'Admin/employee_list.html', {
-        'page_obj': page_obj, 'role': 'Admin'
+        'page_obj': page_obj, 'role': 'Admin', 'status_filter': status_filter
     })
 
 @login_required
@@ -476,12 +488,21 @@ def manager_list(request):
     for manager in managers:
         print(f"Manager: {manager.user.get_full_name()}, Assigned Projects: {manager.assigned_projects}")
 
+    status_filter = request.GET.get('status', 'active')
+    if status_filter == 'inactive':
+        managers = managers.filter(user__is_active=False)
+    elif status_filter == 'all':
+        pass
+    else:
+        status_filter = 'active'
+        managers = managers.filter(user__is_active=True)
+
     # Paginate the manager list
     paginator = Paginator(managers, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'Admin/manager_list.html', {'page_obj': page_obj, 'role': 'Admin'})
+    return render(request, 'Admin/manager_list.html', {'page_obj': page_obj, 'role': 'Admin', 'status_filter': status_filter})
 
 @login_required
 def manager_attendance_list_view(request):
@@ -1003,12 +1024,12 @@ def update_team_admin_status(request, project_id):
 
         # Save invoice info if status is completed
         if status == "COMPLETED":
-            if purchase_and_expenses and currency_code:
+            if purchase_and_expenses:
                 project.purchase_and_expenses = purchase_and_expenses
-                project.currency_code = currency_code
             else:
                 project.purchase_and_expenses = 0
-                project.currency_code = "AED"
+            if currency_code and currency_code in dict(CURRENCY_CHOICES):
+                project.currency_code = currency_code
 
         project.save()
 
@@ -1078,35 +1099,50 @@ def add_project(request):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            # Save Project
-            project = form.save(commit=False)
-            project.save()
+            with transaction.atomic():
+                # Save Project
+                project = form.save(commit=False)
+                project.save()
 
-            ActivityLog.objects.create(
-                project=project,
-                previous_status="Created",
-                new_status=project.status,
-                notes=f"Project '{project.name}' created with status '{project.status}'.",
-                changed_by_name=request.user.username
-            )
-
-            # Create Team only if team_name is provided
-            team_name = form.cleaned_data.get('team_name')
-            employees = form.cleaned_data.get('employees')
-
-            if team_name:  
-                team = Team.objects.create(
-                    name=team_name,
-                    manager=project.manager,   # uses the manager selected in form
-                    project=project
+                ActivityLog.objects.create(
+                    project=project,
+                    previous_status="Created",
+                    new_status=project.status,
+                    notes=f"Project '{project.name}' created with status '{project.status}'.",
+                    changed_by_name=request.user.username
                 )
-                if employees:
-                    team.employees.set(employees)
 
-            messages.success(
-                request,
-                "Project created successfully!" if not team_name else "Project + Team created successfully!"
-            )
+                # Create Team only if team_name is provided
+                team_name = form.cleaned_data.get('team_name')
+                employees = form.cleaned_data.get('employees')
+
+                if team_name:  
+                    team = Team.objects.create(
+                        name=team_name,
+                        manager=project.manager,   # uses the manager selected in form
+                        project=project
+                    )
+                    if employees:
+                        team.employees.set(employees)
+
+                # Auto-create Work Order
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.")
             return redirect('project-list')
         else:
             messages.error(request, "There was an error adding the project. Please check the form.") 
@@ -1122,8 +1158,26 @@ def edit_project(request, project_id):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, instance=project)  # Bind form with existing project
         if form.is_valid():
-            form.save()
-            messages.success(request, "Project updated successfully!") 
+            with transaction.atomic():
+                project = form.save()
+
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.") 
             return redirect('project-list')
         else:
             messages.error(request, "There was an error updating the project. Please check the form.")
@@ -1371,6 +1425,7 @@ def employee_profile(request, employee_id):
         "overseas_attendance": overseas_attendance,
         "anchorage_attendance": anchorage_attendance,
         "at_berth_attendance": at_berth_attendance,
+        'delete_blockers': delete_blockers(employee),
     }
 
     return render(request, 'Admin/employee_profile.html', context)
@@ -1493,19 +1548,50 @@ def admin_edit_employee(request, employee_id):
 
 @login_required
 def admin_delete_employee(request, employee_id):
-    if not request.user.is_staff:  # Ensure only admins or staff can delete
-        return redirect('login')
+    if not request.user.is_superuser:
+        return redirect('custom-login')
 
     employee = get_object_or_404(Employee, id=employee_id)
-    
-    # Process deletion on POST request
-    if request.method == 'POST':
-        employee.delete()
-        messages.success(request, 'Employee deleted successfully!')
-        return redirect('employee_list')
+    if request.method != 'POST':
+        return redirect('employee_profile', employee_id=employee.id)
 
-    # Redirect back if accessed via GET (optional)
+    blockers = delete_blockers(employee)
+    if blockers:
+        messages.error(request, f"Cannot delete {employee.name}: has {', '.join(blockers)}. Deactivate instead.")
+        return redirect('employee_profile', employee_id=employee.id)
+
+    employee.delete()
+    messages.success(request, 'Employee deleted successfully!')
     return redirect('employee_list')
+
+
+@login_required
+@require_POST
+def admin_deactivate_employee(request, employee_id):
+    if not request.user.is_superuser:
+        return redirect('custom-login')
+    employee = get_object_or_404(Employee, id=employee_id)
+    if employee.user == request.user:
+        messages.error(request, "You cannot deactivate your own account.")
+        return redirect('employee_profile', employee_id=employee.id)
+
+    summary = deactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been deactivated.")
+    reassign = summary.get('managed_projects_to_reassign', []) + summary.get('managed_teams_to_reassign', [])
+    if reassign:
+        messages.warning(request, f"Reassign these projects/teams to another manager: {', '.join(reassign)}.")
+    return redirect('employee_profile', employee_id=employee.id)
+
+
+@login_required
+@require_POST
+def admin_reactivate_employee(request, employee_id):
+    if not request.user.is_superuser:
+        return redirect('custom-login')
+    employee = get_object_or_404(Employee, id=employee_id)
+    reactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been reactivated. Add them back to teams if needed.")
+    return redirect('employee_profile', employee_id=employee.id)
 
 
 @login_required
@@ -1585,6 +1671,7 @@ def manager_profile(request, manager_id):
     context = {
         'role': 'Admin',
         "manager": manager,
+        "employee": manager,
         "teams": teams,
         "total_employees": total_employees,
         "completed_projects": completed_projects,
@@ -1593,6 +1680,7 @@ def manager_profile(request, manager_id):
         "attendance_percentage_current_month": team_attendance_percentage,
         "manager_attendance_percentage": manager_attendance_percentage,
         "is_manager": True,
+        'delete_blockers': delete_blockers(manager),
     }
 
     return render(request, 'Admin/manager_profile.html', context)
@@ -1640,19 +1728,50 @@ def admin_edit_manager(request, manager_id):
 
 @login_required
 def admin_delete_manager(request, manager_id):
-    if not request.user.is_staff:  # Ensure only admins or staff can delete
-        return redirect('login')
+    if not request.user.is_superuser:
+        return redirect('custom-login')
 
     employee = get_object_or_404(Employee, id=manager_id)
-    
-    # Process deletion on POST request
-    if request.method == 'POST':
-        employee.delete()
-        messages.success(request, 'Manager deleted successfully!')
-        return redirect('manager_list')
+    if request.method != 'POST':
+        return redirect('manager_profile', manager_id=employee.id)
 
-    # Redirect back if accessed via GET (optional)
+    blockers = delete_blockers(employee)
+    if blockers:
+        messages.error(request, f"Cannot delete {employee.name}: has {', '.join(blockers)}. Deactivate instead.")
+        return redirect('manager_profile', manager_id=employee.id)
+
+    employee.delete()
+    messages.success(request, 'Manager deleted successfully!')
     return redirect('manager_list')
+
+
+@login_required
+@require_POST
+def admin_deactivate_manager(request, manager_id):
+    if not request.user.is_superuser:
+        return redirect('custom-login')
+    employee = get_object_or_404(Employee, id=manager_id)
+    if employee.user == request.user:
+        messages.error(request, "You cannot deactivate your own account.")
+        return redirect('manager_profile', manager_id=employee.id)
+
+    summary = deactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been deactivated.")
+    reassign = summary.get('managed_projects_to_reassign', []) + summary.get('managed_teams_to_reassign', [])
+    if reassign:
+        messages.warning(request, f"Reassign these projects/teams to another manager: {', '.join(reassign)}.")
+    return redirect('manager_profile', manager_id=employee.id)
+
+
+@login_required
+@require_POST
+def admin_reactivate_manager(request, manager_id):
+    if not request.user.is_superuser:
+        return redirect('custom-login')
+    employee = get_object_or_404(Employee, id=manager_id)
+    reactivate_employee(employee, request.user)
+    messages.success(request, f"{employee.name} has been reactivated. Add them back to teams if needed.")
+    return redirect('manager_profile', manager_id=employee.id)
 
 
 @login_required
@@ -1873,55 +1992,28 @@ def change_password(request):
 
 @login_required
 def create_work_order_view_admin(request, project_id):
-    user = request.user
-    if not user.is_superuser:
+    if not request.user.is_superuser:
         return redirect('custom-login')
 
     project = get_object_or_404(Project, id=project_id)
+    try:
+        work_order = project.workorder
+    except (WorkOrder.DoesNotExist, AttributeError):
+        work_order = WorkOrder.objects.filter(project=project).first()
 
-    if request.method == 'POST':
-        form = WorkOrderForm(request.POST, user=user, project=project)
-        if form.is_valid():
-            work_order = form.save(commit=False)
-            work_order.created_by = user
-            work_order.project = project
+    if work_order:
+        return redirect('admin_view_work_order', pk=work_order.pk)
 
-            # Safe set vessel from project.vessel_name
-            try:
-                work_order.vessel = project.vessel_name if project.vessel_name else "N/A"
-            except AttributeError:
-                work_order.vessel = ""
+    # Old project without work order -> create it with the helper from project's data (assigned_date = today)
+    with transaction.atomic():
+        work_order, _ = sync_work_order_from_project(
+            project=project,
+            wo_fields={'assigned_date': timezone.now().date()},
+            by_user=request.user
+        )
 
-            work_order.save()
-
-            # Save multiple project images
-            for image in request.FILES.getlist('project_images'):
-                WorkOrderImage.objects.create(work_order=work_order, image=image)
-
-            # Assign team members
-            teams = Team.objects.filter(project=project)
-            team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
-            # work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
-            assigned_users = User.objects.filter(employee_profile__in=team_members)
-
-            work_order.job_assigned_to.set(assigned_users)   # Current team
-            work_order.all_members.add(*assigned_users)      # Historical record
-
-            messages.success(request, "Work Order created successfully by Superadmin.")
-            return redirect('admin_view_work_order', pk=work_order.pk)
-    else:
-        form = WorkOrderForm(user=user, project=project)
-
-        # Pre-fill vessel safely
-        try:
-            form.fields['vessel'].initial = project.vessel_name if project.vessel_name else "N/A"
-        except AttributeError:
-            form.fields['vessel'].initial = ""
-
-    return render(request, 'Admin/create_work_order.html', {
-        'form': form,
-        'project': project
-    })
+    messages.info(request, "Work order created. Please complete IMO number, location, and job scope.")
+    return redirect('admin-update-work-order', pk=work_order.pk)
 
 
 @login_required
@@ -1930,7 +2022,7 @@ def admin_view_work_order(request, pk):
         messages.error(request, "You are not authorized to view this page.")
         return redirect('custom-login')
 
-    work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order = get_object_or_404(WorkOrder.objects.select_related('project'), pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
     # ✅ LIVE MEMBERS → current team only
@@ -1977,19 +2069,66 @@ def admin_update_work_order_view(request, pk):
     work_order = get_object_or_404(WorkOrder, pk=pk)
     work_order_detail, _ = WorkOrderDetail.objects.get_or_create(work_order=work_order)
 
+    admin_emp = None
+    try:
+        admin_emp = request.user.employee_profile
+    except Exception:
+        admin_emp = None
+
+    proj_manager_emp = None
+    if work_order.project and work_order.project.manager:
+        proj_manager_emp = work_order.project.manager
+
+    # Options for NEW rows: active job_assigned_to members + the project manager
+    # (+ the admin's own profile only if the admin has one)
+    new_row_filter = Q(user__in=work_order.job_assigned_to.all())
+    if proj_manager_emp:
+        new_row_filter |= Q(pk=proj_manager_emp.pk)
+    if admin_emp:
+        new_row_filter |= Q(pk=admin_emp.pk)
+
+    new_row_emps = {
+        e.id: e
+        for e in Employee.objects.filter(new_row_filter).filter(user__is_active=True).select_related('user')
+    }
+
+    # Allowed for save includes new_row_emps PLUS every employee who already has a WorkOrderTime row
+    existing_time_emp_ids = set(
+        WorkOrderTime.objects.filter(work_order=work_order, employee__isnull=False)
+        .values_list('employee_id', flat=True)
+    )
+    existing_emps = {
+        e.id: e
+        for e in Employee.objects.filter(id__in=existing_time_emp_ids).select_related('user')
+    }
+    allowed_for_save = {**new_row_emps, **existing_emps}
+
     if request.method == 'POST':
         try:
             with transaction.atomic():
+                saved_vessel = work_order.vessel
+                saved_client = work_order.client
+                saved_imo_no = work_order.imo_no
+                saved_location = work_order.location
+                saved_assigned_date = work_order.assigned_date
+                saved_job_scope = work_order.job_scope
+                saved_job_instructions = work_order.job_instructions
+                saved_project_description = work_order.project_description
+
                 form = WorkOrderForm(request.POST, request.FILES, instance=work_order)
 
                 if form.is_valid():
                     work_order = form.save(commit=False)
 
-                    # Auto-fill vessel from project.vessel_name
-                    try:
-                        work_order.vessel = work_order.project.vessel_name if work_order.project and work_order.project.vessel_name else ""
-                    except AttributeError:
-                        work_order.vessel = ""
+                    # Header fields are read-only here and managed only on the project
+                    work_order.vessel = saved_vessel
+                    work_order.client = saved_client
+                    work_order.imo_no = saved_imo_no
+                    work_order.location = saved_location
+                    work_order.assigned_date = saved_assigned_date
+                    work_order.job_scope = saved_job_scope
+                    work_order.job_instructions = saved_job_instructions
+                    work_order.project_description = saved_project_description
 
                     work_order.save()
 
@@ -2004,40 +2143,44 @@ def admin_update_work_order_view(request, pk):
                     EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
                     WorkOrderTime.objects.filter(work_order=work_order).delete()
 
-                    # Resolve employee from request user with fallback
-                    _employee = None
-                    try:
-                        _employee = request.user.employee_profile
-                    except Exception:
-                        pass
-
-                    if not _employee:
-                        if work_order.project and work_order.project.manager:
-                            _employee = work_order.project.manager
-                        elif work_order.job_assigned_to.exists():
-                            first_user = work_order.job_assigned_to.first()
-                            _employee = getattr(first_user, 'employee_profile', None)
-                        elif work_order.all_members.exists():
-                            first_user = work_order.all_members.first()
-                            _employee = getattr(first_user, 'employee_profile', None)
-                        else:
-                            _employee = Employee.objects.first()
+                    time_employees = request.POST.getlist('time_employee[]') or request.POST.getlist('time_employee')
+                    time_dates = request.POST.getlist('time_date[]') or request.POST.getlist('time_date')
+                    time_starts = request.POST.getlist('start_time[]') or request.POST.getlist('start_time')
+                    time_finishes = request.POST.getlist('finish_time[]') or request.POST.getlist('finish_time')
 
                     # Save multiple WorkOrderTime rows
                     _new_time_logs = []
                     _time_rows, _time_warnings = clean_time_rows(
-                        request.POST.getlist('time_date[]'),
-                        request.POST.getlist('start_time[]'),
-                        request.POST.getlist('finish_time[]'),
+                        time_dates,
+                        time_starts,
+                        time_finishes,
+                        time_employees,
                     )
                     _wo_warnings.extend(_time_warnings)
                     for _row in _time_rows:
+                        emp_val = _row['emp_val']
+                        row_employee = None
+                        if emp_val:
+                            try:
+                                row_employee = allowed_for_save.get(int(emp_val))
+                            except (ValueError, TypeError):
+                                row_employee = None
+
+                        # Blank/unknown -> the project manager; if none, skip row with warning
+                        if not row_employee:
+                            row_employee = proj_manager_emp
+
+                        if not row_employee:
+                            row_num = _row.get('row_idx', len(_new_time_logs) + 1)
+                            _wo_warnings.append(f"Time row {row_num} was skipped: choose who did the work.")
+                            continue
+
                         _tl = WorkOrderTime.objects.create(
                             work_order=work_order,
                             date=_row['date'],
                             start_time=_row['start'],
                             finish_time=_row['finish'],
-                            employee=_employee,
+                            employee=row_employee,
                         )
                         _new_time_logs.append(_tl)
 
@@ -2156,9 +2299,8 @@ def admin_update_work_order_view(request, pk):
                     messages.success(request, "Work order updated successfully.")
                     for _w in _wo_warnings:
                         messages.warning(request, _w)
-                    # Service Log feedback
-                    if _new_time_logs and _employee:
-                        messages.info(request, f"Service Log created for {_employee.user.get_full_name() or _employee.user.username}.")
+                    if _new_time_logs:
+                        messages.info(request, "Service Log entries updated.")
                     return redirect('admin_view_work_order', pk=pk)
 
                 else:
@@ -2176,23 +2318,69 @@ def admin_update_work_order_view(request, pk):
         except AttributeError:
             form.fields['vessel'].initial = ""
 
+    assigned_members = []
+    seen_emp_ids = set()
+
+    # 1. Project manager (if active)
+    if proj_manager_emp and proj_manager_emp.user and proj_manager_emp.user.is_active:
+        pm_name = proj_manager_emp.user.get_full_name() or proj_manager_emp.user.username
+        assigned_members.append({'id': proj_manager_emp.id, 'name': f"{pm_name} (Manager)"})
+        seen_emp_ids.add(proj_manager_emp.id)
+
+    # 2. Active job_assigned_to members
+    user_to_emp = {e.user_id: e for e in new_row_emps.values()}
+    for u in work_order.job_assigned_to.filter(is_active=True):
+        emp = user_to_emp.get(u.id)
+        if emp and emp.id not in seen_emp_ids:
+            seen_emp_ids.add(emp.id)
+            name = u.get_full_name() or u.username
+            assigned_members.append({'id': emp.id, 'name': name})
+
+    # 3. Admin's own profile (only if the admin has one and user is active)
+    if admin_emp and admin_emp.user and admin_emp.user.is_active and admin_emp.id not in seen_emp_ids:
+        admin_name = admin_emp.user.get_full_name() or admin_emp.user.username
+        assigned_members.append({'id': admin_emp.id, 'name': f"{admin_name} (Admin)"})
+        seen_emp_ids.add(admin_emp.id)
+
+    times_data = []
+    assigned_member_ids = {m['id'] for m in assigned_members}
+    for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user'):
+        name = ''
+        extra_member = None
+        if t.employee and t.employee.user:
+            name = t.employee.user.get_full_name() or t.employee.user.username
+            if t.employee_id not in assigned_member_ids:
+                if not t.employee.user.is_active:
+                    label = f"{name} (inactive)"
+                else:
+                    label = f"{name} (not on team)"
+                extra_member = {'id': t.employee_id, 'name': label}
+        times_data.append({
+            'id': t.id,
+            'date': t.date.isoformat() if t.date else '',
+            'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
+            'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
+            'employee_id': t.employee_id or '',
+            'member_name': extra_member['name'] if extra_member else name,
+            'extra_member': extra_member,
+        })
+
     context = {
         'form': form,
         'work_order': work_order,
         'work_order_detail': work_order_detail,
         'time_logs': WorkOrderTime.objects.filter(work_order=work_order),
-        'times': json.dumps(
-            list(WorkOrderTime.objects.filter(work_order=work_order).values( 'date', 'start_time', 'finish_time'
-            )),
-            cls=DjangoJSONEncoder
+        'times': _js(times_data),
+        'assigned_members': _js(assigned_members),
+        'default_emp_id': proj_manager_emp.id if (proj_manager_emp and proj_manager_emp.user and proj_manager_emp.user.is_active) else None,
+        'spares': _js(list(Spare.objects.filter(work_order=work_order).values())),
+        'spares_consumed': _js(
+            list(SpareConsumed.objects.filter(work_order=work_order).values(
+                'name', 'unit', 'quantity'
+            ))
         ),
-        'spares': json.dumps(list(Spare.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
-        'spares_consumed': json.dumps(
-                list(SpareConsumed.objects.filter(work_order=work_order).values()),
-                cls=DjangoJSONEncoder
-            ),
-        'tools': json.dumps(list(Tool.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
-        'documents': json.dumps(list(Document.objects.filter(work_order=work_order).values()), cls=DjangoJSONEncoder),
+        'tools': _js(list(Tool.objects.filter(work_order=work_order).values())),
+        'documents': _js(list(Document.objects.filter(work_order=work_order).values())),
     }
 
     return render(request, 'Admin/update_work_order.html', context)

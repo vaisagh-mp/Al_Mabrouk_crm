@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static %}
+{% load static currency_tags %}
 
 {% block title %}Expenses | Almabrouk CRM{% endblock %}
 
@@ -125,7 +125,14 @@
                                 <span class="status hold">Overhead</span>
                             {% endif %}
                         </td>
-                        <td class="text-end font-monospace fw-bold">{{ exp.amount|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fw-bold">
+                            {% if exp.currency and exp.currency != 'AED' %}
+                                <div>{{ exp.amount|money:exp.currency }}</div>
+                                <div class="text-muted small">AED {{ exp.amount_aed|floatformat:2 }}</div>
+                            {% else %}
+                                {{ exp.amount|floatformat:2 }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace text-muted">{{ exp.vat_amount|floatformat:2 }}</td>
                         <td>{{ exp.vendor|default:"—" }}</td>
                         <td><span class="text-secondary small">{{ exp.reference_no|default:"—" }}</span></td>

@@ -6,11 +6,38 @@ from django.utils import timezone
 
 OT_THRESHOLD_HOURS = Decimal('10')
 
+OT_MULT_NORMAL = Decimal('1.25')
+OT_MULT_SUNDAY = Decimal('1.5')
+OT_MULT_PUBLIC_HOLIDAY = Decimal('2.0')
+
+
+def ot_multiplier(day, is_public_holiday) -> Decimal:
+    if is_public_holiday:
+        return OT_MULT_PUBLIC_HOLIDAY
+    if day.weekday() == 6:
+        return OT_MULT_SUNDAY
+    return OT_MULT_NORMAL
+
+
+def ot_type_for(day, is_public_holiday) -> str:
+    """
+    Returns 'HOLIDAY' | 'SUNDAY' | 'WEEKDAY'
+    """
+    if is_public_holiday:
+        return 'HOLIDAY'
+    if day.weekday() == 6:
+        return 'SUNDAY'
+    return 'WEEKDAY'
+
 
 def calculate_office_ot_cost(salary, register_rows, logs=None):
     """
     Computes office overtime cost from attendance register rows.
-    Formula: row['office_ot_hours'] * rate * 1.5 (or * 2.0 if any log on that day is holiday).
+    Formula: row['office_ot_hours'] * rate * multiplier.
+    Multiplier:
+      - Public holiday (date in Holiday table or any log that day has is_holiday=True): 2.0
+      - Sunday (not public holiday): 1.5
+      - Normal day (Monday-Saturday, not public holiday): 1.25
     rate = salary / 208.
     """
     if not salary:
@@ -18,6 +45,13 @@ def calculate_office_ot_cost(salary, register_rows, logs=None):
     rate = Decimal(str(salary)) / Decimal('208')
     if rate <= 0:
         return Decimal('0.00')
+
+    from Admin.models import Holiday
+
+    dates = {r['date'] for r in register_rows if 'date' in r and (r.get('office_ot_hours') or Decimal('0.00')) > 0}
+    holiday_dates = set()
+    if dates:
+        holiday_dates = set(Holiday.objects.filter(date__in=dates).values_list('date', flat=True))
 
     logs_by_date = defaultdict(list)
     if logs:
@@ -28,9 +62,10 @@ def calculate_office_ot_cost(salary, register_rows, logs=None):
     for r in register_rows:
         off_ot = r.get('office_ot_hours') or Decimal('0.00')
         if off_ot > 0:
-            day_logs = logs_by_date.get(r['date'], [])
-            has_holiday = any(getattr(l, 'is_holiday', False) for l in day_logs)
-            mult = Decimal('2.0') if has_holiday else Decimal('1.5')
+            day = r['date']
+            day_logs = logs_by_date.get(day, [])
+            is_public_holiday = (day in holiday_dates) or any(getattr(l, 'is_holiday', False) for l in day_logs)
+            mult = ot_multiplier(day, is_public_holiday)
             office_ot_cost += off_ot * rate * mult
     return round(office_ot_cost, 2)
 
@@ -200,6 +235,7 @@ def recalculate_day_ot(employee_id, day):
     Saves via bulk_update (fixed query count, no save() recursion).
     """
     from service_logs.models import EmployeeServiceLog
+    from Admin.models import Holiday
 
     logs = list(
         EmployeeServiceLog.objects.filter(
@@ -209,6 +245,8 @@ def recalculate_day_ot(employee_id, day):
     )
     if not logs:
         return
+
+    is_holiday_date = Holiday.objects.filter(date=day).exists()
 
     attendances = employee_office_attendances(employee_id, day)
     split_info = split_day_ot(attendances, logs, day)
@@ -234,13 +272,14 @@ def recalculate_day_ot(employee_id, day):
         log.ot_hours = v_ot
         normal_hours = max(log.total_hours - log.ot_hours, Decimal('0.00'))
 
-        log.ot_type = ('HOLIDAY' if log.is_holiday else 'WEEKDAY') if log.ot_hours > 0 else None
+        is_public_holiday = bool(log.is_holiday or is_holiday_date)
+        log.ot_type = ot_type_for(log.date, is_public_holiday) if log.ot_hours > 0 else None
 
         salary = log.employee.salary if log.employee else None
         if salary:
             rate = salary / Decimal('208')  # 26 * 8 = 208
             log.normal_cost = round(normal_hours * rate, 2)
-            mult = Decimal('2') if log.is_holiday else Decimal('1.5')
+            mult = ot_multiplier(log.date, is_public_holiday)
             log.ot_cost = round(log.ot_hours * rate * mult, 2)
         else:
             log.normal_cost = Decimal('0.00')

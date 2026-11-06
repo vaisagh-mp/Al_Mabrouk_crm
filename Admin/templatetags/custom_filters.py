@@ -90,3 +90,7 @@ def abs_value(value):
         return abs(value)
     except:
         return value    
+
+
+from Admin.templatetags.text_tags import plain_text
+register.filter('plain_text', plain_text)

@@ -46,7 +46,7 @@
                     <td>{{ log.ot_hours|format_hours_minutes }}</td>
                     <td>
                         {% if log.ot_hours > 0 %}
-                            <span class="status {% if log.ot_type == 'HOLIDAY' %}hold{% else %}completed{% endif %}">
+                            <span class="status {% if log.ot_type == 'HOLIDAY' %}hold{% elif log.ot_type == 'SUNDAY' %}ongoing{% else %}completed{% endif %}">
                                 {{ log.ot_type|title }}
                             </span>
                         {% else %}

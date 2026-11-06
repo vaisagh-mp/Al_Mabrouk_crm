@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static humanize %}
+{% load static humanize currency %}
 
 {% block title %}Project Detail - {{ project.name }} | Almabrouk CRM{% endblock %}
 
@@ -108,9 +108,30 @@
                     </td>
                     <td>{{ inv.invoice_date|date:"Y-m-d"|default:"—" }}</td>
                     <td>{{ inv.get_invoice_type_display|default:inv.invoice_type }}</td>
-                    <td>AED {{ inv.amount_excl_vat|floatformat:2|intcomma }}</td>
-                    <td>AED {{ inv.amount_received|floatformat:2|intcomma }}</td>
-                    <td>AED {{ inv.outstanding|floatformat:2|intcomma }}</td>
+                    <td>
+                        {% if inv.currency and inv.currency != 'AED' %}
+                            <div>{{ inv.amount_excl_vat|money:inv.currency }}</div>
+                            <div class="text-muted small">AED {{ inv.amount_excl_vat_aed|floatformat:2|intcomma }}</div>
+                        {% else %}
+                            AED {{ inv.amount_excl_vat|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if inv.currency and inv.currency != 'AED' %}
+                            <div>{{ inv.amount_received|money:inv.currency }}</div>
+                            <div class="text-muted small">AED {{ inv.amount_received_aed|floatformat:2|intcomma }}</div>
+                        {% else %}
+                            AED {{ inv.amount_received|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if inv.currency and inv.currency != 'AED' %}
+                            <div>{{ inv.outstanding|money:inv.currency }}</div>
+                            <div class="text-muted small">AED {{ inv.outstanding_aed|floatformat:2|intcomma }}</div>
+                        {% else %}
+                            AED {{ inv.outstanding|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
                     <td>
                         {% if inv.status == 'PAID' %}
                             <span class="status completed">Paid</span>
@@ -213,8 +234,22 @@
                     <td>{{ e.date|date:"Y-m-d" }}</td>
                     <td>{{ e.category.name }}</td>
                     <td>{{ e.description|default:"—" }}</td>
-                    <td>AED {{ e.amount|floatformat:2 }}</td>
-                    <td>AED {{ e.vat_amount|floatformat:2 }}</td>
+                    <td>
+                        {% if e.currency and e.currency != 'AED' %}
+                            <div>{{ e.amount|money:e.currency }}</div>
+                            <div class="text-muted small">AED {{ e.amount_aed|floatformat:2|intcomma }}</div>
+                        {% else %}
+                            AED {{ e.amount|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if e.currency and e.currency != 'AED' %}
+                            <div>{{ e.vat_amount|money:e.currency }}</div>
+                            <div class="text-muted small">AED {{ e.vat_amount_aed|floatformat:2|intcomma }}</div>
+                        {% else %}
+                            AED {{ e.vat_amount|floatformat:2|intcomma }}
+                        {% endif %}
+                    </td>
                     <td class="list-action-col">
                         {% if e.receipt %}
                             <a href="{{ e.receipt.url }}" target="_blank" title="View Receipt"><i class="fas fa-paperclip"></i></a>

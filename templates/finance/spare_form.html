@@ -1,7 +1,113 @@
 {% extends 'finance/financebase.html' %}
 {% load static %}
 
-{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+{% block title %}{{ title }} | Almabrouk CRM
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Purchase handlers
+    const pCur = document.getElementById('id_purchase_currency');
+    const pRate = document.getElementById('id_purchase_rate');
+    const pCost = document.getElementById('id_purchase_cost');
+    const pRateWrap = document.getElementById('purchaseRateWrapper');
+    const pPrevWrap = document.getElementById('purchaseConversionPreview');
+    const pPrevText = document.getElementById('purchasePreviewText');
+    const pRateHelp = document.getElementById('purchaseRateHelp');
+
+    function updatePurchase() {
+        if (!pCur) return;
+        const cur = pCur.value || 'AED';
+        if (cur === 'AED') {
+            if (pRateWrap) pRateWrap.style.display = 'none';
+            if (pPrevWrap) pPrevWrap.style.display = 'none';
+            if (pRate) pRate.value = '1.000000';
+        } else {
+            if (pRateWrap) pRateWrap.style.display = 'block';
+            const rateVal = parseFloat(pRate ? pRate.value : 1) || 0;
+            const amtVal = parseFloat(pCost ? pCost.value : 0) || 0;
+            if (pRateHelp) pRateHelp.textContent = `1 ${cur} = ${rateVal.toFixed(6)} AED`;
+            if (pPrevWrap && amtVal > 0 && rateVal > 0) {
+                pPrevWrap.style.display = 'block';
+                const aedVal = amtVal * rateVal;
+                pPrevText.textContent = `Purchase: ${cur} ${amtVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} × ${rateVal.toFixed(6)} = AED ${aedVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else if (pPrevWrap) {
+                pPrevWrap.style.display = 'none';
+            }
+        }
+    }
+
+    function fetchPurchaseRate() {
+        if (!pCur || pCur.value === 'AED') {
+            updatePurchase();
+            return;
+        }
+        fetch(`/finance/api/exchange-rate/?currency=${encodeURIComponent(pCur.value)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.rate && pRate) pRate.value = data.rate;
+                updatePurchase();
+            })
+            .catch(() => updatePurchase());
+    }
+
+    if (pCur) pCur.addEventListener('change', fetchPurchaseRate);
+    if (pRate) pRate.addEventListener('input', updatePurchase);
+    if (pCost) pCost.addEventListener('input', updatePurchase);
+
+    // Selling handlers
+    const sCur = document.getElementById('id_selling_currency');
+    const sRate = document.getElementById('id_selling_rate');
+    const sPrice = document.getElementById('id_selling_price');
+    const sRateWrap = document.getElementById('sellingRateWrapper');
+    const sPrevWrap = document.getElementById('sellingConversionPreview');
+    const sPrevText = document.getElementById('sellingPreviewText');
+    const sRateHelp = document.getElementById('sellingRateHelp');
+
+    function updateSelling() {
+        if (!sCur) return;
+        const cur = sCur.value || 'AED';
+        if (cur === 'AED') {
+            if (sRateWrap) sRateWrap.style.display = 'none';
+            if (sPrevWrap) sPrevWrap.style.display = 'none';
+            if (sRate) sRate.value = '1.000000';
+        } else {
+            if (sRateWrap) sRateWrap.style.display = 'block';
+            const rateVal = parseFloat(sRate ? sRate.value : 1) || 0;
+            const amtVal = parseFloat(sPrice ? sPrice.value : 0) || 0;
+            if (sRateHelp) sRateHelp.textContent = `1 ${cur} = ${rateVal.toFixed(6)} AED`;
+            if (sPrevWrap && amtVal > 0 && rateVal > 0) {
+                sPrevWrap.style.display = 'block';
+                const aedVal = amtVal * rateVal;
+                sPrevText.textContent = `Selling: ${cur} ${amtVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} × ${rateVal.toFixed(6)} = AED ${aedVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else if (sPrevWrap) {
+                sPrevWrap.style.display = 'none';
+            }
+        }
+    }
+
+    function fetchSellingRate() {
+        if (!sCur || sCur.value === 'AED') {
+            updateSelling();
+            return;
+        }
+        fetch(`/finance/api/exchange-rate/?currency=${encodeURIComponent(sCur.value)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.rate && sRate) sRate.value = data.rate;
+                updateSelling();
+            })
+            .catch(() => updateSelling());
+    }
+
+    if (sCur) sCur.addEventListener('change', fetchSellingRate);
+    if (sRate) sRate.addEventListener('input', updateSelling);
+    if (sPrice) sPrice.addEventListener('input', updateSelling);
+
+    updatePurchase();
+    updateSelling();
+});
+</script>
+
+{% endblock %}
 
 {% block content %}
 <div class="emply-list-wraper">
@@ -70,19 +176,55 @@
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Cost, Price &amp; Status</h5>
-                    <div class="row g-3 mb-4">
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Cost &amp; Currency</h5>
+                    <div class="row g-3 mb-3">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Purchase Cost (AED) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Purchase Currency <span class="text-danger">*</span></label>
+                            {{ form.purchase_currency }}
+                            {% if form.purchase_currency.errors %}<div class="text-danger small mt-1">{{ form.purchase_currency.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4" id="purchaseRateWrapper" style="{% if form.purchase_currency.value == 'AED' or not form.purchase_currency.value %}display: none;{% endif %}">
+                            <label class="form-label fw-bold">Purchase Rate to AED <span class="text-danger">*</span></label>
+                            {{ form.purchase_rate }}
+                            <small class="text-muted" id="purchaseRateHelp">1 unit = X AED</small>
+                            {% if form.purchase_rate.errors %}<div class="text-danger small mt-1">{{ form.purchase_rate.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Purchase Cost <span class="text-danger">*</span></label>
                             {{ form.purchase_cost }}
                             {% if form.purchase_cost.errors %}<div class="text-danger small mt-1">{{ form.purchase_cost.errors.0 }}</div>{% endif %}
                         </div>
+                        <div class="col-12" id="purchaseConversionPreview" style="display: none;">
+                            <div class="alert alert-info py-2 px-3 small mb-0">
+                                <i class="fas fa-coins me-1"></i> <span id="purchasePreviewText"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Selling Price &amp; Status</h5>
+                    <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Actual Selling Price (AED) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Selling Currency <span class="text-danger">*</span></label>
+                            {{ form.selling_currency }}
+                            {% if form.selling_currency.errors %}<div class="text-danger small mt-1">{{ form.selling_currency.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4" id="sellingRateWrapper" style="{% if form.selling_currency.value == 'AED' or not form.selling_currency.value %}display: none;{% endif %}">
+                            <label class="form-label fw-bold">Selling Rate to AED <span class="text-danger">*</span></label>
+                            {{ form.selling_rate }}
+                            <small class="text-muted" id="sellingRateHelp">1 unit = X AED</small>
+                            {% if form.selling_rate.errors %}<div class="text-danger small mt-1">{{ form.selling_rate.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Actual Selling Price <span class="text-danger">*</span></label>
                             {{ form.selling_price }}
                             {% if form.selling_price.errors %}<div class="text-danger small mt-1">{{ form.selling_price.errors.0 }}</div>{% endif %}
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-12" id="sellingConversionPreview" style="display: none;">
+                            <div class="alert alert-info py-2 px-3 small mb-0">
+                                <i class="fas fa-coins me-1"></i> <span id="sellingPreviewText"></span>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mt-3">
                             <label class="form-label fw-bold">Status <span class="text-danger">*</span></label>
                             {{ form.status }}
                             {% if form.status.errors %}<div class="text-danger small mt-1">{{ form.status.errors.0 }}</div>{% endif %}

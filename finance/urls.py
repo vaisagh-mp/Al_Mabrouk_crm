@@ -69,6 +69,16 @@ urlpatterns = [
     path('settings/categories/<int:category_id>/toggle/', views.fin_category_toggle, name='fin_category_toggle'),
     path('settings/categories/<int:category_id>/delete/', views.fin_category_delete, name='fin_category_delete'),
 
+    # Settings / Exchange Rates
+    path('settings/exchange-rates/', views.fin_exchange_rates, name='fin_exchange_rates'),
+    path('settings/exchange-rates/add/', views.fin_exchange_rate_add, name='fin_exchange_rate_add'),
+    path('settings/exchange-rates/<int:rate_id>/edit/', views.fin_exchange_rate_edit, name='fin_exchange_rate_edit'),
+    path('settings/exchange-rates/<int:rate_id>/toggle/', views.fin_exchange_rate_toggle, name='fin_exchange_rate_toggle'),
+    path('settings/exchange-rates/<int:rate_id>/delete/', views.fin_exchange_rate_delete, name='fin_exchange_rate_delete'),
+
+    # API: Exchange Rate pre-fill
+    path('api/exchange-rate/', views.fin_api_exchange_rate, name='fin_api_exchange_rate'),
+
     # Attendance & Leave for Accountant
     path('attendance/', views.fin_render_attendance_page, name='fin_attendance_dashboard'),
     path('attendance/log-in/', views.fin_log_in, name='fin_log_in'),

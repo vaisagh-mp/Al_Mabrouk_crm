@@ -91,8 +91,14 @@
 
         <!-- Currency Code -->
         <div class="mb-3">
-          <label for="id_currency_code" class="form-label">Currency Code</label>
-          <input type="text" class="form-control" id="id_currency_code" name="currency_code" maxlength="3" required value="{{ form.currency_code.value }}" />
+          <label for="id_currency_code" class="form-label">Currency (for invoices)</label>
+          <select class="form-select" id="id_currency_code" name="currency_code" required>
+            {% for code, label in form.fields.currency_code.choices %}
+              <option value="{{ code }}" {% if form.currency_code.value == code %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
         </div>
 
         <!-- Category -->
@@ -151,6 +157,89 @@
             name="job_card"
             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
           />
+        </div>
+
+        <hr>
+        <div class="work-order-details-wrapper mt-4">
+          <div class="card shadow">
+            <div class="card-header text-white" style="background-color: var(--bs-blue);">
+              <h5 class="mb-0">Work Order Details</h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label for="id_imo_no" class="form-label">IMO No</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="id_imo_no"
+                    name="imo_no"
+                    placeholder="Enter IMO number"
+                    value="{{ form.imo_no.value|default_if_none:'' }}"
+                  />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                  <label for="id_location" class="form-label">Location (port)</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="id_location"
+                    name="location"
+                    placeholder="Enter location"
+                    value="{{ form.location.value|default_if_none:'' }}"
+                  />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                  <label for="id_assigned_date" class="form-label">Assigned Date*</label>
+                  <input
+                    type="date"
+                    class="form-control"
+                    id="id_assigned_date"
+                    name="assigned_date"
+                    required
+                    value="{% if form.assigned_date.value %}{{ form.assigned_date.value|date:'Y-m-d'|default:form.assigned_date.value }}{% endif %}"
+                  />
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="id_job_scope" class="form-label">Job Scope</label>
+                <textarea
+                  class="form-control"
+                  id="id_job_scope"
+                  name="job_scope"
+                  rows="3"
+                  placeholder="Enter job scope"
+                >{{ form.job_scope.value|default_if_none:'' }}</textarea>
+              </div>
+
+              <div class="mb-3">
+                <label for="id_job_instructions" class="form-label">Job Instructions</label>
+                <textarea
+                  class="form-control"
+                  id="id_job_instructions"
+                  name="job_instructions"
+                  rows="3"
+                  placeholder="Enter instructions"
+                >{{ form.job_instructions.value|default_if_none:'' }}</textarea>
+              </div>
+
+              <div class="mb-3">
+                <label for="id_project_images" class="form-label">Work Order Images</label>
+                <input
+                  type="file"
+                  class="form-control"
+                  id="id_project_images"
+                  name="project_images"
+                  multiple
+                  accept="image/*"
+                />
+                <small class="form-text text-muted">Multiple images allowed (optional).</small>
+              </div>
+            </div>
+          </div>
         </div>
         
         <div class="create-btn mt-4">

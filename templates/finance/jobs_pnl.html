@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static humanize %}
+{% load static humanize currency %}
 
 {% block title %}Jobs P&amp;L | Almabrouk CRM{% endblock %}
 
@@ -149,7 +149,14 @@
                         <td class="fw-semibold">{{ r.service_ref }}</td>
                         <td>{{ r.vessel }}</td>
                         <td class="fw-bold font-monospace">{{ r.invoice_number }}</td>
-                        <td class="text-end font-monospace">{{ r.net_invoice|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">
+                            {% if r.invoice.currency and r.invoice.currency != 'AED' %}
+                                <div>{{ r.invoice.collection_value|money:r.invoice.currency }}</div>
+                                <div class="text-muted small">AED {{ r.net_invoice|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.net_invoice|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">{{ r.engineer|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ r.spare_cost|floatformat:2|intcomma }}</td>
                         <td class="small">{{ r.travel_port }}</td>
@@ -183,7 +190,7 @@
                 {% if page_obj %}
                 <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="3" class="text-uppercase">Total</td>
+                        <td colspan="3" class="text-uppercase">Total (AED)</td>
                         <td class="text-end font-monospace">{{ totals.net_invoice|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ totals.engineer|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ totals.spare_cost|floatformat:2|intcomma }}</td>

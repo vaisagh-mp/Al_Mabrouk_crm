@@ -1145,7 +1145,7 @@ def employee_mark_notifications_as_read(request):
 
 @login_required
 def employee_view_work_order(request, pk):
-    work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order = get_object_or_404(WorkOrder.objects.select_related('project'), pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
     live_members = []

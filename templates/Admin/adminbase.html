@@ -703,9 +703,12 @@
   const tools = {{ tools|safe }};
   const documents = {{ documents|safe }};
   const times = {{ times|safe }};
+  const assignedMembers = {{ assigned_members|default:"[]"|safe }};
+  const defaultEmpId = {{ default_emp_id|default:"null" }};
 
   function addSpareRow(name = '', unit = '', quantity = '') {
     const table = document.querySelector('#sparesTable tbody');
+    if (!table) return;
     const row = table.insertRow();
     row.innerHTML = `
       <td><input type="text" name="spare_name[]" value="${name}"></td>
@@ -716,6 +719,7 @@
   /* ✅ ADD THIS FUNCTION */
   function addSpareConsumedRow(name = '', unit = '', quantity = '') {
     const table = document.querySelector('#sparesConsumedTable tbody');
+    if (!table) return;
     const row = table.insertRow();
     row.innerHTML = `
       <td><input type="text" name="consumed_spare_name[]" value="${name}"></td>
@@ -725,6 +729,7 @@
 
   function addToolRow(name = '', quantity = '') {
     const table = document.querySelector('#toolsTable tbody');
+    if (!table) return;
     const row = table.insertRow();
     row.innerHTML = `
       <td><input type="text" name="tool_name[]" value="${name}"></td>
@@ -733,41 +738,85 @@
 
   function addDocRow(name = '', status = '') {
     const table = document.querySelector('#docsTable tbody');
+    if (!table) return;
     const row = table.insertRow();
     row.innerHTML = `
       <td><input type="text" name="doc_name[]" value="${name}"></td>
       <td><input type="text" name="doc_status[]" value="${status}"></td>`;
   }
 
-  function addTimeRow(date = '', start = '', finish = '') {
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+  }
+
+  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null) {
     const table = document.querySelector('#timeTable tbody');
+    if (!table) return;
     const row = table.insertRow();
+
+    const fallbackEmpId = (typeof defaultEmpId !== 'undefined' && defaultEmpId !== null)
+      ? String(defaultEmpId)
+      : (typeof assignedMembers !== 'undefined' && Array.isArray(assignedMembers) && assignedMembers.length > 0 ? String(assignedMembers[0].id) : '');
+    const selectedId = employeeId ? String(employeeId) : fallbackEmpId;
+
+    let optionsHtml = '';
+    let foundSelected = false;
+    if (typeof assignedMembers !== 'undefined' && Array.isArray(assignedMembers)) {
+      assignedMembers.forEach(m => {
+        const isSelected = String(m.id) === selectedId ? 'selected' : '';
+        if (isSelected) foundSelected = true;
+        optionsHtml += `<option value="${escapeHtml(m.id)}" ${isSelected}>${escapeHtml(m.name)}</option>`;
+      });
+    }
+
+    if (extraMember && extraMember.id && !foundSelected) {
+      optionsHtml += `<option value="${escapeHtml(extraMember.id)}" selected>${escapeHtml(extraMember.name)}</option>`;
+      foundSelected = true;
+    }
+
+    const displayName = escapeHtml(extraMember ? extraMember.name : memberName);
+    const readOnlyText = displayName ? `<span class="member-name-text" style="font-weight: 500; margin-right: 8px;">${displayName}</span>` : '';
+
     row.innerHTML = `
-      <td><input type="date" name="time_date[]" value="${date}"></td>
-      <td><input type="time" name="start_time[]" value="${start}"></td>
-      <td><input type="time" name="finish_time[]" value="${finish}"></td>`;
+      <td>${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select></td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
   }
 
   window.onload = function () {
-    spares.forEach(spare =>
-      addSpareRow(spare.name, spare.unit, spare.quantity)
-    );
-    sparesConsumed.forEach(s =>
-      addSpareConsumedRow(s.name, s.unit, s.quantity)
-    );
-    tools.forEach(tool =>
-      addToolRow(tool.name, tool.quantity)
-    );
-    documents.forEach(doc =>
-      addDocRow(doc.name, doc.status)
-    );
-    times.forEach(t =>
-      addTimeRow(
-        t.date || '',
-        t.start_time ? t.start_time.slice(0, 5) : '',
-        t.finish_time ? t.finish_time.slice(0, 5) : ''
-      )
-    );
+    if (typeof spares !== 'undefined' && Array.isArray(spares)) {
+      spares.forEach(spare =>
+        addSpareRow(spare.name, spare.unit, spare.quantity)
+      );
+    }
+    if (typeof sparesConsumed !== 'undefined' && Array.isArray(sparesConsumed)) {
+      sparesConsumed.forEach(s =>
+        addSpareConsumedRow(s.name, s.unit, s.quantity)
+      );
+    }
+    if (typeof tools !== 'undefined' && Array.isArray(tools)) {
+      tools.forEach(tool =>
+        addToolRow(tool.name, tool.quantity)
+      );
+    }
+    if (typeof documents !== 'undefined' && Array.isArray(documents)) {
+      documents.forEach(doc =>
+        addDocRow(doc.name, doc.status)
+      );
+    }
+    if (typeof times !== 'undefined' && Array.isArray(times)) {
+      times.forEach(t =>
+        addTimeRow(
+          t.date || '',
+          t.start_time ? t.start_time.slice(0, 5) : '',
+          t.finish_time ? t.finish_time.slice(0, 5) : '',
+          t.employee_id || '',
+          t.member_name || '',
+          t.extra_member || null
+        )
+      );
+    }
   };
 </script>
 

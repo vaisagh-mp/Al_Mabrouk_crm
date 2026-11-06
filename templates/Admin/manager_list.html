@@ -3,8 +3,13 @@
 {% block content %}
 
 <div class="emply-list-wraper">
-    <div class="pg-title">
+    <div class="pg-title d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h1>Managers</h1>
+        <div class="btn-group" role="group" aria-label="Status Filter">
+            <a href="?status=active" class="btn btn-sm {% if status_filter == 'active' or not status_filter %}btn-primary{% else %}btn-outline-secondary{% endif %}">Active</a>
+            <a href="?status=inactive" class="btn btn-sm {% if status_filter == 'inactive' %}btn-primary{% else %}btn-outline-secondary{% endif %}">Inactive</a>
+            <a href="?status=all" class="btn btn-sm {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-secondary{% endif %}">All</a>
+        </div>
     </div>
 
     <!-- Employs List -->
@@ -47,7 +52,12 @@
             <tbody>
                 {% for manager in page_obj %}
                 <tr>
-                    <td><a href="{% url 'manager_profile' manager.id %}">{{ manager.user.get_full_name }}</a></td>
+                    <td>
+                        <a href="{% url 'manager_profile' manager.id %}">{{ manager.user.get_full_name|default:manager.user.username }}</a>
+                        {% if not manager.user.is_active %}
+                            <span class="badge bg-secondary ms-1">Inactive</span>
+                        {% endif %}
+                    </td>
                     <td>{{ manager.pk }}</td>
                     <td>{{ manager.rank }}</td>
                     <td>
@@ -84,17 +94,17 @@
         <!-- Pagination -->
         <div class="pagination" id="pagination">
             {% if page_obj.has_previous %}
-            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            <a href="?status={{ status_filter }}&page={{ page_obj.previous_page_number }}">Previous</a>
             {% endif %}
             {% for num in page_obj.paginator.page_range %}
             {% if page_obj.number == num %}
             <button class="active">{{ num }}</button>
             {% else %}
-            <a href="?page={{ num }}">{{ num }}</a>
+            <a href="?status={{ status_filter }}&page={{ num }}">{{ num }}</a>
             {% endif %}
             {% endfor %}
             {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?status={{ status_filter }}&page={{ page_obj.next_page_number }}">Next</a>
             {% endif %}
         </div>
         {% else %}

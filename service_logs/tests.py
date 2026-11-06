@@ -202,7 +202,7 @@ class FinishTimeUpdateTest(TestCase):
         self.assertEqual(log.ot_hours, Decimal('2.00'))
         self.assertEqual(log.ot_type, 'WEEKDAY')
         hourly = Decimal('2600') / Decimal(26 * 8)
-        expected_ot = round(Decimal('2') * hourly * Decimal('1.5'), 2)
+        expected_ot = round(Decimal('2') * hourly * Decimal('1.25'), 2)
         self.assertEqual(log.ot_cost, expected_ot)
 
     def test_12_hours_holiday_ot(self):
@@ -536,7 +536,7 @@ class NewOvertimeRulesTests(TestCase):
         self.assertEqual(log2.ot_hours, Decimal('2.00'))
         self.assertEqual(log2.ot_type, 'WEEKDAY')
         rate = Decimal('2080') / Decimal('208')  # 10.00
-        self.assertEqual(log2.ot_cost, round(Decimal('2') * rate * Decimal('1.5'), 2))
+        self.assertEqual(log2.ot_cost, round(Decimal('2') * rate * Decimal('1.25'), 2))
 
         # 3. two logs 6h + 6h -> OT 2.00 on the later log
         d3 = date(2026, 7, 3)
@@ -553,7 +553,7 @@ class NewOvertimeRulesTests(TestCase):
         self.assertEqual(log3a.ot_hours, Decimal('0.00'))
         self.assertEqual(log3b.ot_hours, Decimal('2.00'))
         self.assertEqual(log3b.ot_type, 'WEEKDAY')
-        self.assertEqual(log3b.ot_cost, round(Decimal('2') * rate * Decimal('1.5'), 2))
+        self.assertEqual(log3b.ot_cost, round(Decimal('2') * rate * Decimal('1.25'), 2))
 
     def test_holiday_vessel_12h(self):
         d = date(2026, 7, 4)
@@ -656,7 +656,7 @@ class NewOvertimeRulesTests(TestCase):
         ctx = build_employee_analytics_context(req)
         e = next(item for item in ctx['employee_analytics'] if item['employee'].id == self.employee.id)
         rate = Decimal('2080') / Decimal('208')
-        expected_off_ot_cost = Decimal('2.00') * rate * Decimal('1.5')
+        expected_off_ot_cost = Decimal('2.00') * rate * Decimal('1.25')
         self.assertEqual(e['ot_cost'], expected_off_ot_cost)
 
     def test_office_vessel_overlap(self):
@@ -1114,6 +1114,146 @@ class AnalyticsProjectFinancialsTests(TestCase):
         self.assertIn('<th>Profit</th>', content_admin)
         self.assertIn('<th>Profit %</th>', content_admin)
         self.assertIn('<th>Revenue</th>', content_admin)
+
+
+# ──────────────────────────────────────────────
+# Tests for New Overtime Multipliers (1.25 Weekday, 1.5 Sunday, 2.0 Holiday)
+# ──────────────────────────────────────────────
+
+class NewOtMultipliersTests(TestCase):
+    def setUp(self):
+        self.tz = timezone.get_current_timezone()
+        self.user, self.emp = make_user('ot_worker', salary=Decimal('2080.00'))  # 2080 / 208 = 10.00/hr
+        self.project = make_project()
+
+    def test_ot_helper_functions_and_types(self):
+        from service_logs.ot import ot_multiplier, ot_type_for, OT_MULT_NORMAL, OT_MULT_SUNDAY, OT_MULT_PUBLIC_HOLIDAY
+
+        monday = date(2026, 6, 1)    # weekday 0
+        saturday = date(2026, 6, 6)  # weekday 5
+        sunday = date(2026, 6, 7)    # weekday 6
+
+        # Normal days
+        self.assertEqual(ot_multiplier(monday, False), OT_MULT_NORMAL)
+        self.assertEqual(ot_multiplier(monday, False), Decimal('1.25'))
+        self.assertEqual(ot_type_for(monday, False), 'WEEKDAY')
+
+        self.assertEqual(ot_multiplier(saturday, False), OT_MULT_NORMAL)
+        self.assertEqual(ot_type_for(saturday, False), 'WEEKDAY')
+
+        # Sunday (not holiday)
+        self.assertEqual(ot_multiplier(sunday, False), OT_MULT_SUNDAY)
+        self.assertEqual(ot_multiplier(sunday, False), Decimal('1.5'))
+        self.assertEqual(ot_type_for(sunday, False), 'SUNDAY')
+
+        # Public holiday on Monday
+        self.assertEqual(ot_multiplier(monday, True), OT_MULT_PUBLIC_HOLIDAY)
+        self.assertEqual(ot_multiplier(monday, True), Decimal('2.0'))
+        self.assertEqual(ot_type_for(monday, True), 'HOLIDAY')
+
+        # Public holiday on Sunday (holiday wins over Sunday)
+        self.assertEqual(ot_multiplier(sunday, True), OT_MULT_PUBLIC_HOLIDAY)
+        self.assertEqual(ot_multiplier(sunday, True), Decimal('2.0'))
+        self.assertEqual(ot_type_for(sunday, True), 'HOLIDAY')
+
+    def test_monday_12h_vessel_multiplier(self):
+        # Monday 12 h vessel -> 2 h OT x rate x 1.25, ot_type='WEEKDAY'
+        monday = date(2026, 6, 1)
+        log = EmployeeServiceLog.objects.create(
+            employee=self.emp, project=self.project, date=monday,
+            vessel_name='V_Mon', start_time=time(8, 0), end_time=time(20, 0)
+        )
+        self.assertEqual(log.total_hours, Decimal('12.00'))
+        self.assertEqual(log.ot_hours, Decimal('2.00'))
+        self.assertEqual(log.ot_type, 'WEEKDAY')
+        self.assertEqual(log.normal_cost, Decimal('100.00'))  # 10h * 10
+        self.assertEqual(log.ot_cost, Decimal('25.00'))       # 2h * 10 * 1.25 = 25.00
+
+    def test_sunday_12h_vessel_multiplier(self):
+        # Sunday 12 h vessel -> 2 h OT x rate x 1.5, ot_type='SUNDAY'
+        sunday = date(2026, 6, 7)
+        log = EmployeeServiceLog.objects.create(
+            employee=self.emp, project=self.project, date=sunday,
+            vessel_name='V_Sun', start_time=time(8, 0), end_time=time(20, 0)
+        )
+        self.assertEqual(log.total_hours, Decimal('12.00'))
+        self.assertEqual(log.ot_hours, Decimal('2.00'))
+        self.assertEqual(log.ot_type, 'SUNDAY')
+        self.assertEqual(log.normal_cost, Decimal('100.00'))  # 10h * 10
+        self.assertEqual(log.ot_cost, Decimal('30.00'))       # 2h * 10 * 1.5 = 30.00
+
+    def test_holiday_list_date_not_sunday(self):
+        # Holiday-list date (not Sunday) -> x 2.0, ot_type='HOLIDAY'
+        friday = date(2026, 6, 5)
+        Holiday.objects.create(date=friday, description='Martyrs Day')
+        log = EmployeeServiceLog.objects.create(
+            employee=self.emp, project=self.project, date=friday,
+            vessel_name='V_Hol', start_time=time(8, 0), end_time=time(20, 0)
+        )
+        self.assertEqual(log.total_hours, Decimal('12.00'))
+        self.assertEqual(log.ot_hours, Decimal('2.00'))
+        self.assertEqual(log.ot_type, 'HOLIDAY')
+        self.assertEqual(log.normal_cost, Decimal('100.00'))
+        self.assertEqual(log.ot_cost, Decimal('40.00'))       # 2h * 10 * 2.0 = 40.00
+
+    def test_holiday_list_date_that_is_also_a_sunday(self):
+        # Holiday-list date that is also a Sunday -> x 2.0 (holiday wins over Sunday), ot_type='HOLIDAY'
+        sunday = date(2026, 6, 14)
+        Holiday.objects.create(date=sunday, description='Sunday Holiday')
+        log = EmployeeServiceLog.objects.create(
+            employee=self.emp, project=self.project, date=sunday,
+            vessel_name='V_SunHol', start_time=time(8, 0), end_time=time(20, 0)
+        )
+        self.assertEqual(log.total_hours, Decimal('12.00'))
+        self.assertEqual(log.ot_hours, Decimal('2.00'))
+        self.assertEqual(log.ot_type, 'HOLIDAY')
+        self.assertEqual(log.normal_cost, Decimal('100.00'))
+        self.assertEqual(log.ot_cost, Decimal('40.00'))       # 2h * 10 * 2.0 = 40.00
+
+    def test_holiday_working_project_on_monday(self):
+        # HOLIDAY_WORKING project on a Monday -> x 2.0, ot_type='HOLIDAY'
+        monday = date(2026, 6, 15)
+        hol_project = make_project(category='HOLIDAY_WORKING')
+        wo = make_work_order(hol_project)
+        tl = make_time_log(wo, self.emp, start='08:00', finish='20:00', log_date=monday)
+        log = EmployeeServiceLog.objects.get(time_log=tl)
+        self.assertTrue(log.is_holiday)
+        self.assertEqual(log.total_hours, Decimal('12.00'))
+        self.assertEqual(log.ot_hours, Decimal('2.00'))
+        self.assertEqual(log.ot_type, 'HOLIDAY')
+        self.assertEqual(log.normal_cost, Decimal('100.00'))
+        self.assertEqual(log.ot_cost, Decimal('40.00'))       # 2h * 10 * 2.0 = 40.00
+
+    def test_office_ot_on_sunday(self):
+        # office OT on a Sunday -> office OT x 1.5
+        # vessel 06:00-12:00 (6h) + office 12:00-18:00 (6h) -> union 12h, threshold 10h -> 2h OT falls in office
+        sunday = date(2026, 6, 21)
+        log = EmployeeServiceLog.objects.create(
+            employee=self.emp, project=self.project, date=sunday,
+            vessel_name='V_Early', start_time=time(6, 0), end_time=time(12, 0)
+        )
+        login = timezone.make_aware(datetime.combine(sunday, time(12, 0)), self.tz)
+        logout = timezone.make_aware(datetime.combine(sunday, time(18, 0)), self.tz)
+        Attendance.objects.create(
+            employee=self.emp, login_time=login, log_out_time=logout,
+            location='BDO', status='APPROVED', total_hours_of_work=Decimal('6.00')
+        )
+        log.refresh_from_db()
+        self.assertEqual(log.ot_hours, Decimal('0.00'))
+
+        rows = build_attendance_register(sunday, sunday, search=self.user.username)
+        self.assertEqual(len(rows), 1)
+        r = rows[0]
+        self.assertEqual(r['total_hours'], Decimal('12.00'))
+        self.assertEqual(r['ot_hours'], Decimal('2.00'))
+        self.assertEqual(r['vessel_ot_hours'], Decimal('0.00'))
+        self.assertEqual(r['office_ot_hours'], Decimal('2.00'))
+
+        from service_logs.ot import calculate_office_ot_cost
+        office_ot = calculate_office_ot_cost(self.emp.salary, rows, [log])
+        # 2h * (2080 / 208 = 10) * 1.5 = 30.00
+        self.assertEqual(office_ot, Decimal('30.00'))
+
 
 
 

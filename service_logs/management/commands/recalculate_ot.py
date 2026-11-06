@@ -106,8 +106,8 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Pairs processed: {pairs_processed}")
         self.stdout.write(f"Logs changed: {logs_changed}")
-        self.stdout.write(f"OT hours: {ot_hours_before:.2f} → {ot_hours_after:.2f}")
-        self.stdout.write(f"OT cost: {ot_cost_before:.2f} → {ot_cost_after:.2f}")
+        self.stdout.write(f"OT hours: {ot_hours_before:.2f} -> {ot_hours_after:.2f}")
+        self.stdout.write(f"OT cost: {ot_cost_before:.2f} -> {ot_cost_after:.2f}")
 
         if dry_run:
             self.stdout.write(self.style.WARNING("Dry run completed: all changes rolled back."))

@@ -120,7 +120,7 @@ def clean_time_rows(dates, starts, finishes, employees=None):
         if d is None or s is None:
             warnings.append(f"Time row {i + 1} was skipped: date and start time are required.")
             continue
-        rows.append({'date': d, 'start': s, 'finish': f, 'emp_val': emp_val.strip()})
+        rows.append({'row_idx': i + 1, 'date': d, 'start': s, 'finish': f, 'emp_val': emp_val.strip()})
     return rows, warnings
 
 

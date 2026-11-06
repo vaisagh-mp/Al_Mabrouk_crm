@@ -13,7 +13,8 @@ class EmployeeServiceLog(models.Model):
 
     OT_TYPE_CHOICES = [
         ('WEEKDAY', 'Week Day'),
-        ('HOLIDAY', 'Holiday'),
+        ('SUNDAY', 'Sunday'),
+        ('HOLIDAY', 'Public Holiday'),
     ]
 
     LOCATION_TYPE_CHOICES = [

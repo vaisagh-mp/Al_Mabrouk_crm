@@ -2,6 +2,8 @@ from decimal import Decimal
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
+from .currency import CURRENCY_CHOICES, NON_BASE_CURRENCY_CHOICES, to_aed
 
 
 class ExpenseCategory(models.Model):
@@ -36,11 +38,16 @@ class Expense(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='AED')
+    exchange_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal('1.000000'))
+    amount_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    vat_amount_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+
     class Meta:
         ordering = ['-date', '-id']
 
     def __str__(self):
-        return f"{self.date} - {self.category.name} - AED {self.amount}"
+        return f"{self.date} - {self.category.name} - {self.currency} {self.amount}"
 
     def clean(self):
         super().clean()
@@ -51,6 +58,16 @@ class Expense(models.Model):
         if self.category_id:
             if self.category.kind == 'PROJECT' and not self.project:
                 raise ValidationError({'project': 'Project is required for project-related expenses.'})
+        if self.currency != 'AED':
+            if not self.exchange_rate or self.exchange_rate <= Decimal('0'):
+                raise ValidationError({'exchange_rate': 'Rate must be greater than zero.'})
+
+    def save(self, *args, **kwargs):
+        if self.currency == 'AED':
+            self.exchange_rate = Decimal('1.000000')
+        self.amount_aed = to_aed(self.amount, self.exchange_rate)
+        self.vat_amount_aed = to_aed(self.vat_amount, self.exchange_rate)
+        super().save(*args, **kwargs)
 
 
 class Payroll(models.Model):
@@ -132,11 +149,24 @@ class Invoice(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='AED')
+    exchange_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal('1.000000'))
+    amount_excl_vat_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    vat_amount_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    credits_applied_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    amount_received_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+
     class Meta:
         ordering = ['-invoice_date', '-id']
 
     def __str__(self):
-        return f"{self.invoice_number} ({self.customer or 'No Customer'}) - AED {self.amount_excl_vat}"
+        return f"{self.invoice_number} ({self.customer or 'No Customer'}) - {self.currency} {self.amount_excl_vat}"
+
+    def clean(self):
+        super().clean()
+        if self.currency != 'AED':
+            if not self.exchange_rate or self.exchange_rate <= Decimal('0'):
+                raise ValidationError({'exchange_rate': 'Rate must be greater than zero.'})
 
     def save(self, *args, **kwargs):
         if self.project:
@@ -149,7 +179,23 @@ class Invoice(models.Model):
         if not self.due_date and self.invoice_date:
             import datetime
             self.due_date = self.invoice_date + datetime.timedelta(days=30)
+
+        if self.currency == 'AED':
+            self.exchange_rate = Decimal('1.000000')
+        self.amount_excl_vat_aed = to_aed(self.amount_excl_vat, self.exchange_rate)
+        self.vat_amount_aed = to_aed(self.vat_amount, self.exchange_rate)
+        self.credits_applied_aed = to_aed(self.credits_applied, self.exchange_rate)
+        self.amount_received_aed = to_aed(self.amount_received, self.exchange_rate)
+
         super().save(*args, **kwargs)
+
+    @property
+    def collection_value_aed(self):
+        return (self.amount_excl_vat_aed or Decimal('0.00')) - (self.credits_applied_aed or Decimal('0.00'))
+
+    @property
+    def outstanding_aed(self):
+        return max(self.collection_value_aed - (self.amount_received_aed or Decimal('0.00')), Decimal('0.00'))
 
     @property
     def collection_value(self):
@@ -202,15 +248,28 @@ class JobCost(models.Model):
     created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='job_costs_created')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='AED')
+    exchange_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal('1.000000'))
+    amount_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+
     class Meta:
         ordering = ['date', 'id']
 
     def __str__(self):
-        return f"{self.invoice.invoice_number} - {self.get_cost_type_display()}: AED {self.amount}"
+        return f"{self.invoice.invoice_number} - {self.get_cost_type_display()}: {self.currency} {self.amount}"
+
+    def clean(self):
+        super().clean()
+        if self.currency != 'AED':
+            if not self.exchange_rate or self.exchange_rate <= Decimal('0'):
+                raise ValidationError({'exchange_rate': 'Rate must be greater than zero.'})
 
     def save(self, *args, **kwargs):
         if not self.date and self.invoice_id and getattr(self.invoice, 'invoice_date', None):
             self.date = self.invoice.invoice_date
+        if self.currency == 'AED':
+            self.exchange_rate = Decimal('1.000000')
+        self.amount_aed = to_aed(self.amount, self.exchange_rate)
         super().save(*args, **kwargs)
 
 
@@ -240,11 +299,30 @@ class SpareSale(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    purchase_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='AED')
+    purchase_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal('1.000000'))
+    purchase_cost_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    selling_currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='AED')
+    selling_rate = models.DecimalField(max_digits=12, decimal_places=6, default=Decimal('1.000000'))
+    selling_price_aed = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+
     class Meta:
         ordering = ['-created_at', '-id']
 
     def __str__(self):
-        return f"{self.service_ref or 'No Ref'} - {self.vessel_customer}: Purchase AED {self.purchase_cost}, Selling AED {self.selling_price}"
+        return f"{self.service_ref or 'No Ref'} - {self.vessel_customer}: Purchase {self.purchase_currency} {self.purchase_cost}, Selling {self.selling_currency} {self.selling_price}"
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        if self.purchase_currency != 'AED':
+            if not self.purchase_rate or self.purchase_rate <= Decimal('0'):
+                errors['purchase_rate'] = 'Rate must be greater than zero.'
+        if self.selling_currency != 'AED':
+            if not self.selling_rate or self.selling_rate <= Decimal('0'):
+                errors['selling_rate'] = 'Rate must be greater than zero.'
+        if errors:
+            raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if self.invoice_id:
@@ -256,28 +334,40 @@ class SpareSale(models.Model):
                 cust = getattr(self.invoice, 'customer', '') or ''
                 self.vessel_customer = f"{vessel} / {cust}".strip(' /')
             leg_costs = JobCost.objects.filter(invoice_id=self.invoice_id, source='LEGACY', description='Legacy purchases')
-            self._legacy_purchases_cost = sum(((c.amount or Decimal('0.00')) for c in leg_costs), Decimal('0.00'))
+            self._legacy_purchases_cost = sum(((c.amount_aed or Decimal('0.00')) for c in leg_costs), Decimal('0.00'))
+
+        if self.purchase_currency == 'AED':
+            self.purchase_rate = Decimal('1.000000')
+        if self.selling_currency == 'AED':
+            self.selling_rate = Decimal('1.000000')
+
+        self.purchase_cost_aed = to_aed(self.purchase_cost, self.purchase_rate)
+        self.selling_price_aed = to_aed(self.selling_price, self.selling_rate)
         super().save(*args, **kwargs)
 
     @property
+    def profit_aed(self):
+        return (self.selling_price_aed or Decimal('0.00')) - (self.purchase_cost_aed or Decimal('0.00'))
+
+    @property
     def profit(self):
-        return (self.selling_price or Decimal('0.00')) - (self.purchase_cost or Decimal('0.00'))
+        return self.profit_aed
 
     @property
     def markup_pct(self):
-        cost = self.purchase_cost or Decimal('0.00')
+        cost = self.purchase_cost_aed or Decimal('0.00')
         if cost > Decimal('0.00'):
-            return (self.profit / cost) * Decimal('100.00')
+            return (self.profit_aed / cost) * Decimal('100.00')
         return None
 
     @property
     def alerts(self):
         from django.utils import timezone
         alerts_list = []
-        cost = self.purchase_cost or Decimal('0.00')
-        selling = self.selling_price or Decimal('0.00')
+        cost = self.purchase_cost_aed or Decimal('0.00')
+        selling = self.selling_price_aed or Decimal('0.00')
 
-        if self.profit < Decimal('0.00'):
+        if self.profit_aed < Decimal('0.00'):
             alerts_list.append("Loss on spares")
         if self.markup_pct is not None and self.markup_pct < Decimal('10.00'):
             alerts_list.append("Low markup")
@@ -294,7 +384,7 @@ class SpareSale(models.Model):
         if hasattr(self, '_invoice_spares_mismatch'):
             if self._invoice_spares_mismatch:
                 alerts_list.append("Invoice spares mismatch")
-        elif self.invoice and self.invoice.invoice_type == 'SPARES_ONLY' and selling != self.invoice.amount_excl_vat:
+        elif self.invoice and self.invoice.invoice_type == 'SPARES_ONLY' and (self.selling_price_aed or Decimal('0.00')) != self.invoice.amount_excl_vat_aed:
             alerts_list.append("Invoice spares mismatch")
 
         if self.invoice_id:
@@ -302,10 +392,60 @@ class SpareSale(models.Model):
             if hasattr(self, '_legacy_purchases_cost'):
                 leg_cost = self._legacy_purchases_cost
             elif hasattr(self, '_prefetched_objects_cache') and 'invoice' in self._prefetched_objects_cache and hasattr(self.invoice, '_prefetched_objects_cache') and 'job_costs' in self.invoice._prefetched_objects_cache:
-                leg_cost = sum(((c.amount or Decimal('0.00')) for c in self.invoice.job_costs.all() if c.source == 'LEGACY' and c.description == 'Legacy purchases'), Decimal('0.00'))
+                leg_cost = sum(((c.amount_aed or Decimal('0.00')) for c in self.invoice.job_costs.all() if c.source == 'LEGACY' and c.description == 'Legacy purchases'), Decimal('0.00'))
 
             if leg_cost and leg_cost > Decimal('0.00'):
                 alerts_list.append(f"This invoice also has a Legacy purchases cost of AED {leg_cost:,.2f} — delete it if it is the same spares cost, otherwise it is counted twice.")
 
         return alerts_list
 
+
+
+class ExchangeRate(models.Model):
+    currency = models.CharField(
+        max_length=3,
+        choices=NON_BASE_CURRENCY_CHOICES,
+        help_text="Foreign currency code (e.g. USD, INR, EUR)",
+    )
+    rate_to_aed = models.DecimalField(
+        max_digits=12,
+        decimal_places=6,
+        validators=[MinValueValidator(Decimal("0.000001"))],
+        help_text="Exchange rate: 1 unit of foreign currency = X AED",
+    )
+    effective_from = models.DateField(
+        help_text="Date from which this rate applies",
+    )
+    notes = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Optional remarks",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive rates are ignored in rate lookups",
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exchange_rates_created",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("currency", "effective_from")
+        ordering = ["currency", "-effective_from"]
+        verbose_name = "Exchange Rate"
+        verbose_name_plural = "Exchange Rates"
+
+    def __str__(self):
+        return f"1 {self.currency} = {self.rate_to_aed} AED (from {self.effective_from})"
+
+    def clean(self):
+        super().clean()
+        if self.rate_to_aed is not None and self.rate_to_aed <= Decimal("0"):
+            raise ValidationError({"rate_to_aed": "Rate must be greater than zero."})

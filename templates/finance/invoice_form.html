@@ -1,7 +1,80 @@
 {% extends 'finance/financebase.html' %}
 {% load static %}
 
-{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+{% block title %}{{ title }} | Almabrouk CRM
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const curSelect = document.getElementById('id_currency');
+    const rateInput = document.getElementById('id_exchange_rate');
+    const rateWrapper = document.getElementById('invoiceRateWrapper');
+    const dateInput = document.getElementById('id_invoice_date');
+    const amountInput = document.getElementById('id_amount_excl_vat');
+    const previewWrapper = document.getElementById('invoiceConversionPreview');
+    const previewText = document.getElementById('invoicePreviewText');
+    const rateHelp = document.getElementById('invoiceRateHelp');
+    const projectSelect = document.getElementById('id_project');
+    const projectCurrencies = {{ project_currencies_json|default:'{}'|safe }};
+
+    function updateVisibilityAndPreview() {
+        if (!curSelect) return;
+        const cur = curSelect.value || 'AED';
+        if (cur === 'AED') {
+            if (rateWrapper) rateWrapper.style.display = 'none';
+            if (previewWrapper) previewWrapper.style.display = 'none';
+            if (rateInput) rateInput.value = '1.000000';
+        } else {
+            if (rateWrapper) rateWrapper.style.display = 'block';
+            const rateVal = parseFloat(rateInput ? rateInput.value : 1) || 0;
+            const amtVal = parseFloat(amountInput ? amountInput.value : 0) || 0;
+            if (rateHelp) rateHelp.textContent = `1 ${cur} = ${rateVal.toFixed(6)} AED`;
+            if (previewWrapper && amtVal > 0 && rateVal > 0) {
+                previewWrapper.style.display = 'block';
+                const aedVal = amtVal * rateVal;
+                previewText.textContent = `${cur} ${amtVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} × ${rateVal.toFixed(6)} = AED ${aedVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            } else if (previewWrapper) {
+                previewWrapper.style.display = 'none';
+            }
+        }
+    }
+
+    function fetchRate() {
+        if (!curSelect || curSelect.value === 'AED') {
+            updateVisibilityAndPreview();
+            return;
+        }
+        const cur = curSelect.value;
+        const dt = dateInput ? dateInput.value : '';
+        fetch(`/finance/api/exchange-rate/?currency=${encodeURIComponent(cur)}&date=${encodeURIComponent(dt)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.rate && rateInput) {
+                    rateInput.value = data.rate;
+                }
+                updateVisibilityAndPreview();
+            })
+            .catch(() => updateVisibilityAndPreview());
+    }
+
+    if (projectSelect) {
+        projectSelect.addEventListener('change', function () {
+            const pId = String(projectSelect.value || '');
+            if (pId && projectCurrencies[pId] && curSelect) {
+                curSelect.value = projectCurrencies[pId];
+                fetchRate();
+            }
+        });
+    }
+
+    if (curSelect) curSelect.addEventListener('change', fetchRate);
+    if (dateInput) dateInput.addEventListener('change', fetchRate);
+    if (rateInput) rateInput.addEventListener('input', updateVisibilityAndPreview);
+    if (amountInput) amountInput.addEventListener('input', updateVisibilityAndPreview);
+
+    updateVisibilityAndPreview();
+});
+</script>
+
+{% endblock %}
 
 {% block content %}
 <div class="emply-list-wraper">
@@ -83,22 +156,40 @@
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3 border-bottom pb-2">Amounts &amp; Status</h5>
+                    <h5 class="fw-bold mb-3 border-bottom pb-2">Currency &amp; Amounts</h5>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Currency <span class="text-danger">*</span></label>
+                            {{ form.currency }}
+                            {% if form.currency.errors %}<div class="text-danger small mt-1">{{ form.currency.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6" id="invoiceRateWrapper" style="{% if form.currency.value == 'AED' or not form.currency.value %}display: none;{% endif %}">
+                            <label class="form-label fw-bold">Rate to AED (6 decimals) <span class="text-danger">*</span></label>
+                            {{ form.exchange_rate }}
+                            <small class="text-muted" id="invoiceRateHelp">1 unit = X AED</small>
+                            {% if form.exchange_rate.errors %}<div class="text-danger small mt-1">{{ form.exchange_rate.errors.0 }}</div>{% endif %}
+                        </div>
+                    </div>
                     <div class="row g-3 mb-4">
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Amount Without Tax (AED) <span class="text-danger">*</span></label>
+                            <label class="form-label fw-bold">Amount Without Tax <span class="text-danger">*</span></label>
                             {{ form.amount_excl_vat }}
                             {% if form.amount_excl_vat.errors %}<div class="text-danger small mt-1">{{ form.amount_excl_vat.errors.0 }}</div>{% endif %}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">VAT Amount (AED)</label>
+                            <label class="form-label fw-bold">VAT Amount</label>
                             {{ form.vat_amount }}
                             {% if form.vat_amount.errors %}<div class="text-danger small mt-1">{{ form.vat_amount.errors.0 }}</div>{% endif %}
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label fw-bold">Credits Applied (AED)</label>
+                            <label class="form-label fw-bold">Credits Applied</label>
                             {{ form.credits_applied }}
                             {% if form.credits_applied.errors %}<div class="text-danger small mt-1">{{ form.credits_applied.errors.0 }}</div>{% endif %}
+                        </div>
+                        <div class="col-12" id="invoiceConversionPreview" style="display: none;">
+                            <div class="alert alert-info py-2 px-3 small mb-0">
+                                <i class="fas fa-coins me-1"></i> <span id="invoicePreviewText"></span>
+                            </div>
                         </div>
                         <div class="col-12">
                             <div class="form-check mt-2">

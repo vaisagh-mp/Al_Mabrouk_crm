@@ -2,6 +2,7 @@ from django import forms
 from django.utils.timezone import now
 from django.contrib.auth.models import User
 from .models import Project, ProjectAssignment, Employee, Leave, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Team, Vessel
+from finance.currency import CURRENCY_CHOICES
 
 class EmployeeCreationForm(forms.ModelForm):
     ROLE_CHOICES = [
@@ -93,9 +94,47 @@ class ProjectForm(forms.ModelForm):
     # Extra Team fields (optional)
     team_name = forms.CharField(label="Team Name", required=False)
     employees = forms.ModelMultipleChoiceField(
-        queryset=Employee.objects.filter(is_employee=True),
+        queryset=Employee.objects.filter(is_employee=True, user__is_active=True),
         widget=forms.CheckboxSelectMultiple,
         required=False
+    )
+
+    # Extra Work Order fields (optional, assigned_date defaults to today)
+    imo_no = forms.CharField(
+        max_length=50,
+        required=False,
+        label="IMO No",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter IMO number'})
+    )
+    location = forms.CharField(
+        max_length=100,
+        required=False,
+        label="Location",
+        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter location'})
+    )
+    assigned_date = forms.DateField(
+        required=False,
+        label="Assigned Date",
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'}),
+        input_formats=['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'],
+    )
+    job_scope = forms.CharField(
+        required=False,
+        label="Job Scope",
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter job scope'})
+    )
+    job_instructions = forms.CharField(
+        required=False,
+        label="Job Instructions",
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter instructions'})
+    )
+
+    currency_code = forms.ChoiceField(
+        choices=CURRENCY_CHOICES,
+        initial='AED',
+        required=True,
+        label="Currency (for invoices)",
+        widget=forms.Select(attrs={'class': 'form-select'}),
     )
     
     class Meta:
@@ -132,6 +171,12 @@ class ProjectForm(forms.ModelForm):
             return "MEDIUM"  # or None if you want
 
         return priority
+
+    def clean_assigned_date(self):
+        d = self.cleaned_data.get("assigned_date")
+        if not d:
+            return now().date()
+        return d
     
     def __init__(self, *args, **kwargs):
         # Pop user if passed
@@ -148,13 +193,31 @@ class ProjectForm(forms.ModelForm):
         ).values_list('user_id', flat=True)
 
         self.fields['manager'].queryset = Employee.objects.filter(
-            is_manager=True
+            is_manager=True,
+            user__is_active=True,
         ).exclude(user__id__in=managers_on_leave)
 
         # If current user is a manager, hide the field and auto-fill
         if self.user and hasattr(self.user, 'employee_profile') and self.user.employee_profile.is_manager:
             self.fields['manager'].widget = forms.HiddenInput()
             self.fields['manager'].required = False
+
+        # Work Order initial values
+        wo = None
+        if self.instance and self.instance.pk:
+            try:
+                wo = self.instance.workorder
+            except (WorkOrder.DoesNotExist, AttributeError):
+                wo = None
+
+        if wo:
+            self.fields['imo_no'].initial = wo.imo_no
+            self.fields['location'].initial = wo.location
+            self.fields['assigned_date'].initial = wo.assigned_date or today
+            self.fields['job_scope'].initial = wo.job_scope
+            self.fields['job_instructions'].initial = wo.job_instructions
+        else:
+            self.fields['assigned_date'].initial = today
 
 
 
@@ -185,10 +248,10 @@ class AdminTeamForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Only Managers in the manager field
-        self.fields['manager'].queryset = Employee.objects.filter(is_manager=True).select_related("user")
+        self.fields['manager'].queryset = Employee.objects.filter(is_manager=True, user__is_active=True).select_related("user")
 
         # Only Employees in employees field
-        self.fields['employees'].queryset = Employee.objects.filter(is_employee=True).select_related("user")
+        self.fields['employees'].queryset = Employee.objects.filter(is_employee=True, user__is_active=True).select_related("user")
 
         # Show all projects (or you can filter active ones if needed)
         self.fields['project'].queryset = Project.objects.all()
@@ -276,6 +339,7 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
 
 class WorkOrderForm(forms.ModelForm):
     assigned_date = forms.DateField(
+        required=False,
         widget=forms.DateInput(attrs={'type': 'date'}),
         input_formats=['%Y-%m-%d'],
     )
@@ -292,6 +356,8 @@ class WorkOrderForm(forms.ModelForm):
         self.user = kwargs.pop('user', None)
         self.project = kwargs.pop('project', None)
         super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.required = False
 
 class WorkOrderDetailForm(forms.ModelForm):
     class Meta:

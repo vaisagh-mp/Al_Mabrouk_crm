@@ -34,7 +34,8 @@ from Admin.office_staff_helpers import (
 )
 from employee_data.forms import LeaveForm
 from service_logs.models import EmployeeServiceLog
-from .models import Expense, ExpenseCategory, Payroll, Invoice, JobCost, SpareSale
+from .models import Expense, ExpenseCategory, Payroll, Invoice, JobCost, SpareSale, ExchangeRate
+from .currency import NON_BASE_CURRENCY_CHOICES, get_rate
 from .forms import (
     ExpenseForm,
     ExpenseCategoryForm,
@@ -44,6 +45,7 @@ from .forms import (
     SpareSaleForm,
     RecordPaymentForm,
     ApplyCreditForm,
+    ExchangeRateForm,
 )
 from .services import (
     generate_payroll,
@@ -307,9 +309,11 @@ def fin_projects(request):
     params_export.pop('page', None)
     querystring_for_export = params_export.urlencode()
 
-    paginator = Paginator(projects_data, 25)
+    paginator = Paginator(projects_data, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
+    # 1 … 4 5 [6] 7 8 … 27 instead of listing every page
+    page_range = list(paginator.get_elided_page_range(page_obj.number, on_each_side=2, on_ends=1))
 
     payment_statuses = [
         ('Paid', 'Paid'),
@@ -321,6 +325,7 @@ def fin_projects(request):
 
     return render(request, 'finance/projects.html', {
         'page_obj': page_obj,
+        'page_range': page_range,
         'totals': totals,
         'clients': clients,
         'categories': categories,
@@ -372,8 +377,8 @@ def fin_project_detail(request, project_id):
         .order_by('-invoice_date', '-id')
     )
     if invoices:
-        amount_received = sum((inv.amount_received or Decimal('0.00') for inv in invoices), Decimal('0.00'))
-        outstanding = sum((inv.outstanding for inv in invoices), Decimal('0.00'))
+        amount_received = sum((inv.amount_received_aed or Decimal('0.00') for inv in invoices), Decimal('0.00'))
+        outstanding = sum((inv.outstanding_aed for inv in invoices), Decimal('0.00'))
     else:
         amount_received = project.amount_received or Decimal('0.00')
         outstanding = max((project.invoice_amount or Decimal('0.00')) - amount_received, Decimal('0.00'))
@@ -526,7 +531,7 @@ def fin_receivables_record_payment(request, invoice_id):
     coll_val = invoice.collection_value
 
     if new_received > coll_val:
-        messages.error(request, f"Amount received ({new_received:.2f} AED) cannot exceed collection value ({coll_val:.2f} AED).")
+        messages.error(request, f"Amount received ({new_received:.2f} {invoice.currency}) cannot exceed collection value ({coll_val:.2f} {invoice.currency}).")
         return redirect('fin_receivables')
 
     payment_date = parse_date(payment_date_str or '') or timezone.localdate()
@@ -536,7 +541,7 @@ def fin_receivables_record_payment(request, invoice_id):
     invoice.save()
 
     if invoice.project:
-        invoice.project.amount_received = new_received
+        invoice.project.amount_received = invoice.amount_received_aed
         invoice.project.payment_received_date = payment_date
         if invoice.outstanding <= Decimal('0.00'):
             invoice.project.payment_status = 'PAID'
@@ -546,7 +551,7 @@ def fin_receivables_record_payment(request, invoice_id):
             invoice.project.payment_status = 'UNPAID'
         invoice.project.save()
 
-    messages.success(request, f"Payment of {amount:,.2f} AED recorded for {invoice.invoice_number}.")
+    messages.success(request, f"Payment of {amount:,.2f} {invoice.currency} recorded for {invoice.invoice_number}.")
     return redirect('fin_receivables')
 
 
@@ -792,8 +797,8 @@ def fin_expenses(request):
     qs = _filter_expenses(request)
 
     totals = qs.aggregate(
-        total_amount=Sum('amount'),
-        total_vat=Sum('vat_amount')
+        total_amount=Sum('amount_aed'),
+        total_vat=Sum('vat_amount_aed')
     )
     totals_data = {
         'amount': totals['total_amount'] or Decimal('0.00'),
@@ -889,8 +894,8 @@ def fin_expense_delete(request, expense_id):
 def fin_expense_export_excel(request):
     qs = _filter_expenses(request)
     totals = qs.aggregate(
-        amount=Sum('amount'),
-        vat_amount=Sum('vat_amount')
+        amount=Sum('amount_aed'),
+        vat_amount=Sum('vat_amount_aed')
     )
     totals_data = {
         'amount': totals['amount'] or Decimal('0.00'),
@@ -1344,15 +1349,24 @@ def fin_invoice_add(request):
                 initial['customer'] = proj.client_name or ''
                 initial['vessel'] = proj.vessel_name or ''
                 initial['service_ref'] = getattr(proj, 'service_reference', '') or ''
+                if proj.currency_code:
+                    initial['currency'] = proj.currency_code
             except (Project.DoesNotExist, ValueError):
                 pass
         form = InvoiceForm(initial=initial)
+
+    project_currencies = {
+        str(pid): (code or 'AED')
+        for pid, code in Project.objects.values_list('id', 'currency_code')
+    }
 
     return render(request, 'finance/invoice_form.html', {
         'form': form,
         'title': 'Add Invoice',
         'is_edit': False,
         'next': next_url,
+        'project_currencies': project_currencies,
+        'project_currencies_json': json.dumps(project_currencies),
     })
 
 
@@ -1377,12 +1391,19 @@ def fin_invoice_edit(request, invoice_id):
     else:
         form = InvoiceForm(instance=invoice)
 
+    project_currencies = {
+        str(pid): (code or 'AED')
+        for pid, code in Project.objects.values_list('id', 'currency_code')
+    }
+
     return render(request, 'finance/invoice_form.html', {
         'form': form,
         'invoice': invoice,
         'title': f'Edit Invoice: {invoice.invoice_number}',
         'is_edit': True,
         'next': next_url,
+        'project_currencies': project_currencies,
+        'project_currencies_json': json.dumps(project_currencies),
     })
 
 
@@ -1579,7 +1600,7 @@ def fin_job_costs(request, invoice_id):
         form = JobCostForm()
 
     costs = list(invoice.job_costs.all().order_by('-date', '-id'))
-    total_costs = sum((c.amount or Decimal('0.00')) for c in costs)
+    total_costs = sum((c.amount_aed or Decimal('0.00')) for c in costs)
 
     return render(request, 'finance/job_costs.html', {
         'invoice': invoice,
@@ -1688,7 +1709,7 @@ def fin_spare_add(request):
             if spare.invoice_id:
                 legacy_costs = JobCost.objects.filter(invoice=spare.invoice, source='LEGACY', description='Legacy purchases')
                 if legacy_costs.exists():
-                    legacy_amt = sum(((c.amount or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
+                    legacy_amt = sum(((c.amount_aed or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
                     messages.warning(request, f"This invoice also has a Legacy purchases cost of AED {legacy_amt:,.2f} — delete it if it is the same spares cost, otherwise it is counted twice.")
             return redirect('fin_spares')
     else:
@@ -1713,7 +1734,7 @@ def fin_spare_edit(request, spare_id):
             if spare.invoice_id:
                 legacy_costs = JobCost.objects.filter(invoice=spare.invoice, source='LEGACY', description='Legacy purchases')
                 if legacy_costs.exists():
-                    legacy_amt = sum(((c.amount or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
+                    legacy_amt = sum(((c.amount_aed or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
                     messages.warning(request, f"This invoice also has a Legacy purchases cost of AED {legacy_amt:,.2f} — delete it if it is the same spares cost, otherwise it is counted twice.")
             return redirect('fin_spares')
     else:
@@ -1723,7 +1744,7 @@ def fin_spare_edit(request, spare_id):
     if spare.invoice_id:
         legacy_costs = JobCost.objects.filter(invoice=spare.invoice, source='LEGACY', description='Legacy purchases')
         if legacy_costs.exists():
-            legacy_amt = sum(((c.amount or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
+            legacy_amt = sum(((c.amount_aed or Decimal('0.00')) for c in legacy_costs), Decimal('0.00'))
             legacy_warning = f"This invoice also has a Legacy purchases cost of AED {legacy_amt:,.2f} — delete it if it is the same spares cost, otherwise it is counted twice."
 
     return render(request, 'finance/spare_form.html', {
@@ -1760,3 +1781,138 @@ def fin_spares_export_excel(request):
     suffix = f"{request.GET.get('status', '')}_{request.GET.get('source', '')}".strip('_') or 'all'
     return spares_excel_response(spares_data, summary, filename_suffix=suffix)
 
+
+
+
+@login_required
+@user_passes_test(is_accountant)
+def fin_exchange_rates(request):
+    currency_filter = request.GET.get('currency', '').strip().upper()
+    rates = ExchangeRate.objects.select_related('created_by').all()
+    if currency_filter in dict(NON_BASE_CURRENCY_CHOICES):
+        rates = rates.filter(currency=currency_filter)
+
+    today = timezone.localdate()
+    current_rate_ids = set()
+    for code, _ in NON_BASE_CURRENCY_CHOICES:
+        latest = (
+            ExchangeRate.objects.filter(currency=code, is_active=True, effective_from__lte=today)
+            .order_by('-effective_from', '-created_at')
+            .first()
+        )
+        if latest:
+            current_rate_ids.add(latest.id)
+
+    return render(
+        request,
+        'finance/exchange_rates.html',
+        {
+            'rates': rates,
+            'currencies': NON_BASE_CURRENCY_CHOICES,
+            'current_currency': currency_filter,
+            'current_rate_ids': current_rate_ids,
+        },
+    )
+
+
+@login_required
+@user_passes_test(is_accountant)
+def fin_exchange_rate_add(request):
+    if request.method == 'POST':
+        form = ExchangeRateForm(request.POST)
+        if form.is_valid():
+            rate = form.save(commit=False)
+            rate.created_by = request.user
+            rate.save()
+            messages.success(request, f"Exchange rate for {rate.currency} created successfully.")
+            return redirect('fin_exchange_rates')
+    else:
+        initial = {'effective_from': timezone.localdate()}
+        currency_param = request.GET.get('currency', '').strip().upper()
+        if currency_param in dict(NON_BASE_CURRENCY_CHOICES):
+            initial['currency'] = currency_param
+        form = ExchangeRateForm(initial=initial)
+
+    return render(
+        request,
+        'finance/exchange_rate_form.html',
+        {
+            'form': form,
+            'title': 'Add Exchange Rate',
+        },
+    )
+
+
+@login_required
+@user_passes_test(is_accountant)
+def fin_exchange_rate_edit(request, rate_id):
+    rate = get_object_or_404(ExchangeRate, id=rate_id)
+    if request.method == 'POST':
+        form = ExchangeRateForm(request.POST, instance=rate)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Exchange rate for {rate.currency} updated successfully.")
+            return redirect('fin_exchange_rates')
+    else:
+        form = ExchangeRateForm(instance=rate)
+
+    return render(
+        request,
+        'finance/exchange_rate_form.html',
+        {
+            'form': form,
+            'rate': rate,
+            'title': 'Edit Exchange Rate',
+        },
+    )
+
+
+@login_required
+@user_passes_test(is_accountant)
+@require_POST
+def fin_exchange_rate_toggle(request, rate_id):
+    rate = get_object_or_404(ExchangeRate, id=rate_id)
+    rate.is_active = not rate.is_active
+    rate.save(update_fields=['is_active'])
+    status_str = "activated" if rate.is_active else "deactivated"
+    messages.success(request, f"Exchange rate for {rate.currency} ({rate.effective_from}) {status_str}.")
+    return redirect('fin_exchange_rates')
+
+
+@login_required
+@user_passes_test(is_finance_admin)
+@require_POST
+def fin_exchange_rate_delete(request, rate_id):
+    rate = get_object_or_404(ExchangeRate, id=rate_id)
+    cur = rate.currency
+    eff = rate.effective_from
+    rate.delete()
+    messages.success(request, f"Exchange rate for {cur} ({eff}) deleted successfully.")
+    return redirect('fin_exchange_rates')
+
+
+@login_required
+@user_passes_test(is_accountant)
+def fin_api_exchange_rate(request):
+    currency = request.GET.get('currency', '').strip().upper()
+    date_str = request.GET.get('date', '').strip()
+
+    if not currency:
+        return JsonResponse({'rate': None, 'message': 'Currency is required.'}, status=400)
+
+    if currency == 'AED':
+        return JsonResponse({'rate': '1.000000'})
+
+    parsed_date = parse_date(date_str) if date_str else timezone.localdate()
+    if not parsed_date:
+        parsed_date = timezone.localdate()
+
+    rate = get_rate(currency, parsed_date)
+    if rate is not None:
+        return JsonResponse({'rate': f"{Decimal(rate):.6f}"})
+    else:
+        date_display = parsed_date.strftime('%Y-%m-%d')
+        return JsonResponse({
+            'rate': None,
+            'message': f"No {currency} rate on or before {date_display} — add one in Settings → Exchange Rates",
+        })

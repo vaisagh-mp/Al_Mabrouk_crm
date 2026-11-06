@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static %}
+{% load static humanize currency_tags %}
 
 {% block title %}Receivables &amp; Aging | Almabrouk CRM{% endblock %}
 
@@ -176,9 +176,30 @@
                         </td>
                         <td class="text-center font-monospace small">{{ r.invoice_number }}</td>
                         <td class="text-center small">{{ r.invoice_date|date:"Y-m-d"|default:"—" }}</td>
-                        <td class="text-end font-monospace">{{ r.invoice_amount|floatformat:2 }}</td>
-                        <td class="text-end font-monospace">{{ r.amount_received|floatformat:2 }}</td>
-                        <td class="text-end font-monospace fw-bold fin-text-red">{{ r.outstanding_amount|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">
+                            {% if r.currency and r.currency != 'AED' %}
+                                <div>{{ r.invoice_amount|money:r.currency }}</div>
+                                <div class="text-muted small">AED {{ r.invoice_amount_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.invoice_amount|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace">
+                            {% if r.currency and r.currency != 'AED' %}
+                                <div>{{ r.amount_received|money:r.currency }}</div>
+                                <div class="text-muted small">AED {{ r.amount_received_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.amount_received|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace fw-bold fin-text-red">
+                            {% if r.currency and r.currency != 'AED' %}
+                                <div>{{ r.outstanding_amount|money:r.currency }}</div>
+                                <div class="text-muted small">AED {{ r.outstanding_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.outstanding_amount|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
                         <td class="text-center font-monospace">
                             {% if r.days_outstanding is not None %}
                                 {{ r.days_outstanding }}
@@ -225,20 +246,26 @@
                                                 <div class="p-3 rounded mb-3" style="background-color: #f8f9fa; border: 1px solid #e9ecef;">
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Total Invoice Amount:</span>
-                                                        <span class="fw-bold font-monospace">{{ r.invoice_amount|floatformat:2 }} AED</span>
+                                                        <span class="fw-bold font-monospace">{{ r.invoice_amount|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Previously Received:</span>
-                                                        <span class="fw-semibold font-monospace">{{ r.amount_received|floatformat:2 }} AED</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.amount_received|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between border-top pt-1">
                                                         <span class="fw-bold fin-text-red">Current Balance Due:</span>
-                                                        <span class="fw-bold fin-text-red font-monospace">{{ r.outstanding_amount|floatformat:2 }} AED</span>
+                                                        <span class="fw-bold fin-text-red font-monospace">{{ r.outstanding_amount|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
+                                                    {% if r.currency and r.currency != 'AED' %}
+                                                    <div class="d-flex justify-content-between pt-1 text-muted small">
+                                                        <span>Balance Due (AED):</span>
+                                                        <span class="font-monospace">≈ {{ r.outstanding_aed|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
 
                                                 <div class="form-group mb-3">
-                                                    <label class="form-label fw-bold">Payment Amount (AED) <span class="fin-text-red">*</span></label>
+                                                    <label class="form-label fw-bold">Payment Amount ({{ r.currency|default:"AED" }}) <span class="fin-text-red">*</span></label>
                                                     <input type="number" step="0.01" min="0.01" max="{{ r.outstanding_amount }}" name="amount" value="{{ r.outstanding_amount }}" class="form-control" required>
                                                     <small class="text-muted">Must be greater than 0 and not exceed balance due.</small>
                                                 </div>
@@ -266,6 +293,15 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+                {% if page_obj %}
+                <tfoot class="table-light fw-bold">
+                    <tr>
+                        <td colspan="6" class="text-uppercase">Total Outstanding (AED)</td>
+                        <td class="text-end font-monospace fin-text-red">AED {{ summary.total_outstanding|floatformat:2|intcomma }}</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+                {% endif %}
             </table>
         </div>
 

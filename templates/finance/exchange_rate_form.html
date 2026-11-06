@@ -1,0 +1,100 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}{{ title }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="apply-leave-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="pg-title">
+        <h1>Exchange Rate Settings</h1>
+    </div>
+
+    <div class="apply-leave-frm">
+        <div class="widget-title">
+            <h4>{{ title }}</h4>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for err in form.non_field_errors %}{{ err }}<br>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="form-group mb-3">
+                <label for="{{ form.currency.id_for_label }}">Currency <span class="fin-text-red">*</span></label>
+                {{ form.currency }}
+                {% if form.currency.errors %}
+                    <div class="fin-text-red small">{{ form.currency.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.rate_to_aed.id_for_label }}">Rate to AED <span class="fin-text-red">*</span></label>
+                {{ form.rate_to_aed }}
+                {% if form.rate_to_aed.errors %}
+                    <div class="fin-text-red small">{{ form.rate_to_aed.errors.0 }}</div>
+                {% endif %}
+                <!-- Helper line showing 1 <CUR> = <RATE> AED -->
+                <div class="mt-2 text-primary fw-semibold small" id="rateHelperLine">
+                    <i class="fas fa-calculator me-1"></i>
+                    <span id="helperText">1 USD = 3.672500 AED</span>
+                </div>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.effective_from.id_for_label }}">Effective From <span class="fin-text-red">*</span></label>
+                {{ form.effective_from }}
+                {% if form.effective_from.errors %}
+                    <div class="fin-text-red small">{{ form.effective_from.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">The date from which this rate becomes active for project and job calculations.</small>
+            </div>
+
+            <div class="form-group mb-3">
+                <label for="{{ form.notes.id_for_label }}">Notes</label>
+                {{ form.notes }}
+                {% if form.notes.errors %}
+                    <div class="fin-text-red small">{{ form.notes.errors.0 }}</div>
+                {% endif %}
+                <small class="text-muted">e.g. "Central bank fixed peg", "Monthly update from Accounts"</small>
+            </div>
+
+            <div class="form-check mb-4">
+                {{ form.is_active }}
+                <label class="form-check-label" for="{{ form.is_active.id_for_label }}">Active</label>
+                <div class="text-muted small">Inactive rates are not applied in exchange lookups.</div>
+            </div>
+
+            <div class="form-actions d-flex justify-content-end gap-2">
+                <a href="{% url 'fin_exchange_rates' %}" class="fin-btn fin-btn-outline">Cancel</a>
+                <button type="submit" class="fin-btn">Save Exchange Rate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const currencySelect = document.getElementById('{{ form.currency.id_for_label }}');
+    const rateInput = document.getElementById('{{ form.rate_to_aed.id_for_label }}');
+    const helperText = document.getElementById('helperText');
+
+    function updateHelper() {
+        const cur = (currencySelect && currencySelect.value) ? currencySelect.value : 'USD';
+        const rateVal = (rateInput && rateInput.value) ? rateInput.value : '3.672500';
+        if (helperText) {
+            helperText.textContent = `1 ${cur} = ${rateVal} AED`;
+        }
+    }
+
+    if (currencySelect) currencySelect.addEventListener('change', updateHelper);
+    if (rateInput) rateInput.addEventListener('input', updateHelper);
+    updateHelper();
+});
+</script>
+{% endblock %}
+

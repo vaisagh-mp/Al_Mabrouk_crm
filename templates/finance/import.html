@@ -127,7 +127,10 @@
                         <th>Service Ref</th>
                         <th>Vessel</th>
                         <th>Customer</th>
+                        <th>Currency</th>
+                        <th class="text-end">Rate</th>
                         <th class="text-end">Amount Excl. VAT</th>
+                        <th class="text-end">Amount (AED)</th>
                         <th class="text-end">Credits</th>
                         <th>Status</th>
                     </tr>
@@ -145,7 +148,10 @@
                         <td>{{ row.service_ref|default:"—" }}</td>
                         <td>{{ row.vessel|default:"—" }}</td>
                         <td>{{ row.customer|default:"—" }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ row.currency }}</span></td>
+                        <td class="text-end font-monospace">{{ row.exchange_rate|floatformat:4 }}</td>
                         <td class="text-end font-monospace">{{ row.amount_excl_vat|floatformat:2 }}</td>
+                        <td class="text-end font-monospace fw-bold">{{ row.amount_aed|floatformat:2 }}</td>
                         <td class="text-end font-monospace">{{ row.credits_applied|floatformat:2 }}</td>
                         <td><span class="status completed">{{ row.status }}</span></td>
                     </tr>
@@ -202,9 +208,15 @@
                         <th>Action</th>
                         <th>Service Ref</th>
                         <th>Vessel / Customer</th>
+                        <th>Purch. Curr</th>
+                        <th class="text-end">Purch. Rate</th>
                         <th class="text-end">Purchase Cost</th>
+                        <th class="text-end">Purchase Cost (AED)</th>
+                        <th>Sell. Curr</th>
+                        <th class="text-end">Sell. Rate</th>
                         <th class="text-end">Selling Price</th>
-                        <th class="text-end">Profit</th>
+                        <th class="text-end">Selling Price (AED)</th>
+                        <th class="text-end">Profit (AED)</th>
                         <th class="text-end">Markup %</th>
                         <th>Invoice No</th>
                         <th>Status</th>
@@ -221,8 +233,14 @@
                         </td>
                         <td>{{ row.service_ref|default:"—" }}</td>
                         <td>{{ row.vessel_customer|default:"—" }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ row.purchase_currency }}</span></td>
+                        <td class="text-end font-monospace">{{ row.purchase_rate|floatformat:4 }}</td>
                         <td class="text-end font-monospace">{{ row.purchase_cost|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ row.purchase_cost_aed|floatformat:2 }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ row.selling_currency }}</span></td>
+                        <td class="text-end font-monospace">{{ row.selling_rate|floatformat:4 }}</td>
                         <td class="text-end font-monospace">{{ row.selling_price|floatformat:2 }}</td>
+                        <td class="text-end font-monospace">{{ row.selling_price_aed|floatformat:2 }}</td>
                         <td class="text-end font-monospace fw-bold {% if row.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">{{ row.profit|floatformat:2 }}</td>
                         <td class="text-end font-monospace">{% if row.markup_pct is not None %}{{ row.markup_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
                         <td>{{ row.invoice_number|default:"—" }}</td>

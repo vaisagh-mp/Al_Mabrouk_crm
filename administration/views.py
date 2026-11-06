@@ -18,8 +18,10 @@ from employee_data.forms import LeaveForm,EmployeeUpdateForm
 from datetime import datetime
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from Admin.forms import EmployeeCreationForm, ProjectForm, ProjectAssignmentForm, ManagerEmployeeUpdateForm
 from Admin.models import Project, TeamMemberStatus, ActivityLog, Attendance,Employee,LeaveBalance, Team, Leave, Notification, Holiday, ProjectAttachment, Vessel
+from Admin.work_order_sync import sync_work_order_from_project
 import calendar
 
 @login_required
@@ -544,18 +546,36 @@ def adm_get_presence_data(request):
 # Add Project
 @login_required
 def admstrn_add_project(request):
-    form = ProjectForm()
-
     if request.method == 'POST':
-        form = ProjectForm(request.POST, request.FILES)
+        form = ProjectForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                project = form.save()
+
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.")
             return redirect('admstrn_project_list_view')
         else:
-            form = ProjectForm()
+            messages.error(request, "There was an error adding the project. Please check the form.")
+    else:
+        form = ProjectForm(user=request.user)
 
-    # No pagination code; simply render the form
-    return render(request, 'administration/add_project.html', {'form': form, 'role': 'Administration',})
+    return render(request, 'administration/add_project.html', {'form': form, 'role': 'Administration'})
 
 
 # project list view
@@ -715,13 +735,34 @@ def admstrn_edit_project(request, project_id):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, instance=project)  # Bind form with existing project
         if form.is_valid():
-            form.save()
+            with transaction.atomic():
+                project = form.save()
+
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.")
             return redirect('admstrn_project_list_view')
         else:
-            form = ProjectForm(instance=project)
+            messages.error(request, "There was an error updating the project. Please check the form.")
+    else:
+        form = ProjectForm(instance=project)
 
     # For GET request, render the form pre-filled with the project's data
-    return render(request, 'administration/project_edit.html', {'form': ProjectForm(instance=project),'role': 'Administration',})
+    return render(request, 'administration/project_edit.html', {'form': form, 'project': project, 'role': 'Administration'})
 
 
 @login_required

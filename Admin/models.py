@@ -296,6 +296,14 @@ class Employee(models.Model):
     date_of_join = models.DateField(null=True, blank=True)
     address = models.TextField(blank=True, null=True)
     profile_picture = models.ImageField(upload_to="profile_pictures/", null=True, blank=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='deactivated_employees')
+
+    @property
+    def name(self):
+        if self.user:
+            return self.user.get_full_name() or self.user.username
+        return f"Employee #{self.pk}"
 
     def calculate_work_days(self):
         """

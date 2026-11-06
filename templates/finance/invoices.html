@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static humanize %}
+{% load static humanize currency_tags %}
 
 {% block title %}Invoice Costing | Almabrouk CRM{% endblock %}
 
@@ -100,27 +100,27 @@
                         </th>
                         <th class="text-end">
                             <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spares_revenue' %}-spares_revenue{% else %}spares_revenue{% endif %}" class="fin-sort-link {% if sort_by == 'spares_revenue' or sort_by == '-spares_revenue' %}active{% endif %}">
-                                Spares Rev <i class="fas {% if sort_by == 'spares_revenue' %}fa-sort-up{% elif sort_by == '-spares_revenue' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                                Spares Rev (AED) <i class="fas {% if sort_by == 'spares_revenue' %}fa-sort-up{% elif sort_by == '-spares_revenue' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
                             </a>
                         </th>
                         <th class="text-end">
                             <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spare_cost' %}-spare_cost{% else %}spare_cost{% endif %}" class="fin-sort-link {% if sort_by == 'spare_cost' or sort_by == '-spare_cost' %}active{% endif %}">
-                                Spare Cost <i class="fas {% if sort_by == 'spare_cost' %}fa-sort-up{% elif sort_by == '-spare_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                                Spare Cost (AED) <i class="fas {% if sort_by == 'spare_cost' %}fa-sort-up{% elif sort_by == '-spare_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
                             </a>
                         </th>
                         <th class="text-end">
                             <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'spares_profit' %}-spares_profit{% else %}spares_profit{% endif %}" class="fin-sort-link {% if sort_by == 'spares_profit' or sort_by == '-spares_profit' %}active{% endif %}">
-                                Spares Profit <i class="fas {% if sort_by == 'spares_profit' %}fa-sort-up{% elif sort_by == '-spares_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                                Spares Profit (AED) <i class="fas {% if sort_by == 'spares_profit' %}fa-sort-up{% elif sort_by == '-spares_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
                             </a>
                         </th>
                         <th class="text-end">
                             <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'other_cost' %}-other_cost{% else %}other_cost{% endif %}" class="fin-sort-link {% if sort_by == 'other_cost' or sort_by == '-other_cost' %}active{% endif %}">
-                                Other Cost <i class="fas {% if sort_by == 'other_cost' %}fa-sort-up{% elif sort_by == '-other_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                                Other Cost (AED) <i class="fas {% if sort_by == 'other_cost' %}fa-sort-up{% elif sort_by == '-other_cost' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
                             </a>
                         </th>
                         <th class="text-end">
                             <a href="?{{ querystring_without_sort }}&sort={% if sort_by == 'total_net_profit' %}-total_net_profit{% else %}total_net_profit{% endif %}" class="fin-sort-link {% if sort_by == 'total_net_profit' or sort_by == '-total_net_profit' %}active{% endif %}">
-                                Total Net Profit <i class="fas {% if sort_by == 'total_net_profit' %}fa-sort-up{% elif sort_by == '-total_net_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
+                                Total Net Profit (AED) <i class="fas {% if sort_by == 'total_net_profit' %}fa-sort-up{% elif sort_by == '-total_net_profit' %}fa-sort-down{% else %}fa-sort{% endif %}"></i>
                             </a>
                         </th>
                         <th class="text-end">
@@ -159,7 +159,14 @@
                         </td>
                         <td>{{ r.vessel|default:"—" }}</td>
                         <td class="fw-bold font-monospace">{{ r.invoice_number }}{% if r.is_legacy or r.invoice_number|slice:":7" == "LEGACY-" %} <span class="status hold ms-1">Legacy</span>{% endif %}</td>
-                        <td class="text-end font-monospace">{{ r.amount_excl_vat|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">
+                            {% if r.currency and r.currency != 'AED' %}
+                                <div>{{ r.amount_excl_vat|money:r.currency }}</div>
+                                <div class="text-muted small">AED {{ r.amount_excl_vat_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.amount_excl_vat|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">{{ r.credits_applied|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ r.spares_revenue|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ r.spare_cost|floatformat:2|intcomma }}</td>
@@ -170,7 +177,14 @@
                         <td class="text-end font-monospace fw-bold {% if r.is_loss %}text-danger{% endif %}">
                             {{ r.total_net_profit_display }}
                         </td>
-                        <td class="text-end font-monospace fw-semibold">{{ r.collection_value|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace fw-semibold">
+                            {% if r.currency and r.currency != 'AED' %}
+                                <div>{{ r.collection_value|money:r.currency }}</div>
+                                <div class="text-muted small">AED {{ r.collection_value_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ r.collection_value|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace {% if r.over_due > 0 %}fin-text-danger{% endif %}">
                             {{ r.over_due|floatformat:2|intcomma }}
                         </td>
@@ -208,19 +222,25 @@
                                                 <div class="p-3 rounded mb-3 bg-light border">
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Collection Value:</span>
-                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Previously Received:</span>
-                                                        <span class="fw-semibold font-monospace">{{ r.invoice.amount_received|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.invoice.amount_received|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between border-top pt-1">
                                                         <span class="fw-bold text-danger">Current Balance Due:</span>
-                                                        <span class="fw-bold text-danger font-monospace">{{ r.invoice.outstanding|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-bold text-danger font-monospace">{{ r.invoice.outstanding|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
+                                                    {% if r.currency and r.currency != 'AED' %}
+                                                    <div class="d-flex justify-content-between pt-1 text-muted small">
+                                                        <span>Balance Due (AED):</span>
+                                                        <span class="font-monospace">≈ {{ r.invoice.outstanding_aed|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label class="form-label fw-bold">Payment Amount (AED) <span class="text-danger">*</span></label>
+                                                    <label class="form-label fw-bold">Payment Amount ({{ r.currency|default:"AED" }}) <span class="text-danger">*</span></label>
                                                     <input type="number" step="0.01" min="0.01" max="{{ r.invoice.outstanding }}" name="amount_received" value="{{ r.invoice.outstanding }}" class="form-control" required>
                                                 </div>
                                                 <div class="mb-3">
@@ -252,19 +272,25 @@
                                                 <div class="p-3 rounded mb-3 bg-light border">
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Amount Without Tax:</span>
-                                                        <span class="fw-bold font-monospace">{{ r.amount_excl_vat|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-bold font-monospace">{{ r.amount_excl_vat|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between mb-1">
                                                         <span class="text-muted">Credits Previously Applied:</span>
-                                                        <span class="fw-semibold font-monospace">{{ r.credits_applied|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-semibold font-monospace">{{ r.credits_applied|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
                                                     <div class="d-flex justify-content-between border-top pt-1">
                                                         <span class="fw-bold">Max Additional Credit:</span>
-                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} AED</span>
+                                                        <span class="fw-bold font-monospace">{{ r.collection_value|floatformat:2|intcomma }} {{ r.currency|default:"AED" }}</span>
                                                     </div>
+                                                    {% if r.currency and r.currency != 'AED' %}
+                                                    <div class="d-flex justify-content-between pt-1 text-muted small">
+                                                        <span>Max Additional Credit (AED):</span>
+                                                        <span class="font-monospace">≈ {{ r.collection_value_aed|floatformat:2|intcomma }} AED</span>
+                                                    </div>
+                                                    {% endif %}
                                                 </div>
                                                 <div class="mb-3">
-                                                    <label class="form-label fw-bold">Credit Amount (AED) <span class="text-danger">*</span></label>
+                                                    <label class="form-label fw-bold">Credit Amount ({{ r.currency|default:"AED" }}) <span class="text-danger">*</span></label>
                                                     <input type="number" step="0.01" min="0.01" max="{{ r.collection_value }}" name="credit_amount" class="form-control" required>
                                                 </div>
                                                 <div class="mb-3">
@@ -294,7 +320,7 @@
                 {% if page_obj %}
                 <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="5" class="text-uppercase">Total</td>
+                        <td colspan="5" class="text-uppercase">Total (AED)</td>
                         <td class="text-end font-monospace">{{ totals.amount_excl_vat|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ totals.credits_applied|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ totals.spares_revenue|floatformat:2|intcomma }}</td>

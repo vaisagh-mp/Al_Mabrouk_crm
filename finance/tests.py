@@ -156,6 +156,10 @@ class RoleAndAccessTests(TestCase):
             kwargs['spare_id'] = self.spare.id
         elif 'category_id' in name or name in ('fin_category_edit', 'fin_category_toggle', 'fin_category_delete'):
             kwargs['category_id'] = self.category.id
+        elif 'rate_id' in name or name in ('fin_exchange_rate_edit', 'fin_exchange_rate_toggle', 'fin_exchange_rate_delete'):
+            from finance.models import ExchangeRate
+            rate = ExchangeRate.objects.first()
+            kwargs['rate_id'] = rate.id if rate else 1
         elif 'attendance_id' in name or name in ('fin_log_off', 'fin_update_travel_time'):
             kwargs['attendance_id'] = self.attendance.id
         elif 'leave_id' in name or name in ('fin_upload_medical_certificate',):
@@ -216,6 +220,7 @@ class RoleAndAccessTests(TestCase):
             'fin_payroll_mark_paid',
             'fin_expense_delete',
             'fin_category_toggle',
+            'fin_exchange_rate_toggle',
             'fin_log_in',
             'fin_log_off',
             'fin_upload_medical_certificate',
@@ -224,6 +229,7 @@ class RoleAndAccessTests(TestCase):
         }
         json_or_export = {
             'fin_fetch_notifications',
+            'fin_api_exchange_rate',
             'fin_pnl_export_excel',
             'fin_projects_export_excel',
             'fin_invoices_export_excel',
@@ -241,6 +247,7 @@ class RoleAndAccessTests(TestCase):
             'fin_invoice_delete',
             'fin_spare_delete',
             'fin_category_delete',
+            'fin_exchange_rate_delete',
         }
 
         self.client.force_login(self.accountant_user)
@@ -340,7 +347,7 @@ class PayrollTests(TestCase):
             total_hours=Decimal('12.00'),
             ot_hours=Decimal('2.00'),
             normal_cost=Decimal('300.00'),
-            ot_cost=Decimal('90.00'),  # 2h * (6240/208=30) * 1.5 = 90
+            ot_cost=Decimal('75.00'),  # 2h * (6240/208=30) * 1.25 = 75
         )
 
         created, updated, skipped = generate_payroll(month_date, self.admin)
@@ -349,12 +356,12 @@ class PayrollTests(TestCase):
         # Verify emp1 (full month)
         p1 = Payroll.objects.get(employee=self.emp1, month=datetime.date(2026, 6, 1))
         self.assertEqual(p1.basic_salary, Decimal('6240.00'))
-        self.assertEqual(p1.ot_amount, Decimal('90.00'))
-        self.assertEqual(p1.gross, Decimal('6330.00'))
+        self.assertEqual(p1.ot_amount, Decimal('75.00'))
+        self.assertEqual(p1.gross, Decimal('6315.00'))
         self.assertEqual(p1.absence_deduction, Decimal('6000.00'))
-        self.assertEqual(p1.net_pay, Decimal('330.00'))
+        self.assertEqual(p1.net_pay, Decimal('315.00'))
         p1.absence_waived = True
-        self.assertEqual(p1.net_pay, Decimal('6330.00'))
+        self.assertEqual(p1.net_pay, Decimal('6315.00'))
 
         # Verify emp2 (joined June 16, 2026 -> 15 days out of 30 days = 50% = 3000.00)
         p2 = Payroll.objects.get(employee=self.emp2, month=datetime.date(2026, 6, 1))
@@ -890,7 +897,9 @@ class Phase2PnLAndProjectsTests(TestCase):
         self.assertEqual(q1, q2)
         self.assertLessEqual(q1, 35)
 
-    def test_current_month_payroll_is_prorated_mtd_and_weekly_sum_equals_monthly(self):
+    @patch('django.utils.timezone.localdate')
+    def test_current_month_payroll_is_prorated_mtd_and_weekly_sum_equals_monthly(self, mock_localdate):
+        mock_localdate.return_value = datetime.date(2026, 10, 15)
         today = timezone.localdate()
         cur_first = today.replace(day=1)
         days_in_m = calendar.monthrange(today.year, today.month)[1]
@@ -1020,7 +1029,11 @@ class QueryStringPreservationTests(TestCase):
         page2_resp = self.client.get(reverse('fin_projects') + f'?page=2&{qs_no_page}')
         self.assertEqual(page2_resp.status_code, 200)
         self.assertEqual(page2_resp.context['page_obj'].number, 2)
-        self.assertEqual(len(page2_resp.context['page_obj']), 5)
+        self.assertEqual(len(page2_resp.context['page_obj']), 10)
+
+        # 10 per page: 30 projects -> 3 pages, last page has 10
+        self.assertEqual(page2_resp.context['page_obj'].paginator.num_pages, 3)
+        self.assertEqual(page2_resp.context['page_obj'].paginator.per_page, 10)
 
         # 6. Access export and verify it returns excel
         export_resp = self.client.get(reverse('fin_projects_export_excel') + f'?{qs_export}')
@@ -1344,7 +1357,10 @@ class DashboardAnalyticsTests(TestCase):
         self.client.force_login(self.accountant_user)
         self.today = timezone.localdate()
 
-    def test_dashboard_kpis_and_panels(self):
+    @patch('django.utils.timezone.localdate')
+    def test_dashboard_kpis_and_panels(self, mock_localdate):
+        mock_localdate.return_value = datetime.date(2026, 10, 15)
+        self.today = timezone.localdate()
         # Create an invoiced project
         p = Project.objects.create(
             name='Dashboard Test Project',
@@ -4019,7 +4035,7 @@ class FinanceProjectsMigrationTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         content = resp.content.decode('utf-8')
         self.assertIn('AMMS-INV-26-0090', content)
-        self.assertIn('5000.00', content)
+        self.assertTrue('5,000.00' in content or '5000.00' in content)
         self.assertIn('Open', content)
 
     def test_project_with_2_invoices_shows_plus_1_more_and_partial_status(self):
@@ -4619,7 +4635,7 @@ class PayrollAbsenceDeductionTests(TestCase):
         payrolls, totals, _ = get_payroll_list_with_metrics(self.SEP)
         p = next(x for x in payrolls if x.employee_id == self.emp.id)
         self.assertEqual(p.ot_hours, Decimal('2.00'))
-        self.assertEqual(p.ot_amount, Decimal('37.50'))  # 2 x (2600/208=12.5) x 1.5
+        self.assertEqual(p.ot_amount, Decimal('31.25'))  # 2 x (2600/208=12.5) x 1.25
         self.assertFalse(p.ot_mismatch)
 
     def test_page_and_excel_show_new_columns(self):

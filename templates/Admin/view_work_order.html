@@ -1,5 +1,5 @@
 {% extends 'Admin/adminbase.html' %}
-{% load static %}
+{% load static text_tags %}
 {% block content %}
 
 <style>
@@ -45,8 +45,15 @@
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <div class="pg-title">
-    <h1>Work Order Sheet</h1>
+  <div class="d-flex align-items-center gap-2">
+    {% if work_order.project %}
+      <a href="{% url 'project-summary' work_order.project.id %}" class="btn btn-secondary">&larr; Back to Project</a>
+    {% else %}
+      <a href="{% url 'project-list' %}" class="btn btn-secondary">&larr; Back to Project</a>
+    {% endif %}
+    <div class="pg-title mb-0">
+      <h1 class="mb-0">Work Order Sheet</h1>
+    </div>
   </div>
 
   <div class="d-flex gap-2">
@@ -67,23 +74,27 @@
   <!-- Main Work Order Info -->
   <table class="wo-table" style="width: 100%; margin-bottom: 30px;">
     <tr>
-      <td><strong>Work Order Number:</strong> {{ work_order.work_order_number }}</td>
-      <td><strong>Vessel:</strong> {{ work_order.vessel }}</td>
+      <td style="width: 50%;"><strong>Work Order Number:</strong> {% if work_order.work_order_number and work_order.work_order_number != 'None' %}{{ work_order.work_order_number }}{% else %}—{% endif %}</td>
+      <td style="width: 50%;"><strong>Service Reference:</strong> {% if work_order.project and work_order.project.service_reference and work_order.project.service_reference != 'None' %}{{ work_order.project.service_reference }}{% else %}—{% endif %}</td>
     </tr>
     <tr>
-      <td><strong>CLIENT:</strong> {{ work_order.client }}</td>
-      <td><strong>IMO No:</strong> {{ work_order.imo_no }}</td>
+      <td><strong>Vessel:</strong> {% if work_order.vessel and work_order.vessel != 'None' and work_order.vessel != 'N/A' %}{{ work_order.vessel }}{% elif work_order.project and work_order.project.vessel_name and work_order.project.vessel_name != 'None' and work_order.project.vessel_name != 'N/A' %}{{ work_order.project.vessel_name }}{% else %}—{% endif %}</td>
+      <td><strong>Client:</strong> {% if work_order.client and work_order.client != 'None' %}{{ work_order.client }}{% elif work_order.project and work_order.project.client_name and work_order.project.client_name != 'None' %}{{ work_order.project.client_name }}{% else %}—{% endif %}</td>
     </tr>
     <tr>
-      <td><strong>Location:</strong> {{ work_order.location }}</td>
-      <td><strong>ASSIGNED DATE:</strong> {{ work_order.assigned_date }}</td>
+      <td><strong>IMO No:</strong> {% if work_order.imo_no and work_order.imo_no != 'None' %}{{ work_order.imo_no }}{% else %}—{% endif %}</td>
+      <td><strong>Location:</strong> {% if work_order.location and work_order.location != 'None' %}{{ work_order.location }}{% else %}—{% endif %}</td>
+    </tr>
+    <tr>
+      <td><strong>Assigned Date:</strong> {% if work_order.assigned_date %}{{ work_order.assigned_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+      <td><strong>Completed Date:</strong> {% if work_order_detail and work_order_detail.completion_date %}{{ work_order_detail.completion_date|date:"d/m/Y" }}{% elif work_order.detail.first and work_order.detail.first.completion_date %}{{ work_order.detail.first.completion_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
     </tr>
   </table>
 
   <!-- Job Scope & Assignment -->
   <div class="wo-section">
     <div class="wo-title">JOB SCOPE:</div>
-    <div>{{ work_order.job_scope }}</div>
+    <div>{{ work_order.job_scope|plain_text }}</div>
   </div>
 
   <div class="wo-section">
@@ -112,15 +123,15 @@
   <table class="wo-table" style="width: 100%; margin-bottom: 30px;">
     <tr>
       <th>WORK DETAILS:</th>
-      <td colspan="3">{{ work_order.job_scope }}</td>
+      <td colspan="3">{{ work_order.job_scope|plain_text }}</td>
     </tr>
     <tr>
       <th>START DATE:</th>
-      <td colspan="3">{{ work_order_detail.start_date }}</td>
+      <td colspan="3">{% if work_order_detail and work_order_detail.start_date %}{{ work_order_detail.start_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
     </tr>
     <tr>
       <th>COMPLETION DATE:</th>
-      <td colspan="3">{{ work_order_detail.completion_date |default:"--/--/--" }}</td>
+      <td colspan="3">{% if work_order_detail and work_order_detail.completion_date %}{{ work_order_detail.completion_date|date:"d/m/Y" }}{% elif work_order.detail.first and work_order.detail.first.completion_date %}{{ work_order.detail.first.completion_date|date:"d/m/Y" }}{% else %}—{% endif %}</td>
     </tr>
     <tr>
       <th>ESTIMATED HOURS:</th>
@@ -149,7 +160,7 @@
   <!-- Job Instructions -->
   <div class="wo-section">
     <div class="wo-title">JOB INSTRUCTIONS:</div>
-    {{ work_order.job_instructions|safe }}
+    <div>{{ work_order.job_instructions|plain_text }}</div>
   </div>
 
   <!-- Spares Required Table -->
@@ -256,7 +267,7 @@
   <!-- Project Description -->
   <div class="wo-section">
     <div class="wo-title">PROJECT DESCRIPTION:</div>
-    <div>{{ work_order.project_description|linebreaks }}</div>
+    <div>{{ work_order.project_description|plain_text }}</div>
   </div>
 
   <!-- Project Image -->
@@ -318,7 +329,7 @@
 {% endif %}
 
   <div class="mt-4 work_order_btn">
-    <a href="{% url 'project-summary' work_order.project.id %}" class="btn wrp">Back to Project</a>
+    {% if work_order.project %}<a href="{% url 'project-summary' work_order.project.id %}" class="btn wrp">Back to Project</a>{% else %}<a href="{% url 'project-list' %}" class="btn wrp">Back to Project</a>{% endif %}
   </div>
 </div>
 

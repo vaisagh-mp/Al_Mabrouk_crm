@@ -19,6 +19,25 @@
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
     <!-- Add Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+    <style>
+      /* Page links in finance pagination look like the active page button */
+      #pagination { align-items: center; flex-wrap: wrap; gap: 6px 0; }
+      #pagination > a,
+      #pagination > .page-ellipsis {
+        display: inline-block;
+        padding: 8px 16px;
+        margin: 0 5px;
+        border-radius: 4px;
+        background-color: #f8f9fa;
+        color: #1a1a1a;
+        font-size: 14px;
+        line-height: 1.2;
+        text-decoration: none;
+      }
+      #pagination > a:hover { background-color: #e2e6ea; color: #1a1a1a; }
+      #pagination > button { line-height: 1.2; }
+      #pagination > .page-ellipsis { background: transparent; padding: 8px 4px; }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
 
@@ -213,10 +232,16 @@
                       <span>Import</span>
                     </a>
                   </li>
-                  <li class="{% if request.resolver_match.url_name in 'fin_categories' %}active{% endif %}">
+                  <li class="{% if request.resolver_match.url_name in 'fin_categories fin_category_add fin_category_edit' %}active{% endif %}">
                     <a href="{% url 'fin_categories' %}">
                       <i class="fas fa-tags"></i>
-                      <span>Settings</span>
+                      <span>Categories</span>
+                    </a>
+                  </li>
+                  <li class="{% if request.resolver_match.url_name in 'fin_exchange_rates fin_exchange_rate_add fin_exchange_rate_edit' %}active{% endif %}">
+                    <a href="{% url 'fin_exchange_rates' %}">
+                      <i class="fas fa-coins"></i>
+                      <span>Exchange Rates</span>
                     </a>
                   </li>
 

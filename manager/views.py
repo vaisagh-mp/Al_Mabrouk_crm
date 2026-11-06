@@ -19,6 +19,7 @@ from datetime import date, time, timedelta
 from django.contrib.staticfiles import finders
 from collections import defaultdict
 from decimal import Decimal
+from finance.currency import CURRENCY_CHOICES
 from pathlib import Path
 import base64
 import io
@@ -44,6 +45,7 @@ from service_logs.models import EmployeeServiceLog
 import calendar
 from Admin.attendance_autoclose import close_stale_sessions, capped_logout
 from Admin.work_order_helpers import get_work_order_time_summary, _js
+from Admin.work_order_sync import sync_work_order_from_project
 
 
 # Home
@@ -515,37 +517,52 @@ def manager_add_project(request):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            # Save Project
-            project = form.save(commit=False)
-            project.manager = request.user.employee_profile
-            project.save()
+            with transaction.atomic():
+                # Save Project
+                project = form.save(commit=False)
+                project.manager = request.user.employee_profile
+                project.save()
 
-            ActivityLog.objects.create(
-                project=project,
-                previous_status="Created",
-                new_status=project.status,
-                notes=f"Project '{project.name}' created with status '{project.status}'.",
-                changed_by=request.user.employee_profile,
-                changed_by_name=request.user.username
-            )
-
-            # Create Team only if team_name is provided
-            team_name = form.cleaned_data.get('team_name')
-            employees = form.cleaned_data.get('employees')
-
-            if team_name:  
-                team = Team.objects.create(
-                    name=team_name,
-                    manager=project.manager,
-                    project=project
+                ActivityLog.objects.create(
+                    project=project,
+                    previous_status="Created",
+                    new_status=project.status,
+                    notes=f"Project '{project.name}' created with status '{project.status}'.",
+                    changed_by=request.user.employee_profile,
+                    changed_by_name=request.user.username
                 )
-                if employees:
-                    team.employees.set(employees)
 
-            messages.success(
-                request,
-                "Project created successfully!" if not team_name else "Project + Team created successfully!"
-            )
+                # Create Team only if team_name is provided
+                team_name = form.cleaned_data.get('team_name')
+                employees = form.cleaned_data.get('employees')
+
+                if team_name:  
+                    team = Team.objects.create(
+                        name=team_name,
+                        manager=project.manager,
+                        project=project
+                    )
+                    if employees:
+                        team.employees.set(employees)
+
+                # Auto-create Work Order
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.")
             return redirect('project_list')
         else:
             messages.error(request, "There was an error creating the project. Please check the form.")
@@ -562,8 +579,26 @@ def manager_edit_project(request, project_id):
     if request.method == 'POST':
         form = ProjectForm(request.POST, request.FILES, instance=project)
         if form.is_valid():
-            form.save()
-            messages.success(request, "Project updated successfully!")
+            with transaction.atomic():
+                project = form.save()
+
+                wo_fields = {
+                    'imo_no': form.cleaned_data.get('imo_no'),
+                    'location': form.cleaned_data.get('location'),
+                    'assigned_date': form.cleaned_data.get('assigned_date'),
+                    'job_scope': form.cleaned_data.get('job_scope'),
+                    'job_instructions': form.cleaned_data.get('job_instructions'),
+                }
+                images = request.FILES.getlist('project_images') or request.FILES.getlist('work_order_images')
+                work_order, created = sync_work_order_from_project(
+                    project=project,
+                    wo_fields=wo_fields,
+                    images=images,
+                    by_user=request.user
+                )
+
+            action_word = "created" if created else "updated"
+            messages.success(request, f"Project saved. Work order {work_order.work_order_number} {action_word}.")
             return redirect('project_list')
         else:
             messages.error(request, "There was an error updating the project. Please check the form.")
@@ -1285,6 +1320,7 @@ def project_summary_view(request, project_id):
         "engineer_salaries": engineer_salaries,
         "engineer_project_hours": engineer_project_hours,
         "total_work_days": work_days,
+        "currency_code": project.currency_code,
         "priority": project.priority,
         "status": project.status,
         "completed_date": completed_date,
@@ -1422,12 +1458,12 @@ def update_team_manager_status(request, project_id):
 
         # Save invoice info if status is completed
         if status == "COMPLETED":
-            if purchase_and_expenses and currency_code:
+            if purchase_and_expenses:
                 project.purchase_and_expenses = purchase_and_expenses
-                project.currency_code = currency_code
             else:
                 project.purchase_and_expenses = 0
-                project.currency_code = "AED"
+            if currency_code and currency_code in dict(CURRENCY_CHOICES):
+                project.currency_code = currency_code
 
         project.save()
 
@@ -1774,61 +1810,33 @@ def manager_mark_notifications_as_read(request):
 
 @login_required
 def create_work_order_view(request, project_id):
-    user = request.user
-    if not user.employee_profile.is_manager:
+    if not hasattr(request.user, 'employee_profile') or not request.user.employee_profile.is_manager:
         return redirect('custom-login')
 
     project = get_object_or_404(Project, id=project_id)
+    try:
+        work_order = project.workorder
+    except (WorkOrder.DoesNotExist, AttributeError):
+        work_order = WorkOrder.objects.filter(project=project).first()
 
-    if request.method == 'POST':
-        form = WorkOrderForm(request.POST, request.FILES, user=user, project=project)
-        if form.is_valid():
-            work_order = form.save(commit=False)
-            work_order.created_by = user
-            work_order.project = project
+    if work_order:
+        return redirect('view_work_order', pk=work_order.pk)
 
-            # Safe set vessel from project.vessel_name
-            try:
-                work_order.vessel = project.vessel_name if project.vessel_name else "N/A"
-            except AttributeError:
-                work_order.vessel = ""
+    # Old project without work order -> create it with the helper from project's data (assigned_date = today)
+    with transaction.atomic():
+        work_order, _ = sync_work_order_from_project(
+            project=project,
+            wo_fields={'assigned_date': timezone.now().date()},
+            by_user=request.user
+        )
 
-            work_order.save()
-
-            # Assign team members
-            teams = Team.objects.filter(project=project)
-            team_members = Employee.objects.filter(teams_assigned__in=teams).distinct()
-            # work_order.all_members.set(User.objects.filter(employee_profile__in=team_members))
-            assigned_users = User.objects.filter(employee_profile__in=team_members)
-
-            work_order.job_assigned_to.set(assigned_users)   # Current team
-            work_order.all_members.add(*assigned_users)      # Historical record
-
-
-            # Save multiple project images
-            for image in request.FILES.getlist('project_images'):
-                WorkOrderImage.objects.create(work_order=work_order, image=image)
-
-            messages.success(request, "Work Order created and assigned to all project team members.")
-            return redirect('view_work_order', pk=work_order.pk)
-    else:
-        form = WorkOrderForm(user=user, project=project)
-
-        # Pre-fill vessel safely
-        try:
-            form.fields['vessel'].initial = project.vessel_name if project.vessel_name else "N/A"
-        except AttributeError:
-            form.fields['vessel'].initial = ""
-
-    return render(request, 'Manager/create_work_order.html', {
-        'form': form,
-        'project': project
-    })
+    messages.info(request, "Work order created. Please complete IMO number, location, and job scope.")
+    return redirect('manager-update-work-order', pk=work_order.pk)
 
 
 @login_required
 def view_work_order(request, pk):
-    work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order = get_object_or_404(WorkOrder.objects.select_related('project'), pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
     live_members = []
@@ -1886,28 +1894,52 @@ def manager_update_work_order_view(request, pk):
 
     work_order_detail, _ = WorkOrderDetail.objects.get_or_create(work_order=work_order)
 
-    # Load allowed employees once
+    # Load allowed employees once (active employees only for assignment)
     emps = {
         e.id: e
         for e in Employee.objects.filter(
             Q(user__in=work_order.job_assigned_to.all()) | Q(pk=manager_emp.pk)
-        ).select_related('user')
+        ).filter(user__is_active=True).select_related('user')
     }
+
+    # Allowed for save includes emps PLUS every employee who already has a WorkOrderTime row
+    existing_time_emp_ids = set(
+        WorkOrderTime.objects.filter(work_order=work_order, employee__isnull=False)
+        .values_list('employee_id', flat=True)
+    )
+    existing_emps = {
+        e.id: e
+        for e in Employee.objects.filter(id__in=existing_time_emp_ids).select_related('user')
+    }
+    allowed_for_save = {**emps, **existing_emps}
 
     if request.method == 'POST':
         try:
             with transaction.atomic():
+                saved_vessel = work_order.vessel
+                saved_client = work_order.client
+                saved_imo_no = work_order.imo_no
+                saved_location = work_order.location
+                saved_assigned_date = work_order.assigned_date
+                saved_job_scope = work_order.job_scope
+                saved_job_instructions = work_order.job_instructions
+                saved_project_description = work_order.project_description
+
                 form = WorkOrderForm(request.POST, request.FILES, instance=work_order)
 
                 if form.is_valid():
                     work_order = form.save(commit=False)
 
-                    # Auto-fill vessel from project.vessel_name
-                    work_order.vessel = (
-                        work_order.project.vessel_name
-                        if work_order.project and work_order.project.vessel_name
-                        else ""
-                    )
+                    # Header fields are read-only here and managed only on the project
+                    work_order.vessel = saved_vessel
+                    work_order.client = saved_client
+                    work_order.imo_no = saved_imo_no
+                    work_order.location = saved_location
+                    work_order.assigned_date = saved_assigned_date
+                    work_order.job_scope = saved_job_scope
+                    work_order.job_instructions = saved_job_instructions
+                    work_order.project_description = saved_project_description
+
                     work_order.save()
 
                     _wo_warnings = []
@@ -1935,7 +1967,7 @@ def manager_update_work_order_view(request, pk):
                         row_employee = None
                         if emp_val:
                             try:
-                                row_employee = emps.get(int(emp_val))
+                                row_employee = allowed_for_save.get(int(emp_val))
                             except (ValueError, TypeError):
                                 row_employee = None
 
@@ -2098,7 +2130,7 @@ def manager_update_work_order_view(request, pk):
     seen_emp_ids = {manager_emp.id}
 
     user_to_emp = {e.user_id: e for e in emps.values()}
-    for u in work_order.job_assigned_to.all():
+    for u in work_order.job_assigned_to.filter(is_active=True):
         emp = user_to_emp.get(u.id)
         if emp and emp.id not in seen_emp_ids:
             seen_emp_ids.add(emp.id)
@@ -2106,17 +2138,26 @@ def manager_update_work_order_view(request, pk):
             assigned_members.append({'id': emp.id, 'name': name})
 
     times_data = []
+    assigned_member_ids = {m['id'] for m in assigned_members}
     for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user'):
         name = ''
+        extra_member = None
         if t.employee and t.employee.user:
             name = t.employee.user.get_full_name() or t.employee.user.username
+            if t.employee_id not in assigned_member_ids:
+                if not t.employee.user.is_active:
+                    label = f"{name} (inactive)"
+                else:
+                    label = f"{name} (not on team)"
+                extra_member = {'id': t.employee_id, 'name': label}
         times_data.append({
             'id': t.id,
             'date': t.date.isoformat() if t.date else '',
             'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
             'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
             'employee_id': t.employee_id or '',
-            'member_name': name,
+            'member_name': extra_member['name'] if extra_member else name,
+            'extra_member': extra_member,
         })
 
     context = {
@@ -2213,7 +2254,7 @@ def manager_update_work_order_view(request, pk):
 
 @login_required
 def download_work_order_pdf(request, pk):
-    work_order = get_object_or_404(WorkOrder, pk=pk)
+    work_order = get_object_or_404(WorkOrder.objects.select_related('project'), pk=pk)
     work_order_detail = WorkOrderDetail.objects.filter(work_order=work_order).first()
 
     # Logo (safe)

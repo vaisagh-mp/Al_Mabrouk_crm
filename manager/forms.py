@@ -11,10 +11,10 @@ class TeamForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # Filter only managers from Employee model
-        self.fields['manager'].queryset = Employee.objects.filter(is_manager=True).select_related('user')
+        self.fields['manager'].queryset = Employee.objects.filter(is_manager=True, user__is_active=True).select_related('user')
 
         # Filter only employees from Employee model
-        self.fields['employees'].queryset = Employee.objects.filter(is_employee=True).select_related('user')
+        self.fields['employees'].queryset = Employee.objects.filter(is_employee=True, user__is_active=True).select_related('user')
 
         # Pre-fill manager field if the user is a manager
         if user and hasattr(user, 'employee_profile') and user.employee_profile.is_manager:

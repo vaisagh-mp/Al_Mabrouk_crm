@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static %}
+{% load static humanize %}
 
 {% block title %}Project Profitability | Almabrouk CRM{% endblock %}
 
@@ -159,13 +159,13 @@
                         {% endif %}
                     </td>
                     <td>{{ r.invoice_date|date:"Y-m-d"|default:"—" }}</td>
-                    <td>{{ r.revenue|floatformat:2 }}{% if r.is_legacy %} <span class="fin-text-muted">(legacy)</span>{% endif %}</td>
-                    <td>{{ r.labour_cost|floatformat:2 }}</td>
-                    <td>{{ r.materials|floatformat:2 }}</td>
-                    <td>{{ r.other_expenses|floatformat:2 }}</td>
-                    <td>{{ r.total_cost|floatformat:2 }}</td>
+                    <td>{{ r.revenue|floatformat:2|intcomma }}{% if r.is_legacy %} <span class="fin-text-muted">(legacy)</span>{% endif %}</td>
+                    <td>{{ r.labour_cost|floatformat:2|intcomma }}</td>
+                    <td>{{ r.materials|floatformat:2|intcomma }}</td>
+                    <td>{{ r.other_expenses|floatformat:2|intcomma }}</td>
+                    <td>{{ r.total_cost|floatformat:2|intcomma }}</td>
                     <td class="fw-bold {% if r.is_loss %}fin-text-red{% elif r.profit > 0 %}fin-text-green{% endif %}">
-                        {{ r.profit|floatformat:2 }}
+                        {{ r.profit|floatformat:2|intcomma }}
                     </td>
                     <td>
                         {% if not r.invoiced and not r.is_legacy or r.margin_pct is None %}
@@ -177,7 +177,7 @@
                     <td>{{ r.engineer_days }}</td>
                     <td>
                         {% if r.revenue_per_engineer_day is not None %}
-                            {{ r.revenue_per_engineer_day|floatformat:2 }}
+                            {{ r.revenue_per_engineer_day|floatformat:2|intcomma }}
                         {% else %}
                             <span>—</span>
                         {% endif %}
@@ -213,14 +213,14 @@
             {% if page_obj %}
             <tfoot>
                 <tr class="fw-bold" style="border-top: 2px solid #ccc;">
-                    <td colspan="5">TOTAL (Filtered Queryset)</td>
-                    <td>{{ totals.revenue|floatformat:2 }}</td>
-                    <td>{{ totals.labour_cost|floatformat:2 }}</td>
-                    <td>{{ totals.materials|floatformat:2 }}</td>
-                    <td>{{ totals.other_expenses|floatformat:2 }}</td>
-                    <td>{{ totals.total_cost|floatformat:2 }}</td>
+                    <td colspan="5">TOTAL (AED)</td>
+                    <td>{{ totals.revenue|floatformat:2|intcomma }}</td>
+                    <td>{{ totals.labour_cost|floatformat:2|intcomma }}</td>
+                    <td>{{ totals.materials|floatformat:2|intcomma }}</td>
+                    <td>{{ totals.other_expenses|floatformat:2|intcomma }}</td>
+                    <td>{{ totals.total_cost|floatformat:2|intcomma }}</td>
                     <td class="{% if totals.profit < 0 %}fin-text-red{% else %}fin-text-green{% endif %}">
-                        {{ totals.profit|floatformat:2 }}
+                        {{ totals.profit|floatformat:2|intcomma }}
                     </td>
                     <td>
                         {% if totals.margin_pct is not None %}
@@ -237,12 +237,15 @@
         </table>
 
         <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
         <div class="pagination mt-4" id="pagination">
             {% if page_obj.has_previous %}
             <a href="?page={{ page_obj.previous_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Previous</a>
             {% endif %}
-            {% for num in page_obj.paginator.page_range %}
-            {% if page_obj.number == num %}
+            {% for num in page_range %}
+            {% if num == page_obj.paginator.ELLIPSIS %}
+            <span class="page-ellipsis">&hellip;</span>
+            {% elif page_obj.number == num %}
             <button class="active">{{ num }}</button>
             {% else %}
             <a href="?page={{ num }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">{{ num }}</a>
@@ -252,6 +255,7 @@
             <a href="?page={{ page_obj.next_page_number }}{% if querystring_without_page %}&{{ querystring_without_page }}{% endif %}">Next</a>
             {% endif %}
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

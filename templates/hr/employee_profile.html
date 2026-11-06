@@ -4,6 +4,15 @@
 {% block content %}
 
 <div class="emply-profile-wraper">
+  {% if messages %}
+    <div class="mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
   <div class="pg-title">
     <h1>Employee Details</h1>
   </div>
@@ -93,32 +102,53 @@
           </div>
           <!-- <a href="{% url 'admin_edit_employee' employee.id %}" class="btn btn-dark w-100 mt-3"><i class="fas fa-edit"></i> Edit Info</a> -->
           <div class="row gx-2 mt-3">
-            <div class="col-6">
-                <div>
-                  <!-- Button to trigger modal -->
-                  <a
-                    href="{% url 'hr_edit_employee' employee.id %}"
-                    class="btn btn-dark w-100"
-                    
-                    ><i class="fas fa-edit" style="color: #fff;"></i> Edit Info</a
-                  >
-                </div>
-
-              </div>
-              <div class="col-6">
-                <div>
-                    <form action="{% url 'hr_delete_employee' employee.id %}" method="POST" 
-        onsubmit="return confirmDelete();">
-        {% csrf_token %}
-                  
-                  <button type="submit"  class="btn btn-primary w-100">
-                    <i class="fas fa-trash-alt" style="color: #fff;"></i> Delete
+            <div class="col-4">
+              <a href="{% url 'hr_edit_employee' employee.id %}" class="btn btn-dark w-100" title="Edit Info">
+                <i class="fas fa-edit" style="color: #fff;"></i> Edit
+              </a>
+            </div>
+            <div class="col-4">
+              {% if employee.user.is_active %}
+                <form action="{% url 'hr_deactivate_employee' employee.id %}" method="POST" onsubmit="return confirm('Are you sure you want to deactivate {{ employee.name }}? This will block login and remove them from active project teams.');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-warning w-100" style="color: #000;" title="Deactivate Employee">
+                    <i class="fas fa-user-slash"></i> Deactivate
                   </button>
                 </form>
-                </div>
-              </div>
-
+              {% else %}
+                <form action="{% url 'hr_reactivate_employee' employee.id %}" method="POST" onsubmit="return confirm('Are you sure you want to reactivate {{ employee.name }}?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-success w-100" title="Reactivate Employee">
+                    <i class="fas fa-user-check"></i> Reactivate
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+            <div class="col-4">
+              <form action="{% url 'hr_delete_employee' employee.id %}" method="POST" onsubmit="return confirmDelete();">
+                {% csrf_token %}
+                {% if delete_blockers %}
+                  <button type="button" class="btn btn-secondary w-100" disabled title="Cannot delete: {{ delete_blockers|join:', ' }}" data-bs-toggle="tooltip">
+                    <i class="fas fa-trash-alt"></i> Delete
+                  </button>
+                {% else %}
+                  <button type="submit" class="btn btn-danger w-100" title="Delete Employee">
+                    <i class="fas fa-trash-alt" style="color: #fff;"></i> Delete
+                  </button>
+                {% endif %}
+              </form>
+            </div>
           </div>
+          {% if not employee.user.is_active %}
+            <div class="alert alert-warning mt-2 mb-0 py-1 px-2 small">
+              <i class="fas fa-user-slash me-1"></i>
+              <strong>Inactive.</strong>
+              {% if employee.deactivated_at %}
+                Deactivated on {{ employee.deactivated_at|date:"d M Y, h:i A" }}
+                {% if employee.deactivated_by %}by {{ employee.deactivated_by.get_full_name|default:employee.deactivated_by.username }}{% endif %}
+              {% endif %}
+            </div>
+          {% endif %}
         </div>
       </div>
     </div>

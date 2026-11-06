@@ -490,7 +490,7 @@
     const totalWorkedSeconds = parseInt("{{ total_worked_seconds|default:0 }}", 10) || 0;
     const openLoginTimeStr = "{{ open_login_time|date:'c' }}";
 
-    if (openLoginTimeStr && openLoginTimeStr.trim() !== "" && openLoginTimeStr !== "None") {
+    if (openLoginTimeStr && openLoginTimeStr.trim() !== "" && openLoginTimeStr.toLowerCase() !== "none") {
         // Ongoing session
         const loginTime = new Date(openLoginTimeStr).getTime();
         const now = new Date().getTime();

@@ -480,7 +480,7 @@
     const totalWorkedSeconds = parseInt("{{ total_worked_seconds|default:0 }}", 10) || 0;
     const openLoginTimeStr = "{{ open_login_time|date:'c' }}";
 
-    if (openLoginTimeStr && openLoginTimeStr.trim() !== "" && openLoginTimeStr !== "None") {
+    if (openLoginTimeStr && openLoginTimeStr.trim() !== "" && openLoginTimeStr.toLowerCase() !== "none") {
         // Ongoing session
         const loginTime = new Date(openLoginTimeStr).getTime();
         const now = new Date().getTime();
@@ -716,7 +716,7 @@ document.getElementById("presence-month").addEventListener("change", function() 
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   }
 
-  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '') {
+  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null) {
     const table = document.querySelector('#timeTable tbody');
     if (!table) return;
     const row = table.insertRow();
@@ -727,15 +727,22 @@ document.getElementById("presence-month").addEventListener("change", function() 
     const selectedId = employeeId ? String(employeeId) : defaultEmpId;
 
     let optionsHtml = '';
+    let foundSelected = false;
     if (typeof assignedMembers !== 'undefined' && Array.isArray(assignedMembers)) {
       assignedMembers.forEach(m => {
         const isSelected = String(m.id) === selectedId ? 'selected' : '';
+        if (isSelected) foundSelected = true;
         optionsHtml += `<option value="${escapeHtml(m.id)}" ${isSelected}>${escapeHtml(m.name)}</option>`;
       });
     }
 
-    const displayName = escapeHtml(memberName);
-    const readOnlyText = memberName ? `<span class="member-name-text" style="font-weight: 500; margin-right: 8px;">${displayName}</span>` : '';
+    if (extraMember && extraMember.id && !foundSelected) {
+      optionsHtml += `<option value="${escapeHtml(extraMember.id)}" selected>${escapeHtml(extraMember.name)}</option>`;
+      foundSelected = true;
+    }
+
+    const displayName = escapeHtml(extraMember ? extraMember.name : memberName);
+    const readOnlyText = displayName ? `<span class="member-name-text" style="font-weight: 500; margin-right: 8px;">${displayName}</span>` : '';
 
     row.innerHTML = `
       <td>${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select></td>
@@ -768,7 +775,8 @@ document.getElementById("presence-month").addEventListener("change", function() 
         t.start_time ? t.start_time.slice(0, 5) : '',
         t.finish_time ? t.finish_time.slice(0, 5) : '',
         t.employee_id || '',
-        t.member_name || ''
+        t.member_name || '',
+        t.extra_member || null
       )
     );
   };

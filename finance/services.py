@@ -22,7 +22,9 @@ from Admin.attendance_register import build_attendance_register
 from service_logs.models import EmployeeServiceLog
 from service_logs.ot import calculate_office_ot_cost
 import logging
+from django.conf import settings
 from .models import Payroll, Expense, ExpenseCategory, Invoice, JobCost, SpareSale
+from .currency import BASE_CURRENCY, CURRENCY_CHOICES, get_rate, to_aed
 
 logger = logging.getLogger(__name__)
 
@@ -528,8 +530,8 @@ def expenses_excel_response(expenses, totals, filename_suffix="all"):
     )
 
     headers = [
-        "Date", "Category", "Kind", "Amount (AED)", "VAT Amount (AED)",
-        "Vendor", "Reference No", "Project", "Description"
+        "Sl", "Date", "Category", "Description", "Vendor", "Payment Method", "Paid By", "Reference #",
+        "Currency", "Rate", "Amount", "VAT Amount", "Amount (AED)", "VAT Amount (AED)", "Total Incl. VAT (AED)"
     ]
 
     ws.row_dimensions[1].height = 26
@@ -545,17 +547,27 @@ def expenses_excel_response(expenses, totals, filename_suffix="all"):
         row_fill = fill_zebra if idx % 2 == 1 else None
         ws.row_dimensions[current_row].height = 20
 
-        project_str = f"#{exp.project.id} {exp.project.name}" if exp.project else "—"
+        exp_amount_aed = float(exp.amount_aed or 0)
+        exp_vat_aed = float(exp.vat_amount_aed or 0)
+        total_incl_vat_aed = exp_amount_aed + exp_vat_aed
+        paid_by_str = (exp.created_by.get_full_name() or exp.created_by.username) if exp.created_by else "—"
+
         values = [
-            (exp.date.strftime('%Y-%m-%d'), align_center, font_data, "text"),
-            (exp.category.name, align_left, font_data, "text"),
-            (exp.category.get_kind_display(), align_center, font_data, "text"),
+            (idx + 1, align_center, font_data, "int"),
+            (exp.date.strftime('%Y-%m-%d') if exp.date else "—", align_center, font_data, "text"),
+            (exp.category.name if exp.category else "—", align_left, font_data, "text"),
+            (exp.description or "", align_left, font_data, "text"),
+            (exp.vendor or "—", align_left, font_data, "text"),
+            ("—", align_left, font_data, "text"),
+            (paid_by_str, align_left, font_data, "text"),
+            (exp.reference_no or "—", align_left, font_data, "text"),
+            (exp.currency, align_center, font_data, "text"),
+            (float(exp.exchange_rate or 1), align_right, font_data, "rate"),
             (float(exp.amount or 0), align_right, font_data, "0.00"),
             (float(exp.vat_amount or 0), align_right, font_data, "0.00"),
-            (exp.vendor or "—", align_left, font_data, "text"),
-            (exp.reference_no or "—", align_left, font_data, "text"),
-            (project_str, align_left, font_data, "text"),
-            (exp.description or "", align_left, font_data, "text"),
+            (exp_amount_aed, align_right, font_data, "0.00"),
+            (exp_vat_aed, align_right, font_data, "0.00"),
+            (total_incl_vat_aed, align_right, font_data, "0.00"),
         ]
 
         for col_idx, (val, alignment, font, kind) in enumerate(values, start=1):
@@ -567,21 +579,35 @@ def expenses_excel_response(expenses, totals, filename_suffix="all"):
                 cell.fill = row_fill
             if kind == "0.00":
                 cell.number_format = "#,##0.00"
+            elif kind == "rate":
+                cell.number_format = "#,##0.0000"
+            elif kind == "int":
+                cell.number_format = "#,##0"
 
         current_row += 1
 
     # Totals Row
     ws.row_dimensions[current_row].height = 22
+    tot_amt = sum((float(exp.amount_aed or 0) for exp in expenses), 0.0)
+    tot_vat = sum((float(exp.vat_amount_aed or 0) for exp in expenses), 0.0)
+    tot_total = tot_amt + tot_vat
+
     total_values = [
-        ("TOTAL", align_left, font_total, "text"),
+        ("TOTAL (AED)", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
         ("", align_left, font_total, "text"),
         ("", align_center, font_total, "text"),
-        (float(totals.get('amount', 0)), align_right, font_total, "0.00"),
-        (float(totals.get('vat_amount', 0)), align_right, font_total, "0.00"),
-        ("", align_left, font_total, "text"),
-        ("", align_left, font_total, "text"),
-        ("", align_left, font_total, "text"),
-        ("", align_left, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        (tot_amt, align_right, font_total, "0.00"),
+        (tot_vat, align_right, font_total, "0.00"),
+        (tot_total, align_right, font_total, "0.00"),
     ]
     for col_idx, (val, alignment, font, kind) in enumerate(total_values, start=1):
         cell = ws.cell(row=current_row, column=col_idx, value=val)
@@ -861,7 +887,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
     expenses_qs = list(Expense.objects.filter(
         date__gte=start_date,
         date__lte=effective_end
-    ).values('date', 'amount', 'category__kind', 'category__name'))
+    ).values('date', 'amount_aed', 'category__kind', 'category__name'))
 
     logs_qs = list(EmployeeServiceLog.objects.filter(
         date__gte=start_date,
@@ -888,14 +914,14 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
         bk = find_bucket(inv.invoice_date)
         if bk:
             bucket_invoices[bk].append(inv)
-            rev = inv.collection_value
+            rev = inv.collection_value_aed
             bucket_revenue[bk] += rev
 
-            sp_cost = sum((sp.purchase_cost or Decimal('0.00')) for sp in inv.spare_sales.all())
+            sp_cost = sum((sp.purchase_cost_aed or Decimal('0.00')) for sp in inv.spare_sales.all())
             bucket_spares[bk] += sp_cost
 
             for jc in inv.job_costs.all():
-                bucket_job_costs[bk] += (jc.amount or Decimal('0.00'))
+                bucket_job_costs[bk] += (jc.amount_aed or Decimal('0.00'))
 
     # Spares with project set but invoice NULL, dated by the project's latest non-cancelled invoice_date
     if request is not None and hasattr(request, '_unlinked_spares_cache'):
@@ -903,7 +929,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
     else:
         unlinked_spares = list(
             SpareSale.objects.filter(project__isnull=False, invoice__isnull=True)
-            .values('id', 'project_id', 'purchase_cost')
+            .values('id', 'project_id', 'purchase_cost_aed')
         )
         if unlinked_spares:
             unlinked_pids = {s['project_id'] for s in unlinked_spares}
@@ -928,7 +954,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
             if latest_date:
                 bk = find_bucket(latest_date)
                 if bk:
-                    bucket_spares[bk] += (s['purchase_cost'] or Decimal('0.00'))
+                    bucket_spares[bk] += (s['purchase_cost_aed'] or Decimal('0.00'))
             # If the project has no invoice, exclude it from P&L (not added to any bucket)
 
     for p in legacy_projects_qs:
@@ -940,7 +966,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
     for e in expenses_qs:
         bk = find_bucket(e['date'])
         if bk:
-            amt = e['amount'] or Decimal('0.00')
+            amt = e['amount_aed'] or Decimal('0.00')
             kind = e['category__kind']
             if kind == 'PROJECT':
                 bucket_project_exp[bk] += amt
@@ -1311,7 +1337,7 @@ def pnl_excel_response(buckets, totals, filename_suffix='all'):
     tot_net_m = (float(totals['margin_pct']) / 100.0) if totals.get('margin_pct') is not None else None
 
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
         (float(totals.get('revenue', 0)), align_right, "0.00"),
         (float(totals.get('spares_cost', 0)), align_right, "0.00"),
         (float(totals.get('job_direct_cost', 0)), align_right, "0.00"),
@@ -1519,8 +1545,8 @@ def get_projects_profitability(filters=None, sort_by=None):
 
         # Received & Outstanding
         if is_invoiced:
-            received = sum((inv.amount_received or Decimal('0.00') for inv in p_invs), Decimal('0.00'))
-            outstanding = sum((inv.outstanding for inv in p_invs), Decimal('0.00'))
+            received = sum((inv.amount_received_aed or Decimal('0.00') for inv in p_invs), Decimal('0.00'))
+            outstanding = sum((inv.outstanding_aed for inv in p_invs), Decimal('0.00'))
         elif is_legacy:
             received = p.amount_received or Decimal('0.00')
             outstanding = max((p.invoice_amount or Decimal('0.00')) - received, Decimal('0.00'))
@@ -1730,7 +1756,7 @@ def projects_profitability_excel_response(project_rows, totals, filename_suffix=
     # Totals Row
     ws.row_dimensions[current_row].height = 24
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
         ("", align_left, "text"),
         ("", align_left, "text"),
         ("", align_center, "text"),
@@ -1798,11 +1824,19 @@ def get_attributed_revenue_by_employee(start_date, end_date):
         dict: {employee_id: Decimal('share_sum')}
         dict: {project_id: {employee_id: Decimal('share')}}
     """
-    invoiced_projects = list(Project.objects.filter(
+    # Projects with non-cancelled invoices in date range
+    inv_projects = list(Project.objects.filter(
+        invoices__is_cancelled=False,
+        invoices__invoice_date__gte=start_date,
+        invoices__invoice_date__lte=end_date,
+    ).distinct())
+    # Legacy projects with invoice_amount in range without invoices
+    legacy_projects = list(Project.objects.filter(
         invoice_date__gte=start_date,
         invoice_date__lte=end_date,
         invoice_amount__gt=0
-    ))
+    ).exclude(id__in=[p.id for p in inv_projects]))
+    invoiced_projects = inv_projects + legacy_projects
 
     if not invoiced_projects:
         return {}, {}
@@ -1822,7 +1856,15 @@ def get_attributed_revenue_by_employee(start_date, end_date):
     project_shares = {}
 
     for p in invoiced_projects:
-        rev = p.invoice_amount or Decimal('0.00')
+        p_invs_in_range = list(p.invoices.filter(
+            is_cancelled=False,
+            invoice_date__gte=start_date,
+            invoice_date__lte=end_date
+        ))
+        if p_invs_in_range:
+            rev = sum((inv.collection_value_aed for inv in p_invs_in_range), Decimal('0.00'))
+        else:
+            rev = p.invoice_amount or Decimal('0.00')
         emp_hours = proj_emp_hours.get(p.id, {})
         active_hours = {eid: h for eid, h in emp_hours.items() if h > Decimal('0.00')}
         total_hours = sum(active_hours.values())
@@ -2179,7 +2221,7 @@ def employee_cost_excel_response(rows, totals, filename_suffix="all"):
     # Totals Row
     ws.row_dimensions[current_row].height = 22
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
         ("", align_left, "text"),
         (float(totals.get('total_salary', 0)), align_right, "0.00"),
         (float(totals.get('total_payroll_cost', 0)), align_right, "0.00"),
@@ -2268,9 +2310,11 @@ def get_receivables_data(filters=None, sort_by=None):
     oldest_days = -1
 
     for inv in invoices:
-        out = inv.outstanding
-        if out <= Decimal('0.00'):
+        out_aed = inv.outstanding_aed
+        out_curr = inv.outstanding
+        if out_aed <= Decimal('0.00'):
             continue
+        out = out_aed
 
         if inv.due_date:
             if today <= inv.due_date:
@@ -2331,10 +2375,15 @@ def get_receivables_data(filters=None, sort_by=None):
             'due_date': inv.due_date,
             'invoice_amount': inv.collection_value,
             'amount_received': inv.amount_received or Decimal('0.00'),
-            'outstanding_amount': out,
+            'outstanding_amount': out_curr,
             'days_outstanding': days_overdue,
             'aging_bucket': bucket,
             'payment_status': inv.status,
+            'currency': inv.currency,
+            'invoice_amount_aed': inv.collection_value_aed,
+            'amount_excl_vat_aed': inv.amount_excl_vat_aed,
+            'amount_received_aed': inv.amount_received_aed,
+            'outstanding_aed': out_aed,
         }
 
         # Filter by bucket if specified
@@ -2349,7 +2398,8 @@ def get_receivables_data(filters=None, sort_by=None):
         reverse = sort_by.startswith('-')
         field = sort_by.lstrip('-')
         if field in ('invoice_amount', 'amount_received', 'outstanding_amount'):
-            receivables.sort(key=lambda x: x.get(field, Decimal('0.00')), reverse=reverse)
+            aed_key = 'outstanding_aed' if field == 'outstanding_amount' else ('invoice_amount_aed' if field == 'invoice_amount' else 'amount_received_aed')
+            receivables.sort(key=lambda x: x.get(aed_key, x.get(field, Decimal('0.00'))), reverse=reverse)
         elif field == 'days_outstanding':
             receivables.sort(key=lambda x: (x.get('days_outstanding') is not None, x.get('days_outstanding') or 0), reverse=reverse)
         elif field == 'invoice_date':
@@ -2409,8 +2459,9 @@ def receivables_excel_response(receivables, summary, filename_suffix="all"):
     )
 
     headers = [
-        "Invoice / Ref", "Customer / Vessel", "Invoice No", "Invoice Date", "Invoice Amount (AED)",
-        "Amount Received (AED)", "Outstanding (AED)", "Days Overdue", "Aging Bucket", "Status"
+        "Sl", "Invoice #", "Project / Customer", "Invoice Date", "Due Date", "Days Overdue", "Aging Bucket",
+        "Currency", "Rate", "Invoice Amount", "Received", "Outstanding",
+        "Invoice Amount (AED)", "Received (AED)", "Outstanding (AED)", "Status"
     ]
 
     ws.row_dimensions[1].height = 26
@@ -2430,24 +2481,39 @@ def receivables_excel_response(receivables, summary, filename_suffix="all"):
         row_fill = fill_zebra if idx % 2 == 1 else None
         ws.row_dimensions[current_row].height = 20
 
-        tot_inv += r['invoice_amount']
-        tot_rec += r['amount_received']
-        tot_out += r['outstanding_amount']
+        inv = r.get('invoice')
+        inv_amt_aed = r.get('invoice_amount_aed', r['invoice_amount'])
+        rec_amt_aed = r.get('amount_received_aed', r['amount_received'])
+        out_amt_aed = r.get('outstanding_aed', r['outstanding_amount'])
 
-        inv_date_str = r['invoice_date'].strftime('%Y-%m-%d') if r['invoice_date'] else "—"
-        days_str = r['days_outstanding'] if r['days_outstanding'] is not None else "—"
+        tot_inv += inv_amt_aed
+        tot_rec += rec_amt_aed
+        tot_out += out_amt_aed
+
+        inv_date_str = r['invoice_date'].strftime('%Y-%m-%d') if r.get('invoice_date') else "—"
+        due_date_str = r['due_date'].strftime('%Y-%m-%d') if r.get('due_date') else (inv.due_date.strftime('%Y-%m-%d') if inv and inv.due_date else "—")
+        days_val = r['days_outstanding'] if r.get('days_outstanding') is not None else 0
+        proj_cust_str = f"{r.get('name') or ''} / {r.get('client_name') or ''}".strip(' /') or "—"
+        currency = r.get('currency') or (inv.currency if inv else "AED")
+        rate_val = float(inv.exchange_rate if inv else 1)
 
         values = [
-            (r['name'], align_left, font_data, "text"),
-            (f"{r['client_name']} / {r['vessel_name']}", align_left, font_data, "text"),
-            (r['invoice_number'], align_center, font_data, "text"),
+            (idx + 1, align_center, font_data, "int"),
+            (str(r.get('invoice_number') or "—"), align_left, font_data, "text"),
+            (proj_cust_str, align_left, font_data, "text"),
             (inv_date_str, align_center, font_data, "text"),
-            (float(r['invoice_amount']), align_right, font_data, "0.00"),
-            (float(r['amount_received']), align_right, font_data, "0.00"),
-            (float(r['outstanding_amount']), align_right, font_data, "0.00"),
-            (days_str, align_center, font_data, "int" if isinstance(days_str, int) else "text"),
-            (f"{r['aging_bucket']} Days", align_center, font_data, "text"),
-            (r['payment_status'], align_center, font_data, "text"),
+            (due_date_str, align_center, font_data, "text"),
+            (days_val, align_center, font_data, "int"),
+            (f"{r.get('aging_bucket')} Days" if r.get('aging_bucket') else "—", align_center, font_data, "text"),
+            (currency, align_center, font_data, "text"),
+            (rate_val, align_right, font_data, "rate"),
+            (float(r.get('invoice_amount') or 0), align_right, font_data, "0.00"),
+            (float(r.get('amount_received') or 0), align_right, font_data, "0.00"),
+            (float(r.get('outstanding_amount') or 0), align_right, font_data, "0.00"),
+            (float(inv_amt_aed), align_right, font_data, "0.00"),
+            (float(rec_amt_aed), align_right, font_data, "0.00"),
+            (float(out_amt_aed), align_right, font_data, "0.00"),
+            (str(r.get('payment_status') or "OPEN"), align_center, font_data, "text"),
         ]
 
         for col_idx, (val, alignment, font, kind) in enumerate(values, start=1):
@@ -2459,6 +2525,8 @@ def receivables_excel_response(receivables, summary, filename_suffix="all"):
                 cell.fill = row_fill
             if kind == "0.00" and isinstance(val, (int, float)):
                 cell.number_format = "#,##0.00"
+            elif kind == "rate" and isinstance(val, (int, float)):
+                cell.number_format = "#,##0.0000"
             elif kind == "int" and isinstance(val, int):
                 cell.number_format = '#,##0'
 
@@ -2467,22 +2535,28 @@ def receivables_excel_response(receivables, summary, filename_suffix="all"):
     # Totals Row
     ws.row_dimensions[current_row].height = 22
     total_values = [
-        ("TOTAL", align_left, "text"),
-        ("", align_left, "text"),
-        ("", align_center, "text"),
-        ("", align_center, "text"),
-        (float(tot_inv), align_right, "0.00"),
-        (float(tot_rec), align_right, "0.00"),
-        (float(tot_out), align_right, "0.00"),
-        ("", align_center, "text"),
-        ("", align_center, "text"),
-        ("", align_center, "text"),
+        ("TOTAL (AED)", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_left, font_total, "text"),
+        ("", align_center, font_total, "text"),
+        ("", align_center, font_total, "text"),
+        ("", align_center, font_total, "text"),
+        ("", align_center, font_total, "text"),
+        ("", align_center, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        ("", align_right, font_total, "text"),
+        (float(tot_inv), align_right, font_total, "0.00"),
+        (float(tot_rec), align_right, font_total, "0.00"),
+        (float(tot_out), align_right, font_total, "0.00"),
+        ("", align_center, font_total, "text"),
     ]
 
-    for col_idx, (val, alignment, kind) in enumerate(total_values, start=1):
+    for col_idx, (val, alignment, font, kind) in enumerate(total_values, start=1):
         cell = ws.cell(row=current_row, column=col_idx, value=val)
         cell.alignment = alignment
-        cell.font = font_total
+        cell.font = font
         cell.fill = fill_total
         cell.border = border_total
         if kind == "0.00" and isinstance(val, (int, float)):
@@ -2688,7 +2762,7 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
         Expense.objects.filter(
             date__range=(start_date, end_date),
             category__kind='OVERHEAD'
-        ).values('category__name').annotate(cat_total=Sum('amount')).order_by('-cat_total')
+        ).values('category__name').annotate(cat_total=Sum('amount_aed')).order_by('-cat_total')
     )
     top_5_cats = overhead_expenses[:5]
     top_5_cats_sum = sum((c['cat_total'] or Decimal('0.00')) for c in top_5_cats)
@@ -2720,7 +2794,7 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
         for r in inv_rows:
             inv = r['invoice']
             c_name = r['customer'] or 'Unknown Client'
-            rev = r['collection_value']
+            rev = r['collection_value_aed']
             prof = r['total_net_profit']
             client_stats[c_name]['revenue'] += rev
             client_stats[c_name]['profit'] += prof
@@ -2774,7 +2848,7 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
                         'url': reverse('fin_project_detail', args=[inv.project_id]),
                     }
                 grp = grouped_projects[key]
-                grp['revenue'] += r['collection_value']
+                grp['revenue'] += r['collection_value_aed']
                 grp['total_cost'] += r['total_cost']
                 grp['profit'] += r['total_net_profit']
                 grp['invoice_count'] += 1
@@ -2785,7 +2859,7 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
                     'name': inv.invoice_number,
                     'client_name': r.get('customer') or '',
                     'vessel_name': r.get('vessel') or '',
-                    'revenue': r['collection_value'],
+                    'revenue': r['collection_value_aed'],
                     'total_cost': r['total_cost'],
                     'profit': r['total_net_profit'],
                     'invoice_count': 1,
@@ -2955,7 +3029,7 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
                     date__gte=current_month_first,
                     date__lte=today,
                     category__kind='OVERHEAD'
-                ).values('category__name').annotate(amt=Sum('amount'))
+                ).values('category__name').annotate(amt=Sum('amount_aed'))
             )
             curr_mtd_by_cat = {c['category__name']: (c['amt'] or Decimal('0.00')) for c in curr_mtd_expenses}
 
@@ -2989,10 +3063,10 @@ def get_dashboard_data(period='this_month', custom_start=None, custom_end=None, 
     # Alert 1: Overdue invoices count + total amount (query only candidates)
     candidate_overdue = [
         inv for inv in Invoice.objects.filter(is_cancelled=False, due_date__lt=today)
-        if inv.outstanding > Decimal('0.00')
+        if inv.outstanding_aed > Decimal('0.00')
     ]
     c_overdue = len(candidate_overdue)
-    amt_overdue = sum((inv.outstanding for inv in candidate_overdue), Decimal('0.00'))
+    amt_overdue = sum((inv.outstanding_aed for inv in candidate_overdue), Decimal('0.00'))
     if c_overdue > 0:
         alerts.append({
             'id': 'overdue_invoices',
@@ -3463,6 +3537,80 @@ def parse_finance_file_rows(file_or_path, sheet_type=None, sheet_name=None):
             yield row_dict
 
 
+def resolve_import_currency_and_rate(
+    row,
+    curr_aliases,
+    rate_aliases,
+    row_date,
+    row_idx,
+    label="",
+    existing_currency=None,
+    existing_rate=None,
+    record_label="",
+):
+    """
+    Resolves currency and rate from row dictionary.
+    Returns: (currency, rate, error_message, list_of_warnings)
+    """
+    warnings = []
+    raw_curr = _get_row_val(row, *curr_aliases)
+    has_curr = raw_curr is not None and bool(str(raw_curr).strip())
+
+    if not has_curr:
+        if existing_currency:
+            curr = str(existing_currency).strip().upper()
+            rate = Decimal(str(existing_rate)) if existing_rate is not None else Decimal('1.000000')
+            return curr, rate, None, warnings
+        else:
+            curr = BASE_CURRENCY
+    else:
+        curr = str(raw_curr).strip().upper()
+
+    multi_currency_enabled = getattr(settings, 'FINANCE_MULTI_CURRENCY', False)
+    if curr != BASE_CURRENCY and not multi_currency_enabled:
+        return None, None, f"Row {row_idx}: Multi-currency is not enabled.", []
+
+    valid_codes = {code for code, _ in CURRENCY_CHOICES}
+    if curr not in valid_codes:
+        prefix = f"{label} " if label else ""
+        return None, None, f"Row {row_idx}: Unknown {prefix}currency code '{curr}'.", []
+
+    # Check for currency change on existing record
+    if existing_currency and curr != str(existing_currency).strip().upper():
+        target_name = f"{record_label} {label}".strip() if (record_label or label) else ""
+        prefix = f" {target_name}" if target_name else ""
+        warnings.append(f"Row {row_idx}:{prefix} currency changed {existing_currency} -> {curr}")
+
+    if curr == BASE_CURRENCY:
+        return BASE_CURRENCY, Decimal('1.000000'), None, warnings
+
+    raw_rate = _get_row_val(row, *rate_aliases)
+    if raw_rate is not None and str(raw_rate).strip():
+        try:
+            rate = Decimal(str(raw_rate).strip())
+            if rate <= Decimal('0'):
+                return None, None, f"Row {row_idx}: Rate must be greater than zero.", []
+            return curr, rate, None, warnings
+        except (InvalidOperation, ValueError, TypeError):
+            return None, None, f"Row {row_idx}: Invalid exchange rate '{raw_rate}'.", []
+    else:
+        # Rate missing / empty:
+        # If existing record with SAME currency, keep existing rate
+        if existing_currency and curr == str(existing_currency).strip().upper() and existing_rate:
+            rate = Decimal(str(existing_rate))
+            if rate > Decimal('0'):
+                return curr, rate, None, warnings
+
+        # Auto-lookup get_rate(currency, row_date)
+        found_rate = get_rate(curr, row_date)
+        if found_rate is not None:
+            rate_str = f"{found_rate}".rstrip('0').rstrip('.') if '.' in f"{found_rate}" else f"{found_rate}"
+            warnings.append(f"{curr} rate {rate_str} taken from Exchange Rates for row {row_idx}")
+            return curr, found_rate, None, warnings
+        else:
+            return None, None, f"Row {row_idx}: No exchange rate found for {curr} on {row_date}.", []
+
+
 @transaction.atomic
 def import_finance_sheets_data(
     invoices_file=None,
@@ -3552,23 +3700,6 @@ def import_finance_sheets_data(
                         credits_applied = parse_amount(_get_row_val(row, 'Credits Applied', 'Credits', 'Credit'))
                         collection_value = amount_excl_vat - credits_applied
 
-                        raw_vat = _get_row_val(row, 'VAT', 'VAT Amount', 'Tax', 'Vat')
-                        if raw_vat is not None and str(raw_vat).strip():
-                            vat_val = parse_amount(raw_vat)
-                            expected_vat = round(amount_excl_vat * Decimal('0.05'), 2)
-                            if abs(vat_val - expected_vat) > Decimal('1.00'):
-                                res['warnings'].append(f"Row {row_idx} ({inv_no}): VAT discrepancy (found {vat_val:,.2f}, expected {expected_vat:,.2f} at 5%).")
-
-                        status_raw = normalize_header(_get_row_val(row, 'Status')).strip()
-                        is_cancelled = status_raw in ('cancelled', 'void')
-                        is_paid = (status_raw == 'paid')
-                        notes = str(_get_row_val(row, 'Notes', 'Note', 'Description') or '').strip()
-
-                        if is_paid:
-                            imported_amount_received = max(collection_value, Decimal('0.00'))
-                        else:
-                            imported_amount_received = Decimal('0.00')
-
                         project = None
                         if service_ref:
                             project = Project.objects.filter(service_reference__iexact=service_ref).first()
@@ -3598,6 +3729,50 @@ def import_finance_sheets_data(
                                     is_merged = True
                                     break
 
+                        existing_currency = invoice_obj.currency if invoice_obj else None
+                        existing_rate = invoice_obj.exchange_rate if invoice_obj else None
+
+                        curr, rate, curr_err, curr_warns = resolve_import_currency_and_rate(
+                            row,
+                            ['Currency', 'Curr', 'Invoice Currency', 'Inv Currency'],
+                            ['Rate', 'Exchange Rate', 'FX Rate', 'Invoice Rate', 'Inv Rate'],
+                            inv_date,
+                            row_idx,
+                            existing_currency=existing_currency,
+                            existing_rate=existing_rate,
+                            record_label=inv_no,
+                        )
+                        if curr_err:
+                            res['skipped'] += 1
+                            res['errors'].append(f"Row {row_idx} ({inv_no}): {curr_err}" if f"Row {row_idx}" not in curr_err else curr_err)
+                            continue
+                        if curr_warns:
+                            if isinstance(curr_warns, (list, tuple)):
+                                res['warnings'].extend(curr_warns)
+                            else:
+                                res['warnings'].append(curr_warns)
+
+                        raw_vat = _get_row_val(row, 'VAT', 'VAT Amount', 'Tax', 'Vat')
+                        if raw_vat is not None and str(raw_vat).strip():
+                            vat_val = parse_amount(raw_vat)
+                            expected_vat = round(amount_excl_vat * Decimal('0.05'), 2)
+                            if curr == BASE_CURRENCY:
+                                if abs(vat_val - expected_vat) > Decimal('1.00'):
+                                    res['warnings'].append(f"Row {row_idx} ({inv_no}): VAT discrepancy (found {vat_val:,.2f}, expected {expected_vat:,.2f} at 5%).")
+                            else:
+                                if vat_val > Decimal('0.00') and abs(vat_val - expected_vat) > Decimal('1.00'):
+                                    res['warnings'].append(f"Row {row_idx} ({inv_no}): VAT discrepancy (found {vat_val:,.2f}, expected {expected_vat:,.2f} at 5%).")
+
+                        status_raw = normalize_header(_get_row_val(row, 'Status')).strip()
+                        is_cancelled = status_raw in ('cancelled', 'void')
+                        is_paid = (status_raw == 'paid')
+                        notes = str(_get_row_val(row, 'Notes', 'Note', 'Description') or '').strip()
+
+                        if is_paid:
+                            imported_amount_received = max(collection_value, Decimal('0.00'))
+                        else:
+                            imported_amount_received = Decimal('0.00')
+
                         if invoice_obj:
                             if is_merged:
                                 old_legacy_num = invoice_obj.invoice_number
@@ -3613,6 +3788,8 @@ def import_finance_sheets_data(
                                 invoice_obj.vessel = vessel
                             if customer:
                                 invoice_obj.customer = customer
+                            invoice_obj.currency = curr
+                            invoice_obj.exchange_rate = rate
                             invoice_obj.amount_excl_vat = amount_excl_vat
                             invoice_obj.credits_applied = credits_applied
                             if is_paid:
@@ -3635,6 +3812,8 @@ def import_finance_sheets_data(
                                     'vessel': vessel,
                                     'customer': customer,
                                     'invoice_type': inv_type,
+                                    'currency': curr,
+                                    'exchange_rate': rate,
                                     'amount_excl_vat': amount_excl_vat,
                                     'credits_applied': credits_applied,
                                     'amount_received': imported_amount_received,
@@ -3656,6 +3835,8 @@ def import_finance_sheets_data(
                                     invoice_obj.vessel = vessel
                                 if customer:
                                     invoice_obj.customer = customer
+                                invoice_obj.currency = curr
+                                invoice_obj.exchange_rate = rate
                                 invoice_obj.amount_excl_vat = amount_excl_vat
                                 invoice_obj.credits_applied = credits_applied
                                 if is_paid:
@@ -3675,7 +3856,10 @@ def import_finance_sheets_data(
                             'service_ref': service_ref,
                             'vessel': vessel,
                             'customer': customer,
+                            'currency': curr,
+                            'exchange_rate': rate,
                             'amount_excl_vat': amount_excl_vat,
+                            'amount_aed': invoice_obj.amount_excl_vat_aed,
                             'credits_applied': credits_applied,
                             'status': invoice_obj.status,
                         })
@@ -3723,6 +3907,23 @@ def import_finance_sheets_data(
                             res['warnings'].append(f"Invoice not found: {inv_no} — import Invoice Costing first")
                             continue
 
+                        curr, rate, curr_err, curr_warns = resolve_import_currency_and_rate(
+                            row,
+                            ['Currency', 'Curr', 'Invoice Currency', 'Inv Currency'],
+                            ['Rate', 'Exchange Rate', 'FX Rate', 'Invoice Rate', 'Inv Rate'],
+                            invoice_obj.invoice_date,
+                            row_idx
+                        )
+                        if curr_err:
+                            res['skipped'] += 1
+                            res['errors'].append(f"Row {row_idx} ({inv_no}): {curr_err}" if f"Row {row_idx}" not in curr_err else curr_err)
+                            continue
+                        if curr_warns:
+                            if isinstance(curr_warns, (list, tuple)):
+                                res['warnings'].extend(curr_warns)
+                            else:
+                                res['warnings'].append(curr_warns)
+
                         if service_ref and not invoice_obj.service_ref:
                             invoice_obj.service_ref = service_ref
                         if vessel and not invoice_obj.vessel:
@@ -3750,6 +3951,8 @@ def import_finance_sheets_data(
                                 invoice=invoice_obj,
                                 cost_type='TRAVEL',
                                 amount=travel_cost,
+                                currency=curr,
+                                exchange_rate=rate,
                                 travel_port=travel_port,
                                 date=invoice_obj.invoice_date,
                                 source='IMPORT',
@@ -3763,6 +3966,8 @@ def import_finance_sheets_data(
                                 invoice=invoice_obj,
                                 cost_type='FLIGHT',
                                 amount=flight,
+                                currency=curr,
+                                exchange_rate=rate,
                                 date=invoice_obj.invoice_date,
                                 source='IMPORT',
                                 created_by=user,
@@ -3775,6 +3980,8 @@ def import_finance_sheets_data(
                                 invoice=invoice_obj,
                                 cost_type='MISC',
                                 amount=misc,
+                                currency=curr,
+                                exchange_rate=rate,
                                 date=invoice_obj.invoice_date,
                                 source='IMPORT',
                                 created_by=user,
@@ -3787,6 +3994,8 @@ def import_finance_sheets_data(
                                 invoice=invoice_obj,
                                 cost_type='OTHER',
                                 amount=other,
+                                currency=curr,
+                                exchange_rate=rate,
                                 description='Other costs',
                                 date=invoice_obj.invoice_date,
                                 source='IMPORT',
@@ -3865,10 +4074,66 @@ def import_finance_sheets_data(
                             spare_obj = SpareSale.objects.filter(invoice=invoice_obj, service_ref=service_ref).first()
                         elif service_ref:
                             spare_obj = SpareSale.objects.filter(service_ref=service_ref, purchase_cost=purchase_cost, selling_price=selling_price).first()
+                        if not spare_obj and invoice_obj and invoice_obj.spare_sales.count() == 1:
+                            spare_obj = invoice_obj.spare_sales.first()
+
+                        existing_p_curr = spare_obj.purchase_currency if spare_obj else None
+                        existing_p_rate = spare_obj.purchase_rate if spare_obj else None
+                        existing_s_curr = spare_obj.selling_currency if spare_obj else None
+                        existing_s_rate = spare_obj.selling_rate if spare_obj else None
+
+                        sp_date = invoice_obj.invoice_date if invoice_obj and invoice_obj.invoice_date else timezone.localdate()
+                        sp_label = raw_inv_no or service_ref or 'Spare'
+
+                        p_curr, p_rate, p_err, p_warns = resolve_import_currency_and_rate(
+                            row,
+                            ['Purchase Currency', 'Purchase Curr', 'Cost Currency', 'Currency', 'Curr'],
+                            ['Purchase Rate', 'Purchase Exchange Rate', 'Cost Rate', 'Rate', 'Exchange Rate', 'FX Rate'],
+                            sp_date,
+                            row_idx,
+                            label="purchase",
+                            existing_currency=existing_p_curr,
+                            existing_rate=existing_p_rate,
+                            record_label=sp_label,
+                        )
+                        if p_err:
+                            res['skipped'] += 1
+                            res['errors'].append(f"Row {row_idx} ({raw_inv_no or service_ref or 'unknown'}): {p_err}" if f"Row {row_idx}" not in p_err else p_err)
+                            continue
+                        if p_warns:
+                            if isinstance(p_warns, (list, tuple)):
+                                res['warnings'].extend(p_warns)
+                            else:
+                                res['warnings'].append(p_warns)
+
+                        s_curr, s_rate, s_err, s_warns = resolve_import_currency_and_rate(
+                            row,
+                            ['Selling Currency', 'Selling Curr', 'Sell Currency', 'Currency', 'Curr'],
+                            ['Selling Rate', 'Selling Exchange Rate', 'Sell Rate', 'Rate', 'Exchange Rate', 'FX Rate'],
+                            sp_date,
+                            row_idx,
+                            label="selling",
+                            existing_currency=existing_s_curr,
+                            existing_rate=existing_s_rate,
+                            record_label=sp_label,
+                        )
+                        if s_err:
+                            res['skipped'] += 1
+                            res['errors'].append(f"Row {row_idx} ({raw_inv_no or service_ref or 'unknown'}): {s_err}" if f"Row {row_idx}" not in s_err else s_err)
+                            continue
+                        if s_warns:
+                            if isinstance(s_warns, (list, tuple)):
+                                res['warnings'].extend(s_warns)
+                            else:
+                                res['warnings'].append(s_warns)
 
                         if spare_obj:
                             spare_obj.purchase_cost = purchase_cost
+                            spare_obj.purchase_currency = p_curr
+                            spare_obj.purchase_rate = p_rate
                             spare_obj.selling_price = selling_price
+                            spare_obj.selling_currency = s_curr
+                            spare_obj.selling_rate = s_rate
                             spare_obj.source = source
                             if vessel_customer:
                                 spare_obj.vessel_customer = vessel_customer
@@ -3892,7 +4157,11 @@ def import_finance_sheets_data(
                                 invoice=invoice_obj,
                                 source=source,
                                 purchase_cost=purchase_cost,
+                                purchase_currency=p_curr,
+                                purchase_rate=p_rate,
                                 selling_price=selling_price,
+                                selling_currency=s_curr,
+                                selling_rate=s_rate,
                                 status=status,
                                 notes=notes,
                                 created_by=user,
@@ -3904,8 +4173,14 @@ def import_finance_sheets_data(
                             'action': action,
                             'service_ref': service_ref,
                             'vessel_customer': vessel_customer,
+                            'purchase_currency': p_curr,
+                            'purchase_rate': p_rate,
                             'purchase_cost': purchase_cost,
+                            'purchase_cost_aed': spare_obj.purchase_cost_aed,
+                            'selling_currency': s_curr,
+                            'selling_rate': s_rate,
                             'selling_price': selling_price,
+                            'selling_price_aed': spare_obj.selling_price_aed,
                             'profit': spare_obj.profit,
                             'markup_pct': spare_obj.markup_pct,
                             'invoice_number': raw_inv_no,
@@ -4065,13 +4340,13 @@ def get_projects_financials_map(projects_or_pids, eng_costs_map=None):
 
     spares = list(
         SpareSale.objects.filter(Q(project_id__in=pids) | Q(invoice__project_id__in=pids))
-        .values('id', 'project_id', 'invoice__project_id', 'purchase_cost', 'selling_price')
+        .values('id', 'project_id', 'invoice__project_id', 'purchase_cost_aed', 'selling_price_aed')
     )
     spares_by_proj = defaultdict(lambda: {'cost': Decimal('0.00'), 'revenue': Decimal('0.00'), 'seen_ids': set()})
     for sp in spares:
         sp_id = sp['id']
-        pc = sp['purchase_cost'] or Decimal('0.00')
-        sp_rev = sp['selling_price'] or Decimal('0.00')
+        pc = sp['purchase_cost_aed'] or Decimal('0.00')
+        sp_rev = sp['selling_price_aed'] or Decimal('0.00')
         target_pids = set()
         if sp['project_id'] in pids:
             target_pids.add(sp['project_id'])
@@ -4085,7 +4360,7 @@ def get_projects_financials_map(projects_or_pids, eng_costs_map=None):
 
     job_costs_list = list(
         JobCost.objects.filter(invoice__project_id__in=pids)
-        .values('id', 'invoice__project_id', 'cost_type', 'source', 'amount', 'travel_port')
+        .values('id', 'invoice__project_id', 'cost_type', 'source', 'amount_aed', 'travel_port')
     )
     costs_by_proj = defaultdict(lambda: {
         'travel': Decimal('0.00'),
@@ -4098,7 +4373,7 @@ def get_projects_financials_map(projects_or_pids, eng_costs_map=None):
     })
     for c in job_costs_list:
         pid = c['invoice__project_id']
-        amt = c['amount'] or Decimal('0.00')
+        amt = c['amount_aed'] or Decimal('0.00')
         ctype = c['cost_type']
         csrc = c['source']
         entry = costs_by_proj[pid]
@@ -4122,7 +4397,7 @@ def get_projects_financials_map(projects_or_pids, eng_costs_map=None):
         proj = proj_objs.get(pid)
         p_invs = invs_by_proj.get(pid, [])
         if p_invs:
-            invoiced_amount = sum((inv.collection_value for inv in p_invs), Decimal('0.00'))
+            invoiced_amount = sum((inv.collection_value_aed for inv in p_invs), Decimal('0.00'))
             is_legacy_invoice = False
         else:
             invoiced_amount = (proj.invoice_amount or Decimal('0.00')) if proj else Decimal('0.00')
@@ -4252,7 +4527,7 @@ def compute_invoice_engineer_costs(invoices, eng_costs_map=None):
         total_cents = int(round(total_proj_eng_cost * 100))
         weights = {}
         for target_inv in all_target_invs:
-            w = target_inv.collection_value if target_inv.collection_value > Decimal('0.00') else (target_inv.amount_excl_vat or Decimal('0.00'))
+            w = target_inv.collection_value_aed if target_inv.collection_value_aed > Decimal('0.00') else (target_inv.amount_excl_vat_aed or Decimal('0.00'))
             weights[target_inv.id] = max(w, Decimal('0.00'))
 
         sum_w = sum(weights.values())
@@ -4340,22 +4615,26 @@ def get_invoice_costing_data(filters=None, sort_by=None):
     rows = []
     for inv in invoices:
         amount_excl_tax = inv.amount_excl_vat or Decimal('0.00')
+        amount_excl_tax_aed = inv.amount_excl_vat_aed or Decimal('0.00')
         credits = inv.credits_applied or Decimal('0.00')
+        credits_aed = inv.credits_applied_aed or Decimal('0.00')
         coll_val = inv.collection_value
+        coll_val_aed = inv.collection_value_aed
 
         spares = list(inv.spare_sales.all())
-        spares_rev = sum((s.selling_price or Decimal('0.00')) for s in spares)
-        spare_cost = sum((s.purchase_cost or Decimal('0.00')) for s in spares)
+        spares_rev = sum((s.selling_price_aed or Decimal('0.00')) for s in spares)
+        spare_cost = sum((s.purchase_cost_aed or Decimal('0.00')) for s in spares)
         spares_profit = spares_rev - spare_cost
 
         costs = list(inv.job_costs.all())
-        other_cost = sum((c.amount or Decimal('0.00')) for c in costs if c.cost_type in ('TRAVEL', 'FLIGHT', 'MISC', 'OTHER'))
+        other_cost = sum((c.amount_aed or Decimal('0.00')) for c in costs if c.cost_type in ('TRAVEL', 'FLIGHT', 'MISC', 'OTHER'))
         engineer_cost = eng_cost_map.get(inv.id, Decimal('0.00'))
 
         total_cost = engineer_cost + spare_cost + other_cost
-        total_net_profit = coll_val - total_cost
+        total_net_profit = coll_val_aed - total_cost
 
         over_due = inv.outstanding if inv.status == 'OVERDUE' else Decimal('0.00')
+        over_due_aed = inv.outstanding_aed if inv.status == 'OVERDUE' else Decimal('0.00')
         is_loss = total_net_profit < Decimal('0.00')
 
         profit_disp = f"({abs(total_net_profit):,.2f})" if is_loss else f"{total_net_profit:,.2f}"
@@ -4372,8 +4651,12 @@ def get_invoice_costing_data(filters=None, sort_by=None):
             'customer': inv.customer or (inv.project.client_name if inv.project else ''),
             'invoice_number': inv.invoice_number,
             'invoice_type': inv.invoice_type,
+            'currency': inv.currency,
+            'exchange_rate': inv.exchange_rate,
             'amount_excl_vat': amount_excl_tax,
+            'amount_excl_vat_aed': amount_excl_tax_aed,
             'credits_applied': credits,
+            'credits_applied_aed': credits_aed,
             'spares_revenue': spares_rev,
             'spare_cost': spare_cost,
             'spares_profit': spares_profit,
@@ -4383,7 +4666,9 @@ def get_invoice_costing_data(filters=None, sort_by=None):
             'total_net_profit': total_net_profit,
             'total_net_profit_display': profit_disp,
             'collection_value': coll_val,
+            'collection_value_aed': coll_val_aed,
             'over_due': over_due,
+            'over_due_aed': over_due_aed,
             'is_loss': is_loss,
             'is_legacy': bool(inv.invoice_number and inv.invoice_number.startswith('LEGACY-')),
         })
@@ -4410,15 +4695,15 @@ def get_invoice_costing_data(filters=None, sort_by=None):
         rows.sort(key=lambda r: (r['invoice_date'] is not None, r['invoice_date'] or date.min), reverse=True)
 
     totals = {
-        'amount_excl_vat': sum((r['amount_excl_vat'] for r in rows), Decimal('0.00')),
-        'credits_applied': sum((r['credits_applied'] for r in rows), Decimal('0.00')),
+        'amount_excl_vat': sum((r['amount_excl_vat_aed'] for r in rows), Decimal('0.00')),
+        'credits_applied': sum((r['credits_applied_aed'] for r in rows), Decimal('0.00')),
         'spares_revenue': sum((r['spares_revenue'] for r in rows), Decimal('0.00')),
         'spare_cost': sum((r['spare_cost'] for r in rows), Decimal('0.00')),
         'spares_profit': sum((r['spares_profit'] for r in rows), Decimal('0.00')),
         'other_cost': sum((r['other_cost'] for r in rows), Decimal('0.00')),
         'total_net_profit': sum((r['total_net_profit'] for r in rows), Decimal('0.00')),
-        'collection_value': sum((r['collection_value'] for r in rows), Decimal('0.00')),
-        'over_due': sum((r['over_due'] for r in rows), Decimal('0.00')),
+        'collection_value': sum((r['collection_value_aed'] for r in rows), Decimal('0.00')),
+        'over_due': sum((r['over_due_aed'] for r in rows), Decimal('0.00')),
     }
     totals['total_net_profit_display'] = f"({abs(totals['total_net_profit']):,.2f})" if totals['total_net_profit'] < 0 else f"{totals['total_net_profit']:,.2f}"
 
@@ -4458,9 +4743,9 @@ def invoices_excel_response(invoices_data, totals, filename_suffix='all'):
     align_right = Alignment(horizontal="right", vertical="center")
 
     headers = [
-        "Status", "Invoice Date", "Project / Service Ref", "Vessel", "Invoice No",
-        "Amount Without Tax", "Credits Applied", "Spares Revenue", "Spare Cost",
-        "Spares Profit", "Other Cost", "Total Net Profit", "Collection Value", "Over Due"
+        "Sl", "Invoice #", "Invoice Date", "Due Date", "Project / Customer", "Vessel", "Type",
+        "Currency", "Rate", "Amount Excl. VAT", "VAT Amount", "Credits Applied", "Received",
+        "Amount Excl. VAT (AED)", "Collection Value (AED)", "Received (AED)", "Outstanding (AED)", "Status", "Days Overdue"
     ]
 
     ws.row_dimensions[1].height = 26
@@ -4471,25 +4756,52 @@ def invoices_excel_response(invoices_data, totals, filename_suffix='all'):
         cell.alignment = align_header
 
     current_row = 2
-    for r in invoices_data:
+    for idx, r in enumerate(invoices_data):
         ws.row_dimensions[current_row].height = 20
         row_fill = fill_loss if r.get('is_loss') else None
 
+        inv = r.get('invoice')
+        inv_no = r.get('invoice_number') or (inv.invoice_number if inv else "—")
+        inv_date = r['invoice_date'].strftime('%Y-%m-%d') if r.get('invoice_date') else (inv.invoice_date.strftime('%Y-%m-%d') if inv and inv.invoice_date else "—")
+        due_date = r['due_date'].strftime('%Y-%m-%d') if r.get('due_date') else (inv.due_date.strftime('%Y-%m-%d') if inv and inv.due_date else "—")
+        proj_cust = str(r.get('customer') or (inv.customer if inv else '') or r.get('service_ref') or "—")
+        vessel = str(r.get('vessel') or (inv.vessel if inv else '') or "—")
+        inv_type = inv.get_invoice_type_display() if inv and hasattr(inv, 'get_invoice_type_display') else str(r.get('invoice_type') or "SERVICE_JOB")
+
+        currency = inv.currency if inv else str(r.get('currency') or 'AED')
+        rate = float(inv.exchange_rate if inv else r.get('exchange_rate', 1))
+        amount_excl_vat = float(inv.amount_excl_vat if inv else r.get('amount_excl_vat', 0))
+        vat_amount = float(inv.vat_amount if inv else r.get('vat_amount', 0))
+        credits_applied = float(inv.credits_applied if inv else r.get('credits_applied', 0))
+        amount_received = float(inv.amount_received if inv else r.get('amount_received', 0))
+
+        amount_excl_vat_aed = float(r.get('amount_excl_vat_aed', inv.amount_excl_vat_aed if inv else amount_excl_vat))
+        collection_value_aed = float(r.get('collection_value_aed', inv.collection_value_aed if inv else (amount_excl_vat_aed - float(r.get('credits_applied_aed', 0)))))
+        received_aed = float(inv.amount_received_aed if inv else r.get('amount_received_aed', 0))
+        outstanding_aed = float(inv.outstanding_aed if inv else r.get('outstanding_aed', 0))
+        status = str(r.get('status') or (inv.status if inv else "OPEN"))
+        days_overdue = inv.days_overdue if inv and hasattr(inv, 'days_overdue') else r.get('days_overdue', 0)
+
         values = [
-            (r['status'], align_center, "text"),
-            (r['invoice_date'].strftime('%Y-%m-%d') if r.get('invoice_date') else "—", align_center, "text"),
-            (r.get('service_ref') or "—", align_left, "text"),
-            (r.get('vessel') or "—", align_left, "text"),
-            (r.get('invoice_number') or "—", align_left, "text"),
-            (float(r['amount_excl_vat']), align_right, "0.00"),
-            (float(r['credits_applied']), align_right, "0.00"),
-            (float(r['spares_revenue']), align_right, "0.00"),
-            (float(r['spare_cost']), align_right, "0.00"),
-            (float(r['spares_profit']), align_right, "0.00"),
-            (float(r['other_cost']), align_right, "0.00"),
-            (float(r['total_net_profit']), align_right, "0.00"),
-            (float(r['collection_value']), align_right, "0.00"),
-            (float(r['over_due']), align_right, "0.00"),
+            (idx + 1, align_center, "int"),
+            (inv_no, align_left, "text"),
+            (inv_date, align_center, "text"),
+            (due_date, align_center, "text"),
+            (proj_cust, align_left, "text"),
+            (vessel, align_left, "text"),
+            (inv_type, align_center, "text"),
+            (currency, align_center, "text"),
+            (rate, align_right, "rate"),
+            (amount_excl_vat, align_right, "0.00"),
+            (vat_amount, align_right, "0.00"),
+            (credits_applied, align_right, "0.00"),
+            (amount_received, align_right, "0.00"),
+            (amount_excl_vat_aed, align_right, "0.00"),
+            (collection_value_aed, align_right, "0.00"),
+            (received_aed, align_right, "0.00"),
+            (outstanding_aed, align_right, "0.00"),
+            (status, align_center, "text"),
+            (days_overdue, align_center, "int"),
         ]
 
         for col_idx, (val, alignment, kind) in enumerate(values, start=1):
@@ -4501,26 +4813,40 @@ def invoices_excel_response(invoices_data, totals, filename_suffix='all'):
                 cell.fill = row_fill
             if kind == "0.00" and isinstance(val, (int, float)):
                 cell.number_format = "#,##0.00"
+            elif kind == "rate" and isinstance(val, (int, float)):
+                cell.number_format = "#,##0.0000"
+            elif kind == "int" and isinstance(val, (int, float)):
+                cell.number_format = "#,##0"
 
         current_row += 1
 
     # Totals Row
     ws.row_dimensions[current_row].height = 24
+    tot_amt_excl_aed = sum(float(r.get('amount_excl_vat_aed', r['invoice'].amount_excl_vat_aed if r.get('invoice') else 0)) for r in invoices_data)
+    tot_coll_val_aed = sum(float(r.get('collection_value_aed', r['invoice'].collection_value_aed if r.get('invoice') else 0)) for r in invoices_data)
+    tot_rec_aed = sum(float(r['invoice'].amount_received_aed if r.get('invoice') else r.get('amount_received_aed', 0)) for r in invoices_data)
+    tot_out_aed = sum(float(r['invoice'].outstanding_aed if r.get('invoice') else r.get('outstanding_aed', 0)) for r in invoices_data)
+
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
+        ("", align_left, "text"),
+        ("", align_center, "text"),
         ("", align_center, "text"),
         ("", align_left, "text"),
         ("", align_left, "text"),
-        ("", align_left, "text"),
-        (float(totals.get('amount_excl_vat', 0)), align_right, "0.00"),
-        (float(totals.get('credits_applied', 0)), align_right, "0.00"),
-        (float(totals.get('spares_revenue', 0)), align_right, "0.00"),
-        (float(totals.get('spare_cost', 0)), align_right, "0.00"),
-        (float(totals.get('spares_profit', 0)), align_right, "0.00"),
-        (float(totals.get('other_cost', 0)), align_right, "0.00"),
-        (float(totals.get('total_net_profit', 0)), align_right, "0.00"),
-        (float(totals.get('collection_value', 0)), align_right, "0.00"),
-        (float(totals.get('over_due', 0)), align_right, "0.00"),
+        ("", align_center, "text"),
+        ("", align_center, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
+        (tot_amt_excl_aed, align_right, "0.00"),
+        (tot_coll_val_aed, align_right, "0.00"),
+        (tot_rec_aed, align_right, "0.00"),
+        (tot_out_aed, align_right, "0.00"),
+        ("", align_center, "text"),
+        ("", align_center, "text"),
     ]
 
     for col_idx, (val, alignment, kind) in enumerate(total_values, start=1):
@@ -4615,10 +4941,10 @@ def get_jobs_pnl_data(filters=None, sort_by=None):
     if project_ids:
         unlinked_qs = (
             SpareSale.objects.filter(project_id__in=project_ids, invoice__isnull=True)
-            .values('project_id', 'purchase_cost')
+            .values('project_id', 'purchase_cost_aed')
         )
         for sp in unlinked_qs:
-            unlinked_spares_by_proj[sp['project_id']] += (sp['purchase_cost'] or Decimal('0.00'))
+            unlinked_spares_by_proj[sp['project_id']] += (sp['purchase_cost_aed'] or Decimal('0.00'))
 
     # Identify the project's latest non-cancelled invoice (highest invoice_date, then highest id)
     all_proj_invs = defaultdict(list)
@@ -4635,7 +4961,7 @@ def get_jobs_pnl_data(filters=None, sort_by=None):
 
     rows = []
     for inv in invoices:
-        net_invoice = inv.collection_value
+        net_invoice = inv.collection_value_aed
         engineer = eng_cost_map.get(inv.id, Decimal('0.00'))
 
         fin = proj_fin_map.get(inv.project_id)
@@ -4650,16 +4976,16 @@ def get_jobs_pnl_data(filters=None, sort_by=None):
             misc = fin['job_costs']['misc']
             other = fin['job_costs']['other'] + fin['job_costs']['legacy']
         else:
-            spare_cost = sum((s.purchase_cost or Decimal('0.00')) for s in inv.spare_sales.all())
+            spare_cost = sum((s.purchase_cost_aed or Decimal('0.00')) for s in inv.spare_sales.all())
             if inv.id == latest_inv_ids.get(inv.project_id):
                 spare_cost += unlinked_spares_by_proj.get(inv.project_id, Decimal('0.00'))
             travel_lines = [c for c in inv.job_costs.all() if c.cost_type == 'TRAVEL']
-            travel_cost = sum((c.amount or Decimal('0.00')) for c in travel_lines)
+            travel_cost = sum((c.amount_aed or Decimal('0.00')) for c in travel_lines)
             ports = [c.travel_port.strip() for c in travel_lines if c.travel_port and c.travel_port.strip()]
             travel_port = ", ".join(dict.fromkeys(ports))
-            flight = sum((c.amount or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'FLIGHT')
-            misc = sum((c.amount or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'MISC')
-            other = sum((c.amount or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'OTHER' or c.source == 'LEGACY')
+            flight = sum((c.amount_aed or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'FLIGHT')
+            misc = sum((c.amount_aed or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'MISC')
+            other = sum((c.amount_aed or Decimal('0.00')) for c in inv.job_costs.all() if c.cost_type == 'OTHER' or c.source == 'LEGACY')
 
         total_cost = engineer + spare_cost + travel_cost + flight + misc + other
         profit = net_invoice - total_cost
@@ -4771,9 +5097,9 @@ def jobs_pnl_excel_response(jobs_data, totals, filename_suffix='all'):
     align_right = Alignment(horizontal="right", vertical="center")
 
     headers = [
-        "Service Ref", "Vessel", "Invoice No", "Invoice (Net)", "Engineer",
-        "Spare Cost", "Travel Port", "Travel Cost", "Flight", "Misc Cost",
-        "Other", "Total Cost", "Profit / (Loss)", "Margin %", "Month", "Notes"
+        "Sl", "Service Ref", "Vessel", "Invoice No", "Inv Currency", "Inv Rate", "Net Invoice", "Net Invoice (AED)",
+        "Engineer (AED)", "Spare Cost (AED)", "Travel Port", "Travel Cost (AED)", "Flight (AED)", "Misc Cost (AED)",
+        "Other (AED)", "Total Cost (AED)", "Profit / (Loss) (AED)", "Margin %", "Month", "Notes"
     ]
 
     ws.row_dimensions[1].height = 26
@@ -4784,15 +5110,25 @@ def jobs_pnl_excel_response(jobs_data, totals, filename_suffix='all'):
         cell.alignment = align_header
 
     current_row = 2
-    for r in jobs_data:
+    for idx, r in enumerate(jobs_data):
         ws.row_dimensions[current_row].height = 20
         row_fill = fill_loss if r.get('is_loss') else None
 
+        inv = r.get('invoice')
+        inv_curr = inv.currency if inv else str(r.get('currency') or 'AED')
+        inv_rate = float(inv.exchange_rate if inv else r.get('exchange_rate', 1))
+        net_inv_orig = float(inv.collection_value if inv else r['net_invoice'])
+        net_inv_aed = float(r['net_invoice'])
+
         values = [
+            (idx + 1, align_center, "int"),
             (r.get('service_ref') or "—", align_left, "text"),
             (r.get('vessel') or "—", align_left, "text"),
             (r.get('invoice_number') or "—", align_left, "text"),
-            (float(r['net_invoice']), align_right, "0.00"),
+            (inv_curr, align_center, "text"),
+            (inv_rate, align_right, "rate"),
+            (net_inv_orig, align_right, "0.00"),
+            (net_inv_aed, align_right, "0.00"),
             (float(r['engineer']), align_right, "0.00"),
             (float(r['spare_cost']), align_right, "0.00"),
             (r.get('travel_port') or "—", align_left, "text"),
@@ -4816,17 +5152,25 @@ def jobs_pnl_excel_response(jobs_data, totals, filename_suffix='all'):
                 cell.fill = row_fill
             if kind == "0.00" and isinstance(val, (int, float)):
                 cell.number_format = "#,##0.00"
+            elif kind == "rate" and isinstance(val, (int, float)):
+                cell.number_format = "#,##0.0000"
             elif kind == "pct" and isinstance(val, (int, float)):
                 cell.number_format = '0.0%'
+            elif kind == "int" and isinstance(val, int):
+                cell.number_format = "#,##0"
 
         current_row += 1
 
     # Totals Row
     ws.row_dimensions[current_row].height = 24
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
         ("", align_left, "text"),
         ("", align_left, "text"),
+        ("", align_left, "text"),
+        ("", align_center, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
         (float(totals.get('net_invoice', 0)), align_right, "0.00"),
         (float(totals.get('engineer', 0)), align_right, "0.00"),
         (float(totals.get('spare_cost', 0)), align_right, "0.00"),
@@ -4912,8 +5256,8 @@ def get_spares_accounting_data(filters=None, sort_by=None, alerts_only=False):
     for inv_id, sp_list in inv_spares_map.items():
         inv = sp_list[0].invoice
         if inv and inv.invoice_type == 'SPARES_ONLY':
-            total_sp_selling = sum((sp.selling_price or Decimal('0.00')) for sp in sp_list)
-            is_mismatch = (total_sp_selling != inv.amount_excl_vat)
+            total_sp_selling = sum((sp.selling_price_aed or Decimal('0.00')) for sp in sp_list)
+            is_mismatch = (total_sp_selling != inv.amount_excl_vat_aed)
             for sp in sp_list:
                 sp._invoice_spares_mismatch = is_mismatch
         else:
@@ -4931,7 +5275,7 @@ def get_spares_accounting_data(filters=None, sort_by=None, alerts_only=False):
             source='LEGACY',
             description='Legacy purchases',
             invoice_id__in=[s.invoice_id for s in spares if s.invoice_id]
-        ).values('invoice_id').annotate(amt=Sum('amount'))
+        ).values('invoice_id').annotate(amt=Sum('amount_aed'))
     }
     for s in spares:
         if s.invoice_id:
@@ -4943,9 +5287,9 @@ def get_spares_accounting_data(filters=None, sort_by=None, alerts_only=False):
         spares = [s for s in spares if s.alerts]
 
     # Summary
-    total_purchase = sum((s.purchase_cost or Decimal('0.00')) for s in spares)
-    total_selling = sum((s.selling_price or Decimal('0.00')) for s in spares)
-    total_profit = sum((s.profit or Decimal('0.00')) for s in spares)
+    total_purchase = sum((s.purchase_cost_aed or Decimal('0.00')) for s in spares)
+    total_selling = sum((s.selling_price_aed or Decimal('0.00')) for s in spares)
+    total_profit = sum((s.profit_aed or Decimal('0.00')) for s in spares)
     avg_markup = (total_profit / total_purchase * Decimal('100.00')) if total_purchase > Decimal('0.00') else Decimal('0.00')
     alerts_count = sum(1 for s in spares if s.alerts)
 
@@ -4962,7 +5306,7 @@ def get_spares_accounting_data(filters=None, sort_by=None, alerts_only=False):
         reverse = sort_by.startswith('-')
         field = sort_by.lstrip('-')
         if field in ('purchase_cost', 'selling_price', 'profit'):
-            spares.sort(key=lambda s: getattr(s, field) or Decimal('0.00'), reverse=reverse)
+            spares.sort(key=lambda s: getattr(s, f"{field}_aed") or Decimal('0.00'), reverse=reverse)
         elif field == 'markup_pct':
             spares.sort(key=lambda s: s.markup_pct or Decimal('0.00'), reverse=reverse)
         elif field in ('service_ref', 'vessel_customer', 'status', 'source'):
@@ -5007,9 +5351,10 @@ def spares_excel_response(spares_data, summary, filename_suffix='all'):
     align_right = Alignment(horizontal="right", vertical="center")
 
     headers = [
-        "Service Ref", "Vessel / Customer", "Source", "Purchase Cost",
-        "Actual Selling Price", "Profit", "Markup %", "Invoice No",
-        "Status", "Notes", "Alerts"
+        "Sl", "Service Ref / PO", "Description", "Vessel / Customer", "Invoice #", "Source", "Status",
+        "Purchase Curr", "Purchase Rate", "Purchase Cost", "Purchase Cost (AED)",
+        "Selling Curr", "Selling Rate", "Selling Price", "Selling Price (AED)",
+        "Profit (AED)", "Markup %", "Alerts"
     ]
 
     ws.row_dimensions[1].height = 26
@@ -5020,22 +5365,29 @@ def spares_excel_response(spares_data, summary, filename_suffix='all'):
         cell.alignment = align_header
 
     current_row = 2
-    for s in spares_data:
+    for idx, s in enumerate(spares_data):
         ws.row_dimensions[current_row].height = 20
         alerts_str = ", ".join(s.alerts) if s.alerts else "None"
         inv_no = s.invoice.invoice_number if s.invoice else "—"
 
         values = [
+            (idx + 1, align_center, "int"),
             (s.service_ref or "—", align_left, "text"),
-            (s.vessel_customer or "—", align_left, "text"),
-            (s.get_source_display() if hasattr(s, 'get_source_display') else s.source, align_center, "text"),
-            (float(s.purchase_cost or 0), align_right, "0.00"),
-            (float(s.selling_price or 0), align_right, "0.00"),
-            (float(s.profit or 0), align_right, "0.00"),
-            (float(s.markup_pct or 0) / 100.0 if s.markup_pct is not None else 0.0, align_right, "pct"),
-            (inv_no, align_left, "text"),
-            (s.get_status_display() if hasattr(s, 'get_status_display') else s.status, align_center, "text"),
             (s.notes or "—", align_left, "text"),
+            (s.vessel_customer or "—", align_left, "text"),
+            (inv_no, align_left, "text"),
+            (s.get_source_display() if hasattr(s, 'get_source_display') else s.source, align_center, "text"),
+            (s.get_status_display() if hasattr(s, 'get_status_display') else s.status, align_center, "text"),
+            (s.purchase_currency, align_center, "text"),
+            (float(s.purchase_rate or 1), align_right, "rate"),
+            (float(s.purchase_cost or 0), align_right, "0.00"),
+            (float(s.purchase_cost_aed or 0), align_right, "0.00"),
+            (s.selling_currency, align_center, "text"),
+            (float(s.selling_rate or 1), align_right, "rate"),
+            (float(s.selling_price or 0), align_right, "0.00"),
+            (float(s.selling_price_aed or 0), align_right, "0.00"),
+            (float(s.profit_aed or 0), align_right, "0.00"),
+            (float(s.markup_pct or 0) / 100.0 if s.markup_pct is not None else 0.0, align_right, "pct"),
             (alerts_str, align_left, "text"),
         ]
 
@@ -5046,24 +5398,35 @@ def spares_excel_response(spares_data, summary, filename_suffix='all'):
             cell.border = thin_border
             if kind == "0.00" and isinstance(val, (int, float)):
                 cell.number_format = "#,##0.00"
+            elif kind == "rate" and isinstance(val, (int, float)):
+                cell.number_format = "#,##0.0000"
             elif kind == "pct" and isinstance(val, (int, float)):
                 cell.number_format = '0.0%'
+            elif kind == "int" and isinstance(val, int):
+                cell.number_format = "#,##0"
 
         current_row += 1
 
     # Totals Row
     ws.row_dimensions[current_row].height = 24
     total_values = [
-        ("TOTAL", align_left, "text"),
+        ("TOTAL (AED)", align_left, "text"),
         ("", align_left, "text"),
         ("", align_left, "text"),
+        ("", align_left, "text"),
+        ("", align_left, "text"),
+        ("", align_center, "text"),
+        ("", align_center, "text"),
+        ("", align_center, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
         (float(summary.get('total_purchase', 0)), align_right, "0.00"),
+        ("", align_center, "text"),
+        ("", align_right, "text"),
+        ("", align_right, "text"),
         (float(summary.get('total_selling', 0)), align_right, "0.00"),
         (float(summary.get('total_profit', 0)), align_right, "0.00"),
         (float(summary.get('avg_markup_pct', 0)) / 100.0, align_right, "pct"),
-        ("", align_left, "text"),
-        ("", align_center, "text"),
-        ("", align_left, "text"),
         (f"{summary.get('alerts_count', 0)} Alerts", align_left, "text"),
     ]
 

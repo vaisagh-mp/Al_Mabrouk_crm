@@ -1,5 +1,5 @@
 {% extends 'finance/financebase.html' %}
-{% load static humanize %}
+{% load static humanize currency_tags %}
 
 {% block title %}Spares Accounting | Almabrouk CRM{% endblock %}
 
@@ -160,8 +160,22 @@
                                 {{ s.get_source_display }}
                             </span>
                         </td>
-                        <td class="text-end font-monospace">{{ s.purchase_cost|floatformat:2|intcomma }}</td>
-                        <td class="text-end font-monospace">{{ s.selling_price|floatformat:2|intcomma }}</td>
+                        <td class="text-end font-monospace">
+                            {% if s.purchase_currency and s.purchase_currency != 'AED' %}
+                                <div>{{ s.purchase_cost|money:s.purchase_currency }}</div>
+                                <div class="text-muted small">AED {{ s.purchase_cost_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ s.purchase_cost|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace">
+                            {% if s.selling_currency and s.selling_currency != 'AED' %}
+                                <div>{{ s.selling_price|money:s.selling_currency }}</div>
+                                <div class="text-muted small">AED {{ s.selling_price_aed|floatformat:2|intcomma }}</div>
+                            {% else %}
+                                {{ s.selling_price|floatformat:2|intcomma }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace fw-bold {% if s.profit < 0 %}text-danger{% endif %}">
                             {% if s.profit < 0 %}({{ s.profit|stringformat:".2f"|slice:"1:" }}){% else %}{{ s.profit|floatformat:2|intcomma }}{% endif %}
                         </td>
@@ -219,7 +233,7 @@
                 {% if page_obj %}
                 <tfoot class="table-light fw-bold">
                     <tr>
-                        <td colspan="3" class="text-uppercase">Total</td>
+                        <td colspan="3" class="text-uppercase">Total (AED)</td>
                         <td class="text-end font-monospace">{{ summary.total_purchase|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace">{{ summary.total_selling|floatformat:2|intcomma }}</td>
                         <td class="text-end font-monospace {% if summary.total_profit < 0 %}text-danger{% endif %}">

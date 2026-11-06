@@ -5,8 +5,11 @@
 {% block content %}
 
 <div class="emply-list-wraper">
-  <div class="pg-title">
-    <h1>{{ project_data.project_name }}</h1>
+  <div class="d-flex align-items-center gap-2 mb-4">
+    <a href="{% url 'admstrn_project_list_view' %}" class="btn btn-secondary">&larr; Back</a>
+    <div class="pg-title mb-0">
+      <h1 class="mb-0">{{ project_data.project_name }}</h1>
+    </div>
   </div>
 
   <section class="prjct-dtls-top">

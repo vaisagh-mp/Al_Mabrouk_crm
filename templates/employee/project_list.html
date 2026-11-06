@@ -157,8 +157,13 @@
             <input type="number" class="form-control" id="invoiceAmount" name="invoice_amount" step="0.01" required />
           </div>
           <div class="mb-3">
-            <label for="currencyCode" class="form-label">Currency Code</label>
-            <input type="text" class="form-control" id="currencyCode" name="currency_code" maxlength="3" required />
+            <label for="currencyCode" class="form-label">Currency (for invoices)</label>
+            <select class="form-select" id="currencyCode" name="currency_code" required>
+              <option value="AED" selected>AED – UAE Dirham</option>
+              <option value="USD">USD – US Dollar</option>
+              <option value="INR">INR – Indian Rupee</option>
+              <option value="EUR">EUR – Euro</option>
+            </select>
           </div>
           <div class="mb-3">
             <label for="status" class="form-label">Status</label>

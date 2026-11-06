@@ -31,47 +31,51 @@
 
     {{ form.non_field_errors }}
 
-    <div class="grid-4">
-      <!-- <div>
-        <label for="{{ form.work_order_number.id_for_label }}">Work Order Number</label>
-        {{ form.work_order_number }}
-      </div> -->
-      <!-- <div>
-        <label for="{{ form.vessel.id_for_label }}">Vessel</label>
-        {{ form.vessel }}
-      </div> -->
+    <div class="alert alert-info py-2 mb-3" style="font-size: 14px;">
+      <i class="fas fa-info-circle me-1"></i>
+      Header fields (Vessel, Client, IMO, Location, Assigned Date, Scope, Instructions, Description) are read-only here.
+      {% if work_order.project %}
+        <a href="{% url 'edit_project' work_order.project.id %}" class="fw-bold text-decoration-underline" style="color: inherit;">Edit these on the project</a>.
+      {% else %}
+        Edit these on the project.
+      {% endif %}
     </div>
 
     <div class="grid-2">
       <div>
-        <label for="{{ form.client.id_for_label }}">Client</label>
-        {{ form.client }}
+        <label>Vessel</label>
+        <input type="text" class="form-control" value="{{ work_order.vessel|default:'N/A' }}" readonly style="background-color: #f8f9fa;" />
       </div>
       <div>
-        <label for="{{ form.imo_no.id_for_label }}">IMO Number</label>
-        {{ form.imo_no }}
+        <label>Client</label>
+        <input type="text" class="form-control" value="{{ work_order.client|default:'' }}" readonly style="background-color: #f8f9fa;" />
       </div>
     </div>
 
     <div class="grid-2">
       <div>
-        <label for="{{ form.location.id_for_label }}">Location</label>
-        {{ form.location }}
+        <label>IMO Number</label>
+        <input type="text" class="form-control" value="{{ work_order.imo_no|default:'' }}" readonly style="background-color: #f8f9fa;" />
       </div>
       <div>
-        <label for="{{ form.assigned_date.id_for_label }}">Assigned Date</label>
-        {{ form.assigned_date }}
+        <label>Location</label>
+        <input type="text" class="form-control" value="{{ work_order.location|default:'' }}" readonly style="background-color: #f8f9fa;" />
       </div>
     </div>
 
     <div>
-      <label for="{{ form.job_scope.id_for_label }}">Job Scope</label>
-      {{ form.job_scope }}
+      <label>Assigned Date</label>
+      <input type="date" class="form-control" value="{{ work_order.assigned_date|date:'Y-m-d' }}" readonly style="background-color: #f8f9fa; max-width: 300px;" />
     </div>
 
     <div>
-      <label for="{{ form.job_instructions.id_for_label }}">Job Instruction</label>
-      {{ form.job_instructions }}
+      <label>Job Scope</label>
+      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.job_scope|default:'' }}</textarea>
+    </div>
+
+    <div>
+      <label>Job Instruction</label>
+      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.job_instructions|default:'' }}</textarea>
     </div>
 
     <div>
@@ -168,7 +172,8 @@
         <table id="timeTable">
           <thead>
             <tr>
-              <th>date</th>
+              <th>Member</th>
+              <th>Date</th>
               <th>Start Time</th>
               <th>Finish Time</th>
             </tr>
@@ -180,8 +185,8 @@
     </div>
 
     <div>
-      <label for="{{ form.project_description.id_for_label }}">Project Description</label>
-      {{ form.project_description }}
+      <label>Project Description</label>
+      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.project_description|default:'' }}</textarea>
     </div>
 
     <div>
@@ -264,15 +269,6 @@
     <button type="submit" style="margin-top: 20px;">Submit</button>
   </form>
 </div>
-
-
-<script src="https://cdn.ckeditor.com/4.22.1/full/ckeditor.js"></script>
-<script>
-  CKEDITOR.replace('{{ form.job_instructions.auto_id }}', {
-    
-  });
-</script>
-
 
 <script>
   function addImageRow() {

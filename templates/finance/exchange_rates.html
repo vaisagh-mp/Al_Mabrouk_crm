@@ -1,0 +1,132 @@
+{% extends 'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Exchange Rates | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <div class="fin-table-header-bar">
+        <div class="pg-title mb-0">
+            <h1>Exchange Rates Settings</h1>
+            <span class="text-muted small">Manage foreign currency rates to AED (Base Reporting Currency)</span>
+        </div>
+        <div class="fin-toolbar d-flex align-items-center gap-2">
+            <a href="{% url 'fin_exchange_rate_add' %}{% if current_currency %}?currency={{ current_currency }}{% endif %}" class="fin-btn">
+                <i class="fas fa-plus me-1"></i> Add Exchange Rate
+            </a>
+        </div>
+    </div>
+
+    <!-- Currency Filter Toolbar -->
+    <div class="card mb-3 p-2 bg-light border-0">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-bold small text-muted">Filter by Currency:</span>
+                <a href="{% url 'fin_exchange_rates' %}" class="btn btn-sm {% if not current_currency %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                    All
+                </a>
+                {% for code, label in currencies %}
+                <a href="{% url 'fin_exchange_rates' %}?currency={{ code }}" class="btn btn-sm {% if current_currency == code %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                    {{ code }}
+                </a>
+                {% endfor %}
+            </div>
+            <div class="text-muted small">
+                <i class="fas fa-info-circle text-primary me-1"></i>
+                <span class="badge bg-success me-1">In Use</span> indicates the active rate currently applied for that currency.
+            </div>
+        </div>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Currency</th>
+                        <th>Rate to AED</th>
+                        <th>Effective From</th>
+                        <th>Notes</th>
+                        <th class="text-center">Status</th>
+                        <th>Updated By / At</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rate in rates %}
+                    <tr class="{% if rate.id in current_rate_ids %}table-success bg-opacity-25{% endif %}">
+                        <td>
+                            <strong>{{ rate.currency }}</strong>
+                            {% if rate.id in current_rate_ids %}
+                                <span class="badge bg-success ms-1">In Use</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="fw-semibold">{{ rate.rate_to_aed|floatformat:6 }}</span>
+                            <span class="text-muted small ms-1">(1 {{ rate.currency }} = {{ rate.rate_to_aed }} AED)</span>
+                        </td>
+                        <td>
+                            {{ rate.effective_from|date:"d-M-Y" }}
+                        </td>
+                        <td>
+                            <span class="text-muted small">{{ rate.notes|default:"—" }}</span>
+                        </td>
+                        <td class="text-center">
+                            {% if rate.is_active %}
+                                <span class="status completed">Active</span>
+                            {% else %}
+                                <span class="status cancelled">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="small">
+                                <div>{{ rate.created_by.username|default:"System" }}</div>
+                                <div class="text-muted">{{ rate.updated_at|date:"d-M-Y H:i" }}</div>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <div class="d-flex justify-content-center align-items-center gap-2">
+                                <div class="list-action-col">
+                                    <a href="{% url 'fin_exchange_rate_edit' rate.id %}" title="Edit Rate">
+                                        <i class="far fa-edit"></i>
+                                    </a>
+                                </div>
+                                <form method="post" action="{% url 'fin_exchange_rate_toggle' rate.id %}" style="display:inline;">
+                                    {% csrf_token %}
+                                    {% if rate.is_active %}
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Deactivate">
+                                            <i class="fas fa-ban"></i> Deactivate
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Activate">
+                                            <i class="fas fa-check"></i> Activate
+                                        </button>
+                                    {% endif %}
+                                </form>
+                                {% if is_finance_admin %}
+                                <form method="post" action="{% url 'fin_exchange_rate_delete' rate.id %}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this exchange rate for {{ rate.currency }} (effective {{ rate.effective_from }})?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="fin-btn-danger" title="Delete Rate">
+                                        <i class="fas fa-trash-alt"></i> Delete
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            No exchange rates found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
