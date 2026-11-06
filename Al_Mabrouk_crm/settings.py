@@ -171,4 +171,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Feature Switch: Multi-Currency
-FINANCE_MULTI_CURRENCY = False
+FINANCE_MULTI_CURRENCY = True
