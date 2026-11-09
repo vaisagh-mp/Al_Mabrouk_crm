@@ -33,6 +33,7 @@ import pytz
 import calendar
 from Admin.attendance_autoclose import close_stale_sessions, capped_logout
 from Admin.work_order_helpers import get_work_order_time_summary, _js
+from Admin.upload_helpers import validate_project_attachment
 from service_logs.models import EmployeeServiceLog
 
 @login_required
@@ -592,9 +593,11 @@ def project_details(request, project_id):
     if request.method == "POST":
         if request.FILES.getlist("attachments"):
             uploaded_files = request.FILES.getlist("attachments")
+            saved_any = False
             for file in uploaded_files:
-                if file.size > MAX_UPLOAD_SIZE:
-                    messages.error(request, f"File {file.name} exceeds the 49MB limit.")
+                err = validate_project_attachment(file)
+                if err:
+                    messages.error(request, err)
                     continue
 
                 ProjectAttachment.objects.create(
@@ -602,19 +605,21 @@ def project_details(request, project_id):
                     file=file,
                     uploaded_by=employee
                 )
+                saved_any = True
 
+            if saved_any:
                 # Find the matching TeamMemberStatus for logging
-        tms = TeamMemberStatus.objects.filter(
-            team__project=project,
-            employee=employee
-        ).first()
-    
-        ActivityLog.objects.create(
-            project=project,
-            team_member_status=tms,
-            new_status="Attachment Uploaded",
-            changed_by=employee
-        )
+                tms = TeamMemberStatus.objects.filter(
+                    team__project=project,
+                    employee=employee
+                ).first()
+
+                ActivityLog.objects.create(
+                    project=project,
+                    team_member_status=tms,
+                    new_status="Attachment Uploaded",
+                    changed_by=employee
+                )
    
     statuses = TeamMemberStatus.objects.filter(
         team__project__id=project_id,

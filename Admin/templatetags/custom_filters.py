@@ -108,3 +108,22 @@ def can_manage_hr_settings(user):
     return cmh(user)
 
 
+@register.simple_tag
+def project_attachment_accept():
+    from Admin.upload_helpers import PROJECT_ATTACHMENT_ACCEPT
+    return PROJECT_ATTACHMENT_ACCEPT
+
+
+@register.filter
+def file_icon_class(file_or_name):
+    from Admin.upload_helpers import get_file_type_info
+    return get_file_type_info(file_or_name)['icon_class']
+
+
+@register.filter
+def is_download_file(file_or_name):
+    from Admin.upload_helpers import get_file_type_info
+    return get_file_type_info(file_or_name)['is_download']
+
+
+

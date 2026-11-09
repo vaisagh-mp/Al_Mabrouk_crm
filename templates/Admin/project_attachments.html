@@ -18,11 +18,16 @@
       <tbody>
         {% for file in attachments %}
           <tr>
-            <td>{{ file.file.name|cut:'project_attachments/' }}</td>
+            <td>
+              <i class="{{ file|file_icon_class }} me-1"></i>
+              {{ file.file.name|cut:'project_attachments/' }}
+            </td>
             <td>{{ file.uploaded_by.user.get_full_name|default:"Admin" }}</td>
             <td>{{ file.uploaded_at|date:"d M Y H:i" }}</td>
             <td>
-              <a href="{{ file.file.url }}" target="_blank" class="btn">View File</a>
+              <a href="{{ file.file.url }}" {% if file|is_download_file %}download{% else %}target="_blank"{% endif %} class="btn">
+                {% if file|is_download_file %}Download{% else %}View File{% endif %}
+              </a>
 
               {% if request.user.is_superuser or file.project.manager.user == request.user %}
                   <a href="{% url 'admin_delete_project_attachment' file.id %}" class="btn btn-danger btn-sm"
