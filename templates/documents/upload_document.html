@@ -1,0 +1,100 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card border-0 shadow-sm mx-auto" style="max-width: 700px;">
+        <div class="card-header bg-primary text-white py-3">
+            <h5 class="mb-0 fs-6 font-weight-bold">
+                <i class="fas fa-upload me-2"></i> Upload {% if category == 'employee' %}Employee Document{% else %}Company Document{% endif %}
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {% if category == 'employee' %}
+                    {% if employee %}
+                        <input type="hidden" name="employee" value="{{ employee.id }}">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Employee</label>
+                            <input type="text" class="form-control" value="{{ employee.user.get_full_name|default:employee.user.username }} ({{ employee.employee_code|default:employee.id }})" readonly>
+                        </div>
+                    {% else %}
+                        <div class="mb-3">
+                            <label class="form-label small font-weight-bold">Select Employee <span class="text-danger">*</span></label>
+                            <select name="employee" class="form-select" required>
+                                <option value="">---------</option>
+                                {% for emp in employees %}
+                                    <option value="{{ emp.id }}">{{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_code|default:emp.id }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="mb-3">
+                        <label class="form-label small font-weight-bold">Document Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control" placeholder="e.g. Trade License 2026" required>
+                    </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="form-label small font-weight-bold">Document Type <span class="text-danger">*</span></label>
+                    <select name="doc_type" class="form-select" required>
+                        <option value="">---------</option>
+                        {% for dt in doc_types %}
+                            <option value="{{ dt.id }}">{{ dt.name }}{% if dt.is_required %} (Required){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Document Number</label>
+                    <input type="text" name="document_number" class="form-control" placeholder="e.g. 784-1990-1234567-1">
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Issue Date</label>
+                        <input type="date" name="issue_date" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Expiry Date</label>
+                        <input type="date" name="expiry_date" class="form-control">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Issuing Authority</label>
+                    <input type="text" name="issuing_authority" class="form-control" placeholder="e.g. Federal Authority for Identity &amp; Citizenship">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small font-weight-bold">File Attachment (PDF, JPG, PNG &le; 10MB) <span class="text-danger">*</span></label>
+                    <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png" required>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label small text-muted">Notes / Remarks</label>
+                    <textarea name="notes" rows="2" class="form-control" placeholder="Optional comments..."></textarea>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="javascript:history.back()" class="btn btn-secondary px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i> Save Document</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

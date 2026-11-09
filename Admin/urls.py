@@ -2,11 +2,14 @@ from django.urls import path
 from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
 from .views import *
+from . import timesheet_views
+from . import document_views
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
     path('search/', search_redirect_view, name='search_redirect'),
     
     path('employees/', employee_list, name='employee_list'),
+    path('employee_list/', employee_list, name='employee_list_legacy'),
     path('managers/', manager_list, name='manager_list'),
     path('employee/create/', create_employee, name='create-employee'),
     # path('employee/edit/<int:employee_id>/', edit_employee, name='edit-employee'),
@@ -19,6 +22,7 @@ urlpatterns = [
     path('teams/<int:team_id>/delete/', admin_team_delete, name='admin-team-delete'),
 
     path('employee/<int:employee_id>/', employee_profile, name='employee_profile'),
+    path('employee_profile/<int:employee_id>/', employee_profile, name='admin_employee_profile'),
     path('manager/<int:manager_id>/', manager_profile, name='manager_profile'),
     path('employee/edit/<int:employee_id>/', admin_edit_employee, name='admin_edit_employee'),
     path('manager/edit/<int:manager_id>/', admin_edit_manager, name='admin_edit_manager'),
@@ -37,6 +41,7 @@ urlpatterns = [
     path('attendance/edit/<int:attendance_id>/', edit_attendance, name='edit_attendance'),
     path('attendance/delete/<int:attendance_id>/', delete_attendance, name='delete_attendance'),
     path('attendance/day-status/<int:employee_id>/<str:date>/', admin_set_day_status, name='admin_set_day_status'),
+    path('attendance/employee/<int:employee_id>/<str:month>/', employee_attendance_month_view, name='employee_attendance_month'),
 
     path('projects/', project_list_view, name='project-list'),
     path('project/<int:project_id>/', admin_project_summary_view, name='project-summary'),
@@ -64,6 +69,10 @@ urlpatterns = [
     path('manager-leave-list/', manager_leave_list, name='manager_leave_list'),
     path('employee-manage-leave/', employee_manage_leave, name='employee_manage_leave'),
     path('manager-manage-leave/', manager_manage_leave, name='manager_manage_leave'),
+    path('import-opening-balances/', admin_import_opening_balances, name='admin_import_opening_balances'),
+    path('leave-year-reviews/', admin_leave_year_reviews, name='admin_leave_year_reviews'),
+    path('leave-statement/', admin_leave_statement, name='admin_leave_statement'),
+    path('leave_statement/', admin_leave_statement, name='leave_statement'),
 
     path('vessel-list', vessel_list, name='vessel_list'),
     path('vessel-create/', vessel_create, name='vessel_create'),
@@ -80,4 +89,17 @@ urlpatterns = [
 
     path('change-password/', change_password, name='change_password'),
     path('change-password/done/', TemplateView.as_view(template_name='password_change_done.html'),  name='password_change_done'),
+
+    path('timesheet-approvals/', timesheet_views.timesheet_approvals_view, {'role': 'admin'}, name='timesheet_approvals_admin'),
+    path('ot-approval/', timesheet_views.ot_approval_view, {'role': 'admin'}, name='ot_approval_admin'),
+    path('timesheets/monthly-pdf/<int:employee_id>/<str:month_str>/', timesheet_views.employee_monthly_timesheet_pdf, name='employee_monthly_timesheet_pdf'),
+
+    path('documents/', document_views.documents_list_view, name='admin_documents_list'),
+    path('documents/download/<str:category>/<int:doc_id>/', document_views.download_private_document_view, name='document_download'),
+    path('documents/upload/<str:category>/', document_views.upload_document_view, name='document_upload'),
+    path('documents/upload/<str:category>/<int:employee_id>/', document_views.upload_document_view, name='document_upload_employee'),
+    path('documents/renew/<str:category>/<int:doc_id>/', document_views.renew_document_view, name='document_renew'),
+    path('documents/edit/<str:category>/<int:doc_id>/', document_views.edit_document_view, name='document_edit'),
+    path('documents/import/', document_views.document_import_view, name='document_import'),
+    path('documents/types/', document_views.document_types_view, name='hr_document_types'),
 ]

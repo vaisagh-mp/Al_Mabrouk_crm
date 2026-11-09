@@ -1,0 +1,179 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">LEAVE STATEMENT</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">
+                Annual ledger statement for <strong>{{ employee.name }}</strong> ({% if employee.employee_code %}{{ employee.employee_code }}{% else %}AMMS-{{ employee.id|stringformat:"04d" }}{% endif %}) - Year {{ year }}
+            </p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <!-- Year Selector -->
+            <form method="GET" style="display: inline-block; margin: 0;">
+                {% if request.GET.employee %}
+                    <input type="hidden" name="employee" value="{{ request.GET.employee }}">
+                {% endif %}
+                <select name="year" onchange="this.form.submit()" class="form-control form-control-sm" style="font-weight: 600; color: #1F3A52; height: 32px; padding: 2px 10px; border-radius: 6px;">
+                    {% for y in years_available %}
+                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>Year {{ y }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <a href="?year={{ year }}{% if request.GET.employee %}&employee={{ request.GET.employee }}{% endif %}&export=excel" class="btn btn-outline-success btn-sm" style="font-weight: 600;">
+                <i class="fa fa-download"></i> Export Excel
+            </a>
+            <a href="?year={{ year }}{% if request.GET.employee %}&employee={{ request.GET.employee }}{% endif %}&export=pdf" class="btn btn-outline-danger btn-sm" style="font-weight: 600;">
+                <i class="fa fa-file-pdf-o"></i> Export PDF
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary Table Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px; text-transform: uppercase;">
+            <i class="fa fa-calculator"></i> Annual Entitlement & Balance Breakdown ({{ year }})
+        </h5>
+        <div class="table-responsive">
+            <table class="table table-bordered" style="font-size: 13px; margin: 0; text-align: center; vertical-align: middle;">
+                <thead style="background: #1F497D; color: #ffffff;">
+                    <tr>
+                        <th style="text-align: left; font-weight: 700;">Leave Type</th>
+                        <th style="font-weight: 700;">Opening</th>
+                        <th style="font-weight: 700;">Accrued</th>
+                        <th style="font-weight: 700;">Carried Over</th>
+                        <th style="font-weight: 700;">Taken</th>
+                        <th style="font-weight: 700;">Adjustments</th>
+                        <th style="font-weight: 700;">Excess</th>
+                        <th style="font-weight: 700; background: #15385B;">Net Balance</th>
+                        <th style="font-weight: 700;">Pending</th>
+                        <th style="font-weight: 700; background: #0F2841;">Available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in leave_summary %}
+                    <tr>
+                        <td style="text-align: left; font-weight: 700; color: #1F3A52;">
+                            {{ s.name }}
+                            {% if not s.uses_balance %}
+                                <span style="font-size: 10px; color: #64748B; font-weight: normal;">(No Balance)</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ s.opening_days }}</td>
+                        <td>{{ s.accrued_days }}</td>
+                        <td>{{ s.carried_days }}</td>
+                        <td style="color: #dc3545; font-weight: 600;">{{ s.taken_days }}</td>
+                        <td>{{ s.adj_days }}</td>
+                        <td style="color: #64748B;">{{ s.excess_days }}</td>
+                        <td style="font-weight: 800; color: #1F3A52; background: #F8FAFC;">
+                            {% if s.uses_balance %}{{ s.net_balance }}{% else %}-{% endif %}
+                        </td>
+                        <td style="color: #E67E22; font-weight: 600;">
+                            {% if s.uses_balance %}{{ s.pending_days }}{% else %}-{% endif %}
+                        </td>
+                        <td style="font-weight: 800; color: #10B981; font-size: 14px; background: #F0FDF4;">
+                            {% if s.uses_balance %}{{ s.available_days }}{% else %}-{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Running Ledger Entries Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px; text-transform: uppercase;">
+            <i class="fa fa-history"></i> Detailed Transaction Ledger ({{ year }})
+        </h5>
+        {% if entries %}
+        <div class="table-responsive">
+            <table class="table table-hover" style="font-size: 13px; margin: 0; vertical-align: middle;">
+                <thead style="background: #f8fafc; color: #1F3A52;">
+                    <tr>
+                        <th style="font-weight: 700; width: 100px;">Date</th>
+                        <th style="font-weight: 700;">Leave Type</th>
+                        <th style="font-weight: 700;">Entry Type</th>
+                        <th style="font-weight: 700; text-align: center;">Days</th>
+                        <th style="font-weight: 700; text-align: center;">Running Balance</th>
+                        <th style="font-weight: 700;">Leave Ref</th>
+                        <th style="font-weight: 700;">Note</th>
+                        <th style="font-weight: 700;">Recorded By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in entries %}
+                    {% with e=item.entry %}
+                    <tr>
+                        <td>{{ e.date|date:"d/m/Y" }}</td>
+                        <td><strong>{{ e.leave_type.name }}</strong></td>
+                        <td>
+                            {% if e.entry_type == 'OPENING' %}
+                                <span class="badge" style="background: #E0E7FF; color: #3730A3;">Opening</span>
+                            {% elif e.entry_type == 'ACCRUAL' %}
+                                <span class="badge" style="background: #ECFDF5; color: #065F46;">Accrual</span>
+                            {% elif e.entry_type == 'TAKEN' %}
+                                <span class="badge" style="background: #FEF2F2; color: #991B1B;">Taken</span>
+                            {% elif e.entry_type == 'REVERSAL' %}
+                                <span class="badge" style="background: #F0FDF4; color: #166534;">Reversal</span>
+                            {% elif e.entry_type == 'ADJUSTMENT' %}
+                                <span class="badge" style="background: #FEF3C7; color: #92400E;">Adjustment</span>
+                            {% elif e.entry_type == 'CARRY_FORWARD' %}
+                                <span class="badge" style="background: #EFF6FF; color: #1E40AF;">Carry Forward</span>
+                            {% elif e.entry_type == 'YEAR_END_EXCESS' %}
+                                <span class="badge" style="background: #F1F5F9; color: #475569;">Year-End Excess</span>
+                            {% elif e.entry_type == 'YEAR_END_CLOSE' %}
+                                <span class="badge" style="background: #F8FAFC; color: #334155;">Year-End Close</span>
+                            {% elif e.entry_type == 'ENTITLEMENT' %}
+                                <span class="badge" style="background: #E0E7FF; color: #3730A3;">Entitlement</span>
+                            {% elif e.entry_type == 'EXPIRED' %}
+                                <span class="badge" style="background: #FEE2E2; color: #991B1B;">Expired</span>
+                            {% else %}
+                                <span class="badge" style="background: #E2E8F0; color: #1E293B;">{{ e.get_entry_type_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center; font-weight: 700;">
+                            {% if e.days > 0 %}
+                                <span style="color: #10B981;">+{{ e.days }}</span>
+                            {% elif e.days < 0 %}
+                                <span style="color: #EF4444;">{{ e.days }}</span>
+                            {% else %}
+                                <span style="color: #64748B;">0.0</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center; font-weight: 800; color: #1F3A52;">
+                            {{ item.running_balance }}
+                        </td>
+                        <td>
+                            {% if e.leave %}
+                                <span style="font-weight: 600; color: #0284C7;">#{{ e.leave.id }}</span>
+                            {% else %}
+                                <span style="color: #94A3B8;">-</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 280px; font-size: 12px; color: #475569;">
+                            {{ e.note|default:"-" }}
+                        </td>
+                        <td style="font-size: 11px; color: #64748B;">
+                            {% if e.created_by %}{{ e.created_by.username }}{% else %}System{% endif %}
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #64748B;">
+            <i class="fa fa-book" style="font-size: 32px; color: #CBD5E1; margin-bottom: 10px;"></i>
+            <p style="margin: 0; font-size: 14px;">No ledger transactions recorded for {{ year }}.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

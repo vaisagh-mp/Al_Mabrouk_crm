@@ -1,0 +1,354 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Messages -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="h4 mb-1 text-dark font-weight-bold">
+                {% if role == 'manager' %}My Team Members{% else %}Employee Directory{% endif %}
+            </h2>
+            <p class="text-muted small mb-0">
+                {% if role == 'manager' %}Employees reporting directly to you.{% else %}Master directory of all registered company employees.{% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            {% if role != 'manager' %}
+                <a href="?export=excel{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if selected_branch %}&branch={{ selected_branch }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&employment_status={{ selected_status }}{% endif %}{% if selected_work_type %}&work_type={{ selected_work_type }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_manager %}&reporting_manager={{ selected_manager }}{% endif %}{% if joined_from %}&joined_from={{ joined_from }}{% endif %}{% if joined_to %}&joined_to={{ joined_to }}{% endif %}{% if contract_ending %}&contract_ending={{ contract_ending }}{% endif %}" class="btn btn-outline-success btn-sm">
+                    <i class="fas fa-file-excel me-1"></i> Export Excel
+                </a>
+                <a href="?export=pdf{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if selected_branch %}&branch={{ selected_branch }}{% endif %}{% if selected_role %}&role={{ selected_role }}{% endif %}{% if selected_status %}&employment_status={{ selected_status }}{% endif %}{% if selected_work_type %}&work_type={{ selected_work_type }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_manager %}&reporting_manager={{ selected_manager }}{% endif %}{% if joined_from %}&joined_from={{ joined_from }}{% endif %}{% if joined_to %}&joined_to={{ joined_to }}{% endif %}{% if contract_ending %}&contract_ending={{ contract_ending }}{% endif %}" class="btn btn-outline-danger btn-sm">
+                    <i class="fas fa-file-pdf me-1"></i> Export PDF
+                </a>
+                {% if role == 'hr' %}
+                    <a href="{% url 'hr_create_employee' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-user-plus me-1"></i> Add Employee
+                    </a>
+                {% else %}
+                    <a href="{% url 'create-employee' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-user-plus me-1"></i> Add Employee
+                    </a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Filter Bar Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3 bg-light rounded">
+            <form method="get" class="row g-2 align-items-end">
+                <input type="hidden" name="sort" value="{{ sort }}">
+                <input type="hidden" name="order" value="{{ order }}">
+
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small text-muted mb-1">Search</label>
+                    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Name, code, email, phone...">
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Department</label>
+                    <select name="department" class="form-select form-select-sm">
+                        <option value="">All Departments</option>
+                        {% for d in departments %}
+                            <option value="{{ d.id }}" {% if selected_dept|stringformat:"s" == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Branch</label>
+                    <select name="branch" class="form-select form-select-sm">
+                        <option value="">All Branches</option>
+                        {% for b in branches %}
+                            <option value="{{ b.id }}" {% if selected_branch|stringformat:"s" == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Role</label>
+                    <select name="role" class="form-select form-select-sm">
+                        <option value="">All Roles</option>
+                        <option value="employee" {% if selected_role == 'employee' %}selected{% endif %}>Employee</option>
+                        <option value="manager" {% if selected_role == 'manager' %}selected{% endif %}>Manager</option>
+                        <option value="hr" {% if selected_role == 'hr' %}selected{% endif %}>HR</option>
+                        <option value="accountant" {% if selected_role == 'accountant' %}selected{% endif %}>Accountant</option>
+                        <option value="administration" {% if selected_role == 'administration' %}selected{% endif %}>Administration</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Employment Status</label>
+                    <select name="employment_status" class="form-select form-select-sm">
+                        <option value="">All Statuses</option>
+                        <option value="ACTIVE" {% if selected_status == 'ACTIVE' %}selected{% endif %}>Active</option>
+                        <option value="PROBATION" {% if selected_status == 'PROBATION' %}selected{% endif %}>Probation</option>
+                        <option value="NOTICE_PERIOD" {% if selected_status == 'NOTICE_PERIOD' %}selected{% endif %}>Notice Period</option>
+                        <option value="RESIGNED" {% if selected_status == 'RESIGNED' %}selected{% endif %}>Resigned</option>
+                        <option value="TERMINATED" {% if selected_status == 'TERMINATED' %}selected{% endif %}>Terminated</option>
+                    </select>
+                </div>
+
+                <div class="col-md-1 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Work Type</label>
+                    <select name="work_type" class="form-select form-select-sm">
+                        <option value="">All</option>
+                        <option value="OFFICE" {% if selected_work_type == 'OFFICE' %}selected{% endif %}>Office</option>
+                        <option value="VESSEL" {% if selected_work_type == 'VESSEL' %}selected{% endif %}>Vessel</option>
+                        <option value="HYBRID" {% if selected_work_type == 'HYBRID' %}selected{% endif %}>Hybrid</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Account State</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active Accounts</option>
+                        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive Accounts</option>
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Accounts</option>
+                    </select>
+                </div>
+
+                {% if role != 'manager' %}
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Reporting Manager</label>
+                    <select name="reporting_manager" class="form-select form-select-sm">
+                        <option value="">All Managers</option>
+                        {% for m in reporting_managers %}
+                            <option value="{{ m.id }}" {% if selected_manager|stringformat:"s" == m.id|stringformat:"s" %}selected{% endif %}>
+                                {{ m.user.get_full_name|default:m.user.username }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Joined From</label>
+                    <input type="date" name="joined_from" value="{{ joined_from }}" class="form-control form-control-sm">
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Joined To</label>
+                    <input type="date" name="joined_to" value="{{ joined_to }}" class="form-control form-control-sm">
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Contract Ending</label>
+                    <select name="contract_ending" class="form-select form-select-sm">
+                        <option value="">Any</option>
+                        <option value="30" {% if contract_ending == '30' %}selected{% endif %}>&le; 30 Days</option>
+                        <option value="60" {% if contract_ending == '60' %}selected{% endif %}>&le; 60 Days</option>
+                        <option value="90" {% if contract_ending == '90' %}selected{% endif %}>&le; 90 Days</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2 col-sm-4 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                        <i class="fas fa-search me-1"></i> Filter
+                    </button>
+                    <a href="?" class="btn btn-outline-secondary btn-sm" title="Reset Filters">
+                        <i class="fas fa-redo"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Employees Table Card -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="employeeTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>
+                            <a href="?sort=code&order={% if sort == 'code' and order == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-decoration-none text-dark">
+                                Code {% if sort == 'code' %}<i class="fas fa-sort-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort=name&order={% if sort == 'name' and order == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-decoration-none text-dark">
+                                Name {% if sort == 'name' %}<i class="fas fa-sort-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>
+                            <a href="?sort=department&order={% if sort == 'department' and order == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-decoration-none text-dark">
+                                Department &amp; Branch {% if sort == 'department' %}<i class="fas fa-sort-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th>Role / Designation</th>
+                        <th>Work Type</th>
+                        <th>Status</th>
+                        <th>Documents Status</th>
+                        <th>
+                            <a href="?sort=date_of_join&order={% if sort == 'date_of_join' and order == 'asc' %}desc{% else %}asc{% endif %}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}" class="text-decoration-none text-dark">
+                                Joined {% if sort == 'date_of_join' %}<i class="fas fa-sort-{% if order == 'asc' %}up{% else %}down{% endif %}"></i>{% endif %}
+                            </a>
+                        </th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for emp in page_obj %}
+                    <tr>
+                        <td class="font-weight-bold">
+                            {% if role == 'manager' %}
+                                <a href="{% url 'employee_profile_view' emp.id %}" class="text-decoration-none text-primary">
+                                    {{ emp.employee_code|default:emp.id }}
+                                </a>
+                            {% elif role == 'hr' %}
+                                <a href="{% url 'hr_employee_profile' emp.id %}" class="text-decoration-none text-primary">
+                                    {{ emp.employee_code|default:emp.id }}
+                                </a>
+                            {% else %}
+                                <a href="{% url 'employee_profile' emp.id %}" class="text-decoration-none text-primary">
+                                    {{ emp.employee_code|default:emp.id }}
+                                </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-circle me-2 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; font-weight: bold; font-size: 13px;">
+                                    {% if emp.profile_picture %}
+                                        <img src="{{ emp.profile_picture.url }}" class="rounded-circle" style="width: 34px; height: 34px; object-fit: cover;">
+                                    {% else %}
+                                        {{ emp.user.first_name|first|default:emp.user.username|first|upper }}
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <div class="font-weight-bold text-dark">
+                                        {{ emp.user.get_full_name|default:emp.user.username }}
+                                    </div>
+                                    <div class="small text-muted">{{ emp.company_email|default:emp.user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>{{ emp.department.name|default:"—" }}</div>
+                            <div class="small text-muted">{{ emp.branch.name|default:"—" }}</div>
+                        </td>
+                        <td>
+                            <div><span class="badge bg-light text-dark border">{{ emp.get_role|title }}</span></div>
+                            <div class="small text-muted">{{ emp.rank|default:"—" }}</div>
+                        </td>
+                        <td>
+                            <span class="badge {% if emp.work_type == 'OFFICE' %}bg-info text-dark{% elif emp.work_type == 'VESSEL' %}bg-primary{% else %}bg-secondary{% endif %}">
+                                {{ emp.get_work_type_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if not emp.user.is_active %}
+                                <span class="badge bg-danger">Deactivated</span>
+                            {% elif emp.employment_status == 'ACTIVE' %}
+                                <span class="badge bg-success">Active</span>
+                            {% elif emp.employment_status == 'PROBATION' %}
+                                <span class="badge bg-warning text-dark">Probation</span>
+                            {% elif emp.employment_status == 'NOTICE_PERIOD' %}
+                                <span class="badge bg-danger">Notice Period</span>
+                            {% elif emp.employment_status == 'RESIGNED' %}
+                                <span class="badge bg-secondary">Resigned</span>
+                            {% elif emp.employment_status == 'TERMINATED' %}
+                                <span class="badge bg-dark">Terminated</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark">{{ emp.employment_status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if emp.doc_badge.code == 'EXPIRED' %}
+                                <span class="badge bg-danger">Expired</span>
+                            {% elif emp.doc_badge.code == 'MISSING_REQUIRED' %}
+                                <span class="badge bg-danger" title="Missing: {{ emp.doc_badge.missing_types|join:', ' }}">Missing Req.</span>
+                            {% elif emp.doc_badge.code == 'EXPIRING_30' %}
+                                <span class="badge bg-danger">&le;30d</span>
+                            {% elif emp.doc_badge.code == 'EXPIRING_60' %}
+                                <span class="badge bg-warning text-dark">&le;60d</span>
+                            {% elif emp.doc_badge.code == 'EXPIRING_90' %}
+                                <span class="badge bg-info text-dark">&le;90d</span>
+                            {% else %}
+                                <span class="badge bg-success">OK</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {{ emp.date_of_join|date:"d/m/Y"|default:"—" }}
+                        </td>
+                        <td class="text-end">
+                            {% if role == 'manager' %}
+                                <a href="{% url 'employee_profile_view' emp.id %}" class="btn btn-sm btn-outline-primary" title="View Profile">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            {% elif role == 'hr' %}
+                                <a href="{% url 'hr_employee_profile' emp.id %}" class="btn btn-sm btn-outline-primary" title="View Profile">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'hr_edit_employee' emp.id %}" class="btn btn-sm btn-outline-secondary" title="Edit Employee">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            {% else %}
+                                <a href="{% url 'employee_profile' emp.id %}" class="btn btn-sm btn-outline-primary" title="View Profile">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'admin_edit_employee' emp.id %}" class="btn btn-sm btn-outline-secondary" title="Edit Employee">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            <i class="fas fa-users-slash fa-2x mb-2 d-block"></i>
+                            No employees found matching the specified filters.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+            <span class="small text-muted">
+                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} employees
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}&sort={{ sort }}&order={{ order }}">&laquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&laquo;</span></li>
+                {% endif %}
+
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item {% if page_obj.number == p %}active{% endif %}">
+                            <a class="page-link" href="?page={{ p }}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}&sort={{ sort }}&order={{ order }}">{{ p }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}&sort={{ sort }}&order={{ order }}">&raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">&raquo;</span></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

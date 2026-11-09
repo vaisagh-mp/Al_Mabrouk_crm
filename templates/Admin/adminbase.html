@@ -177,6 +177,9 @@
                           <a href="{% url 'employee_list' %}">Employee List </a>
                         </li>
                         <li>
+                          <a href="{% url 'admin_documents_list' %}">Documents &amp; Expiry</a>
+                        </li>
+                        <li>
                           <a href="{% url 'attendance_list_adminview' %}">Employee Attendance</a>
                         </li>
                         <li>
@@ -201,6 +204,16 @@
       <li>
         <a href="{% url 'service_log_list' %}">
           All Service Logs
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'timesheet_approvals_admin' %}">
+          Timesheet Approvals
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'ot_approval_admin' %}">
+          OT Approval
         </a>
       </li>
       <li>
@@ -237,6 +250,41 @@
                     <a href="{% url 'fin_dashboard' %}">
                       <i class="fas fa-coins"></i>
                       <span>Finance</span>
+                    </a>
+                  </li>
+
+                  {% if can_view_salary %}
+                  <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fas fa-money-check-alt"></i>
+                      <span>Payroll &amp; Salary</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'fin_payroll' %}">Payroll</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_structures_list' %}">Salary Structures</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_increments_list' %}">Increments</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_advances_list' %}">Salary Advances</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'payslips_list' %}">Payslips</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li>
+                  {% endif %}
+
+                  <li>
+                    <a href="{% url 'my_payslips' %}">
+                      <i class="fas fa-file-invoice-dollar"></i>
+                      <span>My Payslips</span>
                     </a>
                   </li>
 
@@ -332,6 +380,46 @@
                       </ul>
                     </div>
                   </li>
+                  <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fa fa-cogs"></i>
+                      <span>Settings</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'hr_departments' %}">Departments</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_branches' %}">Branches</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li>
+
+                  <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fa fa-business-time"></i>
+                      <span>Shifts &amp; Holidays</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'hr_duty_schedules' %}">Duty Schedules</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_weekly_rest_days' %}">Weekly Rest Days</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_roster' %}">Roster</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_public_holidays' %}">Public Holidays</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li>
+
                   <li>
                     <a href="{% url 'change_password' %}">
                       <i class="fa fa-key"></i>
@@ -749,10 +837,13 @@
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   }
 
-  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null) {
+  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null, id = '', breakMins = 0, travelMins = 0, desc = '', attUrl = '', status = 'DRAFT', remarks = '') {
     const table = document.querySelector('#timeTable tbody');
     if (!table) return;
     const row = table.insertRow();
+
+    const isLocked = (status === 'SUBMITTED' || status === 'APPROVED');
+    const readOnlyAttr = isLocked ? 'readonly' : '';
 
     const fallbackEmpId = (typeof defaultEmpId !== 'undefined' && defaultEmpId !== null)
       ? String(defaultEmpId)
@@ -777,11 +868,40 @@
     const displayName = escapeHtml(extraMember ? extraMember.name : memberName);
     const readOnlyText = displayName ? `<span class="member-name-text" style="font-weight: 500; margin-right: 8px;">${displayName}</span>` : '';
 
+    let selectHtml = '';
+    if (isLocked) {
+      selectHtml = `<input type="hidden" name="time_employee[]" value="${escapeHtml(selectedId)}">${readOnlyText}`;
+    } else {
+      selectHtml = `${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select>`;
+    }
+
+    let statusBadge = '<span class="badge bg-secondary" style="font-size: 11px;">Draft</span>';
+    if (status === 'SUBMITTED') statusBadge = '<span class="badge bg-warning text-dark" style="font-size: 11px;">Submitted</span>';
+    else if (status === 'APPROVED') statusBadge = '<span class="badge bg-success" style="font-size: 11px;">Approved</span>';
+    else if (status === 'REJECTED') statusBadge = '<span class="badge bg-danger" style="font-size: 11px;">Rejected</span>';
+
+    let remarksHtml = remarks ? `<div class="text-danger small" style="max-width: 150px; font-size: 11px;">${escapeHtml(remarks)}</div>` : '';
+    let attHtml = attUrl ? `<a href="${escapeHtml(attUrl)}" target="_blank" class="small d-block">View file</a>` : '';
+    if (!isLocked) {
+      attHtml += `<input type="file" name="time_attachment[]" accept=".pdf,.jpg,.jpeg,.png" style="width: 120px; font-size: 11px;">`;
+    }
+
+    let delBtn = !isLocked ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()" style="padding: 1px 6px;">&times;</button>` : '';
+
     row.innerHTML = `
-      <td>${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select></td>
-      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
-      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
-      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
+      <td>
+        <input type="hidden" name="time_row_id[]" value="${escapeHtml(id)}">
+        ${selectHtml}
+      </td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}" ${readOnlyAttr}></td>
+      <td><input type="number" name="break_minutes[]" value="${escapeHtml(breakMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="number" name="travel_minutes[]" value="${escapeHtml(travelMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="text" name="time_description[]" value="${escapeHtml(desc)}" placeholder="Description" style="width: 140px;" ${readOnlyAttr}></td>
+      <td>${attHtml}</td>
+      <td>${statusBadge}${remarksHtml}</td>
+      <td>${delBtn}</td>`;
   }
 
   window.onload = function () {
@@ -813,7 +933,14 @@
           t.finish_time ? t.finish_time.slice(0, 5) : '',
           t.employee_id || '',
           t.member_name || '',
-          t.extra_member || null
+          t.extra_member || null,
+          t.id || '',
+          t.break_minutes || 0,
+          t.travel_minutes || 0,
+          t.description || '',
+          t.attachment_url || '',
+          t.status || 'DRAFT',
+          t.remarks || ''
         )
       );
     }

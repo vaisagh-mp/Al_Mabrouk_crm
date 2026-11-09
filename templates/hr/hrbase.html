@@ -193,7 +193,16 @@
                           <a href="{% url 'hr_employee_list' %}">Employee List </a>
                         </li>
                         <li>
+                          <a href="{% url 'hr_documents_list' %}">Documents &amp; Expiry</a>
+                        </li>
+                        <li>
                           <a href="{% url 'hr_attendance_list_view' %}">Employee Attendance</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'timesheet_approvals_hr' %}">Timesheet Approvals</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'ot_approval_hr' %}">OT Approval</a>
                         </li>
                         <!-- <li>
                           <a href="{% url 'manage_attendance' %}">Manage Attendance</a>
@@ -228,6 +237,39 @@
                         </ul>
                       </div>
                     </li>
+
+                    <li class="sidebar-dropdown">
+                      <a href="#">
+                        <i class="fas fa-money-check-alt"></i>
+                        <span>Payroll &amp; Salary</span>
+                      </a>
+                      <div class="sidebar-submenu">
+                        <ul>
+                          <li>
+                            <a href="{% url 'fin_payroll' %}">Payroll</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'salary_structures_list' %}">Salary Structures</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'salary_increments_list' %}">Increments</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'salary_advances_list' %}">Salary Advances</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'payslips_list' %}">Payslips</a>
+                          </li>
+                        </ul>
+                      </div>
+                    </li>
+
+                    <li>
+                      <a href="{% url 'my_payslips' %}">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>My Payslips</span>
+                      </a>
+                    </li>
                   
                   <!-- <li class="sidebar-dropdown">
                     <a href="#">
@@ -257,6 +299,56 @@
                         <span>Leave</span>
                       </a>
                     </li>
+
+                    <li class="header-menu">
+                      <span>Settings</span>
+                    </li>
+                    <li class="sidebar-dropdown">
+                      <a href="#">
+                        <i class="fa fa-cogs"></i>
+                        <span>Settings</span>
+                      </a>
+                      <div class="sidebar-submenu">
+                        <ul>
+                          <li>
+                            <a href="{% url 'hr_departments' %}">Departments</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_branches' %}">Branches</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_settings_document_types' %}">Document Types</a>
+                          </li>
+                        </ul>
+                      </div>
+                    </li>
+
+                    <li class="header-menu">
+                      <span>Shifts &amp; Holidays</span>
+                    </li>
+                    <li class="sidebar-dropdown">
+                      <a href="#">
+                        <i class="fa fa-business-time"></i>
+                        <span>Shifts &amp; Holidays</span>
+                      </a>
+                      <div class="sidebar-submenu">
+                        <ul>
+                          <li>
+                            <a href="{% url 'hr_duty_schedules' %}">Duty Schedules</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_weekly_rest_days' %}">Weekly Rest Days</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_roster' %}">Roster</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_public_holidays' %}">Public Holidays</a>
+                          </li>
+                        </ul>
+                      </div>
+                    </li>
+
                   
                   <!-- <li>
                     <a href="{% url 'admin-notifications' %}">

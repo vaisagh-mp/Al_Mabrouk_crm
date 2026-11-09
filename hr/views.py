@@ -1,3 +1,4 @@
+from Admin.leave_service import is_leave_v2_active
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -41,6 +42,8 @@ from Admin.office_staff_helpers import (
     handle_staff_update_travel_time,
 )
 from Admin.staff_lifecycle import deactivate_employee, reactivate_employee, delete_blockers
+from Admin.permissions import can_view_salary, can_manage_hr_settings
+
 
 
 def is_hr(user):
@@ -95,18 +98,8 @@ def hr_render_attendance_page(request):
 @login_required
 @user_passes_test(is_hr)
 def attendance(request):
-    employee = get_object_or_404(Employee, user=request.user)
-    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
-
-    # Pagination settings
-    paginator = Paginator(attendance_records, 10)  # Show 10 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
-    }
-    return render(request, 'hr/attendance.html', context)
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(request, "HR", 'hr/hrbase.html', template_name='hr/attendance.html')
 
 @login_required
 @user_passes_test(is_hr)
@@ -218,8 +211,12 @@ def dashboard(request):
             for i in range(1, 13)
         ]
 
+        from Admin.document_helpers import get_document_expiry_counts
+        doc_expiry_counts = get_document_expiry_counts(as_of=today, category='all')
+
         context = {
             'hr': hr,
+            'doc_expiry_counts': doc_expiry_counts,
             'total_employees': total_employees,
             'total_leave_requests': total_leave_requests,
             'leave_balances': leave_balances,
@@ -256,67 +253,42 @@ def dashboard(request):
 @login_required
 @user_passes_test(is_hr)
 def hr_create_employee(request):
-    employee = request.user.employee_profile  
-    if not employee.is_hr:
-        return redirect('custom-login')  # Ensure 'custom-login' exists in urls.py
-
     if request.method == 'POST':
-        form = EmployeeCreationForm(request.POST, request.FILES)
+        form = EmployeeCreationForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             try:
                 form.save()
                 messages.success(request, 'Employee created successfully!')
-                return redirect('hr_create_employee')  # 🔹 Ensure this matches urls.py
+                if 'save_and_add_another' in request.POST or 'save_add_another' in request.POST:
+                    return redirect('hr_create_employee')
+                return redirect('hr_employee_list')
             except Exception as e:
                 messages.error(request, f'There was an error creating the employee: {e}')
         else:
             messages.error(request, 'Please correct the errors below.')
-            print(form.errors)
     else:
-        form = EmployeeCreationForm()
+        form = EmployeeCreationForm(user=request.user)
 
-    return render(request, 'hr/create_employee.html', {'form': form})
+    return render(request, 'hr/create_employee.html', {
+        'form': form,
+        'can_view_salary': can_view_salary(request.user)
+    })
+
 
 
 @login_required
 @user_passes_test(is_hr)
 def hr_employee_list(request):
-    employee = request.user.employee_profile 
-    if not employee.is_hr:
-        return redirect('login')
-
-    # Filter ongoing project assignments
-    ongoing_project_assignments = TeamMemberStatus.objects.filter(
-        status='ONGOING'
-    ).select_related('team__project')
-
-    # Exclude managers and prefetch ongoing project assignments
-    employees = Employee.objects.select_related('user').prefetch_related(
-        Prefetch(
-            'project_statuses',  # This matches the `related_name` in TeamMemberStatus
-            queryset=ongoing_project_assignments,
-            to_attr='assigned_projects'  # Prefetch results stored as 'assigned_projects'
-        )
-    )
-
-    status_filter = request.GET.get('status', 'active')
-    if status_filter == 'inactive':
-        employees = employees.filter(user__is_active=False)
-    elif status_filter == 'all':
-        pass
-    else:
-        status_filter = 'active'
-        employees = employees.filter(user__is_active=True)
-
-    paginator = Paginator(employees, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    return render(request, 'hr/employee_list.html', {'page_obj': page_obj, 'status_filter': status_filter})
+    from Admin.employee_views import render_employee_list
+    return render_employee_list(request, role='hr', base_template='hr/hrbase.html')
 
 @login_required
 @user_passes_test(is_hr)
 def hr_attendance_list_view(request):
+    if request.method == 'POST':
+        from Admin.attendance_correction import handle_attendance_status_post
+        emp = getattr(request.user, 'employee_profile', None)
+        return handle_attendance_status_post(request, emp)
     export_format = request.GET.get('export')
     if export_format in ('summary_excel', 'summary_csv', 'excel'):
         context = _register_context(request)
@@ -333,12 +305,22 @@ def hr_attendance_list_view(request):
 
 @login_required
 @user_passes_test(is_hr)
+def hr_employee_attendance_month_view(request, employee_id, month):
+    from Admin.attendance_register import employee_attendance_month_view_helper
+    return employee_attendance_month_view_helper(request, employee_id, month, role='hr')
+
+
+@login_required
+@user_passes_test(is_hr)
 def hr_set_day_status(request, employee_id, date):
     return handle_set_day_status(request, employee_id, date, role='hr')
 
 @login_required
 @user_passes_test(is_hr)
 def hr_employee_leave_list(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_list
+        return render_role_leave_list(request, 'HR', 'hr/hrbase.html')
     employee = request.user.employee_profile 
     if not employee.is_hr:
         return redirect('admin-dashboard')
@@ -367,6 +349,9 @@ def hr_employee_leave_list(request):
 @login_required
 @user_passes_test(is_hr)
 def hr_employee_manage_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_manage_leave
+        return render_role_manage_leave(request, 'HR', 'hr/hrbase.html')
     employee = request.user.employee_profile 
     if not employee.is_hr:
         return redirect('admin-dashboard')
@@ -484,173 +469,41 @@ def hr_delete_attendance(request, attendance_id):
 @login_required
 @user_passes_test(is_hr)
 def hr_employee_profile(request, employee_id):
-    # Fetch the employee
-    employee = get_object_or_404(Employee, pk=employee_id)
-    teams = employee.teams_assigned.all()
-
-    
-    manager_projects = [] 
-
-    if employee.is_manager:
-        # Fetch projects managed by the manager
-        manager_projects = Project.objects.filter(manager=employee).select_related('manager')
-
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
-    manager_statuses = TeamMemberStatus.objects.filter(employee=employee.is_manager)
-
-    # Count statuses for the employee's projects
-    completed_projects = team_member_statuses.filter(status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count()   
-    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
-    
-    # Count statuses for the employee's projects
-    manager_completed_projects = Project.objects.filter(manager=employee, status='COMPLETED').count()
-    manager_pending_projects =  Project.objects.filter(manager=employee).exclude(Q(status='COMPLETED') | Q(status='ONGOING')).count() 
-    manager_assigned_projects = manager_statuses.filter(status='ASSIGN').count()
-
-    # Get the related projects from the team member status
-    all_projects = [
-        {
-            'project': status.team.project,
-            'manager': status.team.project.manager,
-            'status': status.status
-        }
-        for status in team_member_statuses
-    ]
-
-    # Calculate attendance percentage
-    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    # approved_attendance_records = Attendance.objects.filter(
-    #     employee=employee, status='APPROVED'
-    # ).count()
-    # attendance_percentage = (
-    #     (approved_attendance_records / 30) * 100
-    #     if total_attendance_records > 0
-    #     else 0
-    # )
-
-    # Get the current year and month
-    current_year = date.today().year
-    current_month = date.today().month
-
-    # Get the total number of days in the current month
-    total_days_in_month = monthrange(current_year, current_month)[1]
-
-    # Calculate total and approved attendance records for the current month
-    total_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        status='APPROVED',
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    # Calculate attendance percentage
-    attendance_percentage = (
-        (approved_attendance_records / total_days_in_month) * 100
-        if total_attendance_records > 0
-        else 0
-    )
-
-    # Count total projects and pending projects
-    total_projects = completed_projects + pending_projects + assigned_projects
-    total_pending_projects = total_projects - completed_projects
-
-    # Context for template
-    context = {
-        'employee': employee,
-        'teams': teams,
-        'all_projects': all_projects,
-        'manager_projects': manager_projects,
-        'attendance_percentage': round(attendance_percentage, 1),
-        'total_projects': total_projects,
-        'completed_projects': completed_projects,
-        'pending_projects': total_pending_projects,
-        'manager_completed_projects': manager_completed_projects,
-        'manager_pending_projects': manager_pending_projects,
-        'manager_assigned_projects': manager_assigned_projects,
-        'delete_blockers': delete_blockers(employee),
-    }
-
-    return render(request, 'hr/employee_profile.html', context)
+    from Admin.employee_views import render_employee_profile
+    return render_employee_profile(request, employee_id, role='hr', base_template='hr/hrbase.html')
 
 
 @login_required
 @user_passes_test(is_hr)
 def hr_edit_employee(request, employee_id):
-    """Admin can edit an employee's profile"""
-    
-    # Ensure we are fetching an Employee instance, NOT a User
+    """HR can edit an employee's profile"""
     try:
         employee = Employee.objects.select_related("user").get(id=employee_id)
     except Employee.DoesNotExist:
         messages.error(request, "Employee not found.")
         return redirect("hr_employee_list")
 
-    # Ensure employee has a related user
     if not employee.user:
         messages.error(request, "This employee does not have a linked user account.")
         return redirect("hr_employee_list")
 
-    user = employee.user  # Safely access related User instance
-
     if request.method == "POST":
-        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee, user=request.user)
         if form.is_valid():
-            # Update User fields
-            user.username = form.cleaned_data["username"]
-            user.first_name = form.cleaned_data["first_name"]
-            user.last_name = form.cleaned_data["last_name"]
-            user.email = form.cleaned_data["email"]
-
-            if form.cleaned_data.get("password"):
-                user.set_password(form.cleaned_data["password"])
-
-            user.save()
-
-            # Update Employee fields
-            employee.phone_number = form.cleaned_data["phone_number"]
-            employee.rank = form.cleaned_data["rank"]
-            employee.salary = form.cleaned_data["salary"]
-            employee.date_of_birth = form.cleaned_data["date_of_birth"]
-            employee.date_of_join = form.cleaned_data["date_of_join"]
-            employee.work_days = form.cleaned_data["work_days"]
-            employee.holidays = form.cleaned_data["holidays"]
-            employee.overseas_days = form.cleaned_data["overseas_days"]
-            employee.address = form.cleaned_data["address"]
-
-            # Handle profile picture upload
-            if "profile_picture" in request.FILES:
-                employee.profile_picture = request.FILES["profile_picture"]
-
-            employee.save()
-
+            form.save(changed_by=request.user, source='HR edit')
             messages.success(request, "Employee profile updated successfully.")
             return redirect("hr_employee_list")
-
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
-        form = ManagerEmployeeUpdateForm(instance=employee, initial={
-            "username": user.username,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "email": user.email,
-            "phone_number": employee.phone_number,
-            "rank": employee.rank,
-            "salary": employee.salary,
-            "date_of_birth": employee.date_of_birth,
-            "date_of_join": employee.date_of_join,
-            "work_days": employee.work_days,
-            "holidays": employee.holidays,
-            "overseas_days": employee.overseas_days,
-            "address": employee.address,
-        })
+        form = ManagerEmployeeUpdateForm(instance=employee, user=request.user)
 
-    return render(request, "hr/edit_employee.html", {"form": form, "employee": employee})
+    return render(request, "hr/edit_employee.html", {
+        "form": form,
+        "employee": employee,
+        "can_view_salary": can_view_salary(request.user)
+    })
+
 
 
 @login_required
@@ -701,6 +554,9 @@ def hr_reactivate_employee(request, employee_id):
 @login_required
 @user_passes_test(is_hr)
 def hr_apply_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_apply_leave
+        return render_role_apply_leave(request, 'HR', 'hr/hrbase.html', 'hr_leave_status')
     if request.method == 'POST':
         form = LeaveForm(request.POST, request.FILES)
         if form.is_valid():
@@ -744,6 +600,9 @@ def hr_upload_medical_certificate(request, leave_id):
 @user_passes_test(is_hr)
 def hr_leave_status(request):
     """View to display the leave status of the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_status
+        return render_role_leave_status(request, 'HR', 'hr/hrbase.html')
     leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
     
     # Paginate leave requests (10 per page)
@@ -757,6 +616,9 @@ def hr_leave_status(request):
 @user_passes_test(is_hr)
 def hr_leave_records(request):
     """View to display the leave records for the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_statement
+        return render_role_leave_statement(request, 'HR', 'hr/hrbase.html')
 
     # Retrieve leave balance from the database
     leave_balance = LeaveBalance.objects.filter(user=request.user).first()
@@ -824,6 +686,145 @@ def hr_employee_analytics(request):
     return render(request, "analytics/employee_based.html", context)
 
 
+from functools import wraps
+from django.http import HttpResponseForbidden
+from Admin.permissions import can_manage_hr_settings
+from Admin.models import Department, Branch
+from hr.forms import DepartmentForm, BranchForm, DutyScheduleForm, HolidayForm
+from Admin.models import (
+    DutySchedule, EmployeeSchedule, RestDayRule, RosterDay, Holiday,
+    Department, Branch, WEEKDAY_CHOICES,
+    update_employee_schedule, update_employee_rest_day_rule,
+    check_payroll_lock_for_employee, check_payroll_lock_for_holiday,
+    EmployeeChangeLog
+)
+from finance.models import Payroll
+from datetime import timedelta
+from functools import wraps
+from django.http import HttpResponseForbidden
+
+
+def require_hr_settings(view_func):
+    @wraps(view_func)
+    def _wrapped(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('custom-login')
+        if not can_manage_hr_settings(request.user):
+            return HttpResponseForbidden("You do not have permission to manage HR settings.")
+        return view_func(request, *args, **kwargs)
+    return _wrapped
+
+
+@require_hr_settings
+def hr_departments_list(request):
+    departments = Department.objects.all().order_by('sort_order', 'name')
+    return render(request, 'hr/settings/departments.html', {'departments': departments})
+
+
+@require_hr_settings
+def hr_department_create(request):
+    if request.method == 'POST':
+        form = DepartmentForm(request.POST)
+        if form.is_valid():
+            dept = form.save()
+            messages.success(request, f"Department '{dept.name}' created successfully.")
+            return redirect('hr_departments')
+    else:
+        form = DepartmentForm()
+    return render(request, 'hr/settings/department_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_department_edit(request, pk):
+    dept = get_object_or_404(Department, pk=pk)
+    if request.method == 'POST':
+        form = DepartmentForm(request.POST, instance=dept)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Department '{dept.name}' updated successfully.")
+            return redirect('hr_departments')
+    else:
+        form = DepartmentForm(instance=dept)
+    return render(request, 'hr/settings/department_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_department_toggle_active(request, pk):
+    dept = get_object_or_404(Department, pk=pk)
+    if request.method == 'POST':
+        dept.is_active = not dept.is_active
+        dept.save(update_fields=['is_active'])
+        status_str = "activated" if dept.is_active else "deactivated"
+        messages.success(request, f"Department '{dept.name}' has been {status_str}.")
+    return redirect('hr_departments')
+
+
+@require_hr_settings
+def hr_department_delete(request, pk):
+    dept = get_object_or_404(Department, pk=pk)
+    if dept.employees.exists():
+        messages.error(request, f"Cannot delete department '{dept.name}' because it has assigned employees. Deactivate it instead.")
+    else:
+        dept.delete()
+        messages.success(request, f"Department '{dept.name}' deleted successfully.")
+    return redirect('hr_departments')
+
+
+@require_hr_settings
+def hr_branches_list(request):
+    branches = Branch.objects.all().order_by('sort_order', 'name')
+    return render(request, 'hr/settings/branches.html', {'branches': branches})
+
+
+@require_hr_settings
+def hr_branch_create(request):
+    if request.method == 'POST':
+        form = BranchForm(request.POST)
+        if form.is_valid():
+            branch = form.save()
+            messages.success(request, f"Branch '{branch.name}' created successfully.")
+            return redirect('hr_branches')
+    else:
+        form = BranchForm()
+    return render(request, 'hr/settings/branch_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_branch_edit(request, pk):
+    branch = get_object_or_404(Branch, pk=pk)
+    if request.method == 'POST':
+        form = BranchForm(request.POST, instance=branch)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Branch '{branch.name}' updated successfully.")
+            return redirect('hr_branches')
+    else:
+        form = BranchForm(instance=branch)
+    return render(request, 'hr/settings/branch_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_branch_toggle_active(request, pk):
+    branch = get_object_or_404(Branch, pk=pk)
+    if request.method == 'POST':
+        branch.is_active = not branch.is_active
+        branch.save(update_fields=['is_active'])
+        status_str = "activated" if branch.is_active else "deactivated"
+        messages.success(request, f"Branch '{branch.name}' has been {status_str}.")
+    return redirect('hr_branches')
+
+
+@require_hr_settings
+def hr_branch_delete(request, pk):
+    branch = get_object_or_404(Branch, pk=pk)
+    if branch.employees.exists():
+        messages.error(request, f"Cannot delete branch '{branch.name}' because it has assigned employees. Deactivate it instead.")
+    else:
+        branch.delete()
+        messages.success(request, f"Branch '{branch.name}' deleted successfully.")
+    return redirect('hr_branches')
+
+
 @login_required
 @user_passes_test(is_hr)
 def hr_get_presence_data(request):
@@ -838,3 +839,503 @@ def hr_get_presence_data(request):
         return JsonResponse({"error": "Invalid month or year"}, status=400)
 
 
+# ==============================================================================
+# Shifts & Holidays
+# ==============================================================================
+
+# 1. Duty Schedules
+@require_hr_settings
+def hr_duty_schedules_list(request):
+    schedules = DutySchedule.objects.all().order_by('sort_order', 'name')
+    return render(request, 'hr/shifts/duty_schedules.html', {'schedules': schedules})
+
+
+@require_hr_settings
+def hr_duty_schedule_create(request):
+    if request.method == 'POST':
+        form = DutyScheduleForm(request.POST)
+        if form.is_valid():
+            sched = form.save()
+            messages.success(request, f"Duty schedule '{sched.name}' created successfully.")
+            return redirect('hr_duty_schedules')
+    else:
+        form = DutyScheduleForm()
+    return render(request, 'hr/shifts/duty_schedule_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_duty_schedule_edit(request, pk):
+    sched = get_object_or_404(DutySchedule, pk=pk)
+    if request.method == 'POST':
+        form = DutyScheduleForm(request.POST, instance=sched)
+        if form.is_valid():
+            sched = form.save()
+            messages.success(request, f"Duty schedule '{sched.name}' updated successfully.")
+            return redirect('hr_duty_schedules')
+    else:
+        form = DutyScheduleForm(instance=sched)
+    return render(request, 'hr/shifts/duty_schedule_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_duty_schedule_toggle_active(request, pk):
+    sched = get_object_or_404(DutySchedule, pk=pk)
+    if request.method == 'POST':
+        sched.is_active = not sched.is_active
+        sched.save(update_fields=['is_active'])
+        status_str = "activated" if sched.is_active else "deactivated"
+        messages.success(request, f"Duty schedule '{sched.name}' has been {status_str}.")
+    return redirect('hr_duty_schedules')
+
+
+@require_hr_settings
+def hr_duty_schedule_delete(request, pk):
+    sched = get_object_or_404(DutySchedule, pk=pk)
+    if sched.employee_schedules.exists():
+        messages.error(request, f"Cannot delete duty schedule '{sched.name}' because it has assigned employees. Deactivate it instead.")
+    else:
+        sched.delete()
+        messages.success(request, f"Duty schedule '{sched.name}' deleted successfully.")
+    return redirect('hr_duty_schedules')
+
+
+# 2. Weekly Rest Days
+@require_hr_settings
+def hr_weekly_rest_days_list(request):
+    dept_id = request.GET.get('department')
+    branch_id = request.GET.get('branch')
+    rest_filter = request.GET.get('rest_day')
+
+    today = timezone.localdate()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'bulk_set':
+            selected_ids = request.POST.getlist('selected_employees')
+            new_rest_day = request.POST.get('rest_day')
+            effective_from_str = request.POST.get('effective_from')
+            if not selected_ids:
+                messages.error(request, "No employees selected.")
+            elif not effective_from_str:
+                messages.error(request, "Effective from date is required.")
+            else:
+                try:
+                    effective_from = datetime.strptime(effective_from_str, '%Y-%m-%d').date()
+                    uses_roster = (new_rest_day == 'roster')
+                    weekday = None if uses_roster else int(new_rest_day)
+
+                    success_count = 0
+                    errors = []
+                    for emp_id in selected_ids:
+                        emp = Employee.objects.filter(pk=emp_id).first()
+                        if not emp:
+                            continue
+                        try:
+                            update_employee_rest_day_rule(
+                                emp,
+                                rest_weekday=weekday,
+                                uses_roster=uses_roster,
+                                effective_from=effective_from,
+                                user=request.user,
+                                source='Rest day'
+                            )
+                            success_count += 1
+                        except ValidationError as ve:
+                            errors.append(f"{emp.user.get_full_name() or emp.employee_code}: {ve.message}")
+
+                    if success_count:
+                        messages.success(request, f"Updated rest day rule for {success_count} employee(s).")
+                    if errors:
+                        for err in errors:
+                            messages.error(request, err)
+                except ValueError:
+                    messages.error(request, "Invalid date format.")
+            return redirect(request.get_full_path())
+
+        elif action == 'single_set':
+            emp_id = request.POST.get('employee_id')
+            new_rest_day = request.POST.get('rest_day')
+            effective_from_str = request.POST.get('effective_from')
+            emp = get_object_or_404(Employee, pk=emp_id)
+            if not effective_from_str:
+                messages.error(request, "Effective from date is required.")
+            else:
+                try:
+                    effective_from = datetime.strptime(effective_from_str, '%Y-%m-%d').date()
+                    uses_roster = (new_rest_day == 'roster')
+                    weekday = None if uses_roster else int(new_rest_day)
+                    update_employee_rest_day_rule(
+                        emp,
+                        rest_weekday=weekday,
+                        uses_roster=uses_roster,
+                        effective_from=effective_from,
+                        user=request.user,
+                        source='Rest day'
+                    )
+                    messages.success(request, f"Updated rest day rule for {emp.user.get_full_name() or emp.employee_code}.")
+                except ValidationError as ve:
+                    messages.error(request, ve.message)
+                except ValueError:
+                    messages.error(request, "Invalid date format.")
+            return redirect(request.get_full_path())
+
+    employees_qs = Employee.objects.filter(user__is_active=True, deactivated_at__isnull=True).select_related('user', 'department', 'branch').prefetch_related(
+        Prefetch(
+            'rest_day_rules',
+            queryset=RestDayRule.objects.filter(
+                effective_from__lte=today
+            ).filter(
+                Q(effective_to__isnull=True) | Q(effective_to__gte=today)
+            ).order_by('-effective_from'),
+            to_attr='active_rule_list'
+        )
+    ).order_by('employee_code', 'user__first_name')
+
+    if dept_id:
+        employees_qs = employees_qs.filter(department_id=dept_id)
+    if branch_id:
+        employees_qs = employees_qs.filter(branch_id=branch_id)
+
+    employee_rows = []
+    for emp in employees_qs:
+        current_rule = emp.active_rule_list[0] if getattr(emp, 'active_rule_list', None) else None
+        if current_rule:
+            if current_rule.uses_roster:
+                rule_display = "Roster"
+                rule_code = "roster"
+            else:
+                rule_display = dict(WEEKDAY_CHOICES).get(current_rule.rest_weekday, "Sunday")
+                rule_code = str(current_rule.rest_weekday)
+        else:
+            rule_display = "Sunday"
+            rule_code = "6"
+
+        if rest_filter:
+            if rest_filter == 'roster' and rule_code != 'roster':
+                continue
+            elif rest_filter != 'roster' and rule_code != rest_filter:
+                continue
+
+        employee_rows.append({
+            'employee': emp,
+            'rule_display': rule_display,
+            'rule_code': rule_code,
+            'current_rule': current_rule,
+        })
+
+    departments = Department.objects.filter(is_active=True).order_by('name')
+    branches = Branch.objects.filter(is_active=True).order_by('name')
+
+    context = {
+        'employee_rows': employee_rows,
+        'departments': departments,
+        'branches': branches,
+        'weekday_choices': WEEKDAY_CHOICES,
+        'selected_dept': int(dept_id) if dept_id and dept_id.isdigit() else None,
+        'selected_branch': int(branch_id) if branch_id and branch_id.isdigit() else None,
+        'selected_rest_day': rest_filter,
+        'today': today,
+    }
+    return render(request, 'hr/shifts/rest_days.html', context)
+
+
+@require_hr_settings
+def hr_weekly_rest_day_history(request, employee_id):
+    employee = get_object_or_404(Employee, pk=employee_id)
+    rules = employee.rest_day_rules.all().order_by('-effective_from', '-created_at')
+    logs = employee.changelogs.filter(field='rest_day').order_by('-changed_at')
+    return render(request, 'hr/shifts/rest_day_history.html', {
+        'employee': employee,
+        'rules': rules,
+        'logs': logs,
+    })
+
+
+# 3. Roster
+@require_hr_settings
+def hr_roster_view(request):
+    month_str = request.GET.get('month')
+    today = timezone.localdate()
+    if not month_str:
+        month_str = today.strftime('%Y-%m')
+
+    try:
+        year, month = map(int, month_str.split('-'))
+        start_date = date(year, month, 1)
+        _, num_days = monthrange(year, month)
+        end_date = date(year, month, num_days)
+    except Exception:
+        year, month = today.year, today.month
+        start_date = date(year, month, 1)
+        _, num_days = monthrange(year, month)
+        end_date = date(year, month, num_days)
+        month_str = start_date.strftime('%Y-%m')
+
+    days = [date(year, month, d) for d in range(1, num_days + 1)]
+
+    # Check if month is payroll-locked
+    is_month_locked = Payroll.objects.filter(
+        month=start_date,
+        status__in=['APPROVED', 'PAID']
+    ).exists()
+
+    # Find employees with uses_roster=True
+    roster_emp_ids = RestDayRule.objects.filter(
+        uses_roster=True,
+        effective_from__lte=end_date
+    ).filter(
+        Q(effective_to__isnull=True) | Q(effective_to__gte=start_date)
+    ).values_list('employee_id', flat=True).distinct()
+
+    employees = Employee.objects.filter(
+        id__in=roster_emp_ids,
+        user__is_active=True,
+        deactivated_at__isnull=True
+    ).select_related('user', 'department', 'branch').order_by('employee_code', 'user__first_name')
+
+    roster_days_qs = RosterDay.objects.filter(
+        employee__in=employees,
+        date__range=(start_date, end_date)
+    )
+    roster_map = {(rd.employee_id, rd.date): rd.day_type for rd in roster_days_qs}
+
+    grid_rows = []
+    for emp in employees:
+        row_days = []
+        for d in days:
+            dtype = roster_map.get((emp.id, d), 'WORK')
+            row_days.append({
+                'date': d,
+                'date_str': d.strftime('%Y-%m-%d'),
+                'day_type': dtype,
+            })
+        grid_rows.append({
+            'employee': emp,
+            'days': row_days,
+        })
+
+    prev_month_date = (start_date - timedelta(days=1)).replace(day=1)
+    next_month_date = (end_date + timedelta(days=1)).replace(day=1)
+
+    context = {
+        'month_str': month_str,
+        'current_month_display': start_date.strftime('%B %Y'),
+        'prev_month': prev_month_date.strftime('%Y-%m'),
+        'next_month': next_month_date.strftime('%Y-%m'),
+        'days': days,
+        'grid_rows': grid_rows,
+        'is_month_locked': is_month_locked,
+        'employees': employees,
+        'today': today,
+    }
+    return render(request, 'hr/shifts/roster.html', context)
+
+
+@require_hr_settings
+@require_POST
+def hr_roster_toggle(request):
+    emp_id = request.POST.get('employee_id')
+    date_str = request.POST.get('date')
+    if not emp_id or not date_str:
+        return JsonResponse({'status': 'error', 'message': 'Missing parameters.'}, status=400)
+
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid date format.'}, status=400)
+
+    emp = get_object_or_404(Employee, pk=emp_id)
+
+    try:
+        check_payroll_lock_for_employee(emp, target_date)
+    except ValidationError as ve:
+        return JsonResponse({'status': 'error', 'message': ve.message}, status=400)
+
+    roster_day = RosterDay.objects.filter(employee=emp, date=target_date).first()
+    if roster_day:
+        old_type = roster_day.day_type
+        new_type = 'WORK' if old_type == 'REST' else 'REST'
+        roster_day.day_type = new_type
+        roster_day.save()
+    else:
+        old_type = 'WORK'
+        new_type = 'REST'
+        roster_day = RosterDay.objects.create(employee=emp, date=target_date, day_type=new_type)
+
+    EmployeeChangeLog.objects.create(
+        employee=emp,
+        field=f'roster_{target_date}',
+        old_value=old_type,
+        new_value=new_type,
+        changed_by=request.user,
+        source='Roster'
+    )
+
+    return JsonResponse({
+        'status': 'success',
+        'employee_id': emp.id,
+        'date': date_str,
+        'day_type': new_type
+    })
+
+
+@require_hr_settings
+@require_POST
+def hr_roster_fill_pattern(request):
+    emp_id = request.POST.get('employee_id')
+    start_date_str = request.POST.get('start_date')
+    end_date_str = request.POST.get('end_date')
+    work_days_str = request.POST.get('work_days', '4')
+    rest_days_str = request.POST.get('rest_days', '2')
+    month_str = request.POST.get('month')
+
+    emp = get_object_or_404(Employee, pk=emp_id)
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        work_days = int(work_days_str)
+        rest_days = int(rest_days_str)
+    except Exception:
+        messages.error(request, "Invalid input parameters for pattern fill.")
+        return redirect(f"{reverse('hr_roster')}?month={month_str}")
+
+    if end_date < start_date:
+        messages.error(request, "End date cannot be earlier than start date.")
+        return redirect(f"{reverse('hr_roster')}?month={month_str}")
+
+    # Check lock for the range
+    curr = start_date
+    while curr <= end_date:
+        try:
+            check_payroll_lock_for_employee(emp, curr)
+        except ValidationError as ve:
+            messages.error(request, f"Cannot fill pattern: {ve.message}")
+            return redirect(f"{reverse('hr_roster')}?month={month_str}")
+        curr += timedelta(days=1)
+
+    cycle_length = work_days + rest_days
+    curr = start_date
+    day_idx = 0
+    while curr <= end_date:
+        pattern_pos = day_idx % cycle_length
+        day_type = 'WORK' if pattern_pos < work_days else 'REST'
+        rd, created = RosterDay.objects.get_or_create(
+            employee=emp,
+            date=curr,
+            defaults={'day_type': day_type}
+        )
+        if not created and rd.day_type != day_type:
+            old_type = rd.day_type
+            rd.day_type = day_type
+            rd.save()
+            EmployeeChangeLog.objects.create(
+                employee=emp,
+                field=f'roster_{curr}',
+                old_value=old_type,
+                new_value=day_type,
+                changed_by=request.user,
+                source='Roster'
+            )
+        elif created:
+            EmployeeChangeLog.objects.create(
+                employee=emp,
+                field=f'roster_{curr}',
+                old_value='None',
+                new_value=day_type,
+                changed_by=request.user,
+                source='Roster'
+            )
+        curr += timedelta(days=1)
+        day_idx += 1
+
+    messages.success(request, f"Pattern ({work_days} on, {rest_days} off) filled for {emp.user.get_full_name() or emp.employee_code}.")
+    return redirect(f"{reverse('hr_roster')}?month={month_str}")
+
+
+# 4. Public Holidays
+@require_hr_settings
+def hr_public_holidays_list(request):
+    year_str = request.GET.get('year')
+    today = timezone.localdate()
+    try:
+        year = int(year_str) if year_str else today.year
+    except ValueError:
+        year = today.year
+
+    holidays = Holiday.objects.filter(date__year=year).select_related('branch').order_by('date')
+    all_years = Holiday.objects.dates('date', 'year', order='DESC')
+    year_list = sorted(list(set([y.year for y in all_years] + [today.year, today.year + 1])), reverse=True)
+
+    return render(request, 'hr/shifts/holidays.html', {
+        'holidays': holidays,
+        'current_year': year,
+        'year_list': year_list,
+    })
+
+
+@require_hr_settings
+def hr_holiday_create(request):
+    if request.method == 'POST':
+        form = HolidayForm(request.POST)
+        if form.is_valid():
+            holiday = form.save()
+            messages.success(request, f"Public holiday '{holiday.description}' created successfully.")
+            return redirect(f"{reverse('hr_public_holidays')}?year={holiday.date.year}")
+    else:
+        form = HolidayForm()
+    return render(request, 'hr/shifts/holiday_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_holiday_edit(request, pk):
+    holiday = get_object_or_404(Holiday, pk=pk)
+    if request.method == 'POST':
+        form = HolidayForm(request.POST, instance=holiday)
+        if form.is_valid():
+            holiday = form.save()
+            messages.success(request, f"Public holiday '{holiday.description}' updated successfully.")
+            return redirect(f"{reverse('hr_public_holidays')}?year={holiday.date.year}")
+    else:
+        form = HolidayForm(instance=holiday)
+    return render(request, 'hr/shifts/holiday_form.html', {'form': form})
+
+
+@require_hr_settings
+def hr_holiday_delete(request, pk):
+    holiday = get_object_or_404(Holiday, pk=pk)
+    year = holiday.date.year
+    month_first = holiday.date.replace(day=1)
+    if Payroll.objects.filter(month=month_first, status__in=['APPROVED', 'PAID']).exists():
+        holiday.is_active = False
+        holiday.save(update_fields=['is_active'])
+        messages.warning(request, f"Payroll for {month_first.strftime('%b %Y')} is already approved; holiday was deactivated instead of deleted.")
+    else:
+        holiday.delete()
+        messages.success(request, f"Public holiday '{holiday.description}' deleted successfully.")
+    return redirect(f"{reverse('hr_public_holidays')}?year={year}")
+
+
+
+
+
+
+
+@login_required
+@user_passes_test(is_hr)
+def hr_import_opening_balances(request):
+    from Admin.leave_views import render_import_opening_balances
+    return render_import_opening_balances(request, 'hr/hrbase.html')
+
+
+@login_required
+@user_passes_test(is_hr)
+def hr_leave_year_reviews(request):
+    from Admin.leave_views import render_year_end_reviews
+    return render_year_end_reviews(request, 'hr/hrbase.html')
+
+
+@login_required
+@user_passes_test(is_hr)
+def hr_leave_statement(request):
+    from Admin.leave_views import render_role_leave_statement
+    return render_role_leave_statement(request, 'HR', 'hr/hrbase.html')

@@ -119,15 +119,21 @@
     </div>
 
     <div class="wr-ordr-tbl">
-      <label>Time Logs</label>
+      <label>Time Logs (Timesheet)</label>
       <div class="table-responsive">
         <table id="timeTable">
           <thead>
             <tr>
               <th>Member</th>
               <th>Date</th>
-              <th>Start Time</th>
-              <th>Finish Time</th>
+              <th>Start</th>
+              <th>Finish</th>
+              <th>Break (m)</th>
+              <th>Travel (m)</th>
+              <th>Description</th>
+              <th>Attachment</th>
+              <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -222,7 +228,10 @@
 
   
 
-    <button type="submit">Submit</button>
+    <div style="display: flex; gap: 12px; margin-top: 20px;">
+      <button type="submit" name="action" value="save_draft" style="background-color: #6c757d; color: white; padding: 8px 18px; border-radius: 4px; border: none; cursor: pointer;">Save Draft</button>
+      <button type="submit" name="action" value="submit_approval" style="background-color: #2563eb; color: white; padding: 8px 18px; border-radius: 4px; border: none; cursor: pointer;">Submit for Approval</button>
+    </div>
   </form>
 </div>
 

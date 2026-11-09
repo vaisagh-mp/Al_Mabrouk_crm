@@ -94,3 +94,17 @@ def abs_value(value):
 
 from Admin.templatetags.text_tags import plain_text
 register.filter('plain_text', plain_text)
+
+
+@register.filter
+def can_view_salary(user):
+    from Admin.permissions import can_view_salary as cvs
+    return cvs(user)
+
+
+@register.filter
+def can_manage_hr_settings(user):
+    from Admin.permissions import can_manage_hr_settings as cmh
+    return cmh(user)
+
+

@@ -202,11 +202,30 @@
                       <span>Spares</span>
                     </a>
                   </li>
-                  <li class="{% if request.resolver_match.url_name in 'fin_payroll fin_payroll_edit' %}active{% endif %}">
-                    <a href="{% url 'fin_payroll' %}">
+                  <li class="sidebar-dropdown {% if request.resolver_match.url_name in 'fin_payroll fin_payroll_edit salary_structures_list salary_increments_list salary_advances_list salary_advance_detail payslips_list' %}active{% endif %}">
+                    <a href="#">
                       <i class="fas fa-money-check-alt"></i>
-                      <span>Payroll</span>
+                      <span>Payroll &amp; Salary</span>
                     </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'fin_payroll' %}">Payroll</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_structures_list' %}">Salary Structures</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_increments_list' %}">Increments</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_advances_list' %}">Salary Advances</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'payslips_list' %}">Payslips</a>
+                        </li>
+                      </ul>
+                    </div>
                   </li>
                   <li class="{% if request.resolver_match.url_name in 'fin_expenses fin_expense_add fin_expense_edit' %}active{% endif %}">
                     <a href="{% url 'fin_expenses' %}">
@@ -270,6 +289,12 @@
                     <a href="{% url 'fin_apply_leave' %}">
                       <i class="fa fa-book"></i>
                       <span>Apply Leave</span>
+                    </a>
+                  </li>
+                  <li>
+                    <a href="{% url 'my_payslips' %}">
+                      <i class="fas fa-file-invoice-dollar"></i>
+                      <span>My Payslips</span>
                     </a>
                   </li>
                   {% endif %}

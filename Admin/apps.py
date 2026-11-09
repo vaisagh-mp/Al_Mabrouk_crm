@@ -7,5 +7,6 @@ class AdminConfig(AppConfig):
 
     def ready(self):
         import Admin.signals  # Import signals when the app is ready
+        import Admin.checks
 
         

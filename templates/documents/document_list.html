@@ -1,0 +1,309 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Messages -->
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div>
+            <h2 class="h4 mb-1 text-dark font-weight-bold">Documents &amp; Expiry Register</h2>
+            <p class="text-muted small mb-0">Track compliance documents, certifications, and expirations across employees and company assets.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="?tab={{ category }}&export=excel{% if status_filter %}&status={{ status_filter }}{% endif %}{% if selected_doc_type %}&doc_type={{ selected_doc_type }}{% endif %}{% if selected_dept %}&department={{ selected_dept }}{% endif %}{% if selected_branch %}&branch={{ selected_branch }}{% endif %}{% if q %}&q={{ q }}{% endif %}" class="btn btn-outline-success btn-sm">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+            {% if category == 'employee' %}
+                <a href="{% url 'document_import' %}" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-file-import me-1"></i> Bulk Register Import
+                </a>
+            {% endif %}
+            <a href="{% url 'document_upload' category %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-upload me-1"></i> Upload {% if category == 'employee' %}Employee{% else %}Company{% endif %} Document
+            </a>
+        </div>
+    </div>
+
+    <!-- Category Tabs -->
+    <ul class="nav nav-tabs mb-4 border-bottom">
+        <li class="nav-item">
+            <a class="nav-link {% if category == 'employee' %}active font-weight-bold text-primary border-primary border-bottom-0{% else %}text-muted{% endif %}" href="?tab=employee">
+                <i class="fas fa-user-tie me-1"></i> Employee Documents
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if category == 'company' %}active font-weight-bold text-primary border-primary border-bottom-0{% else %}text-muted{% endif %}" href="?tab=company">
+                <i class="fas fa-building me-1"></i> Company Documents
+            </a>
+        </li>
+    </ul>
+
+    <!-- Status Summary Metric Cards (Clickable) -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=expired" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-danger {% if status_filter == 'expired' %}ring-2 ring-danger{% endif %}">
+                    <div class="text-danger font-weight-bold fs-4">{{ counts.expired|default:0 }}</div>
+                    <div class="text-danger small font-weight-bold">Expired</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=30" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-warning {% if status_filter == '30' %}ring-2 ring-warning{% endif %}" style="border-top-color: #ea580c !important;">
+                    <div class="font-weight-bold fs-4" style="color: #ea580c;">{{ counts.30|default:0 }}</div>
+                    <div class="small font-weight-bold" style="color: #ea580c;">&le; 30 Days</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=60" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-warning {% if status_filter == '60' %}ring-2 ring-warning{% endif %}">
+                    <div class="text-warning font-weight-bold fs-4">{{ counts.60|default:0 }}</div>
+                    <div class="text-warning small font-weight-bold">&le; 60 Days</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=90" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-info {% if status_filter == '90' %}ring-2 ring-info{% endif %}">
+                    <div class="text-info font-weight-bold fs-4">{{ counts.90|default:0 }}</div>
+                    <div class="text-info small font-weight-bold">&le; 90 Days</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=valid" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-success {% if status_filter == 'valid' %}ring-2 ring-success{% endif %}">
+                    <div class="text-success font-weight-bold fs-4">{{ counts.valid|default:0 }}</div>
+                    <div class="text-success small font-weight-bold">Valid &gt; 90d</div>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-2 col-6">
+            <a href="?tab={{ category }}&status=all" class="text-decoration-none">
+                <div class="p-3 bg-white rounded shadow-sm text-center border-top border-4 border-secondary {% if status_filter == 'all' %}ring-2 ring-secondary{% endif %}">
+                    <div class="text-secondary font-weight-bold fs-4">{{ counts.total|default:0 }}</div>
+                    <div class="text-muted small font-weight-bold">Total Active</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar Card -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body p-3 bg-light rounded">
+            <form method="get" class="row g-2 align-items-end">
+                <input type="hidden" name="tab" value="{{ category }}">
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Status Bucket</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                        <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Expired</option>
+                        <option value="30" {% if status_filter == '30' %}selected{% endif %}>Expiring &le; 30d</option>
+                        <option value="60" {% if status_filter == '60' %}selected{% endif %}>Expiring &le; 60d</option>
+                        <option value="90" {% if status_filter == '90' %}selected{% endif %}>Expiring &le; 90d</option>
+                        <option value="valid" {% if status_filter == 'valid' %}selected{% endif %}>Valid (&gt; 90d)</option>
+                    </select>
+                </div>
+
+                <div class="col-md-3 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Document Type</label>
+                    <select name="doc_type" class="form-select form-select-sm">
+                        <option value="">All Document Types</option>
+                        {% for dt in doc_types %}
+                            <option value="{{ dt.id }}" {% if selected_doc_type|stringformat:"s" == dt.id|stringformat:"s" %}selected{% endif %}>{{ dt.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% if category == 'employee' %}
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Department</label>
+                    <select name="department" class="form-select form-select-sm">
+                        <option value="">All Departments</option>
+                        {% for d in departments %}
+                            <option value="{{ d.id }}" {% if selected_dept|stringformat:"s" == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Branch</label>
+                    <select name="branch" class="form-select form-select-sm">
+                        <option value="">All Branches</option>
+                        {% for b in branches %}
+                            <option value="{{ b.id }}" {% if selected_branch|stringformat:"s" == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="col-md-3 col-sm-6">
+                    <label class="form-label small text-muted mb-1">Search</label>
+                    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="{% if category == 'employee' %}Emp code, name, doc no...{% else %}Title, doc no...{% endif %}">
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Expiry From</label>
+                    <input type="date" name="expiry_from" value="{{ expiry_from }}" class="form-control form-control-sm">
+                </div>
+
+                <div class="col-md-2 col-sm-4">
+                    <label class="form-label small text-muted mb-1">Expiry To</label>
+                    <input type="date" name="expiry_to" value="{{ expiry_to }}" class="form-control form-control-sm">
+                </div>
+
+                <div class="col-md-2 col-sm-4 d-flex gap-1">
+                    <button type="submit" class="btn btn-primary btn-sm flex-fill">
+                        <i class="fas fa-filter me-1"></i> Apply
+                    </button>
+                    <a href="?tab={{ category }}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                        <i class="fas fa-redo"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Documents Table Card -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        {% if category == 'employee' %}
+                            <th>Employee</th>
+                        {% else %}
+                            <th>Document Title</th>
+                        {% endif %}
+                        <th>Document Type</th>
+                        <th>Document No</th>
+                        <th>Issue Date</th>
+                        <th>Expiry Date</th>
+                        <th>Status</th>
+                        <th>Remaining</th>
+                        <th>File Attachment</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in page_obj %}
+                    <tr>
+                        {% if category == 'employee' %}
+                        <td>
+                            <div class="font-weight-bold text-dark">
+                                <a href="{% url 'employee_profile' doc.employee.id %}?tab=documents" class="text-decoration-none">
+                                    {{ doc.employee.user.get_full_name|default:doc.employee.user.username }}
+                                </a>
+                            </div>
+                            <div class="small text-muted">{{ doc.employee.employee_code|default:doc.employee.id }} &bull; {{ doc.employee.department.name|default:"—" }}</div>
+                        </td>
+                        {% else %}
+                        <td>
+                            <div class="font-weight-bold text-dark">{{ doc.title }}</div>
+                            <div class="small text-muted">{{ doc.issuing_authority|default:"—" }}</div>
+                        </td>
+                        {% endif %}
+
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ doc.doc_type.name }}</span>
+                            <span class="small text-muted ms-1">v{{ doc.version }}</span>
+                        </td>
+                        <td>{{ doc.document_number|default:"—" }}</td>
+                        <td>{{ doc.issue_date|date:"d M Y"|default:"—" }}</td>
+                        <td class="font-weight-bold">{{ doc.expiry_date|date:"d M Y"|default:"No Expiry" }}</td>
+                        <td>
+                            <span class="badge {{ doc.status_info.badge_class }}">
+                                {{ doc.status_info.label }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if doc.status_info.days is not None %}
+                                {% if doc.status_info.days < 0 %}
+                                    <span class="text-danger small font-weight-bold">{{ doc.status_info.days }}d</span>
+                                {% elif doc.status_info.days <= 30 %}
+                                    <span class="text-danger small font-weight-bold">{{ doc.status_info.days }}d</span>
+                                {% elif doc.status_info.days <= 60 %}
+                                    <span class="text-warning small font-weight-bold">{{ doc.status_info.days }}d</span>
+                                {% else %}
+                                    <span class="text-muted small">{{ doc.status_info.days }}d</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if doc.file %}
+                                <a href="{% url 'document_download' category doc.id %}?preview=1" target="_blank" class="btn btn-sm btn-outline-info me-1" title="Preview">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="{% url 'document_download' category doc.id %}" class="btn btn-sm btn-outline-success" title="Download">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            {% else %}
+                                <span class="badge bg-danger">File missing</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'document_renew' category doc.id %}" class="btn btn-sm btn-outline-warning" title="Renew Document">
+                                <i class="fas fa-sync-alt me-1"></i> Renew
+                            </a>
+                            <a href="{% url 'document_edit' category doc.id %}" class="btn btn-sm btn-outline-secondary" title="Edit Metadata">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
+                            No documents found matching the filter criteria.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white d-flex justify-content-between align-items-center py-2">
+            <span class="small text-muted">
+                Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} documents
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?tab={{ category }}&page={{ page_obj.previous_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">&laquo;</a>
+                    </li>
+                {% endif %}
+                {% for p in page_obj.paginator.page_range %}
+                    {% if p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+                        <li class="page-item {% if page_obj.number == p %}active{% endif %}">
+                            <a class="page-link" href="?tab={{ category }}&page={{ p }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">{{ p }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?tab={{ category }}&page={{ page_obj.next_page_number }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if q %}&q={{ q }}{% endif %}">&raquo;</a>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+

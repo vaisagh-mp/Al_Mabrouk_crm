@@ -1,0 +1,182 @@
+{% extends base_template|default:'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Salary Advances | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #1F3A52;">
+                <i class="fas fa-hand-holding-usd me-2"></i>Salary Advances
+            </h3>
+            <p class="text-muted small mb-0">Record employee advance requests, approve, disburse, and manage monthly recovery schedules.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#requestAdvanceModal">
+                <i class="fas fa-plus me-1"></i>Request Advance
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body p-2 d-flex gap-2 align-items-center flex-wrap">
+            <span class="small fw-bold text-muted ps-2">Status:</span>
+            <a href="{% url 'salary_advances_list' %}" class="btn btn-sm {% if not status_filter %}btn-dark{% else %}btn-outline-secondary{% endif %}">All</a>
+            <a href="{% url 'salary_advances_list' %}?status=REQUESTED" class="btn btn-sm {% if status_filter == 'REQUESTED' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">Requested</a>
+            <a href="{% url 'salary_advances_list' %}?status=APPROVED" class="btn btn-sm {% if status_filter == 'APPROVED' %}btn-info text-dark{% else %}btn-outline-info text-dark{% endif %}">Approved</a>
+            <a href="{% url 'salary_advances_list' %}?status=ACTIVE" class="btn btn-sm {% if status_filter == 'ACTIVE' %}btn-success{% else %}btn-outline-success{% endif %}">Active</a>
+            <a href="{% url 'salary_advances_list' %}?status=COMPLETED" class="btn btn-sm {% if status_filter == 'COMPLETED' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Completed</a>
+            <a href="{% url 'salary_advances_list' %}?status=REJECTED" class="btn btn-sm {% if status_filter == 'REJECTED' %}btn-danger{% else %}btn-outline-danger{% endif %}">Rejected</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">#</th>
+                            <th>Employee</th>
+                            <th class="text-end">Amount (AED)</th>
+                            <th class="text-center">Instalments</th>
+                            <th class="text-end">Monthly Ded. (AED)</th>
+                            <th class="text-center">Start Month</th>
+                            <th class="text-end">Remaining Balance (AED)</th>
+                            <th class="text-center">Status</th>
+                            <th>Requested By</th>
+                            <th>Disbursed On</th>
+                            <th class="text-center pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adv in advances %}
+                        <tr>
+                            <td class="ps-3 fw-bold text-muted">#{{ adv.id }}</td>
+                            <td>
+                                <a href="{% url 'salary_advance_detail' adv.id %}" class="text-decoration-none fw-bold text-dark">
+                                    {{ adv.employee.name }}
+                                </a>
+                                <div class="small text-muted">{{ adv.employee.employee_code|default:"—" }}</div>
+                            </td>
+                            <td class="text-end font-monospace fw-bold">{{ adv.amount|floatformat:2 }}</td>
+                            <td class="text-center">{{ adv.instalments }}</td>
+                            <td class="text-end font-monospace">{{ adv.monthly_deduction|floatformat:2 }}</td>
+                            <td class="text-center small">{{ adv.start_month|date:"M Y" }}</td>
+                            <td class="text-end font-monospace fw-bold {% if adv.balance > 0 %}text-danger{% else %}text-success{% endif %}">
+                                {{ adv.balance|floatformat:2 }}
+                            </td>
+                            <td class="text-center">
+                                {% if adv.status == 'REQUESTED' %}
+                                <span class="badge bg-warning text-dark">Requested</span>
+                                {% elif adv.status == 'APPROVED' %}
+                                <span class="badge bg-info text-dark">Approved</span>
+                                {% elif adv.status == 'ACTIVE' %}
+                                <span class="badge bg-success">Active</span>
+                                {% elif adv.status == 'COMPLETED' %}
+                                <span class="badge bg-secondary">Completed</span>
+                                {% elif adv.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">{{ adv.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">{{ adv.created_by.get_full_name|default:adv.created_by.username|default:"—" }}</td>
+                            <td class="small">{% if adv.disbursed_on %}{{ adv.disbursed_on|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+                            <td class="text-center pe-3">
+                                <div class="d-flex gap-1 justify-content-center">
+                                    <a href="{% url 'salary_advance_detail' adv.id %}" class="btn btn-sm btn-outline-primary" title="View Schedule">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if is_admin_or_acct %}
+                                        {% if adv.status == 'REQUESTED' %}
+                                        <form method="post" action="{% url 'salary_advance_action' adv.id 'approve' %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-success" title="Approve" onclick="return confirm('Approve this salary advance?');">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        </form>
+                                        <form method="post" action="{% url 'salary_advance_action' adv.id 'reject' %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Reject" onclick="return confirm('Reject this advance?');">
+                                                <i class="fas fa-times"></i>
+                                            </button>
+                                        </form>
+                                        {% elif adv.status == 'APPROVED' %}
+                                        <form method="post" action="{% url 'salary_advance_action' adv.id 'disburse' %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-sm btn-primary" title="Mark Disbursed & Activate" onclick="return confirm('Mark disbursed and generate schedule?');">
+                                                <i class="fas fa-money-bill-wave"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center py-4 text-muted">No salary advances found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Request Advance -->
+<div class="modal fade" id="requestAdvanceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'salary_advance_request' %}">
+                {% csrf_token %}
+                <div class="modal-header" style="background-color: #1F3A52; color: #FFF;">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-hand-holding-usd me-2"></i>Record Advance Request</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Employee <span class="text-danger">*</span></label>
+                            <select name="employee_id" class="form-select form-select-sm" required>
+                                <option value="">Select Employee...</option>
+                                {% for emp in active_employees %}
+                                <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.employee_code|default:"AMMS" }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Advance Amount (AED) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" name="amount" class="form-control form-control-sm" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Instalments (Months) <span class="text-danger">*</span></label>
+                            <input type="number" name="instalments" class="form-control form-control-sm" value="1" min="1" max="36" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Start Month <span class="text-danger">*</span></label>
+                            <input type="month" name="start_month" class="form-control form-control-sm" required>
+                            <div class="form-text small">First payroll month where deduction starts.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Reason / Purpose</label>
+                            <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Reason for salary advance request..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-save me-1"></i>Save Request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

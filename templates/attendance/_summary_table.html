@@ -269,7 +269,7 @@
             {% endif %}
         </div>
         <div class="att-sum-header-right">
-            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}&export=summary_excel" class="att-sum-export-btn" title="Export Attendance Summary as Excel">
+            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}&export=summary_excel" class="att-sum-export-btn" title="Export Attendance Summary as Excel">
                 <i class="fa fa-download" aria-hidden="true"></i> Export Excel
             </a>
         </div>
@@ -281,11 +281,14 @@
                 <tr>
                     <th rowspan="2" class="att-sum-sticky-col">Employee</th>
                     <th rowspan="2" class="att-sum-col-th" style="text-align: left; min-width: 140px;">Designation</th>
+                    <th rowspan="2" class="att-sum-col-th" style="text-align: center; min-width: 85px;">Sched Days</th>
+                    <th rowspan="2" class="att-sum-col-th" style="text-align: center; min-width: 80px;">Present</th>
+                    <th rowspan="2" class="att-sum-col-th" style="text-align: center; min-width: 80px;">Att %</th>
                     <th colspan="3" class="att-sum-group-th att-sum-group-work">Work</th>
                     <th colspan="6" class="att-sum-group-th att-sum-group-leave">Leave</th>
                     <th colspan="2" class="att-sum-group-th att-sum-group-off">Off Days</th>
                     <th colspan="3" class="att-sum-group-th att-sum-group-hours">Hours</th>
-                    <th colspan="2" class="att-sum-group-th att-sum-group-absence">Absence</th>
+                    <th colspan="3" class="att-sum-group-th att-sum-group-absence">Absence</th>
                 </tr>
                 <tr>
                     <th class="att-sum-col-th">Office Days</th>
@@ -297,11 +300,12 @@
                     <th class="att-sum-col-th">REST Days</th>
                     <th class="att-sum-col-th">Training Days</th>
                     <th class="att-sum-col-th">Total Leave Days</th>
-                    <th class="att-sum-col-th">Sunday</th>
+                    <th class="att-sum-col-th">Rest Days</th>
                     <th class="att-sum-col-th">Holiday</th>
                     <th class="att-sum-col-th">Total Hours</th>
                     <th class="att-sum-col-th">Gross OT Hrs</th>
                     <th class="att-sum-col-th">Gross OT Days</th>
+                    <th class="att-sum-col-th">Missing Punch</th>
                     <th class="att-sum-col-th">Absent Days</th>
                     <th class="att-sum-col-th">Absent Hours</th>
                 </tr>
@@ -318,6 +322,9 @@
                         {% endif %}
                     </td>
                     <td>{{ s.designation }}</td>
+                    <td class="att-sum-center"><span class="att-sum-val">{{ s.scheduled_working_days }}</span></td>
+                    <td class="att-sum-center"><span class="att-sum-val">{{ s.present_days }}</span></td>
+                    <td class="att-sum-center"><span class="att-sum-val" style="color:#1F3A52;font-weight:700;">{{ s.attendance_pct }}%</span></td>
                     <td class="att-sum-center">
                         {% if s.office_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.office_days }}</span>{% endif %}
                     </td>
@@ -346,7 +353,7 @@
                         {% if s.total_leave_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.total_leave_days }}</span>{% endif %}
                     </td>
                     <td class="att-sum-center">
-                        {% if s.sunday_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.sunday_days }}</span>{% endif %}
+                        {% if s.rest_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.rest_days }}</span>{% endif %}
                     </td>
                     <td class="att-sum-center">
                         {% if s.holiday_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.holiday_days }}</span>{% endif %}
@@ -360,6 +367,9 @@
                     <td class="att-sum-center">
                         {% if s.gross_ot_days == 0 %}<span class="att-sum-muted">0.00</span>{% else %}<span class="att-sum-val">{{ s.gross_ot_days }}</span>{% endif %}
                     </td>
+                    <td class="att-sum-center">
+                        {% if s.missing_punch_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val" style="color:#d9534f;font-weight:bold;">{{ s.missing_punch_days }}</span>{% endif %}
+                    </td>
                     <td class="att-sum-center {% if s.absent_days > 0 %}att-sum-tint-absent{% endif %}">
                         {% if s.absent_days == 0 %}<span class="att-sum-muted">0</span>{% else %}<span class="att-sum-val">{{ s.absent_days }}</span>{% endif %}
                     </td>
@@ -369,7 +379,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="18" class="att-sum-empty">No employees match this filter.</td>
+                    <td colspan="19" class="att-sum-empty">No employees match this filter.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -378,6 +388,9 @@
                 <tr class="att-sum-total-row">
                     <td class="att-sum-sticky-col"><strong>TOTAL</strong></td>
                     <td></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.scheduled_working_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.present_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.attendance_pct }}%</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.office_days }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.vessel_days }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.office_vessel_days }}</strong></td>
@@ -387,11 +400,12 @@
                     <td class="att-sum-center"><strong>{{ summary_totals.rest_days }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.training_days }}</strong></td>
                     <td class="att-sum-center {% if summary_totals.total_leave_days > 0 %}att-sum-tint-leave{% endif %}"><strong>{{ summary_totals.total_leave_days }}</strong></td>
-                    <td class="att-sum-center"><strong>{{ summary_totals.sunday_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.rest_days }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.holiday_days }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.total_hours|format_work_duration }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.gross_ot_hours|format_work_duration }}</strong></td>
                     <td class="att-sum-center"><strong>{{ summary_totals.gross_ot_days }}</strong></td>
+                    <td class="att-sum-center"><strong>{{ summary_totals.missing_punch_days|default:0 }}</strong></td>
                     <td class="att-sum-center {% if summary_totals.absent_days > 0 %}att-sum-tint-absent{% endif %}"><strong>{{ summary_totals.absent_days }}</strong></td>
                     <td class="att-sum-center {% if summary_totals.absent_hours > 0 %}att-sum-tint-absent{% endif %}"><strong>{{ summary_totals.absent_hours|format_work_duration }}</strong></td>
                 </tr>

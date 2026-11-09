@@ -76,6 +76,53 @@
       </div>
   </div>
   <!-- End TATP -->
+
+  <!-- Document Expiry Widget Card -->
+  <div class="row mt-4 mb-2">
+    <div class="col-12">
+      <div class="widget-box p-3" style="background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <h4 class="mb-0 fs-6 text-dark font-weight-bold"><i class="fas fa-file-contract text-primary me-2"></i> Document Expiry Overview</h4>
+          <a href="{% url 'hr_documents_list' %}" class="btn btn-sm btn-outline-primary">View Document Register &rarr;</a>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-3 col-6">
+            <a href="{% url 'hr_documents_list' %}?status=expired" class="text-decoration-none">
+              <div class="p-3 rounded text-center" style="background: #fee2e2; border-left: 4px solid #ef4444;">
+                <div class="text-danger font-weight-bold fs-4">{{ doc_expiry_counts.expired|default:0 }}</div>
+                <div class="text-danger small font-weight-bold">Expired Documents</div>
+              </div>
+            </a>
+          </div>
+          <div class="col-md-3 col-6">
+            <a href="{% url 'hr_documents_list' %}?status=30" class="text-decoration-none">
+              <div class="p-3 rounded text-center" style="background: #ffedd5; border-left: 4px solid #f97316;">
+                <div class="font-weight-bold fs-4" style="color: #ea580c !important;">{{ doc_expiry_counts.30|default:0 }}</div>
+                <div class="small font-weight-bold" style="color: #ea580c;">Expiring &le; 30 Days</div>
+              </div>
+            </a>
+          </div>
+          <div class="col-md-3 col-6">
+            <a href="{% url 'hr_documents_list' %}?status=60" class="text-decoration-none">
+              <div class="p-3 rounded text-center" style="background: #fef3c7; border-left: 4px solid #f59e0b;">
+                <div class="font-weight-bold fs-4" style="color: #d97706 !important;">{{ doc_expiry_counts.60|default:0 }}</div>
+                <div class="small font-weight-bold" style="color: #d97706;">Expiring &le; 60 Days</div>
+              </div>
+            </a>
+          </div>
+          <div class="col-md-3 col-6">
+            <a href="{% url 'hr_documents_list' %}?status=90" class="text-decoration-none">
+              <div class="p-3 rounded text-center" style="background: #e0f2fe; border-left: 4px solid #0284c7;">
+                <div class="text-info font-weight-bold fs-4" style="color: #0284c7 !important;">{{ doc_expiry_counts.90|default:0 }}</div>
+                <div class="small font-weight-bold" style="color: #0284c7;">Expiring &le; 90 Days</div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="row mt-4 mb-4">
       <!-- Punch In Card -->
       <div class="col-lg-4 col-md-6">

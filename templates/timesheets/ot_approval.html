@@ -1,0 +1,218 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">OVERTIME APPROVAL</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Review and approve daily employee overtime calculated from approved timesheets.</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <form method="POST" onsubmit="return confirm('Approve ALL pending overtime records for {{ month_label }}?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve_all_month">
+                <button type="submit" class="btn btn-success btn-sm" style="font-weight: 600;">
+                    <i class="fas fa-check-double me-1"></i> Approve All for {{ month_label }}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div style="margin-bottom: 15px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Metrics Cards -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border-left: 4px solid #1F3A52;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600;">Total OT Hours</div>
+                <div style="font-size: 22px; font-weight: 700; color: #1F3A52; margin-top: 4px;">{{ total_ot_hours|default:"0.00" }}h</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border-left: 4px solid #28a745;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600;">Total OT Cost</div>
+                <div style="font-size: 22px; font-weight: 700; color: #28a745; margin-top: 4px;">AED {{ total_ot_cost|default:"0.00" }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border-left: 4px solid #ffc107;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600;">Pending Approval</div>
+                <div style="font-size: 22px; font-weight: 700; color: #856404; margin-top: 4px;">{{ pending_count }} day{{ pending_count|pluralize }}</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); border-left: 4px solid #17a2b8;">
+                <div style="font-size: 11px; text-transform: uppercase; color: #6c757d; font-weight: 600;">Approved</div>
+                <div style="font-size: 22px; font-weight: 700; color: #17a2b8; margin-top: 4px;">{{ approved_count }} day{{ approved_count|pluralize }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">Select Month</label>
+                <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm" style="font-size: 12px;" onchange="this.form.submit()">
+            </div>
+            <div class="col-md-4">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">Status</label>
+                <select name="status" class="form-control form-control-sm" style="font-size: 12px;" onchange="this.form.submit()">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending</option>
+                    <option value="APPROVED" {% if status_filter == 'APPROVED' %}selected{% endif %}>Approved</option>
+                    <option value="REJECTED" {% if status_filter == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                </select>
+            </div>
+            <div class="col-md-4 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill" style="background: #1F3A52; border-color: #1F3A52; font-weight: 600;">
+                    <i class="fas fa-filter me-1"></i> Apply
+                </button>
+                <a href="?month={{ selected_month }}" class="btn btn-light btn-sm" title="Reset Filters"><i class="fas fa-undo"></i></a>
+            </div>
+        </form>
+    </div>
+
+    <!-- OT Records Table -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto;">
+        {% if ot_rows %}
+        <table class="table table-hover align-middle" style="font-size: 12px; margin-bottom: 0;">
+            <thead style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <tr>
+                    <th>Date</th>
+                    <th>Employee</th>
+                    <th>Department</th>
+                    <th>OT Hours</th>
+                    <th>OT Cost (AED)</th>
+                    <th>Status</th>
+                    <th>Decided By</th>
+                    <th>Remarks</th>
+                    <th style="text-align: right; min-width: 160px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in ot_rows %}
+                <tr>
+                    <td style="font-weight: 600; white-space: nowrap;">{{ row.date|date:"d/m/Y" }}</td>
+                    <td>
+                        <div style="font-weight: 600; color: #1F3A52;">{{ row.employee.name }}</div>
+                        <small class="text-muted">{{ row.employee.employee_code|default:"" }} • {{ row.employee.rank|default:"-" }}</small>
+                    </td>
+                    <td>{{ row.employee.department.name|default:"-" }}</td>
+                    <td style="font-weight: 700; color: #e67e22;">{{ row.ot_hours }}h</td>
+                    <td style="font-weight: 700; color: #28a745;">AED {{ row.ot_cost }}</td>
+                    <td>
+                        {% if row.status == 'APPROVED' %}
+                            <span class="badge bg-success">Approved</span>
+                        {% elif row.status == 'PENDING' %}
+                            <span class="badge bg-warning text-dark">Pending</span>
+                        {% elif row.status == 'REJECTED' %}
+                            <span class="badge bg-danger" title="{{ row.remarks }}">Rejected</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small>
+                            {% if row.decided_by %}
+                                {{ row.decided_by.get_full_name|default:row.decided_by.username }}
+                                <div class="text-muted" style="font-size: 10px;">{{ row.decided_at|date:"d/m H:i" }}</div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </small>
+                    </td>
+                    <td style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ row.remarks }}">
+                        {{ row.remarks|default:"-" }}
+                    </td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        <a href="{% url 'employee_monthly_timesheet_pdf' row.employee.id selected_month %}" target="_blank" class="btn btn-outline-info btn-sm py-0 px-2 me-1" style="font-size: 11px;" title="Monthly Timesheet PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </a>
+                        {% if row.employee_id == current_user_emp_id %}
+                            <span class="badge bg-light text-muted border">Self</span>
+                        {% else %}
+                            {% if row.status != 'APPROVED' %}
+                                <button type="button" class="btn btn-outline-success btn-sm py-0 px-2" style="font-size: 11px;" onclick="approveOT('{{ row.id }}')">
+                                    Approve
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size: 11px;" onclick="openRejectOTModal('{{ row.id }}')">
+                                    Reject
+                                </button>
+                            {% else %}
+                                <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size: 11px;" onclick="openRejectOTModal('{{ row.id }}')">
+                                    Reject
+                                </button>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <i class="fas fa-clock fa-3x mb-3" style="color: #dee2e6;"></i>
+            <h5>No Overtime Records for {{ month_label }}</h5>
+            <p style="font-size: 13px;">No employee overtime recorded from approved timesheets in this month.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Reject OT Modal -->
+<div class="modal fade" id="rejectOTModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reject_ot">
+            <input type="hidden" name="ot_id" id="rejectOtId">
+            <div class="modal-header">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">Reject Overtime</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label style="font-size: 12px; font-weight: 600; margin-bottom: 5px;">Remarks (Required):</label>
+                <textarea name="remarks" class="form-control" rows="3" required placeholder="State reason for overtime rejection..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Hidden Single OT Action Form -->
+<form method="POST" id="singleOTActionForm" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" id="singleOTAction">
+    <input type="hidden" name="ot_id" id="singleOtId">
+</form>
+
+<script>
+function approveOT(otId) {
+    if (confirm('Approve this daily overtime record?')) {
+        const form = document.getElementById('singleOTActionForm');
+        document.getElementById('singleOTAction').value = 'approve_ot';
+        document.getElementById('singleOtId').value = otId;
+        form.submit();
+    }
+}
+
+function openRejectOTModal(otId) {
+    document.getElementById('rejectOtId').value = otId;
+    new bootstrap.Modal(document.getElementById('rejectOTModal')).show();
+}
+</script>
+{% endblock %}
+

@@ -1,3 +1,4 @@
+from Admin.leave_service import is_leave_v2_active
 from django.shortcuts import render, redirect
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -118,19 +119,8 @@ def admstrn_render_attendance_page(request):
 
 @login_required
 def attendance(request):
-    employee = get_object_or_404(Employee, user=request.user)
-    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
-
-    # Pagination settings
-    paginator = Paginator(attendance_records, 10)  # Show 10 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'role': 'Administration',
-        'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
-    }
-    return render(request, 'administration/attendance.html', context)
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(request, "Administration", 'administration/administrationbase.html', template_name='administration/attendance.html')
 
 def admstrn_update_travel_time(request, attendance_id):
     attendance = get_object_or_404(Attendance, id=attendance_id)
@@ -774,6 +764,9 @@ def admstrn_delete_project(request, project_id):
 
 @login_required
 def admstrn_apply_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_apply_leave
+        return render_role_apply_leave(request, 'Administration', 'administration/administrationbase.html', 'admstrn_leave_status')
     if request.method == 'POST':
         form = LeaveForm(request.POST, request.FILES)
         if form.is_valid():
@@ -829,6 +822,9 @@ def admstrn_upload_medical_certificate(request, leave_id):
 @login_required
 def admstrn_leave_status(request):
     """View to display the leave status of the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_status
+        return render_role_leave_status(request, 'Administration', 'administration/administrationbase.html')
     leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
     
     # Paginate leave requests (10 per page)
@@ -841,6 +837,9 @@ def admstrn_leave_status(request):
 @login_required
 def admstrn_leave_records(request):
     """View to display the leave records for the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_statement
+        return render_role_leave_statement(request, 'Administration', 'administration/administrationbase.html')
 
     # Retrieve leave balance from the database
     leave_balance = LeaveBalance.objects.filter(user=request.user).first()

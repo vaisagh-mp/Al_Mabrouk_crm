@@ -1,0 +1,51 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card border-0 shadow-sm mx-auto" style="max-width: 650px;">
+        <div class="card-header bg-primary text-white py-3">
+            <h5 class="mb-0 fs-6 font-weight-bold"><i class="fas fa-file-import me-2"></i> Bulk Employee Document Import (D20)</h5>
+        </div>
+        <div class="card-body p-4">
+            <p class="text-muted small">
+                Import employee documents in bulk via an Excel spreadsheet. Imported records without file attachments are tracked with a <strong>'File missing'</strong> status until files are uploaded.
+            </p>
+
+            <div class="d-flex justify-content-between align-items-center p-3 bg-light rounded border mb-4">
+                <div>
+                    <h6 class="mb-1 font-weight-bold">Step 1: Download Template</h6>
+                    <span class="small text-muted">Includes pre-filled column headers and sample format.</span>
+                </div>
+                <a href="?action=template" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-download me-1"></i> Download Template
+                </a>
+            </div>
+
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <h6 class="mb-2 font-weight-bold">Step 2: Upload Completed Spreadsheet</h6>
+                    <input type="file" name="file" class="form-control" accept=".xlsx" required>
+                    <div class="form-text small">Accepted format: Microsoft Excel (.xlsx)</div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{% url 'hr_documents_list' %}" class="btn btn-secondary px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-upload me-1"></i> Upload &amp; Preview</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

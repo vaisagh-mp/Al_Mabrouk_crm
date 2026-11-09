@@ -1,3 +1,5 @@
+from Admin.leave_service import is_leave_v2_active
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render, get_object_or_404
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
@@ -480,7 +482,9 @@ def update_manager_profile(request):
             user.save()
 
             # Save the manager form (rank & salary included)
-            form.save()
+            mgr = form.save(commit=False)
+            mgr.personal_email = form.cleaned_data["email"]
+            mgr.save()
 
             messages.success(request, "Your profile has been updated successfully.")
             return redirect("manager_profile")  # Redirect to manager profile view
@@ -690,6 +694,9 @@ def manage_attendance_requests(request):
     if not request.user.is_staff:  # Ensure the user is a manager
         return redirect('dashboard')
 
+    if request.method == 'GET':
+        messages.info(request, "Note: Attendance corrections are now managed under Attendance Status -> Team Requests.")
+
     pending_requests = Attendance.objects.filter(status='PENDING')
 
     if request.method == 'POST':
@@ -735,48 +742,10 @@ def project_assignment_create(request):
 
 # Employee List
 @login_required
+@login_required
 def manager_employee_list(request):
-    if request.user.is_staff and not request.user.is_superuser:
-        # Fetch the logged-in manager
-        manager = Employee.objects.filter(
-            user=request.user, is_manager=True).first()
-        if not manager:
-            return render(request, 'error.html', {'message': 'You are not authorized to view this page.'})
-
-        # Fetch employees associated with the manager's teams
-        teams = Team.objects.filter(manager=manager).prefetch_related(
-            Prefetch(
-                'employees',  # Prefetch employees related to the manager's teams
-                queryset=Employee.objects.filter(is_employee=True).select_related('user').prefetch_related(
-                    Prefetch(
-                        # Prefetch the project status (TeamMemberStatus) related to the employee
-                        'project_statuses',
-                        queryset=TeamMemberStatus.objects.filter(
-                            status='ONGOING').select_related('team__project'),
-                        to_attr='ongoing_projects'  # Store the result as 'ongoing_projects'
-                    )
-                ),
-                to_attr='team_employees'  # Store the result as 'team_employees'
-            )
-        )
-
-        # Flatten the list of employees across all teams
-        employees = []
-        for team in teams:
-            employees.extend(team.team_employees)
-
-        # Remove duplicates (if employees are in multiple teams)
-        employees = list(set(employees))
-
-        # Paginate the employees
-        paginator = Paginator(employees, 10)
-        page_number = request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-
-        return render(request, 'Manager/employee_list.html', {'page_obj': page_obj, 'teams': teams, "role": "Manager",})
-    else:
-        # Redirect non-staff users or superusers
-        return render(request, 'error.html', {'message': 'Access denied.'})
+    from Admin.employee_views import render_employee_list
+    return render_employee_list(request, role='manager', base_template='Manager/managerbase.html')
 
 # Employee attendance list
 @login_required
@@ -856,19 +825,8 @@ def attendance_list(request):
 
 @login_required
 def attendance(request):
-    employee = get_object_or_404(Employee, user=request.user)
-    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
-
-    # Pagination settings
-    paginator = Paginator(attendance_records, 10)  # Show 10 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        "role": "Manager",
-        'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
-    }
-    return render(request, 'Manager/attendance.html', context)
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(request, "Manager", 'Manager/managerbase.html', template_name='Manager/attendance.html')
 
 # Employee attendance details
 @login_required
@@ -958,6 +916,12 @@ def manage_attendance(request):
 # Manage Leave
 @login_required
 def manage_leave(request):
+    user_emp = getattr(request.user, 'employee_profile', None)
+    if not (request.user.is_superuser or (user_emp and user_emp.is_manager)):
+        raise PermissionDenied("You do not have permission to access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_manage_leave
+        return render_role_manage_leave(request, 'Manager', 'Manager/managerbase.html')
     # Get the current manager
     try:
         current_manager = request.user.employee_profile
@@ -1016,6 +980,12 @@ def manage_leave(request):
 # Leave list
 @login_required
 def leave_list(request):
+    user_emp = getattr(request.user, 'employee_profile', None)
+    if not (request.user.is_superuser or (user_emp and user_emp.is_manager)):
+        raise PermissionDenied("You do not have permission to access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_list
+        return render_role_leave_list(request, 'Manager', 'Manager/managerbase.html')
     search_query = request.GET.get('search', '').strip()
 
     # Get the current manager
@@ -1063,85 +1033,8 @@ def leave_list(request):
 # Employee profile
 @login_required
 def employee_profile(request, employee_id):
-    # Fetch the employee
-    employee = get_object_or_404(Employee, pk=employee_id)
-    teams = employee.teams_assigned.all()
-
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
-
-    # Count statuses for the employee's projects
-    completed_projects = team_member_statuses.filter(
-        status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(
-        Q(status='COMPLETED') | Q(status='ONGOING')).count()
-    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
-
-    # Get the related projects from the team member status
-    all_projects = [
-        {
-            'project': status.team.project,
-            'manager': status.team.project.manager,
-            'status': status.status
-        }
-        for status in team_member_statuses
-    ]
-
-    # Calculate attendance percentage
-    # total_attendance_records = Attendance.objects.filter(employee=employee).count()
-    # approved_attendance_records = Attendance.objects.filter(
-    #     employee=employee, status='APPROVED'
-    # ).count()
-    # attendance_percentage = (
-    #     (approved_attendance_records / 30) * 100
-    #     if total_attendance_records > 0
-    #     else 0
-    # )
-
-    # Get the current year and month
-    current_year = date.today().year
-    current_month = date.today().month
-
-    # Get the total number of days in the current month
-    total_days_in_month = monthrange(current_year, current_month)[1]
-
-    # Calculate total and approved attendance records for the current month
-    total_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    approved_attendance_records = Attendance.objects.filter(
-        employee=employee,
-        status='APPROVED',
-        login_time__year=current_year,
-        login_time__month=current_month
-    ).count()
-
-    # Calculate attendance percentage
-    attendance_percentage = (
-        (approved_attendance_records / total_days_in_month) * 100
-        if total_attendance_records > 0
-        else 0
-    )
-
-    # Count total projects and pending projects
-    total_projects = completed_projects + pending_projects + assigned_projects
-    total_pending_projects = total_projects - completed_projects
-
-    # Context for template
-    context = {
-        "role": "Manager",
-        'employee': employee,
-        'teams': teams,
-        'all_projects': all_projects,
-        'attendance_percentage': round(attendance_percentage, 1),
-        'total_projects': total_projects,
-        'completed_projects': completed_projects,
-        'pending_projects': total_pending_projects,
-    }
-
-    return render(request, 'Manager/employee_profile.html', context)
+    from Admin.employee_views import render_employee_profile
+    return render_employee_profile(request, employee_id, role='manager', base_template='Manager/managerbase.html')
 
 
 @login_required
@@ -1588,6 +1481,9 @@ def manager_delete_attendance(request, attendance_id):
 
 @login_required
 def manager_apply_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_apply_leave
+        return render_role_apply_leave(request, 'Manager', 'Manager/managerbase.html', 'manager_leave_status')
     if request.method == 'POST':
         form = LeaveForm(request.POST, request.FILES)
         if form.is_valid():
@@ -1642,6 +1538,9 @@ def manager_upload_medical_certificate(request, leave_id):
 @login_required
 def manager_leave_status(request):
     """View to display the leave status of the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_status
+        return render_role_leave_status(request, 'Manager', 'Manager/managerbase.html')
     leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
     
     # Paginate leave requests (10 per page)
@@ -1654,6 +1553,9 @@ def manager_leave_status(request):
 @login_required
 def manager_leave_records(request):
     """View to display the leave records for the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_statement
+        return render_role_leave_statement(request, 'Manager', 'Manager/managerbase.html')
 
     # Retrieve leave balance from the database
     leave_balance = LeaveBalance.objects.filter(user=request.user).first()
@@ -1948,41 +1850,37 @@ def manager_update_work_order_view(request, pk):
                     work_order_detail.save()
 
                     # ---------------------------
-                    # Clear old auto-created service logs and WorkOrderTime entries
+                    # Sync WorkOrderTime entries in place (preserving submitted/approved rows)
                     # ---------------------------
-                    EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
-                    WorkOrderTime.objects.filter(work_order=work_order).delete()
-
+                    from Admin.work_order_helpers import sync_work_order_times
+                    _action = request.POST.get('action', 'save_draft')
                     time_employees = request.POST.getlist('time_employee[]') or request.POST.getlist('time_employee')
                     time_dates = request.POST.getlist('time_date[]') or request.POST.getlist('time_date')
                     time_starts = request.POST.getlist('start_time[]') or request.POST.getlist('start_time')
                     time_finishes = request.POST.getlist('finish_time[]') or request.POST.getlist('finish_time')
 
                     # Save multiple WorkOrderTime rows
-                    _new_time_logs = []
-                    _time_rows, _time_warnings = clean_time_rows(time_dates, time_starts, time_finishes, time_employees)
+                    _time_rows, _time_warnings = clean_time_rows(
+                        time_dates,
+                        time_starts,
+                        time_finishes,
+                        time_employees,
+                        row_ids=request.POST.getlist('time_row_id[]'),
+                        break_minutes=request.POST.getlist('break_minutes[]'),
+                        travel_minutes=request.POST.getlist('travel_minutes[]'),
+                        descriptions=request.POST.getlist('time_description[]'),
+                        attachments=request.FILES.getlist('time_attachment[]'),
+                    )
                     _wo_warnings.extend(_time_warnings)
-                    for _row in _time_rows:
-                        emp_val = _row['emp_val']
-                        row_employee = None
-                        if emp_val:
-                            try:
-                                row_employee = allowed_for_save.get(int(emp_val))
-                            except (ValueError, TypeError):
-                                row_employee = None
-
-                        # If empty, or not in allowed set, default to manager's own employee profile
-                        if not row_employee:
-                            row_employee = manager_emp
-
-                        _tl = WorkOrderTime.objects.create(
-                            work_order=work_order,
-                            date=_row['date'],
-                            start_time=_row['start'],
-                            finish_time=_row['finish'],
-                            employee=row_employee,
-                        )
-                        _new_time_logs.append(_tl)
+                    _new_time_logs = sync_work_order_times(
+                        work_order=work_order,
+                        time_rows=_time_rows,
+                        allowed_for_save=allowed_for_save,
+                        default_employee=manager_emp,
+                        action=_action,
+                        user=request.user,
+                        warnings=_wo_warnings,
+                    )
 
                     # ---------------------------
                     # Clear & re-save Spares, Tools, Documents
@@ -2139,7 +2037,7 @@ def manager_update_work_order_view(request, pk):
 
     times_data = []
     assigned_member_ids = {m['id'] for m in assigned_members}
-    for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user'):
+    for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user', 'service_log'):
         name = ''
         extra_member = None
         if t.employee and t.employee.user:
@@ -2150,11 +2048,18 @@ def manager_update_work_order_view(request, pk):
                 else:
                     label = f"{name} (not on team)"
                 extra_member = {'id': t.employee_id, 'name': label}
+        slog = getattr(t, 'service_log', None)
         times_data.append({
             'id': t.id,
             'date': t.date.isoformat() if t.date else '',
             'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
             'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
+            'break_minutes': t.break_minutes or 0,
+            'travel_minutes': t.travel_minutes or 0,
+            'description': t.description or '',
+            'attachment_url': t.attachment.url if t.attachment else '',
+            'status': getattr(slog, 'approval_status', 'DRAFT'),
+            'remarks': getattr(slog, 'decision_remarks', '') or '',
             'employee_id': t.employee_id or '',
             'member_name': extra_member['name'] if extra_member else name,
             'extra_member': extra_member,

@@ -11,6 +11,7 @@ db.sqlite3-journal
 
 # Media uploads
 media/
+private_media/
 
 # Environment
 .env

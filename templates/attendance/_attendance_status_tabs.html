@@ -1,0 +1,760 @@
+{% load custom_filters %}
+{% load static %}
+
+<div class="attendance-status-container">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="pg-title mb-0">
+            <h1 class="h3 mb-0 text-gray-800">Attendance Status</h1>
+        </div>
+        <div>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newCorrectionModal" onclick="openNewCorrectionModal()">
+                <i class="fas fa-plus me-1"></i> New Correction Request
+            </button>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="attendanceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'my_attendance' %}active{% endif %}" id="my-att-tab" data-bs-toggle="tab" data-bs-target="#my-attendance" type="button" role="tab" onclick="setTabParam('my_attendance')">
+                <i class="fas fa-calendar-alt me-1"></i> My Attendance
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'my_requests' %}active{% endif %}" id="my-req-tab" data-bs-toggle="tab" data-bs-target="#my-requests" type="button" role="tab" onclick="setTabParam('my_requests')">
+                <i class="fas fa-file-signature me-1"></i> My Requests
+                {% if my_requests %}
+                    <span class="badge bg-secondary ms-1">{{ my_requests|length }}</span>
+                {% endif %}
+            </button>
+        </li>
+        {% if can_manage_team %}
+        <li class="nav-item" role="presentation">
+            <button class="nav-link {% if active_tab == 'team_requests' %}active{% endif %}" id="team-req-tab" data-bs-toggle="tab" data-bs-target="#team-requests" type="button" role="tab" onclick="setTabParam('team_requests')">
+                <i class="fas fa-users-cog me-1"></i> Team Requests
+                {% if team_pending %}
+                    <span class="badge bg-warning text-dark ms-1">{{ team_pending|length }}</span>
+                {% endif %}
+            </button>
+        </li>
+        {% endif %}
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="attendanceTabContent">
+        
+        <!-- 1. MY ATTENDANCE TAB -->
+        <div class="tab-pane fade {% if active_tab == 'my_attendance' %}show active{% endif %}" id="my-attendance" role="tabpanel">
+            <!-- Month filter bar -->
+            <div class="card mb-3 shadow-sm border-0">
+                <div class="card-body py-2">
+                    <form method="get" class="row g-2 align-items-center">
+                        <input type="hidden" name="tab" value="my_attendance">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold"><i class="fas fa-calendar me-1"></i> Month:</label>
+                        </div>
+                        <div class="col-auto">
+                            <input type="month" name="month" class="form-control form-control-sm" value="{{ selected_month }}" onchange="this.form.submit()">
+                        </div>
+                        <div class="col-auto">
+                            <span class="text-muted small">Showing records for {{ start_date|date:"F Y" }}</span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Legend bar -->
+            <div class="card mb-3 shadow-sm border-0 bg-light">
+                <div class="card-body py-2 d-flex flex-wrap gap-2 align-items-center small">
+                    <span class="fw-bold me-2">Legend:</span>
+                    <span class="badge bg-success">Office (P)</span>
+                    <span class="badge bg-info text-dark">Vessel (VD)</span>
+                    <span class="badge bg-primary">Office+Vessel (OV)</span>
+                    <span class="badge bg-secondary">Rest Day (RD)</span>
+                    <span class="badge bg-primary">Public Holiday (PH)</span>
+                    <span class="badge bg-warning text-dark">Missing Punch (MP)</span>
+                    <span class="badge bg-danger">Absent (A)</span>
+                    <span class="badge bg-info">Leave (AL/SL/PL)</span>
+                    <span class="badge bg-dark">Training (TR)</span>
+                    <span class="ms-auto text-muted"><span class="badge bg-warning text-dark me-1">★</span> Worked on off-day</span>
+                </div>
+            </div>
+
+            <!-- Month Calendar Grid -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 fw-bold text-primary">Monthly Calendar — {{ start_date|date:"F Y" }}</h6>
+                </div>
+                <div class="card-body p-2">
+                    <div class="table-responsive">
+                        <table class="table table-bordered text-center mb-0 calendar-grid-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 14.28%;">Mon</th>
+                                    <th style="width: 14.28%;">Tue</th>
+                                    <th style="width: 14.28%;">Wed</th>
+                                    <th style="width: 14.28%;">Thu</th>
+                                    <th style="width: 14.28%;">Fri</th>
+                                    <th style="width: 14.28%;">Sat</th>
+                                    <th style="width: 14.28%;">Sun</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                {% for day in calendar_days %}
+                                    {% if forloop.first %}
+                                        {% for i in "1234567"|make_list %}
+                                            {% if forloop.counter < day.date.isoweekday %}
+                                                <td class="bg-light text-muted"></td>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+
+                                    <td class="align-top position-relative p-1 {% if day.is_off_day %}bg-light{% endif %}" style="min-height: 85px;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-bold small">{{ day.day_num }}</span>
+                                            {% if day.is_off_day and day.total_hours > 0 %}
+                                                <span class="badge bg-warning text-dark p-1" title="Worked on off-day">★</span>
+                                            {% endif %}
+                                        </div>
+
+                                        {% if day.row %}
+                                            {% if day.status_code == 'OFFICE' %}
+                                                <span class="badge bg-success w-100 d-block py-1 mb-1">Office</span>
+                                            {% elif day.status_code == 'VESSEL' %}
+                                                <span class="badge bg-info text-dark w-100 d-block py-1 mb-1">Vessel</span>
+                                            {% elif day.status_code == 'OFFICE_VESSEL' %}
+                                                <span class="badge bg-primary w-100 d-block py-1 mb-1">Office+Vessel</span>
+                                            {% elif day.status_code == 'REST_DAY' or day.status_code == 'SUNDAY' %}
+                                                <span class="badge bg-secondary w-100 d-block py-1 mb-1">Rest Day</span>
+                                            {% elif day.status_code == 'HOLIDAY' %}
+                                                <span class="badge bg-primary w-100 d-block py-1 mb-1">Holiday</span>
+                                            {% elif day.status_code == 'MISSING_PUNCH' %}
+                                                <span class="badge bg-warning text-dark w-100 d-block py-1 mb-1">Missing Punch</span>
+                                            {% elif day.status_code == 'ABSENT' %}
+                                                <span class="badge bg-danger w-100 d-block py-1 mb-1">Absent</span>
+                                            {% elif day.status_code == 'ANNUAL_LEAVE' or day.status_code == 'SICK_LEAVE' or day.status_code == 'PERSONAL_LEAVE' %}
+                                                <span class="badge bg-info w-100 d-block py-1 mb-1">{{ day.status_label }}</span>
+                                            {% elif day.status_code == 'TRAINING' %}
+                                                <span class="badge bg-dark w-100 d-block py-1 mb-1">Training</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark w-100 d-block py-1 mb-1">{{ day.status_label|default:"-" }}</span>
+                                            {% endif %}
+
+                                            {% if day.total_hours > 0 %}
+                                                <div class="small text-muted">{{ day.total_hours }}h</div>
+                                            {% endif %}
+
+                                            {% if day.has_pending %}
+                                                <span class="badge bg-info text-dark small mt-1"><i class="fas fa-clock"></i> Req Pending</span>
+                                            {% elif day.can_request_correction %}
+                                                <button type="button" class="btn btn-outline-warning btn-xs py-0 px-1 mt-1 small"
+                                                        onclick="openCorrectionModalForDate('{{ day.date|date:'Y-m-d' }}', '{{ day.status_code }}', '{{ day.row.login_time|date:'H:i'|default:'' }}', '{{ day.row.logout_time|date:'H:i'|default:'' }}')">
+                                                    <i class="fas fa-wrench"></i> Fix
+                                                </button>
+                                            {% endif %}
+                                        {% else %}
+                                            <div class="text-muted small">-</div>
+                                        {% endif %}
+                                    </td>
+
+                                    {% if day.date.isoweekday == 7 and not forloop.last %}
+                                        </tr><tr>
+                                    {% endif %}
+
+                                    {% if forloop.last %}
+                                        {% for i in "1234567"|make_list %}
+                                            {% if forloop.counter > day.date.isoweekday %}
+                                                <td class="bg-light text-muted"></td>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% endfor %}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Daily Attendance Details List -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 fw-bold text-primary">Daily Details</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th>Status</th>
+                                    <th>In</th>
+                                    <th>Out</th>
+                                    <th>Hours</th>
+                                    <th>OT Hours</th>
+                                    <th>Location</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day in calendar_days %}
+                                <tr>
+                                    <td>{{ day.date|date:"d/m/Y" }}</td>
+                                    <td>{{ day.weekday }}</td>
+                                    <td>
+                                        <span class="badge {% if day.status_code == 'OFFICE' %}bg-success{% elif day.status_code == 'VESSEL' %}bg-info text-dark{% elif day.status_code == 'OFFICE_VESSEL' %}bg-primary{% elif day.status_code == 'REST_DAY' or day.status_code == 'SUNDAY' %}bg-secondary{% elif day.status_code == 'HOLIDAY' %}bg-primary{% elif day.status_code == 'MISSING_PUNCH' %}bg-warning text-dark{% elif day.status_code == 'ABSENT' %}bg-danger{% elif 'LEAVE' in day.status_code %}bg-info{% else %}bg-light text-dark{% endif %}">
+                                            {{ day.status_label|default:"-" }}
+                                        </span>
+                                        {% if day.is_off_day and day.total_hours > 0 %}
+                                            <span class="badge bg-warning text-dark ms-1">★ Worked on off-day</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ day.row.start|time:"H:i"|default:"-" }}</td>
+                                    <td>{{ day.row.end|time:"H:i"|default:"-" }}</td>
+                                    <td>{{ day.total_hours|default:"0.00" }}</td>
+                                    <td>{{ day.row.ot_hours|default:"0.00" }}</td>
+                                    <td>{{ day.location|default:"-" }}</td>
+                                    <td>
+                                        {% if day.has_pending %}
+                                            <span class="badge bg-secondary"><i class="fas fa-clock"></i> Correction Pending</span>
+                                        {% elif day.can_request_correction %}
+                                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                                    onclick="openCorrectionModalForDate('{{ day.date|date:'Y-m-d' }}', '{{ day.status_code }}', '{{ day.row.login_time|date:'H:i'|default:'' }}', '{{ day.row.logout_time|date:'H:i'|default:'' }}')">
+                                                <i class="fas fa-tools me-1"></i> Request Correction
+                                            </button>
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. MY REQUESTS TAB -->
+        <div class="tab-pane fade {% if active_tab == 'my_requests' %}show active{% endif %}" id="my-requests" role="tabpanel">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 fw-bold text-primary">My Attendance Correction Requests</h6>
+                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#newCorrectionModal" onclick="openNewCorrectionModal()">
+                        <i class="fas fa-plus me-1"></i> New Request
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Date</th>
+                                    <th>Correction Type</th>
+                                    <th>Original Punch</th>
+                                    <th>Requested Punch</th>
+                                    <th>Reason</th>
+                                    <th>Attachment</th>
+                                    <th>Status</th>
+                                    <th>Approver</th>
+                                    <th>Decision Remarks</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in my_requests %}
+                                <tr>
+                                    <td>#{{ req.id }}</td>
+                                    <td class="fw-bold">{{ req.date|date:"d/m/Y" }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ req.get_correction_type_display }}</span></td>
+                                    <td>
+                                        {% if req.original_login or req.original_logout %}
+                                            {{ req.original_login|time:"H:i"|default:"--" }} – {{ req.original_logout|time:"H:i"|default:"--" }}
+                                        {% else %}
+                                            <span class="text-muted">No Punch</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-primary fw-bold">
+                                        {{ req.requested_login|time:"H:i" }} – {{ req.requested_logout|time:"H:i" }}
+                                    </td>
+                                    <td><span title="{{ req.reason }}">{{ req.reason|truncatechars:30 }}</span></td>
+                                    <td>
+                                        {% if req.attachment %}
+                                            <a href="{{ req.attachment.url }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                                <i class="fas fa-paperclip"></i> View
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.status == 'PENDING' %}
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        {% elif req.status == 'APPROVED' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif req.status == 'REJECTED' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% elif req.status == 'CANCELLED' %}
+                                            <span class="badge bg-secondary">Cancelled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.approver %}{{ req.approver.name }}{% else %}HR Queue{% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.decided_by %}
+                                            <small class="text-muted d-block">{{ req.decided_by.username }} ({{ req.decided_at|date:"d/m/Y H:i" }})</small>
+                                        {% endif %}
+                                        <span>{{ req.remarks|default:"-" }}</span>
+                                    </td>
+                                    <td>
+                                        {% if req.status == 'PENDING' %}
+                                            <form method="post" class="d-inline" onsubmit="return confirm('Cancel this correction request?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="cancel_correction">
+                                                <input type="hidden" name="correction_id" value="{{ req.id }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2">Cancel</button>
+                                            </form>
+                                        {% else %}
+                                            <span class="text-muted small">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="11" class="text-center py-4 text-muted">
+                                        No correction requests found.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. TEAM REQUESTS TAB (if manager or HR/Admin) -->
+        {% if can_manage_team %}
+        <div class="tab-pane fade {% if active_tab == 'team_requests' %}show active{% endif %}" id="team-requests" role="tabpanel">
+            
+            <!-- Filters bar -->
+            <div class="card mb-3 shadow-sm border-0">
+                <div class="card-body py-2">
+                    <form method="get" class="row g-2 align-items-center">
+                        <input type="hidden" name="tab" value="team_requests">
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-0">Status:</label>
+                            <select name="team_status" class="form-select form-select-sm">
+                                <option value="ALL" {% if request.GET.team_status == 'ALL' or not request.GET.team_status %}selected{% endif %}>All Requests</option>
+                                <option value="PENDING" {% if request.GET.team_status == 'PENDING' %}selected{% endif %}>Pending Only</option>
+                                <option value="APPROVED" {% if request.GET.team_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                                <option value="REJECTED" {% if request.GET.team_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                                <option value="CANCELLED" {% if request.GET.team_status == 'CANCELLED' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-0">Department:</label>
+                            <select name="team_dept" class="form-select form-select-sm">
+                                <option value="">All Departments</option>
+                                {% for d in departments %}
+                                    <option value="{{ d.id }}" {% if request.GET.team_dept == d.id|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-0">Branch:</label>
+                            <select name="team_branch" class="form-select form-select-sm">
+                                <option value="">All Branches</option>
+                                {% for b in branches %}
+                                    <option value="{{ b.id }}" {% if request.GET.team_branch == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-0">From Date:</label>
+                            <input type="date" name="team_start" class="form-control form-control-sm" value="{{ request.GET.team_start }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small fw-bold mb-0">To Date:</label>
+                            <input type="date" name="team_end" class="form-control form-control-sm" value="{{ request.GET.team_end }}">
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-sm btn-primary me-2"><i class="fas fa-filter"></i> Filter</button>
+                            <a href="?tab=team_requests" class="btn btn-sm btn-outline-secondary">Reset</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Pending Requests Section with Bulk Approve -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-warning bg-opacity-25 py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 fw-bold text-dark"><i class="fas fa-exclamation-circle text-warning me-1"></i> Pending Action ({{ team_pending|length }})</h6>
+                    {% if team_pending %}
+                        <form method="post" id="bulkApproveForm" onsubmit="return confirm('Approve all selected requests?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="bulk_approve">
+                            <button type="submit" class="btn btn-sm btn-success" id="bulkApproveBtn" disabled>
+                                <i class="fas fa-check-double me-1"></i> Bulk Approve Selected
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
+                                    </th>
+                                    <th>Employee</th>
+                                    <th>Department / Branch</th>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Original Punch</th>
+                                    <th>Requested Punch</th>
+                                    <th>Reason</th>
+                                    <th>Attachment</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in team_pending %}
+                                <tr>
+                                    <td>
+                                        {% if req.employee.user_id != request.user.id %}
+                                            <input type="checkbox" name="selected_corrections" value="{{ req.id }}" form="bulkApproveForm" class="team-checkbox" onchange="updateBulkBtn()">
+                                        {% else %}
+                                            <span class="text-muted" title="Cannot self-approve"><i class="fas fa-lock"></i></span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold">{{ req.employee.name }}</div>
+                                        <small class="text-muted">{{ req.employee.employee_code|default:"" }}</small>
+                                    </td>
+                                    <td>
+                                        <small>{% if req.employee.department %}{{ req.employee.department.name }}{% else %}-{% endif %} / {% if req.employee.branch %}{{ req.employee.branch.name }}{% else %}-{% endif %}</small>
+                                    </td>
+                                    <td class="fw-bold">{{ req.date|date:"d/m/Y" }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ req.get_correction_type_display }}</span></td>
+                                    <td>
+                                        {% if req.original_login or req.original_logout %}
+                                            {{ req.original_login|time:"H:i"|default:"--" }} – {{ req.original_logout|time:"H:i"|default:"--" }}
+                                        {% else %}
+                                            <span class="text-muted">No Punch</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-primary fw-bold">
+                                        {{ req.requested_login|time:"H:i" }} – {{ req.requested_logout|time:"H:i" }}
+                                    </td>
+                                    <td><span title="{{ req.reason }}">{{ req.reason|truncatechars:30 }}</span></td>
+                                    <td>
+                                        {% if req.attachment %}
+                                            <a href="{{ req.attachment.url }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-1">
+                                                <i class="fas fa-paperclip"></i> View
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if req.employee.user_id == request.user.id %}
+                                            <span class="badge bg-secondary" title="Cannot approve own request">Self Request</span>
+                                        {% else %}
+                                            <div class="btn-group btn-group-sm">
+                                                <form method="post" class="d-inline" onsubmit="return confirm('Approve correction for {{ req.employee.user.username }}?');">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="approve_correction">
+                                                    <input type="hidden" name="correction_id" value="{{ req.id }}">
+                                                    <button type="submit" class="btn btn-success btn-sm"><i class="fas fa-check"></i> Approve</button>
+                                                </form>
+                                                <button type="button" class="btn btn-danger btn-sm ms-1" onclick="openRejectModal('{{ req.id }}', '{{ req.employee.user.username }}', '{{ req.date|date:'d/m/Y' }}')">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="10" class="text-center py-4 text-muted">
+                                        No pending correction requests requiring your decision.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decided History Section -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 fw-bold text-secondary"><i class="fas fa-history me-1"></i> Decided Requests History</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Original Punch</th>
+                                    <th>Requested Punch</th>
+                                    <th>Status</th>
+                                    <th>Decided By</th>
+                                    <th>Decided At</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in team_decided %}
+                                <tr>
+                                    <td>#{{ req.id }}</td>
+                                    <td>
+                                        <div class="fw-bold">{{ req.employee.name }}</div>
+                                        <small class="text-muted">{{ req.employee.employee_code|default:"" }}</small>
+                                    </td>
+                                    <td>{{ req.date|date:"d/m/Y" }}</td>
+                                    <td>{{ req.get_correction_type_display }}</td>
+                                    <td>
+                                        {% if req.original_login or req.original_logout %}
+                                            {{ req.original_login|time:"H:i"|default:"--" }} – {{ req.original_logout|time:"H:i"|default:"--" }}
+                                        {% else %}
+                                            No Punch
+                                        {% endif %}
+                                    </td>
+                                    <td class="fw-bold">{{ req.requested_login|time:"H:i" }} – {{ req.requested_logout|time:"H:i" }}</td>
+                                    <td>
+                                        {% if req.status == 'APPROVED' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif req.status == 'REJECTED' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% elif req.status == 'CANCELLED' %}
+                                            <span class="badge bg-secondary">Cancelled</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ req.decided_by.username|default:"-" }}</td>
+                                    <td>{{ req.decided_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                                    <td>{{ req.remarks|default:"-" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="10" class="text-center py-4 text-muted">
+                                        No decided request history found matching filters.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ================= MODALS ================= -->
+
+<!-- 1. New/Edit Correction Request Modal -->
+<div class="modal fade" id="newCorrectionModal" tabindex="-1" aria-labelledby="newCorrectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" enctype="multipart/form-data" id="correctionForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="request_correction">
+                
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="newCorrectionModalLabel"><i class="fas fa-edit me-1"></i> Attendance Correction Request</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if can_manage_team %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Employee:</label>
+                        <select name="employee_id" id="modalEmployeeId" class="form-select">
+                            <option value="{{ employee.id }}">{{ employee.name }} (Myself)</option>
+                            {% for report in employee.direct_reports.all %}
+                                <option value="{{ report.id }}">{{ report.name }} ({{ report.employee_code|default:"Staff" }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Date of Attendance: <span class="text-danger">*</span></label>
+                            <input type="date" name="date" id="modalDate" class="form-control" required max="{% now 'Y-m-d' %}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Correction Type: <span class="text-danger">*</span></label>
+                            <select name="correction_type" id="modalCorrectionType" class="form-select" required>
+                                {% for val, label in correction_types %}
+                                    <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Requested Login Time: <span class="text-danger">*</span></label>
+                            <input type="time" name="requested_login" id="modalReqLogin" class="form-control" required value="08:00">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Requested Logout Time: <span class="text-danger">*</span></label>
+                            <input type="time" name="requested_logout" id="modalReqLogout" class="form-control" required value="17:00">
+                            <small class="text-muted">Logout after midnight extends to next day up to 12:00 AM.</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Location: <span class="text-danger">*</span></label>
+                            <select name="location" id="modalLocation" class="form-select" required>
+                                {% for val, label in location_choices %}
+                                    <option value="{{ val }}" {% if val == 'OFFICE' %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Attachment (Optional, max 5MB):</label>
+                            <input type="file" name="attachment" id="modalAttachment" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Reason for Correction: <span class="text-danger">*</span></label>
+                        <textarea name="reason" id="modalReason" class="form-control" rows="3" required placeholder="Explain why the punch is missing or incorrect..."></textarea>
+                    </div>
+
+                    {% if can_manage_team %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="approve_immediately" value="1" id="approveImmediatelyCheck">
+                        <label class="form-check-label fw-bold text-success" for="approveImmediatelyCheck">
+                            <i class="fas fa-bolt me-1"></i> Approve immediately (HR/Admin override)
+                        </label>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-1"></i> Submit Correction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 2. Reject Request Modal -->
+<div class="modal fade" id="rejectCorrectionModal" tabindex="-1" aria-labelledby="rejectCorrectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="rejectForm">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="reject_correction">
+                <input type="hidden" name="correction_id" id="rejectCorrectionId">
+
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="rejectCorrectionModalLabel"><i class="fas fa-times-circle me-1"></i> Reject Correction Request</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Rejecting request for <strong id="rejectEmpName"></strong> on <strong id="rejectDate"></strong>.</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Remarks / Reason for Rejection: <span class="text-danger">*</span></label>
+                        <textarea name="remarks" class="form-control" rows="3" required placeholder="Provide clear rejection remarks (required)..."></textarea>
+                    </div>
+                    <div class="alert alert-warning small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        For a No-Punch day, rejecting marks the day as <strong>Absent</strong>. For an Incomplete day, punches stay as recorded.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger"><i class="fas fa-times me-1"></i> Confirm Rejection</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function setTabParam(tabName) {
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.replaceState({}, '', url);
+}
+
+function openNewCorrectionModal() {
+    document.getElementById('modalDate').value = '';
+    document.getElementById('modalCorrectionType').value = 'FORGOT_IN';
+    document.getElementById('modalReqLogin').value = '08:00';
+    document.getElementById('modalReqLogout').value = '17:00';
+    document.getElementById('modalReason').value = '';
+}
+
+function openCorrectionModalForDate(dateStr, statusCode, origIn, origOut) {
+    const modalEl = document.getElementById('newCorrectionModal');
+    const modal = new bootstrap.Modal(modalEl);
+    document.getElementById('modalDate').value = dateStr;
+    if (statusCode === 'MISSING_PUNCH') {
+        if (!origIn && !origOut) {
+            document.getElementById('modalCorrectionType').value = 'NO_PUNCH';
+        } else if (origIn && !origOut) {
+            document.getElementById('modalCorrectionType').value = 'FORGOT_OUT';
+        } else {
+            document.getElementById('modalCorrectionType').value = 'FORGOT_IN';
+        }
+    } else if (statusCode === 'ABSENT') {
+        document.getElementById('modalCorrectionType').value = 'NO_PUNCH';
+    } else {
+        document.getElementById('modalCorrectionType').value = 'WRONG_TIME';
+    }
+    if (origIn) document.getElementById('modalReqLogin').value = origIn;
+    if (origOut) document.getElementById('modalReqLogout').value = origOut;
+    modal.show();
+}
+
+function openRejectModal(id, empName, dateStr) {
+    document.getElementById('rejectCorrectionId').value = id;
+    document.getElementById('rejectEmpName').innerText = empName;
+    document.getElementById('rejectDate').innerText = dateStr;
+    const modal = new bootstrap.Modal(document.getElementById('rejectCorrectionModal'));
+    modal.show();
+}
+
+function toggleSelectAll(master) {
+    const checkboxes = document.querySelectorAll('.team-checkbox');
+    checkboxes.forEach(cb => cb.checked = master.checked);
+    updateBulkBtn();
+}
+
+function updateBulkBtn() {
+    const anyChecked = document.querySelectorAll('.team-checkbox:checked').length > 0;
+    const btn = document.getElementById('bulkApproveBtn');
+    if (btn) btn.disabled = !anyChecked;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'new') {
+        openNewCorrectionModal();
+        const modal = new bootstrap.Modal(document.getElementById('newCorrectionModal'));
+        modal.show();
+    }
+});
+</script>
+

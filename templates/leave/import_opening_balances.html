@@ -1,0 +1,127 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">IMPORT OPENING LEAVE BALANCES</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Upload initial leave balances from Excel. Preview and validate rows before committing to the ledger.</p>
+        </div>
+        <div>
+            <a href="?action=template" class="btn btn-outline-primary btn-sm" style="font-weight: 600;">
+                <i class="fa fa-download"></i> Download Excel Template
+            </a>
+        </div>
+    </div>
+
+    <!-- Upload Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 25px; max-width: 800px;">
+        <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px;">
+            <i class="fa fa-upload"></i> Upload Completed Spreadsheet (.xlsx)
+        </h5>
+        <form method="POST" enctype="multipart/form-data" class="row">
+            {% csrf_token %}
+            <div class="col-md-8 form-group" style="margin-bottom: 15px;">
+                <input type="file" name="file" class="form-control-file" accept=".xlsx" required style="border: 1px dashed #CBD5E1; padding: 15px; border-radius: 6px; width: 100%;">
+                <small class="form-text text-muted">Supports columns: Employee Code, Employee Name, Leave Type, Effective Date, Days, Note.</small>
+            </div>
+            <div class="col-md-4 form-group" style="margin-bottom: 15px; display: flex; align-items: flex-start;">
+                <button type="submit" class="btn btn-primary btn-block" style="background: #1F3A52; border-color: #1F3A52; font-weight: 600; height: 52px;">
+                    <i class="fa fa-search"></i> Upload & Preview
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Preview Results Card -->
+    {% if preview %}
+    <div style="background: #ffffff; border-radius: 10px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <div>
+                <h5 style="margin: 0; color: #1F3A52; font-weight: 700; font-size: 15px;">
+                    <i class="fa fa-table"></i> IMPORT PREVIEW & VALIDATION
+                </h5>
+                <p style="margin: 3px 0 0; font-size: 13px; color: #64748B;">
+                    Total Rows: <strong>{{ preview.total_count }}</strong> |
+                    Valid: <strong style="color: #10B981;">{{ preview.valid_count }}</strong> |
+                    Errors: <strong style="color: #EF4444;">{{ preview.error_count }}</strong>
+                </p>
+            </div>
+
+            {% if not preview.has_errors and preview.valid_count > 0 %}
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="confirm" value="1">
+                <!-- Re-send file with confirmation -->
+                <button type="submit" class="btn btn-success" style="font-weight: 700; padding: 8px 24px;">
+                    <i class="fa fa-check"></i> Confirm & Commit to Ledger
+                </button>
+            </form>
+            {% else %}
+            <button class="btn btn-secondary" disabled title="Fix all errors before committing">
+                <i class="fa fa-lock"></i> Resolve Errors to Commit
+            </button>
+            {% endif %}
+        </div>
+
+        {% if preview.has_errors %}
+        <div class="alert alert-danger" style="font-size: 13px;">
+            <i class="fa fa-exclamation-circle"></i> <strong>Validation failed on {{ preview.error_count }} row(s).</strong> Please fix the errors indicated below and re-upload the spreadsheet.
+        </div>
+        {% endif %}
+
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" style="font-size: 12px; margin: 0; vertical-align: middle;">
+                <thead style="background: #F8FAFC; color: #1F3A52;">
+                    <tr>
+                        <th style="width: 50px; text-align: center;">Row</th>
+                        <th>Status</th>
+                        <th>Employee Code</th>
+                        <th>Employee Name</th>
+                        <th>Leave Type</th>
+                        <th>Effective Date</th>
+                        <th style="text-align: center;">Days</th>
+                        <th>Note</th>
+                        <th>Validation Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in preview.rows %}
+                    <tr style="{% if not r.is_valid %}background: #FEF2F2;{% endif %}">
+                        <td style="text-align: center; font-weight: bold;">{{ r.row_num }}</td>
+                        <td>
+                            {% if r.is_valid %}
+                                <span class="badge badge-success" style="background: #10B981;">VALID</span>
+                            {% else %}
+                                <span class="badge badge-danger" style="background: #EF4444;">ERROR</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ r.employee_code }}</strong></td>
+                        <td>{{ r.employee_name|default:"-" }}</td>
+                        <td>{{ r.leave_type_str }}</td>
+                        <td>{{ r.date_display }}</td>
+                        <td style="text-align: center; font-weight: bold;">{{ r.days }}</td>
+                        <td>{{ r.note }}</td>
+                        <td>
+                            {% if r.is_valid %}
+                                <span style="color: #059669;"><i class="fa fa-check"></i> Ready to import</span>
+                            {% else %}
+                                <ul style="margin: 0; padding-left: 15px; color: #DC2626;">
+                                    {% for err in r.errors %}
+                                        <li>{{ err }}</li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+

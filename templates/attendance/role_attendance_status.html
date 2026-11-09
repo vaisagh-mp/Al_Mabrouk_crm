@@ -1,0 +1,10 @@
+{% extends base_template %}
+{% load custom_filters %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'attendance/_attendance_status_tabs.html' %}
+</div>
+{% endblock %}
+

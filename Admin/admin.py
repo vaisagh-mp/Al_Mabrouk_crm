@@ -1,6 +1,11 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Project, Employee, ProjectAssignment, Attendance,Team, TeamMemberStatus, Leave, LeaveBalance, Notification, ActivityLog,ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail, Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
+from .models import (
+    Project, Employee, ProjectAssignment, Attendance, AttendanceCorrection, Team, TeamMemberStatus,
+    Leave, LeaveBalance, LeaveType, LeavePolicy, LeaveLedger, LeaveYearReview,
+    Notification, ActivityLog, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail,
+    Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
+)
 
 
 @admin.register(Project)
@@ -85,8 +90,31 @@ class TeamMemberStatusAdmin(admin.ModelAdmin):
 
 
 class LeaveAdmin(admin.ModelAdmin):
-    list_display = ('user', 'leave_type', 'from_date', 'to_date', 'no_of_days', 'approval_status')
+    list_display = ('user', 'employee', 'leave_type', 'from_date', 'to_date', 'days', 'approval_status')
     list_filter = ('approval_status', 'leave_type')
+    search_fields = ('user__username', 'employee__employee_code', 'reason')
+
+@admin.register(LeaveType)
+class LeaveTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'is_paid', 'uses_balance', 'allows_half_day', 'is_active', 'sort_order')
+    list_filter = ('is_paid', 'uses_balance', 'is_active')
+    search_fields = ('name', 'code')
+
+@admin.register(LeavePolicy)
+class LeavePolicyAdmin(admin.ModelAdmin):
+    list_display = ('leave_type', 'accrual_rule', 'yearly_entitlement', 'carry_forward_max')
+
+@admin.register(LeaveLedger)
+class LeaveLedgerAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'leave_type', 'date', 'entry_type', 'days', 'period', 'created_at')
+    list_filter = ('entry_type', 'leave_type', 'date')
+    search_fields = ('employee__user__username', 'employee__employee_code', 'note')
+
+@admin.register(LeaveYearReview)
+class LeaveYearReviewAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'year', 'unused_days', 'carried_days', 'excess_days', 'status')
+    list_filter = ('year', 'status')
+    search_fields = ('employee__user__username', 'employee__employee_code')
 
 admin.site.register(Leave, LeaveAdmin)
 
@@ -120,9 +148,14 @@ class ProjectAttachmentAdmin(admin.ModelAdmin):
 
 @admin.register(Holiday)
 class HolidayAdmin(admin.ModelAdmin):
-    list_display = ('date', 'description')
-    list_filter = ('date',)
+    list_display = ('date', 'description', 'branch', 'is_active')
+    list_filter = ('date', 'branch', 'is_active')
     ordering = ('-date',)
+    readonly_fields = ('shifts_and_holidays_hint',)
+
+    def shifts_and_holidays_hint(self, obj):
+        return "Manage in Shifts & Holidays"
+    shifts_and_holidays_hint.short_description = "Note" 
 
 
 class SpareInline(admin.TabularInline):
@@ -235,3 +268,8 @@ class WorkOrderImageAdmin(admin.ModelAdmin):
         return "-"
 
     short_description.short_description = "Description"
+@admin.register(AttendanceCorrection)
+class AttendanceCorrectionAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'correction_type', 'status', 'approver', 'created_at')
+    list_filter = ('status', 'correction_type', 'date')
+    search_fields = ('employee__user__username', 'employee__employee_code', 'reason')

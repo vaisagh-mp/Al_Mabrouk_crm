@@ -100,17 +100,63 @@ def service_log_create(request):
         except (TypeError, ValueError):
             return HttpResponseForbidden("Invalid date or time format.")
 
+        from Admin.models import check_payroll_lock_for_employee
+        from Admin.timesheet_helpers import check_timesheet_overlap
+        from django.core.exceptions import ValidationError
+        try:
+            check_payroll_lock_for_employee(employee, date)
+        except ValidationError as e:
+            return HttpResponseForbidden(str(e.message if hasattr(e, 'message') else e))
+
+        try:
+            break_minutes = max(0, int(request.POST.get("break_minutes") or 0))
+        except (ValueError, TypeError):
+            break_minutes = 0
+
+        try:
+            travel_minutes = max(0, int(request.POST.get("travel_minutes") or 0))
+        except (ValueError, TypeError):
+            travel_minutes = 0
+
+        # Break < duration check
+        dt_start = datetime.combine(date, start_time)
+        dt_end = datetime.combine(date, end_time)
+        if dt_end < dt_start:
+            dt_end += timedelta(days=1)
+        dur_mins = int((dt_end - dt_start).total_seconds() // 60)
+        if break_minutes >= dur_mins:
+            return HttpResponseForbidden("Break duration must be less than working duration.")
+
+        overlap_err = check_timesheet_overlap(employee.id, date, start_time, end_time)
+        if overlap_err:
+            return HttpResponseForbidden(overlap_err)
+
+        action = request.POST.get("action", "save_draft")
+        approval_status = 'DRAFT'
+        submitted_at = None
+        approver = None
+        if action == 'submit_approval':
+            approval_status = 'SUBMITTED'
+            from django.utils import timezone
+            submitted_at = timezone.now()
+            approver = employee.reporting_manager
+
         EmployeeServiceLog.objects.create(
             employee=employee,
             project_id=request.POST.get("project"),
             date=date,                      # ✅ date object
-            vessel_name=request.POST.get("vessel_name"),
-            port=request.POST.get("port"),
-            service_type=request.POST.get("service_type"),
-            service_reference=request.POST.get("service_reference"),
+            vessel_name=request.POST.get("vessel_name") or "",
+            port=request.POST.get("port") or "",
+            service_type=request.POST.get("service_type") or "JOB",
+            service_reference=request.POST.get("service_reference") or "",
             start_time=start_time,          # ✅ time object
             end_time=end_time,              # ✅ time object
-            location_type=request.POST.get("location_type"),
+            break_minutes=break_minutes,
+            travel_minutes=travel_minutes,
+            approval_status=approval_status,
+            submitted_at=submitted_at,
+            approver=approver,
+            location_type=request.POST.get("location_type") or "ANCHORAGE",
             is_holiday=request.POST.get("is_holiday") == "on",
         )
 
@@ -123,6 +169,9 @@ def service_log_create(request):
 def service_log_edit(request, log_id):
     user = request.user
     log = get_object_or_404(EmployeeServiceLog, id=log_id)
+
+    if log.approval_status == 'APPROVED':
+        return HttpResponseForbidden("Cannot edit an APPROVED service log. Please ask Admin/HR to reopen it.")
 
     if is_admin(user):
         template = "service_logs/admin_edit.html"
@@ -152,19 +201,65 @@ def service_log_edit(request, log_id):
 
     if request.method == "POST":
         try:
-            log.date = datetime.strptime(request.POST.get("date"), "%Y-%m-%d").date()
-            log.start_time = datetime.strptime(request.POST.get("start_time"), "%H:%M").time()
-            log.end_time = datetime.strptime(request.POST.get("end_time"), "%H:%M").time()
+            date_val = datetime.strptime(request.POST.get("date"), "%Y-%m-%d").date()
+            start_time = datetime.strptime(request.POST.get("start_time"), "%H:%M").time()
+            end_time = datetime.strptime(request.POST.get("end_time"), "%H:%M").time()
         except (TypeError, ValueError):
             return HttpResponseForbidden("Invalid date or time format.")
 
+        from Admin.models import check_payroll_lock_for_employee
+        from Admin.timesheet_helpers import check_timesheet_overlap
+        from django.core.exceptions import ValidationError
+        try:
+            check_payroll_lock_for_employee(log.employee, date_val)
+        except ValidationError as e:
+            return HttpResponseForbidden(str(e.message if hasattr(e, 'message') else e))
+
+        try:
+            break_minutes = max(0, int(request.POST.get("break_minutes") or 0))
+        except (ValueError, TypeError):
+            break_minutes = 0
+
+        try:
+            travel_minutes = max(0, int(request.POST.get("travel_minutes") or 0))
+        except (ValueError, TypeError):
+            travel_minutes = 0
+
+        dt_start = datetime.combine(date_val, start_time)
+        dt_end = datetime.combine(date_val, end_time)
+        if dt_end < dt_start:
+            dt_end += timedelta(days=1)
+        dur_mins = int((dt_end - dt_start).total_seconds() // 60)
+        if break_minutes >= dur_mins:
+            return HttpResponseForbidden("Break duration must be less than working duration.")
+
+        overlap_err = check_timesheet_overlap(log.employee_id, date_val, start_time, end_time, exclude_service_log_id=log.pk)
+        if overlap_err:
+            return HttpResponseForbidden(overlap_err)
+
+        log.date = date_val
+        log.start_time = start_time
+        log.end_time = end_time
+        log.break_minutes = break_minutes
+        log.travel_minutes = travel_minutes
         log.project_id = request.POST.get("project")
-        log.vessel_name = request.POST.get("vessel_name")
-        log.port = request.POST.get("port")
-        log.service_type = request.POST.get("service_type")
-        log.service_reference = request.POST.get("service_reference")
-        log.location_type = request.POST.get("location_type")
+        log.vessel_name = request.POST.get("vessel_name") or ""
+        log.port = request.POST.get("port") or ""
+        log.service_type = request.POST.get("service_type") or "JOB"
+        log.service_reference = request.POST.get("service_reference") or ""
+        log.location_type = request.POST.get("location_type") or "ANCHORAGE"
         log.is_holiday = request.POST.get("is_holiday") == "on"
+
+        action = request.POST.get("action", "save_draft")
+        if action == 'submit_approval':
+            log.approval_status = 'SUBMITTED'
+            from django.utils import timezone
+            log.submitted_at = timezone.now()
+            log.approver = log.employee.reporting_manager if log.employee else None
+            log.decision_remarks = ''
+        elif log.approval_status == 'REJECTED':
+            # Kept as draft when edited
+            log.approval_status = 'DRAFT'
 
         log.save()
         return redirect("service_log_list")
@@ -183,8 +278,12 @@ def service_log_delete(request, pk):
     if not (is_admin(request.user) or is_manager(request.user) or log.employee.user == request.user):
         return HttpResponseForbidden("Access denied")
 
+    if log.approval_status in ('SUBMITTED', 'APPROVED'):
+        return HttpResponseForbidden("Cannot delete a SUBMITTED or APPROVED service log.")
+
     log.delete()
     return redirect("service_log_list")
+
 
 
 
@@ -215,7 +314,7 @@ def service_log_utilization(request):
         except ValueError:
             pass
 
-    logs = EmployeeServiceLog.objects.filter(
+    logs = EmployeeServiceLog.objects.counting().filter(
         date__range=(start_date, end_date)
     )
 
@@ -274,7 +373,7 @@ def analytics_project(request):
         start_date = today.replace(day=1)
         end_date = today
 
-    logs = EmployeeServiceLog.objects.select_related(
+    logs = EmployeeServiceLog.objects.counting().select_related(
         "employee", "employee__user", "project"
     ).filter(date__range=(start_date, end_date))
 
@@ -457,7 +556,7 @@ def analytics_project(request):
     last_year_end = end_date.replace(year=end_date.year - 1)
 
     last_year_logs = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             date__range=(last_year_start, last_year_end)
         ).values_list('date', 'project_id')
     )
@@ -508,11 +607,11 @@ def analytics_project(request):
     all_projects = list(Project.objects.exclude(status="CANCELLED").order_by("-created_at"))
     all_pids = [p.id for p in all_projects]
 
-    last_dates_qs = EmployeeServiceLog.objects.filter(project_id__in=all_pids).values('project_id').annotate(last_date=Max('date'))
+    last_dates_qs = EmployeeServiceLog.objects.counting().filter(project_id__in=all_pids).values('project_id').annotate(last_date=Max('date'))
     last_date_map = {row['project_id']: row['last_date'] for row in last_dates_qs}
 
     logs_with_ref = (
-        EmployeeServiceLog.objects.filter(project_id__in=all_pids, service_reference__isnull=False)
+        EmployeeServiceLog.objects.counting().filter(project_id__in=all_pids, service_reference__isnull=False)
         .exclude(service_reference="")
         .order_by('project_id', '-date')
         .values('project_id', 'service_reference', 'vessel_name')
@@ -626,7 +725,7 @@ def project_drilldown(request, project_id):
     if not (is_admin(request.user) or is_manager(request.user)):
         return JsonResponse({"error": "Unauthorized"}, status=403)
 
-    logs = EmployeeServiceLog.objects.filter(project_id=project_id)
+    logs = EmployeeServiceLog.objects.counting().filter(project_id=project_id)
 
     data = []
 
@@ -708,7 +807,7 @@ def build_employee_analytics_context(request):
     register_rows = build_attendance_register(start_date, end_date)
 
     logs = list(
-        EmployeeServiceLog.objects.select_related(
+        EmployeeServiceLog.objects.counting().select_related(
             "employee", "employee__user", "project"
         ).filter(date__range=(start_date, end_date))
     )
@@ -785,7 +884,7 @@ def build_employee_analytics_context(request):
             else:
                 day_office = Decimal(0)
 
-        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs)
+        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs, employee=emp)
 
         total_hours = vessel_hours + office_hours
 
@@ -807,7 +906,7 @@ def build_employee_analytics_context(request):
 
         working_days = sum(
             1 for r in emp_rows
-            if (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+            if (r['status_code'] not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
         )
 
         capacity_hours = working_days * 8
@@ -939,7 +1038,7 @@ def build_employee_analytics_context(request):
             period_key = date(d.year, d.month, 1)
 
         period_data[period_key]['hours'] += (r['total_hours'] or Decimal(0))
-        is_working = (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+        is_working = (r['status_code'] not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
         if is_working:
             period_data[period_key]['working_days'] += 1
 
@@ -1005,7 +1104,7 @@ def build_employee_analytics_context(request):
     elif vv_start_date and vv_end_date and vv_start_date > vv_end_date:
         vv_start_date, vv_end_date = vv_end_date, vv_start_date
 
-    vv_logs = EmployeeServiceLog.objects.select_related("employee", "employee__user", "project").all()
+    vv_logs = EmployeeServiceLog.objects.counting().select_related("employee", "employee__user", "project").all()
     if vv_start_date and vv_end_date:
         vv_logs = vv_logs.filter(date__range=(vv_start_date, vv_end_date))
     elif vv_start_date:

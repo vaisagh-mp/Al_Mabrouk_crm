@@ -1,173 +1,369 @@
 {% extends 'hr/hrbase.html' %}
 {% load static %}
+{% load custom_filters %}
 {% block content %}
 
 <div class="emply-list-wraper">
+  <div class="container mt-3">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
 
-  {% if messages %}
-      <div class="alert alert-success">
-        {% for message in messages %}
-          <p>{{ message }}</p>
-        {% endfor %}
+    {% if form.errors %}
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>Please correct the following errors:</strong>
+        <ul class="mb-0 mt-2">
+          {% for field, errors in form.errors.items %}
+            {% for error in errors %}
+              <li><strong>{{ field|title }}:</strong> {{ error }}</li>
+            {% endfor %}
+          {% endfor %}
+        </ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     {% endif %}
-    
+  </div>
+
   <div class="pg-title">
     <h1>Add New Employee</h1>
   </div>
 
   <div class="widget-box table-wdgt">
     <div class="add-project-wrapper">
-      <!-- Note: enctype="multipart/form-data" is required for file uploads -->
       <form method="post" enctype="multipart/form-data" action="{% url 'hr_create_employee' %}">
         {% csrf_token %}
 
-        <!-- Username -->
-        <div class="mb-3">
-          <label for="id_username" class="form-label">Username*</label>
-          <input
-            type="text"
-            class="form-control"
-            id="id_username"
-            name="username"
-            required
-            placeholder="Enter username"
-            value="{{ form.username.value|default_if_none:'' }}"
-          />
-        </div>
-
-        <!-- First Name -->
-        <div class="mb-3">
-          <label for="id_first_name" class="form-label">First Name*</label>
-          <input
-            type="text"
-            class="form-control"
-            id="id_first_name"
-            name="first_name"
-            required
-            placeholder="Enter first name"
-            value="{{ form.first_name.value|default_if_none:'' }}"
-          />
-        </div>
-
-        <!-- Last Name -->
-        <div class="mb-3">
-          <label for="id_last_name" class="form-label">Last Name*</label>
-          <input
-            type="text"
-            class="form-control"
-            id="id_last_name"
-            name="last_name"
-            required
-            placeholder="Enter last name"
-            value="{{ form.last_name.value|default_if_none:'' }}"
-          />
-        </div>
-
-        <!-- Email -->
-        <div class="mb-3">
-          <label for="id_email" class="form-label">Email*</label>
-          <input
-            type="email"
-            class="form-control"
-            id="id_email"
-            name="email"
-            required
-            placeholder="Enter email"
-            value="{{ form.email.value|default_if_none:'' }}"
-          />
-        </div>
-
-        <!-- Role Selection (Radio Buttons) -->
-        <div class="mb-3">
-          <label class="form-label">Select Role:*</label>
-          <div>
-            {% for choice in form.fields.role.choices %}
-              <div class="form-check form-check-inline">
-                <input
-                  type="radio"
-                  class="form-check-input"
-                  id="role_{{ choice.0 }}"
-                  name="role"
-                  value="{{ choice.0 }}"
-                  {% if form.role.value == choice.0 %}checked{% endif %}
-                />
-                <label class="form-check-label" for="role_{{ choice.0 }}">{{ choice.1 }}</label>
+        <!-- SECTION 1: PERSONAL INFORMATION -->
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-primary text-white py-2">
+            <h5 class="mb-0 fs-6"><i class="fas fa-user me-2"></i> Section 1: Personal Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label text-muted small mb-1">Employee ID</label>
+                <input type="text" class="form-control bg-light" value="Assigned on save" readonly />
               </div>
-            {% endfor %}
+              <div class="col-md-4">
+                <label for="id_first_name" class="form-label small mb-1">First Name*</label>
+                <input type="text" class="form-control" id="id_first_name" name="first_name" required
+                       value="{{ form.first_name.value|default_if_none:'' }}" placeholder="Enter first name" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_last_name" class="form-label small mb-1">Last Name</label>
+                <input type="text" class="form-control" id="id_last_name" name="last_name"
+                       value="{{ form.last_name.value|default_if_none:'' }}" placeholder="Enter last name" />
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_phone_number" class="form-label small mb-1">Mobile Number</label>
+                <input type="text" class="form-control" id="id_phone_number" name="phone_number"
+                       value="{{ form.phone_number.value|default_if_none:'' }}" placeholder="Enter mobile number" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_personal_email" class="form-label small mb-1">Personal Email*</label>
+                <input type="email" class="form-control" id="id_personal_email" name="personal_email" required
+                       value="{{ form.personal_email.value|default:form.email.value|default_if_none:'' }}" placeholder="Enter personal email" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_company_email" class="form-label small mb-1">Company Email</label>
+                <input type="email" class="form-control" id="id_company_email" name="company_email"
+                       value="{{ form.company_email.value|default_if_none:'' }}" placeholder="Enter company email" />
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_date_of_birth" class="form-label small mb-1">Date of Birth</label>
+                <input type="date" class="form-control" id="id_date_of_birth" name="date_of_birth"
+                       value="{{ form.date_of_birth.value|default_if_none:'' }}" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_nationality" class="form-label small mb-1">Nationality</label>
+                <input type="text" class="form-control" id="id_nationality" name="nationality"
+                       value="{{ form.nationality.value|default_if_none:'' }}" placeholder="Enter nationality" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_emergency_contact_number" class="form-label small mb-1">Emergency Contact Number</label>
+                <input type="text" class="form-control" id="id_emergency_contact_number" name="emergency_contact_number"
+                       value="{{ form.emergency_contact_number.value|default_if_none:'' }}" placeholder="Enter emergency contact number" />
+              </div>
+
+              <div class="col-md-8">
+                <label for="id_address" class="form-label small mb-1">Address</label>
+                <textarea class="form-control" id="id_address" name="address" rows="2" placeholder="Enter address">{{ form.address.value|default_if_none:'' }}</textarea>
+              </div>
+              <div class="col-md-4">
+                <label for="id_profile_picture" class="form-label small mb-1">Profile Picture</label>
+                <input type="file" class="form-control" id="id_profile_picture" name="profile_picture" accept="image/*" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Rank -->
-        <div class="mb-3">
-          <label for="id_rank" class="form-label">Rank*</label>
-          <input
-            type="text"
-            class="form-control"
-            id="id_rank"
-            name="rank"
-            placeholder="Enter rank"
-            value="{{ form.rank.value|default_if_none:'' }}"
-          />
+        <!-- SECTION 2: EMPLOYMENT DETAILS -->
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-primary text-white py-2">
+            <h5 class="mb-0 fs-6"><i class="fas fa-briefcase me-2"></i> Section 2: Employment Details</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="id_department" class="form-label small mb-1">Department</label>
+                <select class="form-select" id="id_department" name="department">
+                  <option value="">---------</option>
+                  {% for dept in form.fields.department.queryset %}
+                    <option value="{{ dept.pk }}" {% if form.department.value|stringformat:"s" == dept.pk|stringformat:"s" %}selected{% endif %}>
+                      {{ dept.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_branch" class="form-label small mb-1">Branch</label>
+                <select class="form-select" id="id_branch" name="branch">
+                  <option value="">---------</option>
+                  {% for br in form.fields.branch.queryset %}
+                    <option value="{{ br.pk }}" {% if form.branch.value|stringformat:"s" == br.pk|stringformat:"s" %}selected{% endif %}>
+                      {{ br.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_rank" class="form-label small mb-1">Designation / Rank*</label>
+                <input type="text" class="form-control" id="id_rank" name="rank"
+                       value="{{ form.rank.value|default_if_none:'' }}" placeholder="Enter designation / rank" />
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_reporting_manager" class="form-label small mb-1">Reporting Manager</label>
+                <select class="form-select" id="id_reporting_manager" name="reporting_manager">
+                  <option value="">---------</option>
+                  {% for mgr in form.fields.reporting_manager.queryset %}
+                    <option value="{{ mgr.pk }}" {% if form.reporting_manager.value|stringformat:"s" == mgr.pk|stringformat:"s" %}selected{% endif %}>
+                      {{ mgr.name }} ({{ mgr.employee_code|default:"No ID" }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_date_of_join" class="form-label small mb-1">Date of Joining</label>
+                <input type="date" class="form-control" id="id_date_of_join" name="date_of_join"
+                       value="{{ form.date_of_join.value|default_if_none:'' }}" />
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_employment_status" class="form-label small mb-1">Employment Status</label>
+                <select class="form-select" id="id_employment_status" name="employment_status">
+                  {% for choice in form.fields.employment_status.choices %}
+                    <option value="{{ choice.0 }}" {% if form.employment_status.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_work_type" class="form-label small mb-1">Work Type</label>
+                <select class="form-select" id="id_work_type" name="work_type">
+                  {% for choice in form.fields.work_type.choices %}
+                    <option value="{{ choice.0 }}" {% if form.work_type.value == choice.0 %}selected{% endif %}>{{ choice.1 }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_contract_start_date" class="form-label small mb-1">Contract Start Date</label>
+                <input type="date" class="form-control" id="id_contract_start_date" name="contract_start_date"
+                       value="{{ form.contract_start_date.value|default_if_none:'' }}" />
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_contract_end_date" class="form-label small mb-1">Contract End Date</label>
+                <input type="date" class="form-control" id="id_contract_end_date" name="contract_end_date"
+                       value="{{ form.contract_end_date.value|default_if_none:'' }}" />
+                {% if form.contract_end_date.errors %}
+                  <div class="text-danger small mt-1">{{ form.contract_end_date.errors.0 }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_notice_start_date" class="form-label small mb-1">Notice Start Date</label>
+                <input type="date" class="form-control" id="id_notice_start_date" name="notice_start_date"
+                       value="{{ form.notice_start_date.value|default_if_none:'' }}" />
+                {% if form.notice_start_date.errors %}
+                  <div class="text-danger small mt-1">{{ form.notice_start_date.errors.0 }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_last_working_day" class="form-label small mb-1">Last Working Day</label>
+                <input type="date" class="form-control" id="id_last_working_day" name="last_working_day"
+                       value="{{ form.last_working_day.value|default_if_none:'' }}" />
+                {% if form.last_working_day.errors %}
+                  <div class="text-danger small mt-1">{{ form.last_working_day.errors.0 }}</div>
+                {% endif %}
+              </div>
+                            <div class="col-md-4">
+                <label for="id_duty_schedule" class="form-label small mb-1">Duty Schedule</label>
+                <select class="form-select" id="id_duty_schedule" name="duty_schedule">
+                  <option value="">---------</option>
+                  {% for sched in form.fields.duty_schedule.queryset %}
+                    <option value="{{ sched.pk }}" {% if form.duty_schedule.value|stringformat:"s" == sched.pk|stringformat:"s" %}selected{% endif %}>
+                      {{ sched.name }} ({{ sched.start_time|time:"H:i" }} - {{ sched.end_time|time:"H:i" }})
+                    </option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_weekly_rest_day" class="form-label small mb-1">Weekly Rest Day</label>
+                <select class="form-select" id="id_weekly_rest_day" name="weekly_rest_day">
+                  {% for choice in form.fields.weekly_rest_day.choices %}
+                    <option value="{{ choice.0 }}" {% if form.weekly_rest_day.value|stringformat:"s" == choice.0|stringformat:"s" %}selected{% endif %}>{{ choice.1 }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label for="id_rest_day_effective_from" class="form-label small mb-1">Rest Day Effective From</label>
+                <input type="date" class="form-control" id="id_rest_day_effective_from" name="rest_day_effective_from"
+                       value="{{ form.rest_day_effective_from.value|default_if_none:'' }}" />
+                {% if form.rest_day_effective_from.errors %}
+                  <div class="text-danger small mt-1">{{ form.rest_day_effective_from.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Salary -->
-        <div class="mb-3">
-          <label for="id_salary" class="form-label">Salary*</label>
-          <input
-            type="number"
-            class="form-control"
-            id="id_salary"
-            name="salary"
-            placeholder="Enter salary"
-            value="{{ form.salary.value|default_if_none:'' }}"
-          />
+        <!-- SECTION 3: SALARY INFORMATION -->
+        {% if can_view_salary %}
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-primary text-white py-2">
+            <h5 class="mb-0 fs-6"><i class="fas fa-money-bill-wave me-2"></i> Section 3: Salary Information</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-2">
+                <label for="id_basic" class="form-label small mb-1">Basic*</label>
+                <input type="number" step="0.01" min="0" class="form-control" id="id_basic" name="basic"
+                       value="{{ form.basic.value|default:form.salary.value|default_if_none:'0.00' }}" placeholder="0.00" />
+              </div>
+              <div class="col-md-2">
+                <label for="id_housing_allowance" class="form-label small mb-1">Housing</label>
+                <input type="number" step="0.01" min="0" class="form-control" id="id_housing_allowance" name="housing_allowance"
+                       value="{{ form.housing_allowance.value|default_if_none:'0.00' }}" placeholder="0.00" />
+              </div>
+              <div class="col-md-2">
+                <label for="id_transport_allowance" class="form-label small mb-1">Transport</label>
+                <input type="number" step="0.01" min="0" class="form-control" id="id_transport_allowance" name="transport_allowance"
+                       value="{{ form.transport_allowance.value|default_if_none:'0.00' }}" placeholder="0.00" />
+              </div>
+              <div class="col-md-3">
+                <label for="id_other_allowances" class="form-label small mb-1">Other Allowances</label>
+                <input type="number" step="0.01" min="0" class="form-control" id="id_other_allowances" name="other_allowances"
+                       value="{{ form.other_allowances.value|default_if_none:'0.00' }}" placeholder="0.00" />
+              </div>
+              <div class="col-md-3">
+                <label for="id_total" class="form-label small mb-1">Total (AED)</label>
+                <input type="text" class="form-control bg-light fw-bold text-success" id="id_total" name="total"
+                       value="{{ form.total.value|default_if_none:'0.00' }}" readonly />
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- SECTION 4: CRM LOGIN -->
+        <div class="card mb-4 border-0 shadow-sm">
+          <div class="card-header bg-primary text-white py-2">
+            <h5 class="mb-0 fs-6"><i class="fas fa-lock me-2"></i> Section 4: CRM Login</h5>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="id_username" class="form-label small mb-1">Username*</label>
+                <input type="text" class="form-control" id="id_username" name="username" required
+                       value="{{ form.username.value|default_if_none:'' }}" placeholder="Enter username" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_password" class="form-label small mb-1">Password*</label>
+                <input type="password" class="form-control" id="id_password" name="password" required
+                       placeholder="Enter password" />
+              </div>
+              <div class="col-md-4">
+                <label for="id_password2" class="form-label small mb-1">Confirm Password*</label>
+                <input type="password" class="form-control" id="id_password2" name="password2" required
+                       placeholder="Confirm password" />
+              </div>
+
+              <div class="col-md-8">
+                <label class="form-label small mb-1 d-block">Select Role:*</label>
+                <div class="d-flex flex-wrap gap-3 pt-1">
+                  {% for choice in form.fields.role.choices %}
+                    <div class="form-check">
+                      <input type="radio" class="form-check-input" id="role_{{ choice.0 }}" name="role"
+                             value="{{ choice.0 }}" {% if form.role.value == choice.0 %}checked{% endif %} required />
+                      <label class="form-check-label" for="role_{{ choice.0 }}">{{ choice.1 }}</label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+
+              <div class="col-md-4 d-flex align-items-center">
+                <div class="form-check mt-3">
+                  <input type="checkbox" class="form-check-input" id="id_is_active" name="is_active"
+                         {% if form.is_active.value != False %}checked{% endif %} />
+                  <label class="form-check-label fw-bold" for="id_is_active">Account Active</label>
+                  <div class="form-text small">Untick to block login.</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Password -->
-        <div class="mb-3">
-          <label for="id_password" class="form-label">Password*</label>
-          <input
-            type="password"
-            class="form-control"
-            id="id_password"
-            name="password"
-            required
-            placeholder="Enter password"
-          />
-        </div>
-
-        <!-- Confirm Password -->
-        <div class="mb-3">
-          <label for="id_password2" class="form-label">Confirm Password*</label>
-          <input
-            type="password"
-            class="form-control"
-            id="id_password2"
-            name="password2"
-            required
-            placeholder="Confirm password"
-          />
-        </div>
-
-        <!-- Submit Button -->
-        <div class="create-btn mt-4">
-          <button class="prmry-btn" type="submit">Add</button>
+        <!-- FORM BUTTONS -->
+        <div class="d-flex gap-2 justify-content-start my-4">
+          <button type="submit" name="save" class="btn btn-primary px-4">
+            <i class="fas fa-save me-1"></i> Save Employee
+          </button>
+          <button type="submit" name="save_and_add_another" class="btn btn-outline-primary px-4">
+            <i class="fas fa-plus me-1"></i> Save & Add Another
+          </button>
+          <a href="{% url 'hr_employee_list' %}" class="btn btn-secondary px-4">Cancel</a>
         </div>
       </form>
     </div>
   </div>
 </div>
 
-{% if form.errors %}
-  <div class="alert alert-danger">
-    <ul>
-      {% for field, errors in form.errors.items %}
-        {% for error in errors %}
-          <li><strong>{{ field|capfirst }}:</strong> {{ error }}</li>
-        {% endfor %}
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function calculateTotal() {
+        var basic = parseFloat(document.getElementById('id_basic')?.value || 0) || 0;
+        var housing = parseFloat(document.getElementById('id_housing_allowance')?.value || 0) || 0;
+        var transport = parseFloat(document.getElementById('id_transport_allowance')?.value || 0) || 0;
+        var other = parseFloat(document.getElementById('id_other_allowances')?.value || 0) || 0;
+        var totalEl = document.getElementById('id_total');
+        if (totalEl) {
+            totalEl.value = (basic + housing + transport + other).toFixed(2);
+        }
+    }
+
+    ['id_basic', 'id_housing_allowance', 'id_transport_allowance', 'id_other_allowances'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', calculateTotal);
+        }
+    });
+    calculateTotal();
+});
+</script>
+
 {% endblock %}

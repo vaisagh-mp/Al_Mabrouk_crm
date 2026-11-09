@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Leave Statement - {{ employee.name }} - {{ year }}</title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 1.5cm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 9pt;
+                color: #64748B;
+            }
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #1E293B;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
+        }
+        .header-table {
+            width: 100%;
+            border-bottom: 2px solid #1F497D;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+        .company-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1F497D;
+            text-transform: uppercase;
+        }
+        .doc-title {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #0F172A;
+            text-align: right;
+        }
+        .meta-box {
+            background: #F8FAFC;
+            border: 1px solid #E2E8F0;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 20px;
+        }
+        .meta-table {
+            width: 100%;
+        }
+        .meta-table td {
+            font-size: 9.5pt;
+            padding: 3px 6px;
+        }
+        .meta-label {
+            font-weight: bold;
+            color: #475569;
+            width: 120px;
+        }
+        .section-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1F497D;
+            text-transform: uppercase;
+            border-bottom: 1px solid #CBD5E1;
+            padding-bottom: 4px;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 9pt;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #CBD5E1;
+            padding: 6px 8px;
+        }
+        .data-table th {
+            background: #1F497D;
+            color: #FFFFFF;
+            font-weight: bold;
+            text-align: center;
+        }
+        .data-table td.center {
+            text-align: center;
+        }
+        .data-table td.right {
+            text-align: right;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #F8FAFC;
+        }
+        .badge {
+            font-size: 8pt;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .footer-note {
+            margin-top: 30px;
+            font-size: 8pt;
+            color: #64748B;
+            border-top: 1px solid #E2E8F0;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <table class="header-table">
+        <tr>
+            <td>
+                <div class="company-title">AL MABROUK MARINE SERVICES</div>
+                <div style="font-size: 9pt; color: #64748B;">HR & Attendance Management System</div>
+            </td>
+            <td style="text-align: right;">
+                <div class="doc-title">LEAVE STATEMENT</div>
+                <div style="font-size: 9pt; color: #64748B;">Calendar Year {{ year }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="meta-box">
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">Employee Name:</td>
+                <td><strong>{{ employee.name }}</strong></td>
+                <td class="meta-label">Employee Code:</td>
+                <td><strong>{% if employee.employee_code %}{{ employee.employee_code }}{% else %}AMMS-{{ employee.id|stringformat:"04d" }}{% endif %}</strong></td>
+            </tr>
+            <tr>
+                <td class="meta-label">Department:</td>
+                <td>{{ employee.department.name|default:"-" }}</td>
+                <td class="meta-label">Branch:</td>
+                <td>{{ employee.branch.name|default:"-" }}</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Joining Date:</td>
+                <td>{{ employee.date_of_join|date:"d/m/Y"|default:"-" }}</td>
+                <td class="meta-label">Generated On:</td>
+                <td>{{ generated_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section-title">1. Entitlement & Summary Breakdown</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="text-align: left;">Leave Type</th>
+                <th>Opening</th>
+                <th>Accrued</th>
+                <th>Carried</th>
+                <th>Taken</th>
+                <th>Adj</th>
+                <th>Excess</th>
+                <th style="background: #15385B;">Net Balance</th>
+                <th>Pending</th>
+                <th style="background: #0F2841;">Available</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in summary %}
+            <tr>
+                <td><strong>{{ s.name }}</strong></td>
+                <td class="center">{{ s.opening_days }}</td>
+                <td class="center">{{ s.accrued_days }}</td>
+                <td class="center">{{ s.carried_days }}</td>
+                <td class="center" style="color: #DC2626;">{{ s.taken_days }}</td>
+                <td class="center">{{ s.adj_days }}</td>
+                <td class="center">{{ s.excess_days }}</td>
+                <td class="center" style="font-weight: bold;">{% if s.uses_balance %}{{ s.net_balance }}{% else %}-{% endif %}</td>
+                <td class="center" style="color: #D97706;">{% if s.uses_balance %}{{ s.pending_days }}{% else %}-{% endif %}</td>
+                <td class="center" style="font-weight: bold; color: #059669;">{% if s.uses_balance %}{{ s.available_days }}{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="section-title">2. Detailed Ledger Transactions</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 75px;">Date</th>
+                <th>Leave Type</th>
+                <th>Entry Type</th>
+                <th style="width: 60px;">Days</th>
+                <th style="width: 75px;">Running Bal</th>
+                <th>Ref</th>
+                <th style="text-align: left;">Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in entries %}
+            {% with e=item.entry %}
+            <tr>
+                <td class="center">{{ e.date|date:"d/m/Y" }}</td>
+                <td>{{ e.leave_type.name }}</td>
+                <td class="center">{{ e.get_entry_type_display }}</td>
+                <td class="center" style="font-weight: bold;">
+                    {% if e.days > 0 %}+{{ e.days }}{% else %}{{ e.days }}{% endif %}
+                </td>
+                <td class="center" style="font-weight: bold;">{{ item.running_balance }}</td>
+                <td class="center">{% if e.leave %}#{{ e.leave.id }}{% else %}-{% endif %}</td>
+                <td>{{ e.note|default:"-" }}</td>
+            </tr>
+            {% endwith %}
+            {% empty %}
+            <tr>
+                <td colspan="7" class="center" style="padding: 15px; color: #64748B;">No transactions recorded for this year.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="footer-note">
+        This is an official system-generated record from Al Mabrouk Marine Services CRM. Any discrepancies should be reported to the HR Department within 7 days.
+    </div>
+</body>
+</html>
+

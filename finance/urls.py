@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from . import payroll_views
 
 urlpatterns = [
     # Dashboard & Phase placeholders
@@ -43,13 +44,34 @@ urlpatterns = [
 
     # Payroll
     path('payroll/', views.fin_payroll, name='fin_payroll'),
+    path('payroll/list/', views.fin_payroll, name='payroll_list'),
     path('payroll/generate/', views.fin_payroll_generate, name='fin_payroll_generate'),
     path('payroll/<int:payroll_id>/edit/', views.fin_payroll_edit, name='fin_payroll_edit'),
+    path('payroll/<int:payroll_id>/add-line/', payroll_views.fin_payroll_add_line, name='payroll_add_line'),
+    path('payroll/lines/<int:line_id>/delete/', payroll_views.fin_payroll_delete_line, name='payroll_delete_line'),
     path('payroll/<int:payroll_id>/revert/', views.fin_payroll_revert, name='fin_payroll_revert'),
     path('payroll/<int:payroll_id>/delete/', views.fin_payroll_delete, name='fin_payroll_delete'),
+    path('payroll/<int:payroll_id>/approve/', views.fin_payroll_approve, name='payroll_approve'),
     path('payroll/approve-all/', views.fin_payroll_approve_all, name='fin_payroll_approve_all'),
     path('payroll/mark-paid/', views.fin_payroll_mark_paid, name='fin_payroll_mark_paid'),
     path('payroll/export/', views.fin_payroll_export_excel, name='fin_payroll_export_excel'),
+
+    # Phase 7: Payroll & Salary (Structures, Increments, Advances, Payslips)
+    path('salary-structures/', payroll_views.salary_structures_list, name='salary_structures_list'),
+    path('increments/', payroll_views.salary_increments_list, name='salary_increments_list'),
+    path('increments/propose/', payroll_views.salary_increment_propose, name='salary_increment_propose'),
+    path('increments/<int:pk>/<str:action>/', payroll_views.salary_increment_action, name='salary_increment_action'),
+    path('advances/', payroll_views.salary_advances_list, name='salary_advances_list'),
+    path('advances/request/', payroll_views.salary_advance_request, name='salary_advance_request'),
+    path('advances/<int:pk>/', payroll_views.salary_advance_detail, name='salary_advance_detail'),
+    path('advances/<int:pk>/<str:action>/', payroll_views.salary_advance_action, name='salary_advance_action'),
+    path('advances/instalment/<int:pk>/skip/', payroll_views.salary_advance_skip_instalment, name='salary_advance_skip_instalment'),
+    path('payslips/', payroll_views.payslips_list, name='payslips_list'),
+    path('payslips/generate-month/', payroll_views.payslip_generate_month, name='payslip_generate_month'),
+    path('payslips/<int:pk>/regenerate/', payroll_views.payslip_regenerate, name='payslip_regenerate'),
+    path('payslips/<int:pk>/download/', payroll_views.payslip_download, name='payslip_download'),
+    path('payslips/download-zip/', payroll_views.payslips_download_zip, name='payslips_download_zip'),
+    path('my-payslips/', payroll_views.my_payslips, name='my_payslips'),
 
     # Expenses
     path('expenses/', views.fin_expenses, name='fin_expenses'),

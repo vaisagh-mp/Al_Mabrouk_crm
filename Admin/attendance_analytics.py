@@ -30,7 +30,7 @@ def _compute_period_kpis(rows):
     for emp_id, emp_rows in emp_groups.items():
         emp_working_days = sum(
             1 for r in emp_rows
-            if (r.get('status_code') not in ('SUNDAY', 'HOLIDAY', 'NONE')) or r.get('is_off_day') or ((r.get('total_hours') or Decimal(0)) > 0)
+            if (r.get('status_code') not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r.get('is_off_day') or ((r.get('total_hours') or Decimal(0)) > 0)
         )
         emp_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE'))
         emp_training = sum(1 for r in emp_rows if r['status_code'] == 'TRAINING')
@@ -198,18 +198,31 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
     if days_in_range > 62:
         heatmap = None
     else:
+        from Admin.attendance_engine import is_rest_day
+        from django.conf import settings
+        v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
+
+        distinct_emp_ids = {r['employee'].id for r in curr_rows}
+        single_emp = curr_rows[0]['employee'] if len(distinct_emp_ids) == 1 else None
+
         today = timezone.localdate()
         cal_dates = []
         cur_d = start_date
         while cur_d <= end_date:
             d_rows = rows_by_date.get(cur_d, [])
             is_holiday = any(r['status_code'] == 'HOLIDAY' or 'Holiday' in r.get('off_day_label', '') for r in d_rows)
-            is_sunday = (cur_d.weekday() == 6)
+            if not v2_on:
+                is_off = (cur_d.weekday() == 6) or is_holiday
+            else:
+                if single_emp:
+                    is_off = is_rest_day(single_emp, cur_d) or is_holiday
+                else:
+                    is_off = is_holiday
             cal_dates.append({
                 'date': cur_d,
                 'day_num': cur_d.day,
                 'weekday_letter': cur_d.strftime('%a')[0],
-                'is_off': is_sunday or is_holiday,
+                'is_off': is_off,
             })
             cur_d += timedelta(days=1)
 
@@ -366,7 +379,7 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
                     current_spell_length += 1
                 if current_spell_length > longest_spell:
                     longest_spell = current_spell_length
-            elif code in ('SUNDAY', 'HOLIDAY'):
+            elif code in ('SUNDAY', 'REST_DAY', 'HOLIDAY'):
                 # Sunday or Holiday doesn't break the run
                 pass
             else:

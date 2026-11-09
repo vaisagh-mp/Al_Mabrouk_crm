@@ -283,6 +283,12 @@
                   <span>Leave</span>
                 </a>
               </li>
+              <li>
+                <a href="{% url 'my_payslips' %}">
+                  <i class="fas fa-file-invoice-dollar"></i>
+                  <span>My Payslips</span>
+                </a>
+              </li>
               <li class="sidebar-dropdown">
                 <a href="{% url 'profile_view' %}">
                   <i class="fas fa-tasks"></i>
@@ -745,17 +751,42 @@ document.getElementById("presence-month").addEventListener("change", function() 
 
   const currentUserName = "{{ request.user.get_full_name|default:request.user.username|escapejs }}";
 
-  function addTimeRow(date = '', start = '', finish = '', memberName = '') {
+  function addTimeRow(date = '', start = '', finish = '', memberName = '', id = '', breakMins = 0, travelMins = 0, desc = '', attUrl = '', status = 'DRAFT', remarks = '') {
     const table = document.querySelector('#timeTable tbody');
     if (!table) return;
     const row = table.insertRow();
     const escapedMemberName = escapeHtml(memberName);
     const displayName = escapedMemberName || escapeHtml(currentUserName);
+    const isLocked = (status === 'SUBMITTED' || status === 'APPROVED');
+    const readOnlyAttr = isLocked ? 'readonly' : '';
+
+    let statusBadge = '<span class="badge bg-secondary" style="font-size: 11px;">Draft</span>';
+    if (status === 'SUBMITTED') statusBadge = '<span class="badge bg-warning text-dark" style="font-size: 11px;">Submitted</span>';
+    else if (status === 'APPROVED') statusBadge = '<span class="badge bg-success" style="font-size: 11px;">Approved</span>';
+    else if (status === 'REJECTED') statusBadge = '<span class="badge bg-danger" style="font-size: 11px;">Rejected</span>';
+
+    let remarksHtml = remarks ? `<div class="text-danger small" style="max-width: 150px; font-size: 11px;">${escapeHtml(remarks)}</div>` : '';
+    let attHtml = attUrl ? `<a href="${escapeHtml(attUrl)}" target="_blank" class="small d-block">View file</a>` : '';
+    if (!isLocked) {
+      attHtml += `<input type="file" name="time_attachment[]" accept=".pdf,.jpg,.jpeg,.png" style="width: 120px; font-size: 11px;">`;
+    }
+
+    let delBtn = !isLocked ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()" style="padding: 1px 6px;">&times;</button>` : '';
+
     row.innerHTML = `
-      <td><span class="member-name-text" style="font-weight: 500;">${displayName}</span></td>
-      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
-      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
-      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
+      <td>
+        <input type="hidden" name="time_row_id[]" value="${escapeHtml(id)}">
+        <span class="member-name-text" style="font-weight: 500;">${displayName}</span>
+      </td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}" ${readOnlyAttr}></td>
+      <td><input type="number" name="break_minutes[]" value="${escapeHtml(breakMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="number" name="travel_minutes[]" value="${escapeHtml(travelMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="text" name="time_description[]" value="${escapeHtml(desc)}" placeholder="Description" style="width: 140px;" ${readOnlyAttr}></td>
+      <td>${attHtml}</td>
+      <td>${statusBadge}${remarksHtml}</td>
+      <td>${delBtn}</td>`;
   }
 
   window.onload = function () {
@@ -780,7 +811,14 @@ document.getElementById("presence-month").addEventListener("change", function() 
         t.date || '',
         t.start_time ? t.start_time.slice(0, 5) : '',
         t.finish_time ? t.finish_time.slice(0, 5) : '',
-        t.member_name || ''
+        t.member_name || '',
+        t.id || '',
+        t.break_minutes || 0,
+        t.travel_minutes || 0,
+        t.description || '',
+        t.attachment_url || '',
+        t.status || 'DRAFT',
+        t.remarks || ''
       )
     );
   };

@@ -1,0 +1,82 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    {% if messages %}
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card border-0 shadow-sm mx-auto" style="max-width: 700px;">
+        <div class="card-header bg-secondary text-white py-3">
+            <h5 class="mb-0 fs-6 font-weight-bold">
+                <i class="fas fa-edit me-2"></i> Edit Document Metadata (Version {{ doc.version }})
+            </h5>
+        </div>
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+
+                {% if category == 'company' %}
+                <div class="mb-3">
+                    <label class="form-label small font-weight-bold">Document Title</label>
+                    <input type="text" name="title" value="{{ doc.title }}" class="form-control" required>
+                </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Document Type</label>
+                    <input type="text" class="form-control" value="{{ doc.doc_type.name }}" readonly>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Document Number</label>
+                    <input type="text" name="document_number" value="{{ doc.document_number|default:'' }}" class="form-control">
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Issue Date</label>
+                        <input type="date" name="issue_date" value="{{ doc.issue_date|date:'Y-m-d'|default:'' }}" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small text-muted">Expiry Date</label>
+                        <input type="date" name="expiry_date" value="{{ doc.expiry_date|date:'Y-m-d'|default:'' }}" class="form-control">
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Issuing Authority</label>
+                    <input type="text" name="issuing_authority" value="{{ doc.issuing_authority|default:'' }}" class="form-control">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-muted">Replace File Attachment (Optional)</label>
+                    <input type="file" name="file" class="form-control" accept=".pdf,.jpg,.jpeg,.png">
+                    {% if doc.file %}
+                        <div class="small text-muted mt-1">Current file: {{ doc.file.name }}</div>
+                    {% else %}
+                        <div class="small text-danger mt-1">No file currently attached.</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label small text-muted">Notes</label>
+                    <textarea name="notes" rows="2" class="form-control">{{ doc.notes|default:'' }}</textarea>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="javascript:history.back()" class="btn btn-secondary px-4">Cancel</a>
+                    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i> Update Document</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

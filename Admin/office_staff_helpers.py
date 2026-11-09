@@ -218,7 +218,9 @@ def handle_staff_update_profile(request, redirect_url_name, template_name):
                 user.set_password(form.cleaned_data["password"])
 
             user.save()
-            form.save()
+            emp = form.save(commit=False)
+            emp.personal_email = form.cleaned_data["email"]
+            emp.save()
 
             messages.success(request, "Your profile has been updated successfully.")
             return redirect(redirect_url_name)
