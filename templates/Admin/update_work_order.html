@@ -70,12 +70,12 @@
 
     <div>
       <label>Job Scope</label>
-      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.job_scope|default:'' }}</textarea>
+      <textarea class="form-control" name="job_scope" rows="4">{{ work_order.job_scope|default:'' }}</textarea>
     </div>
 
     <div>
       <label>Job Instruction</label>
-      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.job_instructions|default:'' }}</textarea>
+      <textarea class="form-control" name="job_instructions" rows="4">{{ work_order.job_instructions|default:'' }}</textarea>
     </div>
 
     <div>

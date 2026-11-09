@@ -1922,11 +1922,50 @@ def admin_update_work_order_view(request, pk):
                     work_order.imo_no = saved_imo_no
                     work_order.location = saved_location
                     work_order.assigned_date = saved_assigned_date
-                    work_order.job_scope = saved_job_scope
-                    work_order.job_instructions = saved_job_instructions
                     work_order.project_description = saved_project_description
 
+                    scope_changed = False
+                    instruction_changed = False
+
+                    if 'job_scope' in request.POST:
+                        new_job_scope = request.POST.get('job_scope', '').strip()
+                        if (saved_job_scope or '').strip() != new_job_scope:
+                            scope_changed = True
+                        work_order.job_scope = new_job_scope
+                    else:
+                        work_order.job_scope = saved_job_scope
+
+                    if 'job_instructions' in request.POST:
+                        new_job_instructions = request.POST.get('job_instructions', '').strip()
+                        if (saved_job_instructions or '').strip() != new_job_instructions:
+                            instruction_changed = True
+                        work_order.job_instructions = new_job_instructions
+                    else:
+                        work_order.job_instructions = saved_job_instructions
+
                     work_order.save()
+
+                    if work_order.project:
+                        changed_by = getattr(request.user, 'employee_profile', None)
+                        changed_by_name = request.user.username
+                        if scope_changed:
+                            ActivityLog.objects.create(
+                                project=work_order.project,
+                                previous_status="Work Order",
+                                new_status="Job Scope Updated",
+                                notes=f"Job Scope updated on work order by {request.user.username}",
+                                changed_by=changed_by,
+                                changed_by_name=changed_by_name,
+                            )
+                        if instruction_changed:
+                            ActivityLog.objects.create(
+                                project=work_order.project,
+                                previous_status="Work Order",
+                                new_status="Job Instruction Updated",
+                                notes=f"Job Instruction updated on work order by {request.user.username}",
+                                changed_by=changed_by,
+                                changed_by_name=changed_by_name,
+                            )
 
                     # Update WorkOrderDetail
                     _wo_warnings = []

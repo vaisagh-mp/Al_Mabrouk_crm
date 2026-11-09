@@ -125,5 +125,3 @@ def is_download_file(file_or_name):
     from Admin.upload_helpers import get_file_type_info
     return get_file_type_info(file_or_name)['is_download']
 
-
-
