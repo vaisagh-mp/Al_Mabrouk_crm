@@ -94,3 +94,21 @@ def abs_value(value):
 
 from Admin.templatetags.text_tags import plain_text
 register.filter('plain_text', plain_text)
+
+
+@register.simple_tag
+def project_attachment_accept():
+    from Admin.upload_helpers import PROJECT_ATTACHMENT_ACCEPT
+    return PROJECT_ATTACHMENT_ACCEPT
+
+
+@register.filter
+def file_icon_class(file_or_name):
+    from Admin.upload_helpers import get_file_type_info
+    return get_file_type_info(file_or_name)['icon_class']
+
+
+@register.filter
+def is_download_file(file_or_name):
+    from Admin.upload_helpers import get_file_type_info
+    return get_file_type_info(file_or_name)['is_download']

@@ -36,6 +36,7 @@ from django.utils.dateparse import parse_date, parse_time
 from django.forms import modelformset_factory
 from Admin.forms import ProjectAssignmentForm, WorkOrderForm, WorkOrderForm, WorkOrderDetailForm, SpareForm, ToolForm, DocumentForm, VesselForm, ProjectForm
 from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates
+from Admin.upload_helpers import validate_project_attachment
 from employee_data.forms import EmployeeUpdateForm, LeaveForm
 from .forms import TeamForm
 from django.contrib import messages
@@ -1216,8 +1217,9 @@ def project_summary_view(request, project_id):
         if request.FILES.getlist("attachments"):
             uploaded_files = request.FILES.getlist("attachments")
             for file in uploaded_files:
-                if file.size > MAX_UPLOAD_SIZE:
-                    messages.error(request, f"File {file.name} exceeds the 49MB limit.")
+                err = validate_project_attachment(file)
+                if err:
+                    messages.error(request, err)
                     continue
 
                 ProjectAttachment.objects.create(

@@ -1,4 +1,4 @@
-{% extends 'employee/employeebase.html' %} {% load static %} {% block content %}
+{% extends 'employee/employeebase.html' %} {% load custom_filters %} {% load static %} {% block content %}
 
 <div class="emply-list-wraper">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -153,9 +153,10 @@
         class="upload-inpt"
         type="file"
         name="attachments"
-        accept=".pdf,.doc,.docx,.jpg,.png,.zip"
+        accept="{% project_attachment_accept %}"
         multiple
       >
+      <small class="text-muted d-block mt-1" style="font-size: 11px;">PDF, images, Word, Excel, CSV, ZIP — max 49 MB each</small>
       <div style="margin-top: 15px; margin-bottom: 5px;">
         <button type="submit" class="btn">Upload</button>
         <a
@@ -176,7 +177,8 @@
               class="attachment-item"
               {% if forloop.counter > 3 %}style="display:none;"{% endif %}
             >
-              <a href="{{ attachment.file.url }}" target="_blank">
+              <a href="{{ attachment.file.url }}" {% if attachment|is_download_file %}download{% else %}target="_blank"{% endif %}>
+                <i class="{{ attachment|file_icon_class }} me-1"></i>
                 {{ attachment.file.name|cut:attachment.file.field.upload_to }}
               </a>
             </li>

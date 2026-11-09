@@ -35,6 +35,7 @@ from django.contrib.auth.views import LoginView
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import Attendance, Employee, ProjectAssignment, Project, TeamMemberStatus, Leave, ActivityLog, Notification, ProjectAttachment, Holiday, Team, WorkOrder, WorkOrderDetail, Spare, SpareConsumed, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime
 from Admin.work_order_helpers import clean_time_rows, clean_quantity, apply_detail_dates, _js
+from Admin.upload_helpers import validate_project_attachment
 from Admin.work_order_sync import sync_work_order_from_project
 from service_logs.models import EmployeeServiceLog
 from django.views.decorators.http import require_POST
@@ -847,8 +848,9 @@ def admin_project_summary_view(request, project_id):
         if request.FILES.getlist("attachments"):
             uploaded_files = request.FILES.getlist("attachments")
             for file in uploaded_files:
-                if file.size > MAX_UPLOAD_SIZE:
-                    messages.error(request, f"File {file.name} exceeds the 49MB limit.")
+                err = validate_project_attachment(file)
+                if err:
+                    messages.error(request, err)
                     continue
 
                 # Use None if uploaded by admin
