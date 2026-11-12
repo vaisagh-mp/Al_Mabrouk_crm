@@ -999,9 +999,14 @@ class TeamMemberStatus(models.Model):
 
                 # Send notification to the team manager
                 if self.team.manager:
-                    Notification.objects.create(
-                        recipient=self.team.manager.user,
-                        message=f"Employee '{self.employee.user.username}' status in project '{self.team.project.name}' changed from '{old_status}' to '{self.status}'."
+                    from Admin.notifications import notify, get_user_role_link
+                    mgr_user = self.team.manager.user
+                    notify(
+                        mgr_user,
+                        'PROJECT',
+                        f"Employee '{self.employee.user.username}' status in project '{self.team.project.name}' changed from '{old_status}' to '{self.status}'.",
+                        link=get_user_role_link(mgr_user, 'project', obj_id=self.team.project_id),
+                        related=self.team.project,
                     )
 
         super().save(*args, **kwargs)
@@ -1047,9 +1052,28 @@ def update_employee_work_days(sender, instance, **kwargs):
 
 
 class Notification(models.Model):
+    TYPE_CHOICES = [
+        ('LEAVE', 'Leave'),
+        ('ATTENDANCE_CORRECTION', 'Attendance Correction'),
+        ('TIMESHEET', 'Timesheet'),
+        ('OT', 'Overtime'),
+        ('DOCUMENT_EXPIRY', 'Document Expiry'),
+        ('PAYROLL', 'Payroll'),
+        ('PAYSLIP', 'Payslip'),
+        ('ADVANCE', 'Salary Advance'),
+        ('INCREMENT', 'Salary Increment'),
+        ('PROJECT', 'Project'),
+        ('SYSTEM', 'System'),
+    ]
+
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
     message = models.TextField()
+    type = models.CharField(max_length=30, choices=TYPE_CHOICES, default='SYSTEM', db_index=True)
+    link = models.CharField(max_length=255, blank=True, default='')
+    related_kind = models.CharField(max_length=50, blank=True, null=True)
+    related_id = models.IntegerField(blank=True, null=True)
     is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

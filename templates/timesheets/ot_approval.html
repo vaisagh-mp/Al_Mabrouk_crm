@@ -9,6 +9,7 @@
             <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">OVERTIME APPROVAL</h3>
             <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Review and approve daily employee overtime calculated from approved timesheets.</p>
         </div>
+        {% if ts_approval_on %}
         <div style="display: flex; gap: 8px;">
             <form method="POST" onsubmit="return confirm('Approve ALL pending overtime records for {{ month_label }}?');">
                 {% csrf_token %}
@@ -18,7 +19,15 @@
                 </button>
             </form>
         </div>
+        {% endif %}
     </div>
+
+    {% if not ts_approval_on %}
+    <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <div>Timesheet approval is switched off — all hours count automatically.</div>
+    </div>
+    {% endif %}
 
     {% if messages %}
     <div style="margin-bottom: 15px;">
@@ -138,6 +147,7 @@
                         <a href="{% url 'employee_monthly_timesheet_pdf' row.employee.id selected_month %}" target="_blank" class="btn btn-outline-info btn-sm py-0 px-2 me-1" style="font-size: 11px;" title="Monthly Timesheet PDF">
                             <i class="fas fa-file-pdf"></i>
                         </a>
+                        {% if ts_approval_on %}
                         {% if row.employee_id == current_user_emp_id %}
                             <span class="badge bg-light text-muted border">Self</span>
                         {% else %}
@@ -153,6 +163,7 @@
                                     Reject
                                 </button>
                             {% endif %}
+                        {% endif %}
                         {% endif %}
                     </td>
                 </tr>

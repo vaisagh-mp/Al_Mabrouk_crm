@@ -284,7 +284,10 @@ def render_role_manage_leave(request, role, base_template):
     dept_filter = request.GET.get('department')
     branch_filter = request.GET.get('branch')
     type_filter = request.GET.get('leave_type')
+    status_filter = request.GET.get('status')
 
+    if status_filter in ('PENDING', 'CLARIFICATION'):
+        base_qs = base_qs.filter(approval_status=status_filter)
     if emp_filter:
         base_qs = base_qs.filter(employee_id=emp_filter)
     if dept_filter:

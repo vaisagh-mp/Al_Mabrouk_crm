@@ -655,6 +655,9 @@ def fin_payroll(request):
         base_template = 'hr/hrbase.html'
     elif request.user.is_superuser and request.GET.get('from') == 'admin':
         base_template = 'Admin/adminbase.html'
+    elif request.user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'finance/financebase.html')
     else:
         base_template = 'finance/financebase.html'
 
@@ -958,11 +961,15 @@ def fin_payroll_mark_paid(request):
         # Auto-create payslip if V2 on
         if getattr(settings, 'HR_PAYROLL_V2', False):
             from finance.payroll_service import create_or_update_payslip
-            create_or_update_payslip(p, generated_by=request.user)
-            from Admin.models import Notification
-            Notification.objects.create(
-                recipient=p.employee.user,
-                message=f"Your payslip for {p.month.strftime('%B %Y')} is ready."
+            from Admin.notifications import notify
+            payslip_obj = create_or_update_payslip(p, generated_by=request.user)
+            notify(
+                p.employee.user,
+                'PAYSLIP',
+                f"Your payslip for {p.month.strftime('%B %Y')} is ready.",
+                link='/finance/my-payslips/',
+                related=payslip_obj,
+                actor=request.user,
             )
 
     if updated > 0 or draft_count == 0:

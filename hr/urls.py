@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from Admin import timesheet_views
 from Admin import document_views
+from Admin import reports_views
 from .views import hr_create_employee,hr_employee_list,hr_attendance_list_view, hr_employee_leave_list,hr_employee_manage_leave, hr_attendance_detail, hr_edit_attendance, hr_delete_attendance, hr_employee_profile, hr_edit_employee, hr_delete_employee, hr_deactivate_employee, hr_reactivate_employee, hr_apply_leave, hr_upload_medical_certificate, hr_leave_status, hr_leave_records,hr_fetch_notifications, hr_mark_notifications_as_read, dashboard,attendance, hr_log_in, hr_log_off, hr_render_attendance_page, hr_update_travel_time, hr_profile, hr_update_profile, hr_employee_analytics, hr_get_presence_data, hr_set_day_status
 
 
@@ -93,4 +94,5 @@ urlpatterns = [
     path('documents/edit/<str:category>/<int:doc_id>/', document_views.edit_document_view, name='hr_document_edit'),
     path('documents/import/', document_views.document_import_view, name='hr_document_import'),
     path('settings/document-types/', document_views.document_types_view, name='hr_settings_document_types'),
+    path('reports/', reports_views.reports_center_view, {'role': 'hr'}, name='hr_reports_center'),
 ]

@@ -37,7 +37,7 @@ def documents_list_view(request):
     """
     user = request.user
     if not user.is_authenticated:
-        return redirect('login')
+        return redirect('custom-login')
 
     profile = getattr(user, 'employee_profile', None)
     is_hr_or_admin = user.is_superuser or (profile and profile.is_hr)
@@ -45,7 +45,11 @@ def documents_list_view(request):
     if not is_hr_or_admin:
         return HttpResponseForbidden("You are not authorized to view the Document Register.")
 
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     category = request.GET.get('tab', 'employee').lower()
     if category not in ('employee', 'company'):
@@ -56,7 +60,9 @@ def documents_list_view(request):
 
     # Base querysets
     if category == 'employee':
-        qs = EmployeeDocument.objects.filter(is_current=True).select_related(
+        qs = EmployeeDocument.objects.filter(
+            is_current=True, employee__user__is_active=True
+        ).select_related(
             'employee__user', 'employee__department', 'employee__branch', 'doc_type', 'created_by'
         )
     else:
@@ -103,11 +109,13 @@ def documents_list_view(request):
 
     # Materialize and apply status bucket filter
     all_docs = list(qs.order_by('expiry_date', '-id'))
+    doc_buckets = {}
     for doc in all_docs:
-        doc.status_info = get_document_status(doc, as_of=today)
+        doc_buckets[doc.id] = get_document_status(doc, as_of=today)
 
     if status_filter != 'all':
-        filtered_docs = [d for d in all_docs if d.status_info.get('bucket') == status_filter]
+        buckets = {b.strip() for b in status_filter.split(',') if b.strip()}
+        filtered_docs = [d for d in all_docs if doc_buckets[d.id].get('bucket') in buckets]
     else:
         filtered_docs = all_docs
 
@@ -204,7 +212,11 @@ def upload_document_view(request, category, employee_id=None):
     if not (user.is_superuser or (profile and profile.is_hr)):
         return HttpResponseForbidden("You are not authorized to upload documents.")
 
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     employee = None
     if category == 'employee':
@@ -330,7 +342,11 @@ def renew_document_view(request, category, doc_id):
     if not (user.is_superuser or (profile and profile.is_hr)):
         return HttpResponseForbidden("You are not authorized to renew documents.")
 
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     if category == 'employee':
         doc = get_object_or_404(
@@ -419,7 +435,11 @@ def edit_document_view(request, category, doc_id):
     if not (user.is_superuser or (profile and profile.is_hr)):
         return HttpResponseForbidden("You are not authorized to edit documents.")
 
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     if category == 'employee':
         doc = get_object_or_404(
@@ -476,7 +496,11 @@ def document_import_view(request):
     if not (user.is_superuser or (profile and profile.is_hr)):
         return HttpResponseForbidden("You are not authorized to import documents.")
 
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     # 1. Download Template
     if request.GET.get('action') == 'template':
@@ -655,7 +679,11 @@ def document_types_view(request):
         return HttpResponseForbidden("You are not authorized to manage document types.")
 
     profile = getattr(user, 'employee_profile', None)
-    base_template = 'hr/hrbase.html' if (profile and profile.is_hr and not user.is_superuser) else 'Admin/adminbase.html'
+    if user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    else:
+        base_template = 'hr/hrbase.html' if (profile and profile.is_hr) else 'Admin/adminbase.html'
 
     if request.method == 'POST':
         action = request.POST.get('action')

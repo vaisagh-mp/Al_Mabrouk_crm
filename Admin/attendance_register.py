@@ -1417,8 +1417,11 @@ def _register_context(request):
         summary_page_obj = None
 
     if status_filter:
-        flt = status_filter.strip().lower()
-        display_rows = [r for r in all_rows if r['status_label'].lower() == flt or r['status_code'].lower() == flt]
+        flts = {f.strip().lower() for f in status_filter.split(',') if f.strip()}
+        display_rows = [
+            r for r in all_rows
+            if r['status_label'].lower() in flts or r['status_code'].lower() in flts
+        ]
     else:
         display_rows = all_rows
 

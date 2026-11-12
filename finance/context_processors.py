@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from .permissions import is_finance_admin
 from Admin.permissions import can_view_salary
@@ -6,7 +7,7 @@ from Admin.permissions import can_view_salary
 def finance_role(request):
     user = getattr(request, 'user', None)
     if not (user and user.is_authenticated):
-        return {'is_finance_admin': False, 'can_view_salary': False}
+        return {'is_finance_admin': False, 'can_view_salary': False, 'hr_payroll_v2': False}
     try:
         is_admin = bool(is_finance_admin(user))
     except PermissionDenied:
@@ -14,5 +15,6 @@ def finance_role(request):
     return {
         'is_finance_admin': is_admin,
         'can_view_salary': bool(can_view_salary(user)),
+        'hr_payroll_v2': getattr(settings, 'HR_PAYROLL_V2', False),
     }
 

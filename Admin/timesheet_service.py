@@ -12,10 +12,9 @@ from service_logs.models import EmployeeServiceLog
 logger = logging.getLogger(__name__)
 
 
-def notify_user_or_group(recipients, message):
-    for u in recipients:
-        if u:
-            Notification.objects.create(recipient=u, message=message)
+def notify_user_or_group(recipients, message, notif_type='TIMESHEET', link='', related=None, actor=None):
+    from Admin.notifications import notify
+    notify(recipients, notif_type, message, link=link, related=related, actor=actor)
 
 
 def can_manage_timesheet(user, employee):
@@ -52,15 +51,27 @@ def submit_service_log_for_approval(log, user=None):
     log.save(update_fields=['approval_status', 'submitted_at', 'approver', 'decision_remarks'])
 
     # Notify approver or Admin/HR queue
+    from Admin.notifications import get_user_role_link, notify_role
     emp_name = log.employee.user.get_full_name() or log.employee.user.username if (log.employee and log.employee.user) else "Staff"
     msg = f"Timesheet for {emp_name} on {log.date} has been submitted for approval."
     if log.approver and log.approver.user:
-        notify_user_or_group([log.approver.user], msg)
+        notify_user_or_group(
+            [log.approver.user],
+            msg,
+            notif_type='TIMESHEET',
+            link=get_user_role_link(log.approver.user, 'timesheet_approvals', query='status=SUBMITTED'),
+            related=log,
+            actor=user,
+        )
     else:
-        # Admin + HR
-        from django.contrib.auth.models import User
-        hr_admins = list(User.objects.filter(models_Q_admin_hr()))
-        notify_user_or_group(hr_admins, msg)
+        notify_role(
+            ['HR', 'ADMIN'],
+            'TIMESHEET',
+            msg,
+            link=lambda u: get_user_role_link(u, 'timesheet_approvals', query='status=SUBMITTED'),
+            related=log,
+            actor=user,
+        )
 
     return log
 
@@ -89,7 +100,16 @@ def approve_service_log(log, user):
     log.save(update_fields=['approval_status', 'decided_by', 'decided_at', 'decision_remarks'])
 
     if log.employee and log.employee.user:
-        notify_user_or_group([log.employee.user], f"Your timesheet for {log.date} was approved.")
+        from Admin.notifications import get_user_role_link
+        wo_id = log.time_log.work_order_id if log.time_log_id else None
+        notify_user_or_group(
+            [log.employee.user],
+            f"Your timesheet for {log.date} was approved.",
+            notif_type='TIMESHEET',
+            link=get_user_role_link(log.employee.user, 'timesheet_my', obj_id=wo_id),
+            related=log,
+            actor=user,
+        )
 
     sync_ot_approval_for_day(log.employee_id, log.date)
     return log
@@ -117,9 +137,15 @@ def reject_service_log(log, user, remarks):
     log.save(update_fields=['approval_status', 'decision_remarks', 'decided_by', 'decided_at'])
 
     if log.employee and log.employee.user:
+        from Admin.notifications import get_user_role_link
+        wo_id = log.time_log.work_order_id if log.time_log_id else None
         notify_user_or_group(
             [log.employee.user],
-            f"Your timesheet for {log.date} was rejected: {remarks.strip()}"
+            f"Your timesheet for {log.date} was rejected: {remarks.strip()}",
+            notif_type='TIMESHEET',
+            link=get_user_role_link(log.employee.user, 'timesheet_my', obj_id=wo_id),
+            related=log,
+            actor=user,
         )
 
     sync_ot_approval_for_day(log.employee_id, log.date)
@@ -135,6 +161,9 @@ def reopen_service_log(log, user, reason):
     is_hr = emp_profile.is_hr if emp_profile else False
     if not (user.is_superuser or is_hr):
         raise PermissionDenied("Only Admin or HR can reopen an approved timesheet.")
+
+    if not getattr(settings, 'HR_TIMESHEET_APPROVAL', False):
+        raise ValidationError("Timesheet approval is switched off — cannot reopen timesheet to Draft.")
 
     if not reason or not reason.strip():
         raise ValidationError("A reason is required to reopen an approved timesheet.")
@@ -255,6 +284,17 @@ def approve_ot_day(ot_app, user):
     ot_app.decided_by = user
     ot_app.decided_at = timezone.now()
     ot_app.save(update_fields=['status', 'decided_by', 'decided_at'])
+
+    if ot_app.employee and ot_app.employee.user:
+        from Admin.notifications import notify, get_user_role_link
+        notify(
+            ot_app.employee.user,
+            'OT',
+            f"Your overtime ({ot_app.ot_hours} hrs) for {ot_app.date.strftime('%d/%m/%Y')} was approved.",
+            link=get_user_role_link(ot_app.employee.user, 'timesheet_my'),
+            related=ot_app,
+            actor=user,
+        )
     return ot_app
 
 
@@ -278,6 +318,17 @@ def reject_ot_day(ot_app, user, remarks):
     ot_app.decided_by = user
     ot_app.decided_at = timezone.now()
     ot_app.save(update_fields=['status', 'remarks', 'decided_by', 'decided_at'])
+
+    if ot_app.employee and ot_app.employee.user:
+        from Admin.notifications import notify, get_user_role_link
+        notify(
+            ot_app.employee.user,
+            'OT',
+            f"Your overtime for {ot_app.date.strftime('%d/%m/%Y')} was rejected: {remarks.strip()}",
+            link=get_user_role_link(ot_app.employee.user, 'timesheet_my'),
+            related=ot_app,
+            actor=user,
+        )
     return ot_app
 
 

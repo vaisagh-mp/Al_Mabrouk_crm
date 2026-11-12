@@ -17,7 +17,7 @@
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261016b" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261111" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
 </head>
 
@@ -25,20 +25,9 @@
     <!-- Header -->
     <header>
       <div class="mb-top-hdr">
-         <div class="hdr-notification">
-        <a href="{% url 'admin-notifications' %}">
-            <button type="button" class="btn btn-primary position-relative">
-                <i class="fas fa-bell"></i>
-                <span 
-                    id="admin-notification-count"
-                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                    data-count="{{ unread_notifications|add:'0' }}">
-                    0
-                    <span class="visually-hidden">unread messages</span>
-                </span>
-            </button>
-        </a>
-    </div>
+        {% url 'fetch-notifications' as notif_fetch_url %}
+        {% url 'mark-notifications-as-read' as notif_mark_url %}
+        {% include 'includes/notification_bell.html' with fetch_url=notif_fetch_url mark_read_url=notif_mark_url %}
 
         <div class="hdr-user">
           <div class="dropdown">
@@ -166,6 +155,12 @@
                     </ul>
                   </div> -->
                   </li>
+                  <li>
+                    <a href="{% url 'hr-dashboard' %}">
+                      <i class="fas fa-chart-pie"></i>
+                      <span>HR Dashboard</span>
+                    </a>
+                  </li>
                   <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-users"></i>
@@ -183,6 +178,9 @@
                           <a href="{% url 'attendance_list_adminview' %}">Employee Attendance</a>
                         </li>
                         <li>
+                          <a href="{% url 'admin_attendance_status' %}?tab=team_requests">Correction Requests</a>
+                        </li>
+                        <li>
                           <a href="{% url 'manage_attendance' %}">Manage Attendance</a>
                         </li>
                         <li>
@@ -190,6 +188,9 @@
                         </li>
                         <li>
                           <a href="{% url 'employee_manage_leave' %}">Manage Leave</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'admin_reports_center' %}">Reports Center</a>
                         </li>
                       </ul>
                     </div>
@@ -281,12 +282,14 @@
                   </li>
                   {% endif %}
 
+                  {% if request.user.employee_profile %}
                   <li>
                     <a href="{% url 'my_payslips' %}">
                       <i class="fas fa-file-invoice-dollar"></i>
                       <span>My Payslips</span>
                     </a>
                   </li>
+                  {% endif %}
 
 
                   <!-- <li class="sidebar-dropdown">
@@ -380,46 +383,6 @@
                       </ul>
                     </div>
                   </li>
-                  <li class="sidebar-dropdown">
-                    <a href="#">
-                      <i class="fa fa-cogs"></i>
-                      <span>Settings</span>
-                    </a>
-                    <div class="sidebar-submenu">
-                      <ul>
-                        <li>
-                          <a href="{% url 'hr_departments' %}">Departments</a>
-                        </li>
-                        <li>
-                          <a href="{% url 'hr_branches' %}">Branches</a>
-                        </li>
-                      </ul>
-                    </div>
-                  </li>
-
-                  <li class="sidebar-dropdown">
-                    <a href="#">
-                      <i class="fa fa-business-time"></i>
-                      <span>Shifts &amp; Holidays</span>
-                    </a>
-                    <div class="sidebar-submenu">
-                      <ul>
-                        <li>
-                          <a href="{% url 'hr_duty_schedules' %}">Duty Schedules</a>
-                        </li>
-                        <li>
-                          <a href="{% url 'hr_weekly_rest_days' %}">Weekly Rest Days</a>
-                        </li>
-                        <li>
-                          <a href="{% url 'hr_roster' %}">Roster</a>
-                        </li>
-                        <li>
-                          <a href="{% url 'hr_public_holidays' %}">Public Holidays</a>
-                        </li>
-                      </ul>
-                    </div>
-                  </li>
-
                   <li>
                     <a href="{% url 'change_password' %}">
                       <i class="fa fa-key"></i>
@@ -477,10 +440,19 @@
         <script src="{% static 'assets/js/main.js' %}"></script>
 
         <script>
+          // Real Revenue / Expenses / Profit series from the dashboard view (falls back to the demo shape elsewhere)
+          function adminSpark(key) {
+            var el = document.getElementById('admin-spark-data');
+            if (!el) { return randomizeArray(sparklineData); }
+            var vals = (JSON.parse(el.textContent) || {})[key] || [];
+            if (vals.length === 0) { vals = [0, 0]; }
+            if (vals.length === 1) { vals = [vals[0], vals[0]]; }
+            return vals;
+          }
           var options = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('revenue'),
               },
             ],
             chart: {
@@ -525,7 +497,7 @@
           var optionsSpark2 = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('expenses'),
               },
             ],
             chart: {
@@ -570,7 +542,7 @@
           var optionsSpark3 = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('profit'),
               },
             ],
             chart: {
@@ -591,9 +563,7 @@
                 width: 1,
               },
             },
-            yaxis: {
-              min: 0,
-            },
+            yaxis: {},
             title: {
               text: "{{ total_profit|default:0|floatformat:0}} AED",
               offsetX: 0,
@@ -762,27 +732,7 @@
           chart2.render();
         </script>
 
-<script> 
-  document.addEventListener("DOMContentLoaded", function () {
-      const adminNotificationCount = document.getElementById("admin-notification-count");
-
-      function fetchAdminNotificationCount() {
-          fetch("{% url 'fetch-notifications' %}")
-              .then(response => response.json())
-              .then(data => {
-                  if (data.unread_count === 0) {
-                      adminNotificationCount.style.display = "none";
-                  } else {
-                      adminNotificationCount.textContent = data.unread_count > 99 ? "99+" : data.unread_count;
-                      adminNotificationCount.style.display = "inline-block";
-                  }
-              });
-      }
-
-      setInterval(fetchAdminNotificationCount, 10000);
-      fetchAdminNotificationCount();
-  });
-</script>
+<!-- Notification bell polling handled by includes/notification_bell.html -->
 
 
 <script>

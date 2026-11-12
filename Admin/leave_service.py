@@ -374,15 +374,26 @@ def submit_leave_request(
     leave.save()
 
     # Notifications
+    from Admin.notifications import notify, notify_role, get_user_role_link
     msg = f"New leave request submitted by {employee.name} for {working_days} day(s) ({leave_type_ref.name}) from {from_date.strftime('%d/%m/%Y')} to {to_date.strftime('%d/%m/%Y')}."
     if approver and approver.user:
-        Notification.objects.create(recipient=approver.user, message=msg)
+        notify(
+            approver.user,
+            'LEAVE',
+            msg,
+            link=get_user_role_link(approver.user, 'leave_manage'),
+            related=leave,
+            actor=employee.user,
+        )
     else:
-        # Notify HR and Superusers
-        recipients = User.objects.filter(Q(is_superuser=True) | Q(employee_profile__is_hr=True)).distinct()
-        for r in recipients:
-            if r != employee.user:
-                Notification.objects.create(recipient=r, message=msg)
+        notify_role(
+            ['HR', 'ADMIN'],
+            'LEAVE',
+            msg,
+            link=lambda u: get_user_role_link(u, 'leave_manage'),
+            related=leave,
+            actor=employee.user,
+        )
 
     return leave
 
@@ -424,9 +435,14 @@ def approve_leave_request(leave, decided_by, remarks=''):
             )
 
         # Notify employee
-        Notification.objects.create(
-            recipient=leave.user,
-            message=f"Your {leave.leave_type} request for {leave.from_date.strftime('%d/%m/%Y')} has been APPROVED by {decided_by.username}."
+        from Admin.notifications import notify, get_user_role_link
+        notify(
+            leave.user,
+            'LEAVE',
+            f"Your {leave.leave_type} request for {leave.from_date.strftime('%d/%m/%Y')} has been APPROVED by {decided_by.username}.",
+            link=get_user_role_link(leave.user, 'leave_status'),
+            related=leave,
+            actor=decided_by,
         )
 
 
@@ -452,9 +468,14 @@ def reject_leave_request(leave, decided_by, remarks):
         leave.save()
 
         # Notify employee
-        Notification.objects.create(
-            recipient=leave.user,
-            message=f"Your {leave.leave_type} request for {leave.from_date.strftime('%d/%m/%Y')} was REJECTED: {remarks.strip()}"
+        from Admin.notifications import notify, get_user_role_link
+        notify(
+            leave.user,
+            'LEAVE',
+            f"Your {leave.leave_type} request for {leave.from_date.strftime('%d/%m/%Y')} was REJECTED: {remarks.strip()}",
+            link=get_user_role_link(leave.user, 'leave_status'),
+            related=leave,
+            actor=decided_by,
         )
 
 
@@ -475,9 +496,14 @@ def request_leave_clarification(leave, user, message):
         leave.save()
 
         # Notify employee
-        Notification.objects.create(
-            recipient=leave.user,
-            message=f"Clarification requested for your {leave.leave_type} request ({leave.from_date.strftime('%d/%m/%Y')}): {message.strip()}"
+        from Admin.notifications import notify, get_user_role_link
+        notify(
+            leave.user,
+            'LEAVE',
+            f"Clarification requested for your {leave.leave_type} request ({leave.from_date.strftime('%d/%m/%Y')}): {message.strip()}",
+            link=get_user_role_link(leave.user, 'leave_status'),
+            related=leave,
+            actor=user,
         )
 
 
@@ -499,14 +525,26 @@ def respond_leave_clarification(leave, user, response):
         leave.save()
 
         # Notify approver
+        from Admin.notifications import notify, notify_role, get_user_role_link
         msg = f"Clarification provided by {leave.employee.name if leave.employee else user.username} for leave #{leave.id}: {response.strip()}"
         if leave.approver and leave.approver.user:
-            Notification.objects.create(recipient=leave.approver.user, message=msg)
+            notify(
+                leave.approver.user,
+                'LEAVE',
+                msg,
+                link=get_user_role_link(leave.approver.user, 'leave_manage'),
+                related=leave,
+                actor=user,
+            )
         else:
-            recipients = User.objects.filter(Q(is_superuser=True) | Q(employee_profile__is_hr=True)).distinct()
-            for r in recipients:
-                if r != user:
-                    Notification.objects.create(recipient=r, message=msg)
+            notify_role(
+                ['HR', 'ADMIN'],
+                'LEAVE',
+                msg,
+                link=lambda u: get_user_role_link(u, 'leave_manage'),
+                related=leave,
+                actor=user,
+            )
 
 
 def cancel_leave_request(leave, user, remarks=''):
@@ -558,9 +596,15 @@ def cancel_leave_request(leave, user, remarks=''):
         # Notify
         notify_user = leave.approver.user if (is_owner and leave.approver) else leave.user
         if notify_user and notify_user != user:
-            Notification.objects.create(
-                recipient=notify_user,
-                message=f"Leave request #{leave.id} for {leave.from_date.strftime('%d/%m/%Y')} was CANCELLED by {user.username}."
+            from Admin.notifications import notify, get_user_role_link
+            area = 'leave_manage' if (is_owner and leave.approver) else 'leave_status'
+            notify(
+                notify_user,
+                'LEAVE',
+                f"Leave request #{leave.id} for {leave.from_date.strftime('%d/%m/%Y')} was CANCELLED by {user.username}.",
+                link=get_user_role_link(notify_user, area),
+                related=leave,
+                actor=user,
             )
 
 

@@ -71,8 +71,16 @@ def timesheet_approvals_view(request, role='admin'):
     if role == 'manager' and not (is_admin or is_hr):
         qs = qs.filter(employee__reporting_manager=emp_profile).exclude(employee=emp_profile)
 
+    ts_approval_on = bool(getattr(settings, 'HR_TIMESHEET_APPROVAL', False))
+
     # Handle POST Actions
     if request.method == 'POST':
+        if not ts_approval_on:
+            messages.error(request, "Timesheet approval is switched off — all hours count automatically.")
+            querystring = request.META.get('QUERY_STRING', '')
+            redirect_url = request.path + (f"?{querystring}" if querystring else '')
+            return redirect(redirect_url)
+
         action = request.POST.get('action')
         log_id = request.POST.get('log_id')
 
@@ -149,6 +157,8 @@ def timesheet_approvals_view(request, role='admin'):
 
     # Filters
     emp_filter = request.GET.get('employee', '').strip()
+    dept_filter = request.GET.get('department', '').strip()
+    branch_filter = request.GET.get('branch', '').strip()
     vessel_filter = request.GET.get('vessel', '').strip()
     project_filter = request.GET.get('project', '').strip()
     date_from = request.GET.get('date_from', '').strip()
@@ -157,6 +167,10 @@ def timesheet_approvals_view(request, role='admin'):
 
     if emp_filter.isdigit():
         qs = qs.filter(employee_id=int(emp_filter))
+    if dept_filter.isdigit():
+        qs = qs.filter(employee__department_id=int(dept_filter))
+    if branch_filter.isdigit():
+        qs = qs.filter(employee__branch_id=int(branch_filter))
 
     if vessel_filter:
         qs = qs.filter(
@@ -232,6 +246,7 @@ def timesheet_approvals_view(request, role='admin'):
         'status_filter': status_filter,
         'is_admin_or_hr': is_admin or is_hr,
         'current_user_emp_id': emp_profile.id if emp_profile else None,
+        'ts_approval_on': ts_approval_on,
     }
     return render(request, 'timesheets/timesheet_approvals.html', context)
 
@@ -287,7 +302,7 @@ def _export_timesheets_excel(qs):
             tot_h,
             ot_h,
             l.approval_status,
-            l.description or "",
+            (l.time_log.description if l.time_log else "") or "",
             approver_str,
             l.decision_remarks or "",
         ])
@@ -362,8 +377,16 @@ def ot_approval_view(request, role='admin'):
     if role == 'manager' and not (is_admin or is_hr):
         qs = qs.filter(employee__reporting_manager=emp_profile).exclude(employee=emp_profile)
 
+    ts_approval_on = bool(getattr(settings, 'HR_TIMESHEET_APPROVAL', False))
+
     # Handle POST Actions
     if request.method == 'POST':
+        if not ts_approval_on:
+            messages.error(request, "Timesheet approval is switched off — all hours count automatically.")
+            querystring = request.META.get('QUERY_STRING', '')
+            redirect_url = request.path + (f"?{querystring}" if querystring else '')
+            return redirect(redirect_url)
+
         action = request.POST.get('action')
         ot_id = request.POST.get('ot_id')
 
@@ -424,6 +447,7 @@ def ot_approval_view(request, role='admin'):
         'approved_count': approved_count,
         'is_admin_or_hr': is_admin or is_hr,
         'current_user_emp_id': emp_profile.id if emp_profile else None,
+        'ts_approval_on': ts_approval_on,
     }
     return render(request, 'timesheets/ot_approval.html', context)
 

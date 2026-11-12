@@ -286,6 +286,8 @@ def employee_dashboard(request):
 
         return render(request, 'employee/employee_dashboard.html', context)
 
+    return HttpResponseForbidden("You are not authorized to access the employee dashboard.")
+
 
 @login_required
 def engg_get_presence_data(request):
@@ -299,7 +301,9 @@ def engg_get_presence_data(request):
             return JsonResponse({"error": "Invalid month"}, status=400)
 
         user = request.user
-        employee = get_object_or_404(Employee, user=user)
+        employee = getattr(user, 'employee_profile', None)
+        if not employee:
+            return JsonResponse({"error": "No employee profile"}, status=404)
 
         today = timezone.now().date()
 
@@ -482,7 +486,9 @@ def profile(request):
 
 @login_required
 def update_profile(request):
-    employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
+    employee = getattr(request.user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     if request.method == "POST":
         form = EmployeeUpdateForm(request.POST, request.FILES, instance=employee)
@@ -516,7 +522,9 @@ def update_profile(request):
 @login_required
 def projects(request):
     current_user = request.user
-    employee = current_user.employee_profile
+    employee = getattr(current_user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     status_filter = request.GET.get('status', '')
     search_query = request.GET.get('search', '')
@@ -1077,17 +1085,14 @@ def leave_records(request):
 @login_required
 def employee_fetch_notifications(request):
     """Fetch unread notifications for the logged-in employee."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
-    return JsonResponse({"notifications": list(notifications)})
+    from Admin.notifications import serialize_notifications_for_user
+    return JsonResponse({"notifications": serialize_notifications_for_user(request.user)})
 
 @login_required
 def employee_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in employee as read."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
-    
-    if notifications.exists():
-        notifications.update(is_read=True)  # Bulk update for efficiency
-    
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 

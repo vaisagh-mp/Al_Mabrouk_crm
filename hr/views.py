@@ -26,7 +26,7 @@ from Admin.models import Attendance, Employee, LeaveBalance, Project, TeamMember
 from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from service_logs.views import build_employee_analytics_context
+from service_logs.views import build_employee_analytics_context, export_employee_analytics_excel
 from manager.views import compute_presence_data
 from Admin.attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
 from Admin.attendance_autoclose import close_stale_sessions, capped_logout
@@ -110,144 +110,13 @@ def hr_update_travel_time(request, attendance_id):
 @user_passes_test(is_hr)
 def dashboard(request):
     user = request.user
-    employee = request.user.employee_profile
+    employee = getattr(user, 'employee_profile', None)
 
-    # Superuser Admin Dashboard
-    if user.is_superuser:
-        return render(request, 'Admin/dashboard.html')
+    if user.is_superuser or (employee and employee.is_hr):
+        from Admin.hr_dashboard import render_hr_dashboard
+        return render_hr_dashboard(request, role='hr', base_template='hr/hrbase.html')
 
-    # HR Dashboard
-    elif employee.is_hr:
-        hr = get_object_or_404(Employee, user=user)
-
-        #Total Employees
-        total_employees = Employee.objects.filter(
-            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
-        ).count()
-
-        #Total Leave Requests
-        total_leave_requests = Leave.objects.filter(approval_status="PENDING").count()
-
-        #Today's Attendance Records
-        today = timezone.now().date()
-        today_attendance_records = Attendance.objects.filter(login_time__date=today)
-
-        today_attendance = Attendance.objects.filter(
-            employee=hr,
-            login_time__date=today
-        ).first()
-
-        #Get Total Leave Balances
-        leave_balances = LeaveBalance.objects.aggregate(
-            total_annual_leave=Sum('annual_leave'),
-            total_sick_leave=Sum('sick_leave'),
-            # total_casual_leave=Sum('casual_leave')
-        )
-
-        # Set Punch In & Punch Out times
-        local_tz = pytz.timezone('Asia/Dubai')
-
-        last_punch_in = (
-            localtime(today_attendance.login_time).astimezone(local_tz).strftime('%I:%M %p')
-            if today_attendance else "Not Punched In"
-        )
-
-        last_punch_out = (
-            localtime(today_attendance.log_out_time).astimezone(local_tz).strftime('%I:%M %p')
-            if today_attendance and today_attendance.log_out_time else "Not Punched Out"
-        )
-
-        #Get Pending Leave Applications
-        pending_leaves = Leave.objects.filter(approval_status="PENDING").count()
-
-        #Get Attendance Statistics
-        current_year = datetime.now().year
-        current_month = datetime.now().month
-        total_days_in_month = monthrange(current_year, current_month)[1]
-
-        approved_attendance_records = Attendance.objects.filter(
-            status='APPROVED',
-            login_time__year=current_year,
-            login_time__month=current_month
-        ).count()
-
-        attendance_percentage = (approved_attendance_records / total_days_in_month) * 100 if total_days_in_month else 0
-        leave_requests = Leave.objects.filter(user=user, approval_status="PENDING").count()
-        leave_balance = LeaveBalance.objects.filter(user=user).first()
-        annual_leave_taken = Leave.objects.filter(
-            user=user,
-            approval_status="APPROVED",
-            leave_type="ANNUAL LEAVE",
-            from_date__year=today.year
-        ).aggregate(total=Sum('no_of_days'))['total'] or 0
-        sick_leave_taken = Leave.objects.filter(
-            user=user,
-            approval_status="APPROVED",
-            leave_type="SICK LEAVE",
-            from_date__year=today.year
-        ).aggregate(total=Sum('no_of_days'))['total'] or 0
-        leaves_taken = annual_leave_taken + sick_leave_taken
-        balance_annual_leave = max((leave_balance.annual_leave if leave_balance else 0) - annual_leave_taken, 0)
-        balance_sick_leave = max((leave_balance.sick_leave if leave_balance else 0) - sick_leave_taken, 0)
-        total_leaves = (leave_balance.annual_leave + leave_balance.sick_leave) if leave_balance else 0
-
-        # Fetching Workdays
-        worked_days = hr.work_days
-        absent_days = pending_leaves
-        loss_of_pay_days = absent_days - total_leaves if absent_days > total_leaves else 0
-
-        # Fetching project details
-        project_details = Project.objects.annotate(
-            leader_name=F('manager__user__username')
-        ).values('id', 'name', 'leader_name', 'status', 'category', 'priority').order_by('-created_at')[:5]
-
-        # Time Settings
-        local_tz = pytz.timezone('Asia/Kolkata')
-        current_time = timezone.now().astimezone(local_tz).strftime('%I:%M %p, %d %b %Y')
-
-        chart_data = compute_presence_data(hr, today.year, today.month)
-        months = [
-            {"value": i, "name": calendar.month_name[i]}
-            for i in range(1, 13)
-        ]
-
-        from Admin.document_helpers import get_document_expiry_counts
-        doc_expiry_counts = get_document_expiry_counts(as_of=today, category='all')
-
-        context = {
-            'hr': hr,
-            'doc_expiry_counts': doc_expiry_counts,
-            'total_employees': total_employees,
-            'total_leave_requests': total_leave_requests,
-            'leave_balances': leave_balances,
-            'pending_leaves': pending_leaves,
-            'today_attendance_records': today_attendance_records,
-            'attendance_percentage': round(attendance_percentage, 1),
-            'worked_days': worked_days,
-            'absent_days': absent_days,
-            'loss_of_pay_days': loss_of_pay_days,
-            'project_details': project_details,
-            'current_time': current_time,
-            'total_leaves': total_leaves,
-            'leaves_taken': leaves_taken,
-            'annual_leave_taken': annual_leave_taken,
-            'sick_leave_taken': sick_leave_taken,
-            'balance_annual_leave': balance_annual_leave,
-            'balance_sick_leave': balance_sick_leave,
-            'leave_requests': leave_requests,
-            'chart_data': chart_data,
-            'months': months,
-            'current_month': today.month,
-            "last_punch_in": last_punch_in,
-            "last_punch_out": last_punch_out,
-            'user_attendance': today_attendance,
-        }
-
-        return render(request, 'hr/dashboard.html', context)
-
-    # Employee Dashboard
-    else:
-        return render(request, 'employee/employee_dashboard.html')
+    return render(request, 'employee/employee_dashboard.html')
 
 # create employee
 @login_required
@@ -321,9 +190,6 @@ def hr_employee_leave_list(request):
     if is_leave_v2_active():
         from Admin.leave_views import render_role_leave_list
         return render_role_leave_list(request, 'HR', 'hr/hrbase.html')
-    employee = request.user.employee_profile 
-    if not employee.is_hr:
-        return redirect('admin-dashboard')
 
     search_query = request.GET.get('search', '').strip()
 
@@ -352,18 +218,21 @@ def hr_employee_manage_leave(request):
     if is_leave_v2_active():
         from Admin.leave_views import render_role_manage_leave
         return render_role_manage_leave(request, 'HR', 'hr/hrbase.html')
-    employee = request.user.employee_profile 
-    if not employee.is_hr:
-        return redirect('admin-dashboard')
 
     search_query = request.GET.get('search', '').strip()
 
     # Fetch only employee leave requests
     pending_leaves = Leave.objects.filter(approval_status='PENDING').select_related('user')
 
-    # Apply search filter
+    # Apply search/dept/branch filters
     if search_query:
         pending_leaves = pending_leaves.filter(user__username__icontains=search_query)
+    dept_filter = request.GET.get('department')
+    branch_filter = request.GET.get('branch')
+    if dept_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__department_id=dept_filter)
+    if branch_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__branch_id=branch_filter)
 
     # Paginate leave records (10 per page)
     paginator = Paginator(pending_leaves, 10)
@@ -680,6 +549,8 @@ def hr_update_profile(request):
 @user_passes_test(is_hr)
 def hr_employee_analytics(request):
     context = build_employee_analytics_context(request)
+    if (request.GET.get("export") or "").strip().lower() == "excel":
+        return export_employee_analytics_excel(request, context)
     context["base_template"] = "hr/hrbase.html"
     context["hide_project_links"] = True
     context["register_url"] = reverse('hr_attendance_list_view')
@@ -1042,8 +913,8 @@ def hr_weekly_rest_days_list(request):
 @require_hr_settings
 def hr_weekly_rest_day_history(request, employee_id):
     employee = get_object_or_404(Employee, pk=employee_id)
-    rules = employee.rest_day_rules.all().order_by('-effective_from', '-created_at')
-    logs = employee.changelogs.filter(field='rest_day').order_by('-changed_at')
+    rules = employee.rest_day_rules.all().select_related('created_by').order_by('-effective_from', '-created_at')
+    logs = employee.change_logs.filter(field='rest_day').select_related('changed_by').order_by('-changed_at')
     return render(request, 'hr/shifts/rest_day_history.html', {
         'employee': employee,
         'rules': rules,

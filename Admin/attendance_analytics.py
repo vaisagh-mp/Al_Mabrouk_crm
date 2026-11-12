@@ -22,6 +22,8 @@ def _compute_period_kpis(rows):
     total_worked_days = 0
     total_expected_days = 0
     total_absent_days = 0
+    total_rest_days = 0
+    total_missing_punch_days = 0
     total_hours = Decimal('0.00')
     gross_ot_hours = Decimal('0.00')
     total_leave_days = 0
@@ -32,7 +34,7 @@ def _compute_period_kpis(rows):
             1 for r in emp_rows
             if (r.get('status_code') not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r.get('is_off_day') or ((r.get('total_hours') or Decimal(0)) > 0)
         )
-        emp_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE'))
+        emp_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE', 'UNPAID_LEAVE'))
         emp_training = sum(1 for r in emp_rows if r['status_code'] == 'TRAINING')
         emp_denom = max(emp_working_days - emp_leave - emp_training, 0)
         total_expected_days += emp_denom
@@ -45,8 +47,12 @@ def _compute_period_kpis(rows):
                     off_days_worked += 1
             elif st == 'ABSENT':
                 total_absent_days += 1
-            elif st in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE'):
+            elif st in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE', 'UNPAID_LEAVE'):
                 total_leave_days += 1
+            elif st in ('REST', 'REST_DAY', 'SUNDAY'):
+                total_rest_days += 1
+            elif st == 'MISSING_PUNCH':
+                total_missing_punch_days += 1
 
             total_hours += Decimal(str(r.get('total_hours') or '0.00'))
             gross_ot_hours += Decimal(str(r.get('ot_hours') or '0.00'))
@@ -73,6 +79,9 @@ def _compute_period_kpis(rows):
         'gross_ot_days': gross_ot_days,
         'total_leave_days': total_leave_days,
         'off_days_worked': off_days_worked,
+        'total_absent_days': total_absent_days,
+        'total_rest_days': total_rest_days,
+        'total_missing_punch_days': total_missing_punch_days,
     }
 
 
@@ -150,6 +159,9 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
         'gross_ot_days': get_kpi_entry('gross_ot_days', is_pct=False, lower_is_better=True),
         'total_leave_days': get_kpi_entry('total_leave_days', is_pct=False, is_neutral=True),
         'off_days_worked': get_kpi_entry('off_days_worked', is_pct=False, lower_is_better=True),
+        'total_absent_days': get_kpi_entry('total_absent_days', is_pct=False, lower_is_better=True),
+        'total_rest_days': get_kpi_entry('total_rest_days', is_pct=False, is_neutral=True),
+        'total_missing_punch_days': get_kpi_entry('total_missing_punch_days', is_pct=False, lower_is_better=True),
     }
 
     # ---------------------------------------------------------
@@ -167,6 +179,7 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
     mix_absent = []
     mix_rest = []
     mix_training = []
+    mix_missing_punch = []
 
     cur_d = start_date
     while cur_d <= end_date:
@@ -175,10 +188,11 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
         mix_office.append(sum(1 for r in d_rows if r['status_code'] == 'OFFICE'))
         mix_vessel.append(sum(1 for r in d_rows if r['status_code'] == 'VESSEL'))
         mix_office_vessel.append(sum(1 for r in d_rows if r['status_code'] == 'OFFICE_VESSEL'))
-        mix_leave.append(sum(1 for r in d_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE')))
+        mix_leave.append(sum(1 for r in d_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE', 'UNPAID_LEAVE')))
         mix_absent.append(sum(1 for r in d_rows if r['status_code'] == 'ABSENT'))
-        mix_rest.append(sum(1 for r in d_rows if r['status_code'] == 'REST'))
+        mix_rest.append(sum(1 for r in d_rows if r['status_code'] in ('REST', 'REST_DAY', 'SUNDAY')))
         mix_training.append(sum(1 for r in d_rows if r['status_code'] == 'TRAINING'))
+        mix_missing_punch.append(sum(1 for r in d_rows if r['status_code'] == 'MISSING_PUNCH'))
         cur_d += timedelta(days=1)
 
     daily_mix = {
@@ -190,6 +204,7 @@ def build_attendance_analytics(rows, prev_rows, employees_filter_ids, start_date
         'absent': mix_absent,
         'rest': mix_rest,
         'training': mix_training,
+        'missing_punch': mix_missing_punch,
     }
 
     # ---------------------------------------------------------

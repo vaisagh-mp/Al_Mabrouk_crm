@@ -1,0 +1,151 @@
+<div class="hdr-notification">
+    <a href="#" id="open-notification-popup" title="Notifications">
+        <button type="button" class="btn btn-primary position-relative">
+            <i class="fas fa-bell"></i>
+            <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">
+                0
+                <span class="visually-hidden">unread messages</span>
+            </span>
+        </button>
+    </a>
+</div>
+
+<div id="notification-popup" class="notification-popup" style="z-index: 1060;">
+    <div class="popup-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Notifications</h5>
+        <button type="button" class="close-popup btn-close" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="popup-body">
+        <div id="notification-list-shared">
+            <p class="text-muted small mb-0">Loading...</p>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mt-2 pt-2 border-top">
+        <button type="button" class="btn btn-sm btn-outline-primary" id="mark-read-shared">Mark All as Read</button>
+        <a href="{% url 'notifications_page' %}" class="btn btn-sm btn-primary ms-auto">View All</a>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const notificationPopup = document.getElementById("notification-popup");
+    const notificationList = document.getElementById("notification-list-shared");
+    const markReadBtn = document.getElementById("mark-read-shared");
+    const openNotificationBtn = document.getElementById("open-notification-popup");
+    const closePopupBtn = notificationPopup ? notificationPopup.querySelector(".close-popup") : null;
+    const notificationCount = document.getElementById("notification-count");
+
+    if (!notificationPopup || !notificationList || !openNotificationBtn) return;
+
+    function formatNotifDateTime(dateString) {
+        if (!dateString) return "";
+        const d = new Date(dateString);
+        if (isNaN(d.getTime())) return dateString;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        let hours = d.getHours();
+        const mins = String(d.getMinutes()).padStart(2, "0");
+        const ampm = hours >= 12 ? "pm" : "am";
+        hours = hours % 12 || 12;
+        return `${day}/${m}/${y} ${hours}:${mins} ${ampm}`;
+    }
+
+    function fetchSharedNotifications() {
+        fetch("{{ fetch_url }}")
+            .then(r => r.json())
+            .then(data => {
+                const items = Array.isArray(data.notifications) ? data.notifications : [];
+                const unreadCount = (typeof data.unread_count === "number") ? data.unread_count : items.length;
+
+                notificationList.innerHTML = "";
+                if (unreadCount === 0 && items.length === 0) {
+                    const empty = document.createElement("p");
+                    empty.className = "text-muted small mb-0";
+                    empty.textContent = "No new notifications";
+                    notificationList.appendChild(empty);
+                    if (markReadBtn) markReadBtn.style.display = "none";
+                    if (notificationCount) notificationCount.style.display = "none";
+                } else {
+                    items.forEach(n => {
+                        const row = document.createElement("a");
+                        row.href = n.open_url || "{% url 'notifications_page' %}";
+                        row.className = "notification-item d-flex align-items-start gap-2 text-decoration-none text-dark border-bottom py-2";
+
+                        const iconWrap = document.createElement("span");
+                        iconWrap.className = "rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0";
+                        iconWrap.style.width = "30px";
+                        iconWrap.style.height = "30px";
+                        iconWrap.style.backgroundColor = n.bg || "#f1f5f9";
+                        iconWrap.style.color = n.color || "#64748b";
+                        const ic = document.createElement("i");
+                        ic.className = n.icon || "fas fa-bell";
+                        iconWrap.appendChild(ic);
+
+                        const body = document.createElement("div");
+                        body.className = "flex-grow-1 min-w-0";
+
+                        const badge = document.createElement("span");
+                        badge.className = "badge mb-1";
+                        badge.style.backgroundColor = n.bg || "#f1f5f9";
+                        badge.style.color = n.color || "#1f3a52";
+                        badge.style.fontSize = "10px";
+                        badge.textContent = n.type_label || n.type || "System";
+
+                        const msg = document.createElement("p");
+                        msg.className = "mb-1 small";
+                        msg.textContent = n.message || "";
+
+                        const ts = document.createElement("small");
+                        ts.className = "text-muted d-block";
+                        ts.style.fontSize = "11px";
+                        ts.textContent = formatNotifDateTime(n.created_at);
+
+                        body.appendChild(badge);
+                        body.appendChild(msg);
+                        body.appendChild(ts);
+
+                        row.appendChild(iconWrap);
+                        row.appendChild(body);
+                        notificationList.appendChild(row);
+                    });
+                    if (markReadBtn) markReadBtn.style.display = "inline-block";
+                    if (notificationCount) {
+                        notificationCount.textContent = unreadCount > 99 ? "99+" : unreadCount;
+                        notificationCount.style.display = unreadCount > 0 ? "inline-block" : "none";
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
+    openNotificationBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        fetchSharedNotifications();
+        notificationPopup.style.display = notificationPopup.style.display === "block" ? "none" : "block";
+    });
+
+    if (closePopupBtn) {
+        closePopupBtn.addEventListener("click", function () {
+            notificationPopup.style.display = "none";
+        });
+    }
+
+    if (markReadBtn) {
+        markReadBtn.addEventListener("click", function () {
+            fetch("{{ mark_read_url }}", {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token }}" }
+            })
+            .then(r => r.json())
+            .then(() => fetchSharedNotifications())
+            .catch(() => {});
+        });
+    }
+
+    setInterval(fetchSharedNotifications, 10000);
+    fetchSharedNotifications();
+});
+</script>

@@ -1,3 +1,4 @@
+{% load pdf_tags %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -65,7 +66,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>Al Mabrouk Marine Services — Timesheet Approvals Report</h1>
+        {% pdf_logo %}
+        <h1>Timesheet Approvals Report</h1>
         <p>Generated: {{ generated_at|date:"d/m/Y H:i" }} | Records: {{ timesheets|length }}</p>
     </div>
 
@@ -106,7 +108,7 @@
                 <td>
                     <span class="badge badge-{{ l.approval_status|lower }}">{{ l.approval_status }}</span>
                 </td>
-                <td>{{ l.decision_remarks|default:l.description|default:""|truncatechars:35 }}</td>
+                <td>{% if l.decision_remarks %}{{ l.decision_remarks|truncatechars:35 }}{% elif l.time_log %}{{ l.time_log.description|truncatechars:35 }}{% endif %}</td>
             </tr>
             {% endfor %}
         </tbody>

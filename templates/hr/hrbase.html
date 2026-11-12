@@ -17,7 +17,7 @@
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261111" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
     <!-- Add Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
@@ -28,17 +28,9 @@
     <header>
 
       <div class="mb-top-hdr">
-        <div class="hdr-notification">
-        <a href="#" id="open-notification-popup">
-            <button type="button" class="btn btn-primary position-relative">
-                <i class="fas fa-bell"></i>
-                <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    0
-                    <span class="visually-hidden">unread messages</span>
-                </span>
-            </button>
-        </a>
-    </div>
+        {% url 'hr_fetch_notifications' as notif_fetch_url %}
+        {% url 'hr_mark_notifications_as_read' as notif_mark_url %}
+        {% include 'includes/notification_bell.html' with fetch_url=notif_fetch_url mark_read_url=notif_mark_url %}
     
 
         <div class="hdr-user">
@@ -66,22 +58,7 @@
             </ul>
           </div>
 
-          <!-- Notification Popup -->
-          <div id="notification-popup" class="notification-popup">
-            <div class="popup-header">
-                <h5>Project Notifications</h5>
-                <button class="close-popup">&times;</button>
-            </div>
-
-            <div class="popup-body">
-                <div id="notification-list-manager">
-                    <p>Loading...</p>
-                </div>
-            </div>
-          
-            <!-- Button should be outside the list -->
-            <button class="mark-all-read" id="mark-read-manager">Mark All as Read</button>
-          </div>
+          <!-- Notification bell popup included in top header -->
 
         </div>
 
@@ -158,6 +135,14 @@
               <!-- sidebar-search  -->
               <div class="sidebar-menu">
                 <ul>
+                  {% if request.user.is_superuser %}
+                  <li>
+                    <a href="{% url 'admin-dashboard' %}">
+                      <i class="fas fa-arrow-left"></i>
+                      <span>Back to Admin Dashboard</span>
+                    </a>
+                  </li>
+                  {% endif %}
                   <li class="header-menu">
                     <span>General</span>
                   </li>
@@ -227,12 +212,15 @@
                     <li class="sidebar-dropdown">
                       <a href="#">
                         <i class="fa fa-chart-line"></i>
-                        <span>Analytics</span>
+                        <span>Analytics &amp; Reports</span>
                       </a>
                       <div class="sidebar-submenu">
                         <ul>
                           <li>
                             <a href="{% url 'hr_employee_analytics' %}">Employee Analytics</a>
+                          </li>
+                          <li>
+                            <a href="{% url 'hr_reports_center' %}">Reports Center</a>
                           </li>
                         </ul>
                       </div>
@@ -245,9 +233,11 @@
                       </a>
                       <div class="sidebar-submenu">
                         <ul>
+                          {% if hr_payroll_v2 or request.user.is_superuser or request.user.employee_profile.is_accountant %}
                           <li>
                             <a href="{% url 'fin_payroll' %}">Payroll</a>
                           </li>
+                          {% endif %}
                           <li>
                             <a href="{% url 'salary_structures_list' %}">Salary Structures</a>
                           </li>
@@ -264,12 +254,14 @@
                       </div>
                     </li>
 
+                    {% if request.user.employee_profile %}
                     <li>
                       <a href="{% url 'my_payslips' %}">
                         <i class="fas fa-file-invoice-dollar"></i>
                         <span>My Payslips</span>
                       </a>
                     </li>
+                    {% endif %}
                   
                   <!-- <li class="sidebar-dropdown">
                     <a href="#">
@@ -721,69 +713,7 @@
   }
       </script>
       
-      <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const notificationPopup = document.getElementById("notification-popup");
-            const notificationList = document.getElementById("notification-list-manager");
-            const markReadBtn = document.getElementById("mark-read-manager");
-            const openNotificationBtn = document.getElementById("open-notification-popup");
-            const closePopupBtn = document.querySelector(".close-popup");
-            const notificationCount = document.getElementById("notification-count");
-      
-            // Function to Fetch Notifications and Update Badge
-            function fetchManagerNotifications() {
-                fetch("{% url 'hr_fetch_notifications' %}")
-                    .then(response => response.json())
-                    .then(data => {
-                        notificationList.innerHTML = "";
-      
-                        if (data.notifications.length === 0) {
-                            notificationList.innerHTML = "<p>No new notifications</p>";
-                            markReadBtn.style.display = "none";  // Hide button
-                            notificationCount.style.display = "none";  // Hide badge
-                        } else {
-                            data.notifications.forEach(notification => {
-                                const item = document.createElement("div");
-                                item.classList.add("notification-item");
-                                item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
-                                notificationList.prepend(item);
-                            });
-                            markReadBtn.style.display = "block";  // Show button
-                            notificationCount.textContent = data.notifications.length;  // Update badge count
-                            notificationCount.style.display = "inline-block";  // Show badge
-                        }
-                    });
-            }
-      
-            // Show Popup When Clicking Notification Menu
-            openNotificationBtn.addEventListener("click", function (event) {
-                event.preventDefault();
-                fetchManagerNotifications();
-                notificationPopup.style.display = "block";
-            });
-      
-            // Close Popup
-            closePopupBtn.addEventListener("click", function () {
-                notificationPopup.style.display = "none";
-            });
-      
-            // Mark All Notifications as Read
-            markReadBtn.addEventListener("click", function () {
-                fetch("{% url 'hr_mark_notifications_as_read' %}", {
-                    method: "POST",
-                    headers: { "X-CSRFToken": "{{ csrf_token }}" }
-                }).then(response => response.json())
-                  .then(data => {
-                      alert(data.message);
-                      fetchManagerNotifications();
-                  });
-            });
-      
-            // Auto Fetch Notifications Every 5 Seconds
-            setInterval(fetchManagerNotifications, 5000);
-            fetchManagerNotifications();
-        });
-      </script>
+      <!-- Notification bell script handled by includes/notification_bell.html -->
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

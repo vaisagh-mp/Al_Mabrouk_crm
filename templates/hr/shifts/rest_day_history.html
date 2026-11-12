@@ -59,7 +59,7 @@
                         <span class="badge bg-success">Current / Open</span>
                         {% endif %}
                     </td>
-                    <td>{{ rule.created_by.get_full_name|default:rule.created_by.username|default:"System" }}</td>
+                    <td>{% if rule.created_by %}{{ rule.created_by.get_full_name|default:rule.created_by.username }}{% else %}System{% endif %}</td>
                     <td>{{ rule.created_at|date:"d/m/Y H:i" }}</td>
                 </tr>
                 {% empty %}
@@ -89,7 +89,7 @@
                     <td>{{ log.changed_at|date:"d/m/Y H:i" }}</td>
                     <td>{{ log.old_value|default:"—" }}</td>
                     <td><strong>{{ log.new_value }}</strong></td>
-                    <td>{{ log.changed_by.get_full_name|default:log.changed_by.username|default:"System" }}</td>
+                    <td>{% if log.changed_by %}{{ log.changed_by.get_full_name|default:log.changed_by.username }}{% else %}System{% endif %}</td>
                     <td><span class="badge bg-light text-dark border">{{ log.source }}</span></td>
                 </tr>
                 {% empty %}

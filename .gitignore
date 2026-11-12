@@ -26,3 +26,14 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Secrets / keys (never commit)
+*.pem
+
+# Local-only files
+test_local.sqlite3
+structure.txt
+Claude outputs/
+
+# collectstatic output (built on the server)
+/static/

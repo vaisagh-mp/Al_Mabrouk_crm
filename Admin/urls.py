@@ -4,8 +4,11 @@ from django.contrib.auth import views as auth_views
 from .views import *
 from . import timesheet_views
 from . import document_views
+from . import reports_views
 urlpatterns = [
     path('dashboard/', dashboard, name='admin-dashboard'),
+    path('hr-dashboard/', admin_hr_dashboard, name='admin_hr_dashboard'),
+    path('attendance-status/', admin_attendance_status, name='admin_attendance_status'),
     path('search/', search_redirect_view, name='search_redirect'),
     
     path('employees/', employee_list, name='employee_list'),
@@ -88,7 +91,7 @@ urlpatterns = [
 
 
     path('change-password/', change_password, name='change_password'),
-    path('change-password/done/', TemplateView.as_view(template_name='password_change_done.html'),  name='password_change_done'),
+    path('change-password/done/', TemplateView.as_view(template_name='Admin/password_change_done.html'),  name='password_change_done'),
 
     path('timesheet-approvals/', timesheet_views.timesheet_approvals_view, {'role': 'admin'}, name='timesheet_approvals_admin'),
     path('ot-approval/', timesheet_views.ot_approval_view, {'role': 'admin'}, name='ot_approval_admin'),
@@ -102,4 +105,5 @@ urlpatterns = [
     path('documents/edit/<str:category>/<int:doc_id>/', document_views.edit_document_view, name='document_edit'),
     path('documents/import/', document_views.document_import_view, name='document_import'),
     path('documents/types/', document_views.document_types_view, name='hr_document_types'),
+    path('reports/', reports_views.reports_center_view, {'role': 'admin'}, name='admin_reports_center'),
 ]

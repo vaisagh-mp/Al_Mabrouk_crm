@@ -95,12 +95,16 @@ class Command(BaseCommand):
             )
 
             if not dry_run:
+                from Admin.notifications import notify, get_user_role_link
+                code_q = doc.employee.employee_code or ''
                 with transaction.atomic():
-                    for recipient in recipients:
-                        Notification.objects.create(
-                            recipient=recipient,
-                            message=msg,
-                        )
+                    notify(
+                        recipients,
+                        'DOCUMENT_EXPIRY',
+                        msg,
+                        link=lambda u: get_user_role_link(u, 'documents', query=f"tab=employee&q={code_q}"),
+                        related=doc,
+                    )
                     DocumentReminderLog.objects.create(
                         document_type_category='EMPLOYEE',
                         employee_document=doc,
@@ -150,12 +154,15 @@ class Command(BaseCommand):
             )
 
             if not dry_run:
+                from Admin.notifications import notify, get_user_role_link
                 with transaction.atomic():
-                    for recipient in recipients:
-                        Notification.objects.create(
-                            recipient=recipient,
-                            message=msg,
-                        )
+                    notify(
+                        recipients,
+                        'DOCUMENT_EXPIRY',
+                        msg,
+                        link=lambda u: get_user_role_link(u, 'documents', query="tab=company"),
+                        related=doc,
+                    )
                     DocumentReminderLog.objects.create(
                         document_type_category='COMPANY',
                         company_document=doc,

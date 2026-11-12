@@ -117,12 +117,15 @@ def handle_staff_apply_leave(request, form):
     leave_application.no_of_days = (leave_application.to_date - leave_application.from_date).days + 1
     leave_application.save()
 
-    admins = User.objects.filter(is_superuser=True)
-    for admin in admins:
-        Notification.objects.create(
-            recipient=admin,
-            message=f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}."
-        )
+    from Admin.notifications import notify_role
+    notify_role(
+        'ADMIN',
+        'LEAVE',
+        f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}.",
+        link='/admin-panel/employee-manage-leave/',
+        related=leave_application,
+        actor=request.user,
+    )
 
     messages.success(request, "Leave request submitted successfully.")
     return leave_application
@@ -130,15 +133,14 @@ def handle_staff_apply_leave(request, form):
 
 def fetch_user_notifications(user):
     """Fetch unread notifications for a user."""
-    notifications = Notification.objects.filter(recipient=user, is_read=False).values("id", "message", "created_at")
-    return list(notifications)
+    from Admin.notifications import serialize_notifications_for_user
+    return serialize_notifications_for_user(user)
 
 
 def mark_user_notifications_read(user):
     """Mark all unread notifications for a user as read."""
-    notifications = Notification.objects.filter(recipient=user, is_read=False)
-    if notifications.exists():
-        notifications.update(is_read=True)
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(user)
     return {"message": "Notifications marked as read"}
 
 

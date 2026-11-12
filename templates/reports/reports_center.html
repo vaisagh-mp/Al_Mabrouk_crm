@@ -1,0 +1,95 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    <div class="pg-title d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="mb-0">Reports Center</h1>
+            <small class="text-muted">{{ report_data.title }} · {{ report_data.period_label }}</small>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="?{{ base_qs_str }}&export=excel" class="btn btn-sm btn-success">
+                <i class="fas fa-file-excel me-1"></i> Excel
+            </a>
+            {% if pdf_blocked %}
+            <a href="?{{ base_qs_str }}&export=pdf" class="btn btn-sm btn-outline-secondary" title="PDF limited to 31 days (day-level) and 500 rows; use Excel">
+                <i class="fas fa-file-pdf me-1"></i> PDF (Limit Exceeded)
+            </a>
+            {% else %}
+            <a href="?{{ base_qs_str }}&export=pdf" class="btn btn-sm btn-danger">
+                <i class="fas fa-file-pdf me-1"></i> PDF
+            </a>
+            {% endif %}
+            <a href="?{{ base_qs_str }}&export=print" target="_blank" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-print me-1"></i> Print
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="mb-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show py-2" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include 'includes/filter_bar.html' with show_report_select=True show_start_end=show_start_end show_month=show_month show_department=show_department show_branch=show_branch show_employee=show_employee show_status=show_status reset_url=reset_url %}
+
+    <div class="widget-box p-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h5 class="mb-0 fs-6 fw-bold">{{ report_data.title }} — Preview</h5>
+                <small class="text-muted">
+                    Showing {{ preview_count }} of <strong>{{ total_count }}</strong> total row(s)
+                    {% if total_count > 50 %}(use Excel or PDF export for full list){% endif %}
+                </small>
+            </div>
+            <div class="small text-muted">
+                <strong>Filters:</strong> {{ report_data.filters_label }}
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        {% for h in report_data.headers %}
+                        <th class="text-nowrap">{{ h }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in preview_rows %}
+                    <tr>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="{{ report_data.headers|length }}" class="text-center text-muted py-4">
+                            No matching records found for this report and filter selection.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if report_data.totals_row %}
+                <tfoot class="table-secondary fw-bold">
+                    <tr>
+                        {% for cell in report_data.totals_row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

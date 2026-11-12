@@ -25,7 +25,7 @@ def custom_login(request):
                 return redirect('employee_dashboard')  
         except ObjectDoesNotExist:
             messages.error(request, "No employee profile found for this user.")
-            return redirect('custom-logout')  # Handle missing profile case
+            return redirect('custom_logout')  # Handle missing profile case
 
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -65,7 +65,7 @@ def custom_login(request):
                         return redirect('employee_dashboard')
                 except ObjectDoesNotExist:
                     messages.error(request, "No employee profile found for this user.")
-                    return redirect('custom-logout')  # Handle missing profile case
+                    return redirect('custom_logout')  # Handle missing profile case
             else:
                 messages.error(request, "Invalid username or password.")  
         else:

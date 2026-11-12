@@ -14,7 +14,7 @@ from calendar import monthrange
 from django.db.models import Q, F, Sum
 from datetime import date
 import pytz
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseForbidden
 from employee_data.forms import LeaveForm,EmployeeUpdateForm
 from datetime import datetime
 from django.contrib import messages
@@ -171,14 +171,14 @@ def admstrn_update_travel_time(request, attendance_id):
 @login_required
 def dashboard(request):
     user = request.user
-    employee = request.user.employee_profile
+    employee = getattr(request.user, 'employee_profile', None)
 
     # Superuser Admin Dashboard
     if user.is_superuser:
         return render(request, 'Admin/dashboard.html')
 
-    # Manager Dashboard
-    elif employee.is_administration:
+    # Administration Dashboard
+    elif employee and employee.is_administration:
         manager = get_object_or_404(Employee, user=user)
         total_projects = Project.objects.count()
 
@@ -445,7 +445,9 @@ def adm_get_presence_data(request):
             return JsonResponse({"error": "Invalid month"}, status=400)
 
         user = request.user
-        employee = get_object_or_404(Employee, user=user)
+        employee = getattr(user, 'employee_profile', None)
+        if not employee:
+            return JsonResponse({"error": "No employee profile"}, status=404)
         today = date.today()
 
         # Date range for selected month
@@ -623,7 +625,7 @@ def admstrn_project_summary_view(request, project_id):
     employee = request.user.employee_profile 
     if not employee.is_administration:
         messages.error(request, "You do not have permission to access this page.")
-        return redirect("admin_dashboard")  # Redirect to admin dashboard
+        return redirect("admin-dashboard")  # Redirect to admin dashboard
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -776,12 +778,15 @@ def admstrn_apply_leave(request):
             leave_application.save()
 
             # Send notification to all admins
-            admins = User.objects.filter(is_superuser=True)  # Get all admin users
-            for admin in admins:
-                Notification.objects.create(
-                    recipient=admin,
-                    message=f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}."
-                )
+            from Admin.notifications import notify_role
+            notify_role(
+                'ADMIN',
+                'LEAVE',
+                f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}.",
+                link='/admin-panel/employee-manage-leave/',
+                related=leave_application,
+                actor=request.user,
+            )
 
             messages.success(request, "Leave request submitted successfully.")
             return redirect('admstrn_leave_status')  # Redirect after success
@@ -872,17 +877,14 @@ def admstrn_leave_records(request):
 
 @login_required
 def admstrn_fetch_notifications(request):
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
-    return JsonResponse({"notifications": list(notifications)})
+    from Admin.notifications import serialize_notifications_for_user
+    return JsonResponse({"notifications": serialize_notifications_for_user(request.user)})
 
 @login_required
 def admstrn_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in manager as read."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
-    
-    if notifications.exists():
-        notifications.update(is_read=True)  # Bulk update for efficiency
-    
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 
@@ -934,7 +936,9 @@ def admstrn_profile(request):
 
 @login_required
 def admstrn_update_profile(request):
-    employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
+    employee = getattr(request.user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     if request.method == "POST":
         form = EmployeeUpdateForm(request.POST, request.FILES, instance=employee)

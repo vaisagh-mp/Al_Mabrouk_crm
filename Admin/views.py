@@ -58,21 +58,15 @@ def dashboard(request):
         first_day_last_month = last_day_last_month.replace(day=1)
 
 
-        period = request.GET.get("period", "month")
-
-        today = now().date()
-
-        if period == "week":
-            start_date = today - timedelta(days=today.weekday())  # Monday
-            end_date = start_date + timedelta(days=6)
-
-        elif period == "year":
-            start_date = today.replace(month=1, day=1)
-            end_date = today.replace(month=12, day=31)
-
-        else:  # month (default)
-            start_date = today.replace(day=1)
-            end_date = (start_date + relativedelta(months=1)) - timedelta(days=1)
+        # Date range filter (From / To). Default = this month to date, same as Finance "This Month".
+        from django.utils.dateparse import parse_date
+        from_str = request.GET.get("from") or ""
+        to_str = request.GET.get("to") or ""
+        start_date = parse_date(from_str) or today.replace(day=1)
+        end_date = parse_date(to_str) or today
+        if start_date > end_date:
+            messages.error(request, "From date cannot be after To date. Showing this month.")
+            start_date, end_date = today.replace(day=1), today
 
         # Get total projects
         total_projects = Project.objects.count()
@@ -112,106 +106,40 @@ def dashboard(request):
             user__date_joined__date__lte=end_of_last_month
         ).count()
 
-        attendance_qs = Attendance.objects.filter(
-            login_time__date__range=(start_date, end_date)
-        ).select_related("employee")
-
-        total_employee_hours = Decimal(0)
-        total_employee_cost = Decimal(0)
-
-        for record in attendance_qs:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            total_employee_cost += hourly_cost * hours
-
         # Calculate change percentage
         if employees_last_month > 0:
             emp_change_percent = ((employees_this_month - employees_last_month) / employees_last_month) * 100
         else:
             emp_change_percent = 100 if employees_this_month > 0 else 0
         
-        # Total Revenue (Invoice Amount Sum)
-        total_revenue = Project.objects.filter(
-            created_at__date__range=(start_date, end_date)
-        ).aggregate(Sum("invoice_amount"))["invoice_amount__sum"] or Decimal(0)
+        # Revenue / Expenses / Profit come from the Finance P&L engine, so the
+        # numbers match the Finance dashboard for the same dates.
+        from finance.services import pnl_for_range
+        range_tot = pnl_for_range(start_date, end_date, granularity='range', request=request)['totals']
+        total_revenue = range_tot.get('revenue') or Decimal(0)
+        total_expenses = range_tot.get('total_cost') or Decimal(0)
+        total_profit = range_tot.get('profit') or Decimal(0)
 
-        
-        # Total Expenses (Purchase & Expenses Sum)
-        purchase_expenses = Project.objects.filter(
-            created_at__date__range=(start_date, end_date)
-        ).aggregate(Sum("purchase_and_expenses"))["purchase_and_expenses__sum"] or Decimal(0)
+        # Previous period of the same length, for the "vs previous period" arrow
+        num_days = (end_date - start_date).days + 1
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=num_days - 1)
+        prev_profit = pnl_for_range(prev_start, prev_end, granularity='range', request=request)['totals'].get('profit') or Decimal(0)
 
-        
-        total_expenses = purchase_expenses + total_employee_cost
-        
-        # Total Profit = Revenue - Expenses
-        total_profit = total_revenue - total_expenses
+        # Sparkline series (weekly up to ~3 months, monthly beyond)
+        spark_gran = 'week' if num_days <= 92 else 'month'
+        spark_buckets = pnl_for_range(start_date, end_date, granularity=spark_gran, request=request)['buckets']
+        spark_json = ({
+            'revenue': [float(x.get('revenue') or 0) for x in spark_buckets],
+            'expenses': [float(x.get('total_cost') or 0) for x in spark_buckets],
+            'profit': [float(x.get('profit') or 0) for x in spark_buckets],
+        })
 
-        current_month_attendance = Attendance.objects.filter(
-            login_time__date__gte=start_of_this_month
-        )
-
-        current_employee_cost = Decimal(0)
-
-        for record in current_month_attendance:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            current_employee_cost += hourly_cost * hours
-
-        # current_profit = current_revenue - (current_expenses + current_employee_cost)
-
-        last_month_attendance = Attendance.objects.filter(
-            login_time__date__gte=start_of_last_month,
-            login_time__date__lte=end_of_last_month
-        )
-
-        last_employee_cost = Decimal(0)
-
-        for record in last_month_attendance:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            last_employee_cost += hourly_cost * hours
-
-        # last_profit = last_revenue - (last_expenses + last_employee_cost)
-
-        # Current Month Revenue and Expenses
-        current_revenue = Project.objects.filter(
-            created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
-
-        current_expenses = Project.objects.filter(
-            created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
-
-        current_profit = current_revenue - (current_expenses + current_employee_cost)
-
-        # Last Month Revenue and Expenses
-        last_revenue = Project.objects.filter(
-            created_at__date__gte=start_of_last_month,
-            created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
-
-        last_expenses = Project.objects.filter(
-            created_at__date__gte=start_of_last_month,
-            created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
-
-        last_profit = last_revenue - (last_expenses + last_employee_cost)
-
-
-        # Profit Change %
-        if last_profit == 0:
-            if current_profit > 0:
-                profit_change_percent = 100
-            elif current_profit < 0:
-                profit_change_percent = -100
-            else:
-                profit_change_percent = 0
+        # Profit Change % (selected range vs previous range of the same length)
+        if prev_profit == 0:
+            profit_change_percent = 100 if total_profit > 0 else (-100 if total_profit < 0 else 0)
         else:
-            profit_change_percent = ((current_profit - last_profit) / abs(last_profit)) * 100
+            profit_change_percent = ((total_profit - prev_profit) / abs(prev_profit)) * 100
 
         # Pending Invoices (Projects where invoice_amount is 0)
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
@@ -359,13 +287,13 @@ def dashboard(request):
             'emp_change_percent_abs': abs(round(emp_change_percent, 2)),
             'active_employees': active_employees,
             'total_revenue': round(total_revenue, 2),
-            "total_employee_hours": round(total_employee_hours, 2),
-            "total_employee_cost": round(total_employee_cost, 2),
+            "total_employee_cost": round(range_tot.get('payroll_cost') or Decimal(0), 2),
             "total_expenses": round(total_expenses, 2),
             "total_profit": round(total_profit, 2),
-            "period": period,
-            # 'current_profit': round(current_profit, 2),
-            'net_profit': round(current_profit, 2),
+            "from_date": start_date.strftime('%Y-%m-%d'),
+            "to_date": end_date.strftime('%Y-%m-%d'),
+            "spark_json": spark_json,
+            'net_profit': round(total_profit, 2),
             'profit_change_percent': round(profit_change_percent, 2),
             'profit_change_percent_abs' : abs(profit_change_percent),
             'pending_invoices': pending_invoices,
@@ -402,7 +330,7 @@ def dashboard(request):
 @login_required
 def create_employee(request):
     if not request.user.is_staff:
-        return redirect('dashboard')
+        return HttpResponseForbidden("You do not have permission to create employees.")
     
     if request.method == 'POST':
         form = EmployeeCreationForm(request.POST, request.FILES, user=request.user)
@@ -436,7 +364,7 @@ def employee_list(request):
 @login_required
 def manager_list(request):
     if not request.user.is_staff:
-        return redirect('login')
+        return HttpResponseForbidden("You do not have permission to view managers.")
 
     # Filter projects with status 'ONGOING' and a manager assigned
     ongoing_project_assignments = Project.objects.filter(
@@ -629,9 +557,14 @@ def admin_manage_project_status(request):
                 messages.error(request, "Invalid action.")
             tms.save()
 
-            Notification.objects.create(
-                recipient=tms.employee.user,
-                message=f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin."
+            from Admin.notifications import notify, get_user_role_link
+            notify(
+                tms.employee.user,
+                'PROJECT',
+                f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin.",
+                link=get_user_role_link(tms.employee.user, 'project', obj_id=tms.team.project_id),
+                related=tms.team.project,
+                actor=request.user,
             )
 
         except TeamMemberStatus.DoesNotExist:
@@ -811,8 +744,7 @@ def project_list_view(request):
 def admin_project_summary_view(request, project_id):
     # Ensure only admins can access this page
     if not request.user.is_superuser:
-        messages.error(request, "You do not have permission to access this page.")
-        return redirect("admin_dashboard")  # Redirect to admin dashboard
+        return HttpResponseForbidden("You do not have permission to access this page.")
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -989,7 +921,7 @@ def update_team_admin_status(request, project_id):
     # Ensure only admins can access this function
     if not request.user.is_superuser:
         messages.error(request, "You do not have permission to update project status.")
-        return redirect("admin_dashboard")
+        return redirect("admin-dashboard")
 
     if request.method == "POST":
         project = get_object_or_404(Project, id=project_id)
@@ -1633,9 +1565,15 @@ def employee_manage_leave(request):
     # Fetch only employee leave requests
     pending_leaves = Leave.objects.filter(approval_status='PENDING').select_related('user')
 
-    # Apply search filter
+    # Apply search/dept/branch filters
     if search_query:
         pending_leaves = pending_leaves.filter(user__username__icontains=search_query)
+    dept_filter = request.GET.get('department')
+    branch_filter = request.GET.get('branch')
+    if dept_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__department_id=dept_filter)
+    if branch_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__branch_id=branch_filter)
 
     # Paginate leave records (10 per page)
     paginator = Paginator(pending_leaves, 10)
@@ -1744,8 +1682,8 @@ def admin_notifications(request):
 def admin_mark_all_notifications(request):
     """Mark all notifications as read."""
     if request.method == "POST":
-        Notification.objects.filter(is_read=False).update(is_read=True)
-        return redirect("admin-notifications")
+        Notification.objects.filter(is_read=False).update(is_read=True, read_at=timezone.now())
+    return redirect("admin-notifications")
 
 @login_required
 def admin_mark_single_notification(request, notification_id):
@@ -1753,18 +1691,24 @@ def admin_mark_single_notification(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id)
     if request.method == "POST":
         notification.is_read = True
-        notification.save()
+        notification.read_at = timezone.now()
+        notification.save(update_fields=['is_read', 'read_at'])
     return redirect("admin-notifications")
 
 
 @login_required
 def fetch_notifications(request):
-    unread_count = Notification.objects.filter(is_read=False).count()
-    return JsonResponse({"unread_count": unread_count})
+    from Admin.notifications import serialize_notifications_for_user
+    unread_count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+    return JsonResponse({
+        "unread_count": unread_count,
+        "notifications": serialize_notifications_for_user(request.user),
+    })
 
 @login_required
 def mark_notifications_as_read(request):
-    request.user.notifications.update(is_read=True)
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 
@@ -2336,3 +2280,21 @@ def admin_leave_statement(request):
         raise PermissionDenied("Only superusers can access this page.")
     from Admin.leave_views import render_role_leave_statement
     return render_role_leave_statement(request, 'Admin', 'Admin/adminbase.html')
+
+
+@login_required
+def admin_hr_dashboard(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.hr_dashboard import render_hr_dashboard
+    return render_hr_dashboard(request, role='admin', base_template='Admin/adminbase.html')
+
+
+@login_required
+def admin_attendance_status(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(
+        request, 'Admin', 'Admin/adminbase.html', template_name='hr/attendance.html'
+    )

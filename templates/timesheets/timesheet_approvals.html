@@ -30,6 +30,13 @@
     </div>
     {% endif %}
 
+    {% if not ts_approval_on %}
+    <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <div>Timesheet approval is switched off — all hours count automatically.</div>
+    </div>
+    {% endif %}
+
     <!-- Filter Card -->
     <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
         <form method="GET" class="row g-2 align-items-end">
@@ -82,6 +89,7 @@
     <!-- Bulk Action Toolbar -->
     <form method="POST" id="bulkActionForm">
         {% csrf_token %}
+        {% if ts_approval_on %}
         <div style="background: #eef2f7; border-radius: 6px; padding: 10px 15px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <div style="font-size: 12px; font-weight: 600; color: #1F3A52;">
                 <span id="selectedCount">0</span> row(s) selected
@@ -95,6 +103,7 @@
                 </button>
             </div>
         </div>
+        {% endif %}
 
         <!-- Timesheets Table Card -->
         <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto;">
@@ -102,7 +111,7 @@
             <table class="table table-hover align-middle" style="font-size: 12px; margin-bottom: 0;">
                 <thead style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
                     <tr>
-                        <th style="width: 30px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>
+                        {% if ts_approval_on %}<th style="width: 30px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>{% endif %}
                         <th>Date</th>
                         <th>Employee</th>
                         <th>WO / Ref</th>
@@ -114,17 +123,19 @@
                         <th>Status</th>
                         <th>Description / File</th>
                         <th>Approver</th>
-                        <th style="text-align: right; min-width: 140px;">Actions</th>
+                        {% if ts_approval_on %}<th style="text-align: right; min-width: 140px;">Actions</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
                     {% for log in page_obj.object_list %}
                     <tr>
+                        {% if ts_approval_on %}
                         <td>
                             {% if log.employee_id != current_user_emp_id and log.approval_status == 'SUBMITTED' %}
                             <input type="checkbox" name="selected_ids" value="{{ log.id }}" class="row-checkbox" onchange="updateSelectedCount()">
                             {% endif %}
                         </td>
+                        {% endif %}
                         <td style="font-weight: 600; white-space: nowrap;">{{ log.date|date:"d/m/Y" }}</td>
                         <td>
                             <div style="font-weight: 600; color: #1F3A52;">{{ log.employee.name }}</div>
@@ -165,8 +176,8 @@
                             {% endif %}
                         </td>
                         <td style="max-width: 180px;">
-                            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ log.description }}">
-                                {{ log.description|default:"-" }}
+                            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ log.time_log.description }}">
+                                {{ log.time_log.description|default:"-" }}
                             </div>
                             {% if log.time_log and log.time_log.attachment %}
                                 <div class="mt-1">
@@ -187,6 +198,7 @@
                                 {% endif %}
                             </small>
                         </td>
+                        {% if ts_approval_on %}
                         <td style="text-align: right; white-space: nowrap;">
                             {% if log.employee_id == current_user_emp_id %}
                                 <span class="badge bg-light text-muted border" title="Cannot approve own timesheet">Self</span>
@@ -205,6 +217,7 @@
                                 {% endif %}
                             {% endif %}
                         </td>
+                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

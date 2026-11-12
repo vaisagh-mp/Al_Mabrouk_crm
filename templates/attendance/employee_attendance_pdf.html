@@ -1,3 +1,4 @@
+{% load pdf_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -137,7 +138,7 @@
 <body>
 
 <div class="header">
-    <div class="company-title">Al Mabrouk Marine Services</div>
+    {% pdf_logo %}
     <div class="doc-title">Employee Monthly Attendance Report — {{ month_label }}</div>
 </div>
 

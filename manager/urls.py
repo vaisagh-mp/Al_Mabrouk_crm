@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from Admin import timesheet_views
 from Admin import document_views
+from Admin import reports_views
 
 urlpatterns = [
     path('dashboard/', views.dashboard, name='manager-dashboard'),
@@ -73,4 +74,5 @@ urlpatterns = [
     path('timesheet-approvals/', timesheet_views.timesheet_approvals_view, {'role': 'manager'}, name='timesheet_approvals_manager'),
     path('ot-approval/', timesheet_views.ot_approval_view, {'role': 'manager'}, name='ot_approval_manager'),
     path('documents/download/<str:category>/<int:doc_id>/', document_views.download_private_document_view, name='manager_document_download'),
+    path('reports/', reports_views.reports_center_view, {'role': 'manager'}, name='manager_reports_center'),
 ]

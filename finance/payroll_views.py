@@ -38,10 +38,13 @@ def _parse_month_param(month_str):
 
 def _get_base_template(request):
     profile = getattr(request.user, 'employee_profile', None)
-    if profile and profile.is_hr and not (request.user.is_superuser or profile.is_accountant):
+    if request.user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        if request.GET.get('from') == 'admin':
+            return 'Admin/adminbase.html'
+        return superuser_portal_base(request, 'finance/financebase.html')
+    if profile and profile.is_hr and not profile.is_accountant:
         return 'hr/hrbase.html'
-    if request.user.is_superuser and request.GET.get('from') == 'admin':
-        return 'Admin/adminbase.html'
     return 'finance/financebase.html'
 
 
@@ -161,7 +164,7 @@ def salary_increment_propose(request):
         messages.error(request, "Invalid salary component amounts.")
         return redirect('salary_increments_list')
 
-    SalaryIncrement.objects.create(
+    inc_obj = SalaryIncrement.objects.create(
         employee=employee,
         type=inc_type,
         effective_from=effective_from,
@@ -178,6 +181,15 @@ def salary_increment_propose(request):
         reason=reason,
         status='PENDING',
         proposed_by=request.user,
+    )
+    from Admin.notifications import notify_role
+    notify_role(
+        'ADMIN',
+        'INCREMENT',
+        f"Salary increment proposed for {employee.name} (effective {effective_from.strftime('%d/%m/%Y')}).",
+        link='/finance/increments/',
+        related=inc_obj,
+        actor=request.user,
     )
     messages.success(request, f"Salary increment proposal submitted for {employee.name}.")
     return redirect('salary_increments_list')
@@ -224,6 +236,25 @@ def salary_increment_action(request, pk, action):
         increment.approved_at = timezone.now()
         increment.remarks = request.POST.get('remarks', '').strip()
         increment.save()
+        from Admin.notifications import notify
+        if increment.employee and increment.employee.user:
+            notify(
+                increment.employee.user,
+                'INCREMENT',
+                f"Your salary increment effective {increment.effective_from.strftime('%d/%m/%Y')} has been approved.",
+                link='/finance/my-payslips/',
+                related=increment,
+                actor=request.user,
+            )
+        if increment.proposed_by:
+            notify(
+                increment.proposed_by,
+                'INCREMENT',
+                f"Salary increment for {increment.employee.name} has been approved.",
+                link='/finance/increments/',
+                related=increment,
+                actor=request.user,
+            )
         messages.success(request, f"Salary increment for {increment.employee.name} approved.")
 
     elif action == 'reject':
@@ -232,6 +263,16 @@ def salary_increment_action(request, pk, action):
         increment.approved_at = timezone.now()
         increment.remarks = request.POST.get('remarks', '').strip()
         increment.save()
+        if increment.proposed_by:
+            from Admin.notifications import notify
+            notify(
+                increment.proposed_by,
+                'INCREMENT',
+                f"Salary increment for {increment.employee.name} was rejected.",
+                link='/finance/increments/',
+                related=increment,
+                actor=request.user,
+            )
         messages.info(request, f"Salary increment for {increment.employee.name} rejected.")
 
     return redirect('salary_increments_list')
@@ -307,6 +348,15 @@ def salary_advance_request(request):
         status='REQUESTED',
         created_by=request.user,
     )
+    from Admin.notifications import notify_role
+    notify_role(
+        ['ADMIN', 'ACCOUNTANT'],
+        'ADVANCE',
+        f"Salary advance request #{advance.id} ({amount} AED) recorded for {employee.name}.",
+        link=f'/finance/advances/{advance.id}/',
+        related=advance,
+        actor=request.user,
+    )
     messages.success(request, f"Salary advance request #{advance.id} recorded for {employee.name}.")
     return redirect('salary_advances_list')
 
@@ -354,6 +404,16 @@ def salary_advance_action(request, pk, action):
         advance.approved_at = timezone.now()
         advance.remarks = (advance.remarks or '') + f"\nApproved by {request.user.username} at {timezone.now().strftime('%d/%m/%Y %H:%M')}."
         advance.save()
+        from Admin.notifications import notify
+        if advance.employee and advance.employee.user:
+            notify(
+                advance.employee.user,
+                'ADVANCE',
+                f"Your salary advance request #{advance.id} ({advance.amount} AED) has been approved.",
+                link=f'/finance/advances/{advance.id}/',
+                related=advance,
+                actor=request.user,
+            )
         messages.success(request, f"Advance #{advance.id} approved.")
 
     elif action == 'disburse':
@@ -364,6 +424,16 @@ def salary_advance_action(request, pk, action):
         advance.disbursed_on = timezone.localdate()
         advance.save()
         create_advance_schedule(advance)
+        from Admin.notifications import notify
+        if advance.employee and advance.employee.user:
+            notify(
+                advance.employee.user,
+                'ADVANCE',
+                f"Salary advance #{advance.id} has been disbursed.",
+                link=f'/finance/advances/{advance.id}/',
+                related=advance,
+                actor=request.user,
+            )
         messages.success(request, f"Advance #{advance.id} disbursed. Instalment schedule created starting {advance.start_month.strftime('%b %Y')}.")
 
     elif action == 'reject':
@@ -375,6 +445,16 @@ def salary_advance_action(request, pk, action):
         advance.approved_at = timezone.now()
         advance.remarks = (advance.remarks or '') + f"\nRejected by {request.user.username}."
         advance.save()
+        from Admin.notifications import notify
+        if advance.employee and advance.employee.user:
+            notify(
+                advance.employee.user,
+                'ADVANCE',
+                f"Your salary advance request #{advance.id} was rejected.",
+                link=f'/finance/advances/{advance.id}/',
+                related=advance,
+                actor=request.user,
+            )
         messages.info(request, f"Advance #{advance.id} rejected.")
 
     elif action == 'cancel':
@@ -575,24 +655,43 @@ def payslips_download_zip(request):
 def my_payslips(request):
     profile = getattr(request.user, 'employee_profile', None)
     if not profile:
-        messages.info(request, "No employee profile found for your account.")
+        # Accounts without an employee record (e.g. the Admin superuser) have no payslips.
+        # Keep the sidebar of the portal they came from instead of the employee portal.
+        if request.user.is_superuser:
+            from Admin.portal import superuser_portal_base
+            base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+        else:
+            base_template = 'employee/employeebase.html'
         return render(request, 'payroll/my_payslips.html', {
             'payrolls': [],
             'advances': [],
-            'base_template': 'employee/employeebase.html',
+            'base_template': base_template,
+            'no_employee_record': True,
         })
 
-    payrolls = Payroll.objects.filter(
-        employee=profile,
-        status='PAID'
-    ).select_related('payslip').order_by('-month')
+    payrolls = list(
+        Payroll.objects.filter(
+            employee=profile,
+            status='PAID'
+        ).select_related('payslip').order_by('-month')
+    )
+
+    if getattr(settings, 'HR_PAYROLL_V2', False):
+        for p in payrolls:
+            ps = getattr(p, 'payslip', None)
+            if ps is None or not ps.file:
+                p.payslip = create_or_update_payslip(p, generated_by=request.user)
 
     advances = SalaryAdvance.objects.filter(
         employee=profile
     ).prefetch_related('instalments_schedule').order_by('-request_date')
 
     # Select base template depending on role
-    if profile.is_manager:
+    if request.user.is_superuser:
+        # Admin keeps the sidebar of the portal they came from (Admin / HR / Finance)
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'Admin/adminbase.html')
+    elif profile.is_manager:
         base_template = 'Manager/managerbase.html'
     elif profile.is_hr:
         base_template = 'hr/hrbase.html'

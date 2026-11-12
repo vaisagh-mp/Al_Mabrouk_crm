@@ -1,3 +1,4 @@
+{% load pdf_tags %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -178,14 +179,14 @@
     <table style="width: 100%;">
         <tr>
             <td style="width: 65%;">
-                <div class="company-title">{{ company_name }}</div>
+                {% pdf_logo %}
                 <div class="company-sub">Marine Engineering, Vessel Support &amp; Technical Services</div>
                 <div class="company-sub">United Arab Emirates</div>
             </td>
             <td style="width: 35%; text-align: right; vertical-align: top;">
                 <div class="doc-title">PAYSLIP</div>
                 <div style="font-size: 9pt; font-weight: bold; color: #4A5568;">Period: {{ month_label }}</div>
-                <div style="font-size: 8pt; color: #718096;">Payslip No: <strong>{{ payslip.number }}</strong> (v{{ payslip.version }})</div>
+                <div style="font-size: 8pt; color: #718096;">Payslip No: <strong>{{ payslip.number }}</strong></div>
             </td>
         </tr>
     </table>

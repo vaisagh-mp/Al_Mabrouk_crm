@@ -16,6 +16,65 @@
   --dark-red: #e2362f;
 }
 
+/* ================================================================
+   Theme primary: replace Bootstrap 5.0.2 primary blue (#0d6efd and its
+   hover/active/focus shades) with the CRM theme blue var(--bs-blue).
+   Generated from bootstrap.min.css — placed right after :root so later style.css rules still win.
+   ================================================================ */
+:root{--bs-primary:var(--bs-blue);--bs-blue-rgb:63,109,149;--bs-primary-rgb:63,109,149;--bs-blue-hover:#365e81;--bs-blue-active:#30536f;--bs-blue-focus-border:#9fb6ca;--bs-blue-subtle:#d9e2ea;--bs-blue-subtle-border:#c5d3df;--bs-blue-text:#26425a;}
+a{color:var(--bs-blue)}
+a:hover{color:var(--bs-blue-active)}
+.table-primary{--bs-table-bg:var(--bs-blue-subtle)}
+.form-control:focus{border-color:var(--bs-blue-focus-border);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.form-select:focus{border-color:var(--bs-blue-focus-border);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.form-check-input:focus{border-color:var(--bs-blue-focus-border);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.form-check-input:checked{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.form-check-input[type=checkbox]:indeterminate{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.form-range:focus::-webkit-slider-thumb{box-shadow:0 0 0 1px #fff,0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.form-range:focus::-moz-range-thumb{box-shadow:0 0 0 1px #fff,0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.form-range::-webkit-slider-thumb{background-color:var(--bs-blue)}
+.form-range::-webkit-slider-thumb:active{background-color:var(--bs-blue-subtle-border)}
+.form-range::-moz-range-thumb{background-color:var(--bs-blue)}
+.form-range::-moz-range-thumb:active{background-color:var(--bs-blue-subtle-border)}
+.btn-check:focus+.btn,.btn:focus{box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.btn-primary{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.btn-primary:hover{background-color:var(--bs-blue-hover);border-color:var(--bs-blue-active)}
+.btn-check:focus+.btn-primary,.btn-primary:focus{background-color:var(--bs-blue-hover);border-color:var(--bs-blue-active);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.5)}
+.btn-check:active+.btn-primary,.btn-check:checked+.btn-primary,.btn-primary.active,.btn-primary:active,.show>.btn-primary.dropdown-toggle{background-color:var(--bs-blue-active);border-color:var(--bs-blue-active)}
+.btn-check:active+.btn-primary:focus,.btn-check:checked+.btn-primary:focus,.btn-primary.active:focus,.btn-primary:active:focus,.show>.btn-primary.dropdown-toggle:focus{box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.5)}
+.btn-primary.disabled,.btn-primary:disabled{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.btn-outline-primary{color:var(--bs-blue);border-color:var(--bs-blue)}
+.btn-outline-primary:hover{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.btn-check:active+.btn-outline-primary,.btn-check:checked+.btn-outline-primary,.btn-outline-primary.active,.btn-outline-primary.dropdown-toggle.show,.btn-outline-primary:active{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.btn-outline-primary.disabled,.btn-outline-primary:disabled{color:var(--bs-blue)}
+.btn-link{color:var(--bs-blue)}
+.btn-link:hover{color:var(--bs-blue-active)}
+.dropdown-item.active,.dropdown-item:active{background-color:var(--bs-blue)}
+.dropdown-menu-dark .dropdown-item.active,.dropdown-menu-dark .dropdown-item:active{background-color:var(--bs-blue)}
+.nav-link{color:var(--bs-blue)}
+.nav-link:focus,.nav-link:hover{color:var(--bs-blue-active)}
+.nav-pills .nav-link.active,.nav-pills .show>.nav-link{background-color:var(--bs-blue)}
+.accordion-button:not(.collapsed){background-color:var(--bs-blue-subtle)}
+.accordion-button:focus{border-color:var(--bs-blue-focus-border);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.page-link{color:var(--bs-blue)}
+.page-link:hover{color:var(--bs-blue-active)}
+.page-link:focus{color:var(--bs-blue-active);box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.page-item.active .page-link{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.alert-primary{color:var(--bs-blue-text);background-color:var(--bs-blue-subtle);border-color:var(--bs-blue-subtle-border)}
+.alert-primary .alert-link{color:var(--bs-blue-text)}
+.progress-bar{background-color:var(--bs-blue)}
+.list-group-item.active{background-color:var(--bs-blue);border-color:var(--bs-blue)}
+.list-group-item-primary{color:var(--bs-blue-text);background-color:var(--bs-blue-subtle)}
+.list-group-item-primary.list-group-item-action:focus,.list-group-item-primary.list-group-item-action:hover{color:var(--bs-blue-text)}
+.list-group-item-primary.list-group-item-action.active{background-color:var(--bs-blue-text);border-color:var(--bs-blue-text)}
+.btn-close:focus{box-shadow:0 0 0 .25rem rgba(var(--bs-blue-rgb),.25)}
+.link-primary{color:var(--bs-blue)}
+.link-primary:focus,.link-primary:hover{color:var(--bs-blue-active)}
+.border-primary{border-color:var(--bs-blue)!important}
+.text-primary{color:var(--bs-blue)!important}
+.bg-primary{background-color:var(--bs-blue)!important}
+
+
 body {
   font-size: 0.9rem;
   background-color: #f2f5fa;
@@ -2886,7 +2945,7 @@ width: 13px;
 }
 
 #attachment-list a:hover {
-  color: #0d6efd; /* Bootstrap primary blue */
+  color: var(--bs-blue);
   text-decoration: underline;
 }
 
@@ -3607,3 +3666,31 @@ width: 13px;
   height: auto;
   margin: 0 auto 16px;
 }
+
+@media (max-width: 575px) {
+  .notification-popup {
+    width: calc(100vw - 24px);
+    max-width: 360px;
+  }
+  .dashbrd-wraper,
+  .emply-list-wraper {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Bootstrap 4 badge names still used by some pages (document status, profile timeline).
+   Bootstrap 5 only knows bg-*, so without these the badge had white text on no background. */
+.badge.badge-primary   { background-color: var(--bs-blue);   color: #fff; }
+.badge.badge-secondary { background-color: #6c757d;          color: #fff; }
+.badge.badge-success   { background-color: #198754;          color: #fff; }
+.badge.badge-danger    { background-color: #dc3545;          color: #fff; }
+.badge.badge-warning   { background-color: #ffc107;          color: #212529; }
+.badge.badge-info      { background-color: #0dcaf0;          color: #212529; }
+.badge.badge-light     { background-color: #f8f9fa;          color: #212529; border: 1px solid #dee2e6; }
+.badge.badge-dark      { background-color: #212529;          color: #fff; }

@@ -12,7 +12,7 @@ from django.template.loader import get_template
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_exempt
 from django.urls import reverse
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseForbidden
 from django.core.files.storage import default_storage
 from weasyprint import HTML
 from django.utils import timezone
@@ -367,7 +367,9 @@ def get_presence_data(request):
         if month < 1 or month > 12:
             return JsonResponse({"error": "Invalid month"}, status=400)
 
-        employee = get_object_or_404(Employee, user=request.user)
+        employee = getattr(request.user, 'employee_profile', None)
+        if not employee:
+            return JsonResponse({"error": "No employee profile"}, status=404)
         return JsonResponse(compute_presence_data(employee, year, month))
 
     except Exception as e:
@@ -462,11 +464,10 @@ def manager_profile(request):
 
 @login_required
 def update_manager_profile(request):
-    manager = request.user.employee_profile  # Get the Manager profile
+    manager = getattr(request.user, 'employee_profile', None)
 
-    if not manager.is_manager:
-        messages.error(request, "You are not authorized to access this page.")
-        return redirect("manager_dashboard")  # Redirect to manager dashboard if unauthorized
+    if not manager or not manager.is_manager:
+        return HttpResponseForbidden("You are not authorized to access this page.")
 
     if request.method == "POST":
         form = EmployeeUpdateForm(request.POST, request.FILES, instance=manager)
@@ -692,43 +693,11 @@ def team_delete(request, team_id):
 
 @login_required
 def manage_attendance_requests(request):
-    if not request.user.is_staff:  # Ensure the user is a manager
-        return redirect('dashboard')
-
-    if request.method == 'GET':
-        messages.info(request, "Note: Attendance corrections are now managed under Attendance Status -> Team Requests.")
-
-    pending_requests = Attendance.objects.filter(status='PENDING')
-
-    if request.method == 'POST':
-        attendance_id = request.POST.get('attendance_id')
-        action = request.POST.get('action')  # APPROVE or REJECT
-        # Get the rejection reason if provided
-        rejection_reason = request.POST.get('rejection_reason', '')
-
-        if not action:  # Handle case where 'action' is None or missing
-            messages.error(
-                request, "Action (Approve/Reject) must be selected!")
-            return redirect('manage_attendance_requests')
-
-        try:
-            attendance = Attendance.objects.get(id=attendance_id)
-            if action == 'APPROVE':
-                attendance.status = 'APPROVED'
-                # Mark as present by default
-                attendance.attendance_status = attendance.attendance_status
-            elif action == 'REJECT':
-                attendance.status = 'REJECTED'
-                attendance.attendance_status = 'LEAVE'
-                attendance.rejection_reason = rejection_reason  # Store the rejection reason
-                attendance.rejected_by = request.user
-            attendance.save()
-            messages.success(
-                request, f"Attendance {action.lower()}ed successfully!")
-        except Attendance.DoesNotExist:
-            messages.error(request, "Attendance record not found!")
-
-    return render(request, 'Manager/manage_attendance_requests.html', {'requests': pending_requests,"role": "Manager",})
+    emp_profile = getattr(request.user, 'employee_profile', None)
+    if not (request.user.is_superuser or request.user.is_staff or (emp_profile and emp_profile.is_manager)):
+        return HttpResponseForbidden("You do not have permission to access this page.")
+    messages.info(request, "Attendance corrections are managed under Attendance Status -> Team Requests.")
+    return redirect(f"{reverse('attendance_status')}?tab=team_requests")
 
 @login_required
 def project_assignment_create(request):
@@ -755,17 +724,13 @@ def attendance_list(request):
 
     # Get the current manager
     try:
-        # Access the related Employee object
         current_manager = request.user.employee_profile
-    except Employee.DoesNotExist:
-        # Handle the case where the user doesn't have an associated Employee profile
-        # Redirect to a page that shows an error or a 'no profile' message
-        return redirect('no_employee_profile')
+    except (Employee.DoesNotExist, AttributeError):
+        return HttpResponseForbidden("Manager employee profile required.")
 
     # Ensure the logged-in user is a manager
     if not current_manager.is_manager:
-        # If the user is not a manager, redirect to an error page
-        return redirect('no_permission_page')
+        return HttpResponseForbidden("You are not authorized to access this page.")
 
     # Fetch teams managed by the current manager and prefetch employees and their attendance
     teams = Team.objects.filter(manager=current_manager).prefetch_related(
@@ -840,17 +805,13 @@ def attendance_detail(request, pk):
 def manage_attendance(request):
     # Get the current manager
     try:
-        # Access the related Employee object
         current_manager = request.user.employee_profile
-    except Employee.DoesNotExist:
-        # Handle the case where the user doesn't have an associated Employee profile
-        # Redirect to a page that shows an error or a 'no profile' message
-        return redirect('no_employee_profile')
+    except (Employee.DoesNotExist, AttributeError):
+        return HttpResponseForbidden("Manager employee profile required.")
 
     # Ensure the logged-in user is a manager
     if not current_manager.is_manager:
-        # If the user is not a manager, redirect to an error page
-        return redirect('no_permission_page')
+        return HttpResponseForbidden("You are not authorized to access this page.")
 
     # Fetch teams managed by the current manager and prefetch employees
     teams = Team.objects.filter(manager=current_manager).prefetch_related(
@@ -927,11 +888,12 @@ def manage_leave(request):
     try:
         current_manager = request.user.employee_profile
     except Employee.DoesNotExist:
-        return redirect('no_employee_profile')
+        messages.info(request, "This account has no employee record. Use the Admin or HR portal to manage leave.")
+        return redirect('admin-dashboard')
 
     # Ensure the logged-in user is a manager
     if not current_manager.is_manager:
-        return redirect('no_permission_page')
+        raise PermissionDenied("You do not have permission to access this page.")
 
     # Fetch teams managed by the current manager and their employees
     teams = current_manager.managed_teams.prefetch_related('employees')
@@ -993,11 +955,12 @@ def leave_list(request):
     try:
         current_manager = request.user.employee_profile
     except Employee.DoesNotExist:
-        return redirect('no_employee_profile')
+        messages.info(request, "This account has no employee record. Use the Admin or HR portal to manage leave.")
+        return redirect('admin-dashboard')
 
     # Ensure the logged-in user is a manager
     if not current_manager.is_manager:
-        return redirect('no_permission_page')
+        raise PermissionDenied("You do not have permission to access this page.")
 
     # Fetch teams managed by the current manager
     teams = Team.objects.filter(manager=current_manager).prefetch_related('employees')
@@ -1041,7 +1004,9 @@ def employee_profile(request, employee_id):
 @login_required
 def project_list_view(request):
     current_user = request.user
-    employee = current_user.employee_profile
+    employee = getattr(current_user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     # Get search query
     search_query = request.GET.get('search', '').strip()
@@ -1277,11 +1242,11 @@ def delete_project_attachment(request, attachment_id):
 def manage_project_status(request):
     try:
         manager = request.user.employee_profile
-    except Employee.DoesNotExist:
-        return redirect('no_employee_profile')
+    except (Employee.DoesNotExist, AttributeError):
+        return HttpResponseForbidden("Manager employee profile required.")
 
     if not manager.is_manager:
-        return redirect('no_permission_page')
+        return HttpResponseForbidden("You are not authorized to access this page.")
 
     # Get all teams managed by this manager
     teams = manager.managed_teams.prefetch_related('team_members_status')
@@ -1318,9 +1283,14 @@ def manage_project_status(request):
             tms.save()
 
             # Notify employee
-            Notification.objects.create(
-                recipient=tms.employee.user,
-                message=f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the manager."
+            from Admin.notifications import notify, get_user_role_link
+            notify(
+                tms.employee.user,
+                'PROJECT',
+                f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the manager.",
+                link=get_user_role_link(tms.employee.user, 'project', obj_id=tms.team.project_id),
+                related=tms.team.project,
+                actor=request.user,
             )
 
         except TeamMemberStatus.DoesNotExist:
@@ -1495,12 +1465,15 @@ def manager_apply_leave(request):
             leave_application.save()
 
             # Send notification to all admins
-            admins = User.objects.filter(is_superuser=True)  # Get all admin users
-            for admin in admins:
-                Notification.objects.create(
-                    recipient=admin,
-                    message=f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}."
-                )
+            from Admin.notifications import notify_role
+            notify_role(
+                'ADMIN',
+                'LEAVE',
+                f"{request.user.username} has applied for {leave_application.leave_type} from {leave_application.from_date} to {leave_application.to_date}.",
+                link='/admin-panel/employee-manage-leave/',
+                related=leave_application,
+                actor=request.user,
+            )
 
             messages.success(request, "Leave request submitted successfully.")
             return redirect('manager_leave_status')  # Redirect after success
@@ -1698,17 +1671,14 @@ def manager_render_attendance_page(request):
 
 @login_required
 def manager_fetch_notifications(request):
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
-    return JsonResponse({"notifications": list(notifications)})
+    from Admin.notifications import serialize_notifications_for_user
+    return JsonResponse({"notifications": serialize_notifications_for_user(request.user)})
 
 @login_required
 def manager_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in manager as read."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
-    
-    if notifications.exists():
-        notifications.update(is_read=True)  # Bulk update for efficiency
-    
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 

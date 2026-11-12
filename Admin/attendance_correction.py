@@ -103,21 +103,25 @@ def submit_correction_request(
     date_str = date.strftime('%d/%m/%Y')
     notif_msg = f"Attendance correction request submitted by {emp_name} for {date_str} ({correction.get_correction_type_display()})."
 
+    from Admin.notifications import notify, notify_role, get_user_role_link
     if approver and approver.user:
-        Notification.objects.create(
-            recipient=approver.user,
-            message=notif_msg
+        notify(
+            approver.user,
+            'ATTENDANCE_CORRECTION',
+            notif_msg,
+            link=get_user_role_link(approver.user, 'correction_team', query='team_status=PENDING'),
+            related=correction,
+            actor=submitted_by,
         )
     else:
-        # Notify active HR and superusers
-        hr_users = list(Employee.objects.filter(is_hr=True, user__is_active=True).values_list('user_id', flat=True))
-        from django.contrib.auth.models import User
-        su_users = list(User.objects.filter(is_superuser=True, is_active=True).values_list('id', flat=True))
-        recip_ids = set(hr_users + su_users)
-        for uid in recip_ids:
-            if submitted_by and uid == submitted_by.id:
-                continue
-            Notification.objects.create(recipient_id=uid, message=notif_msg)
+        notify_role(
+            ['HR', 'ADMIN'],
+            'ATTENDANCE_CORRECTION',
+            notif_msg,
+            link=lambda u: get_user_role_link(u, 'correction_team', query='team_status=PENDING'),
+            related=correction,
+            actor=submitted_by,
+        )
 
     return correction
 
@@ -208,9 +212,14 @@ def approve_correction(request_user, correction, remarks=""):
 
         # Notify employee
         if correction.employee and correction.employee.user:
-            Notification.objects.create(
-                recipient=correction.employee.user,
-                message=f"Your attendance correction request for {correction.date.strftime('%d/%m/%Y')} has been approved."
+            from Admin.notifications import notify, get_user_role_link
+            notify(
+                correction.employee.user,
+                'ATTENDANCE_CORRECTION',
+                f"Your attendance correction request for {correction.date.strftime('%d/%m/%Y')} has been approved.",
+                link=get_user_role_link(correction.employee.user, 'correction_my'),
+                related=correction,
+                actor=request_user,
             )
 
     return correction
@@ -262,9 +271,14 @@ def reject_correction(request_user, correction, remarks):
 
         # Notify employee
         if correction.employee and correction.employee.user:
-            Notification.objects.create(
-                recipient=correction.employee.user,
-                message=f"Your attendance correction request for {correction.date.strftime('%d/%m/%Y')} was rejected: {remarks_clean}"
+            from Admin.notifications import notify, get_user_role_link
+            notify(
+                correction.employee.user,
+                'ATTENDANCE_CORRECTION',
+                f"Your attendance correction request for {correction.date.strftime('%d/%m/%Y')} was rejected: {remarks_clean}",
+                link=get_user_role_link(correction.employee.user, 'correction_my'),
+                related=correction,
+                actor=request_user,
             )
 
     return correction
@@ -308,65 +322,70 @@ def get_shared_attendance_status_context(request, employee, role_name):
         end_date = datetime.date(today.year, today.month, num_days)
         month_param = today.strftime('%Y-%m')
 
-    active_tab = request.GET.get('tab', 'my_attendance')
+    active_tab = request.GET.get('tab', 'my_attendance' if employee else 'team_requests')
 
-    # Pending correction request dates for employee
-    pending_corrections = AttendanceCorrection.objects.filter(
-        employee=employee,
-        status='PENDING'
-    )
-    pending_dates = {c.date: c for c in pending_corrections}
+    if employee:
+        # Pending correction request dates for employee
+        pending_corrections = AttendanceCorrection.objects.filter(
+            employee=employee,
+            status='PENDING'
+        )
+        pending_dates = {c.date: c for c in pending_corrections}
 
-    # 1. My Attendance data
-    all_rows = build_attendance_register(start_date, end_date)
-    my_rows = [r for r in all_rows if r['employee'].id == employee.id]
-    rows_by_date = {r['date']: r for r in my_rows}
+        # 1. My Attendance data
+        all_rows = build_attendance_register(start_date, end_date, employee_id=employee.id)
+        my_rows = [r for r in all_rows if r['employee'].id == employee.id]
+        rows_by_date = {r['date']: r for r in my_rows}
 
-    calendar_days = []
-    cur_d = start_date
-    while cur_d <= end_date:
-        r = rows_by_date.get(cur_d)
-        is_future = (cur_d > today)
-        has_pending = (cur_d in pending_dates)
-        pending_obj = pending_dates.get(cur_d)
+        calendar_days = []
+        cur_d = start_date
+        while cur_d <= end_date:
+            r = rows_by_date.get(cur_d)
+            is_future = (cur_d > today)
+            has_pending = (cur_d in pending_dates)
+            pending_obj = pending_dates.get(cur_d)
 
-        # Correction eligible if past/today and not pending and missing punch / absent / incomplete
-        can_request = False
-        if not is_future and not has_pending and r:
-            code = r.get('status_code')
-            has_inc = r.get('has_incomplete_punch')
-            if code in ['MISSING_PUNCH', 'ABSENT'] or has_inc:
-                can_request = True
-            elif code in ['OFFICE', 'VESSEL', 'OFFICE_VESSEL'] and r.get('auto_punched_out'):
-                can_request = True
+            # Correction eligible if past/today and not pending and missing punch / absent / incomplete
+            can_request = False
+            if not is_future and not has_pending and r:
+                code = r.get('status_code')
+                has_inc = r.get('has_incomplete_punch')
+                if code in ['MISSING_PUNCH', 'ABSENT'] or has_inc:
+                    can_request = True
+                elif code in ['OFFICE', 'VESSEL', 'OFFICE_VESSEL'] and r.get('auto_punched_out'):
+                    can_request = True
 
-        day_info = {
-            'date': cur_d,
-            'day_num': cur_d.day,
-            'weekday': cur_d.strftime('%a'),
-            'row': r,
-            'is_future': is_future,
-            'has_pending': has_pending,
-            'pending_correction': pending_obj,
-            'can_request_correction': can_request,
-            'status_code': r['status_code'] if r else '',
-            'status_label': r['status_label'] if r else '',
-            'total_hours': r['total_hours'] if r else Decimal('0.00'),
-            'location': r['location_label'] if r else '',
-            'is_off_day': r.get('is_off_day', False) if r else False,
-        }
-        calendar_days.append(day_info)
-        cur_d += datetime.timedelta(days=1)
+            day_info = {
+                'date': cur_d,
+                'day_num': cur_d.day,
+                'weekday': cur_d.strftime('%a'),
+                'row': r,
+                'is_future': is_future,
+                'has_pending': has_pending,
+                'pending_correction': pending_obj,
+                'can_request_correction': can_request,
+                'status_code': r['status_code'] if r else '',
+                'status_label': r['status_label'] if r else '',
+                'total_hours': r['total_hours'] if r else Decimal('0.00'),
+                'location': r['location_label'] if r else '',
+                'is_off_day': r.get('is_off_day', False) if r else False,
+            }
+            calendar_days.append(day_info)
+            cur_d += datetime.timedelta(days=1)
 
-    # 2. My Requests
-    my_requests = AttendanceCorrection.objects.filter(
-        employee=employee
-    ).select_related('approver__user', 'decided_by', 'attendance').order_by('-created_at')
+        # 2. My Requests
+        my_requests = AttendanceCorrection.objects.filter(
+            employee=employee
+        ).select_related('approver__user', 'decided_by', 'attendance').order_by('-created_at')
+    else:
+        my_rows = []
+        calendar_days = []
+        my_requests = []
 
     # 3. Team Requests (if manager or HR or superuser)
-    is_hr = getattr(employee, 'is_hr', False)
+    is_hr = getattr(employee, 'is_hr', False) if employee else False
     is_admin = request.user.is_superuser
-    has_reports = employee.direct_reports.filter(user__is_active=True).exists()
+    has_reports = employee.direct_reports.filter(user__is_active=True).exists() if employee else False
     can_manage_team = (is_admin or is_hr or has_reports)
 
     team_pending = []
@@ -597,13 +616,16 @@ def render_role_attendance_status(request, role_name, base_template, template_na
     Renders attendance status page for any of the 5 roles.
     """
     if not request.user.is_authenticated:
-        return redirect('login')
+        return redirect('custom-login')
 
     try:
         employee = request.user.employee_profile
     except (AttributeError, Employee.DoesNotExist):
-        messages.error(request, "Your account does not have an employee profile.")
-        return redirect('dashboard')
+        if request.user.is_superuser:
+            employee = None
+        else:
+            messages.error(request, "Your account does not have an employee profile.")
+            return redirect('custom-login')
 
     if request.method == 'POST':
         return handle_attendance_status_post(request, employee)

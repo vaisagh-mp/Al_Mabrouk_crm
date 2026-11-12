@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import payroll_views
+from Admin import reports_views
 
 urlpatterns = [
     # Dashboard & Phase placeholders
@@ -117,4 +118,5 @@ urlpatterns = [
     path('notifications/mark-as-read/', views.fin_mark_notifications_as_read, name='fin_mark_notifications_as_read'),
     path('profile/', views.fin_profile_view, name='fin_profile_view'),
     path('update-profile/', views.fin_update_profile, name='fin_update_profile'),
+    path('reports/', reports_views.reports_center_view, {'role': 'accountant'}, name='fin_reports_center'),
 ]
