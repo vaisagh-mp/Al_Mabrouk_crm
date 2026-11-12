@@ -24,14 +24,18 @@ class ProjectAttachmentUploadTests(TestCase):
         self.mgr_user = User.objects.create_user('mgr_att', 'mgr_att@example.com', 'pass123')
         self.mgr_emp = Employee.objects.create(
             user=self.mgr_user,
+            employee_code="AMMS-ATT1",
             is_manager=True,
+            employment_status='ACTIVE',
         )
 
         # Employee user
         self.emp_user = User.objects.create_user('emp_att', 'emp_att@example.com', 'pass123')
         self.emp = Employee.objects.create(
             user=self.emp_user,
+            employee_code="AMMS-ATT2",
             is_employee=True,
+            employment_status='ACTIVE',
         )
 
         # Project

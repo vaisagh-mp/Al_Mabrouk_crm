@@ -1,0 +1,92 @@
+{% extends base_template|default:'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Salary Structures | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #1F3A52;">
+                <i class="fas fa-sitemap me-2"></i>Salary Structures
+            </h3>
+            <p class="text-muted small mb-0">Overview of active salary structures, component split and upcoming effective updates.</p>
+        </div>
+        <div>
+            <form method="get" class="d-flex gap-2">
+                <input type="text" name="search" class="form-control form-control-sm" placeholder="Search employee..." value="{{ search }}" style="width: 220px;">
+                <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-search me-1"></i>Search</button>
+                {% if search %}
+                <a href="{% url 'salary_structures_list' %}" class="btn btn-sm btn-outline-secondary">Clear</a>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">Employee</th>
+                            <th>Code</th>
+                            <th>Department</th>
+                            <th class="text-end">Basic (AED)</th>
+                            <th class="text-end">Housing (AED)</th>
+                            <th class="text-end">Transport (AED)</th>
+                            <th class="text-end">Other (AED)</th>
+                            <th class="text-end">Total Salary (AED)</th>
+                            <th class="text-center">Effective From</th>
+                            <th>Upcoming Change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="ps-3 fw-bold">
+                                {{ row.employee.name }}
+                                <div class="small text-muted fw-normal">{{ row.employee.rank|default:"—" }}</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ row.employee.employee_code|default:"—" }}</span></td>
+                            <td>{{ row.employee.department.name|default:"—" }}</td>
+                            {% if row.current %}
+                            <td class="text-end font-monospace">{{ row.current.basic|floatformat:2 }}</td>
+                            <td class="text-end font-monospace">{{ row.current.housing_allowance|floatformat:2 }}</td>
+                            <td class="text-end font-monospace">{{ row.current.transport_allowance|floatformat:2 }}</td>
+                            <td class="text-end font-monospace">{{ row.current.other_allowances|floatformat:2 }}</td>
+                            <td class="text-end fw-bold font-monospace text-primary">{{ row.current.total|floatformat:2 }}</td>
+                            <td class="text-center small">{{ row.current.effective_from|date:"d/m/Y" }}</td>
+                            {% else %}
+                            <td class="text-end font-monospace">{{ row.salary|default:"0.00"|floatformat:2 }}</td>
+                            <td class="text-end font-monospace">0.00</td>
+                            <td class="text-end font-monospace">0.00</td>
+                            <td class="text-end font-monospace">0.00</td>
+                            <td class="text-end fw-bold font-monospace text-primary">{{ row.salary|default:"0.00"|floatformat:2 }}</td>
+                            <td class="text-center small text-muted">Default</td>
+                            {% endif %}
+                            <td>
+                                {% if row.upcoming %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>AED {{ row.upcoming.total|floatformat:2 }} from {{ row.upcoming.effective_from|date:"d/m/Y" }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="10" class="text-center py-4 text-muted">No employee salary structures found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

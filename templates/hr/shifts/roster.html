@@ -1,0 +1,213 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h1>Staff Roster</h1>
+            <p class="text-muted mb-0">Managing duty rosters for shift-based staff</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            {% if employees %}
+            <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#patternModal">
+                <i class="fas fa-magic"></i> Quick Fill Pattern
+            </button>
+            {% endif %}
+            <div class="btn-group btn-group-sm">
+                <a href="?month={{ prev_month }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                <span class="btn btn-secondary disabled fw-bold">{{ current_month_display }}</span>
+                <a href="?month={{ next_month }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% if is_month_locked %}
+    <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <i class="fas fa-lock me-2"></i>
+        <div>
+            <strong>Payroll Locked:</strong> Payroll for {{ current_month_display }} is already approved or paid. Roster modifications for this month are locked.
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="widget-box table-wdgt p-0" style="overflow-x: auto;">
+        <table class="table table-bordered table-sm align-middle text-center mb-0" style="min-width: 900px; font-size: 0.85rem;">
+            <thead class="table-light">
+                <tr>
+                    <th style="min-width: 180px; position: sticky; left: 0; background: #f8f9fa; z-index: 2;" class="text-start ps-3">
+                        Employee
+                    </th>
+                    {% for d in days %}
+                    <th style="width: 32px; padding: 4px;" class="{% if d.weekday == 4 %}table-info{% elif d.weekday == 6 %}table-light{% endif %}">
+                        <div>{{ d|date:"D"|slice:":1" }}</div>
+                        <div class="fw-bold">{{ d.day }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in grid_rows %}
+                <tr>
+                    <td style="position: sticky; left: 0; background: #fff; z-index: 1;" class="text-start ps-3">
+                        <div class="fw-bold">{{ row.employee.user.get_full_name|default:row.employee.user.username }}</div>
+                        <small class="text-muted">{{ row.employee.employee_code|default:"—" }}</small>
+                    </td>
+                    {% for d in row.days %}
+                    <td class="p-0 text-center">
+                        {% if is_month_locked %}
+                        <div style="height: 38px; display: flex; align-items: center; justify-content: center; cursor: not-allowed;
+                                    background-color: {% if d.day_type == 'REST' %}#6c757d{% else %}#ffffff{% endif %};
+                                    color: {% if d.day_type == 'REST' %}#ffffff{% else %}#198754{% endif %}; font-weight: bold; font-size: 0.75rem;"
+                             title="Locked">
+                            {% if d.day_type == 'REST' %}R{% else %}W{% endif %}
+                        </div>
+                        {% else %}
+                        <div class="roster-cell"
+                             data-empid="{{ row.employee.id }}"
+                             data-date="{{ d.date_str }}"
+                             data-daytype="{{ d.day_type }}"
+                             style="height: 38px; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none;
+                                    background-color: {% if d.day_type == 'REST' %}#6c757d{% else %}#ffffff{% endif %};
+                                    color: {% if d.day_type == 'REST' %}#ffffff{% else %}#198754{% endif %}; font-weight: bold; font-size: 0.75rem;
+                                    transition: background-color 0.15s ease;"
+                             title="Click to toggle ({{ d.date_str }}: {{ d.day_type }})">
+                            {% if d.day_type == 'REST' %}R{% else %}W{% endif %}
+                        </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ days|length|add:'1' }}" class="text-center text-muted py-5">
+                        <i class="fas fa-users-slash fa-2x mb-2 d-block"></i>
+                        No employees currently assigned to <strong>Roster</strong> for this period.<br>
+                        Assign employees to Roster via <a href="{% url 'hr_weekly_rest_days' %}">Weekly Rest Days</a>.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="mt-2 text-muted small d-flex gap-3">
+        <span><span class="badge bg-secondary">R</span> = Rest Day</span>
+        <span><span class="badge bg-light text-success border">W</span> = Working Day</span>
+    </div>
+</div>
+
+<!-- Modal for Quick Pattern Fill -->
+<div class="modal fade" id="patternModal" tabindex="-1" aria-labelledby="patternModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" action="{% url 'hr_roster_fill_pattern' %}" class="modal-content">
+            {% csrf_token %}
+            <input type="hidden" name="month" value="{{ month_str }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="patternModalLabel">Fill Shift Pattern</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Employee*</label>
+                    <select name="employee_id" class="form-select" required>
+                        {% for emp in employees %}
+                        <option value="{{ emp.id }}">{{ emp.user.get_full_name|default:emp.user.username }} ({{ emp.employee_code|default:"—" }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Start Date*</label>
+                        <input type="date" name="start_date" class="form-control" value="{{ days.0|date:'Y-m-d' }}" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">End Date*</label>
+                        <input type="date" name="end_date" class="form-control" value="{{ days|last|date:'Y-m-d' }}" required>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Work Days (On)*</label>
+                        <input type="number" name="work_days" class="form-control" value="4" min="1" max="30" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Rest Days (Off)*</label>
+                        <input type="number" name="rest_days" class="form-control" value="2" min="1" max="30" required>
+                    </div>
+                </div>
+                <div class="form-text">
+                    Example: 4 on, 2 off will cycle 4 working days then 2 rest days across the chosen dates.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Apply Pattern</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cells = document.querySelectorAll('.roster-cell');
+    cells.forEach(cell => {
+        cell.addEventListener('click', function() {
+            const empId = this.getAttribute('data-empid');
+            const dateStr = this.getAttribute('data-date');
+            const currentType = this.getAttribute('data-daytype');
+
+            const formData = new FormData();
+            formData.append('employee_id', empId);
+            formData.append('date', dateStr);
+            formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+            fetch('{% url "hr_roster_toggle" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    this.setAttribute('data-daytype', data.day_type);
+                    if (data.day_type === 'REST') {
+                        this.style.backgroundColor = '#6c757d';
+                        this.style.color = '#ffffff';
+                        this.innerText = 'R';
+                    } else {
+                        this.style.backgroundColor = '#ffffff';
+                        this.style.color = '#198754';
+                        this.innerText = 'W';
+                    }
+                    this.setAttribute('title', `Click to toggle (${dateStr}: ${data.day_type})`);
+                } else {
+                    alert(data.message || 'Error toggling roster day.');
+                }
+            })
+            .catch(err => {
+                alert('Server error occurred while updating roster.');
+            });
+        });
+    });
+});
+</script>
+
+{% endblock %}
+

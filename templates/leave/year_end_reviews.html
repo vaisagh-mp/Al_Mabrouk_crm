@@ -1,0 +1,150 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">YEAR-END LEAVE REVIEWS (D10)</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Review employees with excess unused leave beyond the 5-day carry forward limit.</p>
+        </div>
+    </div>
+
+    <!-- Filter Card -->
+    <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+        <form method="GET" class="row" style="align-items: flex-end;">
+            <div class="col-md-3 form-group" style="margin-bottom: 10px;">
+                <label style="font-size: 12px; font-weight: 600; color: #1F3A52;">Year</label>
+                <select name="year" class="form-control form-control-sm" style="font-size: 12px;">
+                    <option value="">All Years</option>
+                    {% for y in years_available %}
+                        <option value="{{ y }}" {% if filter_year == y|stringformat:"s" %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 form-group" style="margin-bottom: 10px;">
+                <label style="font-size: 12px; font-weight: 600; color: #1F3A52;">Status</label>
+                <select name="status" class="form-control form-control-sm" style="font-size: 12px;">
+                    <option value="ALL" {% if filter_status == 'ALL' %}selected{% endif %}>All Statuses</option>
+                    <option value="PENDING" {% if filter_status == 'PENDING' %}selected{% endif %}>Pending HR Review</option>
+                    <option value="RESOLVED" {% if filter_status == 'RESOLVED' %}selected{% endif %}>Resolved</option>
+                </select>
+            </div>
+            <div class="col-md-3 form-group" style="margin-bottom: 10px; display: flex; gap: 6px;">
+                <button type="submit" class="btn btn-primary btn-sm flex-fill" style="background: #1F3A52; border-color: #1F3A52; font-weight: 600;">
+                    <i class="fa fa-filter"></i> Filter
+                </button>
+                <a href="?" class="btn btn-light btn-sm" style="font-weight: 500;">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Reviews Table Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        {% if reviews %}
+        <div class="table-responsive">
+            <table class="table table-hover" style="font-size: 13px; margin: 0; vertical-align: middle;">
+                <thead style="background: #f8fafc; color: #1F3A52;">
+                    <tr>
+                        <th style="font-weight: 700;">Year</th>
+                        <th style="font-weight: 700;">Employee</th>
+                        <th style="font-weight: 700; text-align: center;">Unused at 31/12</th>
+                        <th style="font-weight: 700; text-align: center;">Carried Over (Max 5)</th>
+                        <th style="font-weight: 700; text-align: center;">Excess Days</th>
+                        <th style="font-weight: 700;">Status</th>
+                        <th style="font-weight: 700;">Resolution Note</th>
+                        <th style="font-weight: 700; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in reviews %}
+                    <tr>
+                        <td><strong>{{ r.year }}</strong></td>
+                        <td>
+                            <div style="font-weight: 700; color: #1F3A52;">{{ r.employee.name }}</div>
+                            <div style="font-size: 11px; color: #64748B;">{% if r.employee.employee_code %}{{ r.employee.employee_code }}{% else %}AMMS-{{ r.employee.id|stringformat:"04d" }}{% endif %}</div>
+                        </td>
+                        <td style="text-align: center; font-weight: 700;">{{ r.unused_days }} d</td>
+                        <td style="text-align: center; font-weight: 700; color: #10B981;">{{ r.carried_days }} d</td>
+                        <td style="text-align: center; font-weight: 700; color: #EF4444;">{{ r.excess_days }} d</td>
+                        <td>
+                            {% if r.status == 'PENDING' %}
+                                <span class="badge badge-warning" style="background: #FFF3CD; color: #856404; font-weight: 600; padding: 4px 8px; border-radius: 4px;">Pending Review</span>
+                            {% else %}
+                                <span class="badge badge-success" style="background: #D4EDDA; color: #155724; font-weight: 600; padding: 4px 8px; border-radius: 4px;">Resolved</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 250px; font-size: 12px; color: #475569;">
+                            {{ r.resolution_note|default:"-" }}
+                            {% if r.resolved_by %}
+                                <div style="font-size: 10px; color: #94A3B8;">by {{ r.resolved_by.username }} on {{ r.resolved_at|date:"d/m/Y H:i" }}</div>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            {% if r.status == 'PENDING' %}
+                                <button type="button" class="btn btn-sm btn-primary" onclick="openResolveModal('{{ r.id }}', '{{ r.employee.name|escapejs }}', '{{ r.excess_days }}')" style="background: #1F3A52; border-color: #1F3A52; font-size: 11px; padding: 4px 10px; border-radius: 4px;">
+                                    Resolve
+                                </button>
+                            {% else %}
+                                <span style="font-size: 12px; color: #10B981;"><i class="fa fa-check"></i> Complete</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #64748B;">
+            <i class="fa fa-calendar-check-o" style="font-size: 32px; color: #CBD5E1; margin-bottom: 10px;"></i>
+            <p style="margin: 0; font-size: 14px;">No year-end reviews found.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Resolve Modal -->
+<div class="modal fade" id="resolveModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form method="POST" class="modal-content" style="border-radius: 8px;">
+            {% csrf_token %}
+            <input type="hidden" name="review_id" id="resolveReviewId">
+            <div class="modal-header" style="background: #1F3A52; color: #ffffff;">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Resolve Year-End Excess Review</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="font-size: 13px; color: #334155;">
+                    Resolving excess leave for <strong id="resolveEmpName"></strong> (Excess: <span id="resolveExcessDays" style="font-weight: 700; color: #EF4444;"></span> days).
+                </p>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="font-size: 13px; font-weight: 600; color: #1F3A52;">Resolution Note <span style="color: #dc3545;">*</span></label>
+                    <textarea name="resolution_note" rows="3" class="form-control" required placeholder="e.g. Approved leave encashment / forfeited per company policy..." style="font-size: 13px;"></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 600; color: #1F3A52;">Optional Balance Adjustment (+/- days)</label>
+                    <input type="number" step="0.5" name="adjustment_days" class="form-control" placeholder="0.0" style="font-size: 13px;">
+                    <small class="form-text text-muted">Leave empty or 0 if no days are being restored to employee's balance.</small>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px;">
+                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm" style="background: #1F3A52; border-color: #1F3A52;">Confirm Resolution</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openResolveModal(id, name, excess) {
+    document.getElementById('resolveReviewId').value = id;
+    document.getElementById('resolveEmpName').innerText = name;
+    document.getElementById('resolveExcessDays').innerText = excess;
+    $('#resolveModal').modal('show');
+}
+</script>
+{% endblock %}
+

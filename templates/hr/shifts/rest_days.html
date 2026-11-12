@@ -1,0 +1,219 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1>Weekly Rest Days</h1>
+    </div>
+
+    <!-- Filters -->
+    <div class="widget-box mb-3 p-3">
+        <form method="get" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Department</label>
+                <select name="department" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Departments</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if selected_dept == d.id %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Branch</label>
+                <select name="branch" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Branches</option>
+                    {% for b in branches %}
+                    <option value="{{ b.id }}" {% if selected_branch == b.id %}selected{% endif %}>{{ b.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Rest Day</label>
+                <select name="rest_day" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Rest Days</option>
+                    {% for val, label in weekday_choices %}
+                    <option value="{{ val }}" {% if selected_rest_day == val|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                    <option value="roster" {% if selected_rest_day == "roster" %}selected{% endif %}>Roster</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <a href="{% url 'hr_weekly_rest_days' %}" class="btn btn-outline-secondary btn-sm mt-3">Reset Filters</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Bulk Action & Table Form -->
+    <form method="post" id="bulkForm">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="bulk_set">
+
+        <div class="widget-box mb-3 p-3 bg-light border">
+            <div class="row g-2 align-items-center">
+                <div class="col-auto">
+                    <strong>Bulk Action:</strong> Set Rest Day to
+                </div>
+                <div class="col-auto">
+                    <select name="rest_day" class="form-select form-select-sm">
+                        {% for val, label in weekday_choices %}
+                        <option value="{{ val }}" {% if val == 6 %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                        <option value="roster">Roster</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    effective from
+                </div>
+                <div class="col-auto">
+                    <input type="date" name="effective_from" class="form-control form-control-sm" value="{{ today|date:'Y-m-d' }}" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary btn-sm" onclick="return confirmBulkAction();">Apply to Selected</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="widget-box table-wdgt">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" id="selectAllCheckbox" class="form-check-input" onclick="toggleSelectAll(this)">
+                        </th>
+                        <th>Code</th>
+                        <th>Employee Name</th>
+                        <th>Department</th>
+                        <th>Branch</th>
+                        <th>Current Rest Day</th>
+                        <th style="width: 180px;" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in employee_rows %}
+                    <tr>
+                        <td>
+                            <input type="checkbox" name="selected_employees" value="{{ row.employee.id }}" class="form-check-input emp-check">
+                        </td>
+                        <td><strong>{{ row.employee.employee_code|default:"—" }}</strong></td>
+                        <td>{{ row.employee.user.get_full_name|default:row.employee.user.username }}</td>
+                        <td>{{ row.employee.department.name|default:"—" }}</td>
+                        <td>{{ row.employee.branch.name|default:"—" }}</td>
+                        <td>
+                            {% if row.rule_code == 'roster' %}
+                            <span class="badge bg-secondary">Roster</span>
+                            {% else %}
+                            <span class="badge bg-primary">{{ row.rule_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editModal"
+                                    data-empid="{{ row.employee.id }}"
+                                    data-empname="{{ row.employee.user.get_full_name|default:row.employee.user.username }}"
+                                    data-rulecode="{{ row.rule_code }}"
+                                    data-effectivedate="{{ today|date:'Y-m-d' }}">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <a href="{% url 'hr_weekly_rest_day_history' row.employee.id %}" class="btn btn-sm btn-outline-info" title="History">
+                                <i class="fas fa-history"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">No employees match the filter criteria.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </form>
+</div>
+
+<!-- Modal for Single Edit -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" class="modal-content">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="single_set">
+            <input type="hidden" name="employee_id" id="modalEmpId">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">Set Rest Day</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Employee</label>
+                    <input type="text" id="modalEmpName" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label for="modalRestDay" class="form-label">Rest Day*</label>
+                    <select name="rest_day" id="modalRestDay" class="form-select" required>
+                        {% for val, label in weekday_choices %}
+                        <option value="{{ val }}">{{ label }}</option>
+                        {% endfor %}
+                        <option value="roster">Roster</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="modalEffectiveFrom" class="form-label">Effective From*</label>
+                    <input type="date" name="effective_from" id="modalEffectiveFrom" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleSelectAll(master) {
+    const checks = document.querySelectorAll('.emp-check');
+    checks.forEach(c => c.checked = master.checked);
+}
+
+function confirmBulkAction() {
+    const checks = document.querySelectorAll('.emp-check:checked');
+    if (checks.length === 0) {
+        alert('Please select at least one employee.');
+        return false;
+    }
+    return confirm(`Apply this rest day rule to ${checks.length} selected employee(s)?`);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const editModal = document.getElementById('editModal');
+    if (editModal) {
+        editModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const empId = button.getAttribute('data-empid');
+            const empName = button.getAttribute('data-empname');
+            const ruleCode = button.getAttribute('data-rulecode');
+            const effectiveDate = button.getAttribute('data-effectivedate');
+
+            document.getElementById('modalEmpId').value = empId;
+            document.getElementById('modalEmpName').value = empName;
+            document.getElementById('modalRestDay').value = ruleCode;
+            document.getElementById('modalEffectiveFrom').value = effectiveDate;
+        });
+    }
+});
+</script>
+
+{% endblock %}
+

@@ -1,279 +1,260 @@
-{% extends 'hr/hrbase.html' %}
-{% load static %}
+{% extends base_template|default:'hr/hrbase.html' %}
+{% load static custom_filters %}
+
 {% block content %}
-
-<style>
-.hr-leave-card {
-  display: flex;
-  flex-direction: column;
-  padding: 24px 20px !important;
-}
-.hr-leave-card .widget-title { margin-bottom: 12px; }
-.hr-leave-card .leave-details {
-  row-gap: 12px;
-  margin: 4px 0 0;
-}
-.hr-leave-card .aply-lv-btn {
-  margin-top: auto;   /* pins the button to the bottom inside the border */
-  padding-top: 12px;
-}
-.hr-leave-card .apply-btn { margin-top: 0; }
-</style>
-
 <div class="dashbrd-wraper">
-  <div class="pg-title">
-      <h1>HR Dashboard</h1>
-  </div>
-  <!-- TATP -->
-  <div class="row status-card-row">
-      <div class="col-lg-3 col-md-6">
-          <div class="status-wdgt card-bg-green">
-              <h5>Total Employees</h5>
-              <h6>{{ total_employees }}</h6>
-              <p>
-                  <i class="fas fa-arrow-up"></i> <span>10%</span> Since last
-                  month
-              </p>
-
-              <div class="wdgt-bg-icons"><i class="fas fa-list"></i></div>
-          </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-          <div class="status-wdgt card-bg-blue">
-              <h5>Total Leave Requests</h5>
-              <h6>{{ total_leave_requests }}</h6>
-              <p>
-                  <i class="fas fa-arrow-up"></i> <span>8%</span> Since last month
-              </p>
-
-              <div class="wdgt-bg-icons"><i class="fas fa-spinner"></i></div>
-          </div>
-      </div>
-      <div class="col-lg-3 col-md-6">
-          <div class="status-wdgt card-bg-violet">
-              <h5>Pending Leaves</h5>
-              <h6>{{ pending_leaves }}</h6>
-              <p>
-                  <i class="fas fa-arrow-up"></i> <span>26%</span> Since last
-                  month
-              </p>
-
-              <div class="wdgt-bg-icons">
-                  <i class="fas fa-tasks"></i>
-              </div>
-          </div>
-      </div>
-      <div class="col-lg-3 col-md-6 m-b-20">
-          <div class="status-wdgt card-bg-orange">
-              <h5>Attendance</h5>
-              <h6>{{ attendance_percentage|floatformat:0 }}%</h6>
-              <p>
-                  <i class="fas fa-arrow-up"></i> <span>5%</span> Since last month
-              </p>
-
-              <div class="wdgt-bg-icons"><i class="fas fa-percentage"></i></div>
-          </div>
-      </div>
-  </div>
-  <!-- End TATP -->
-  <div class="row mt-4 mb-4">
-      <!-- Punch In Card -->
-      <div class="col-lg-4 col-md-6">
-          <div class="widget-box">
-              <div class="attendance-card">
-                  <h3>Attendance</h3>
-                  <!-- Display current date and time -->
-                  <div class="date">{{ current_time }}</div>
-
-                  <div id="Puncinchart"></div>
-
-                  {% if last_punch_out != "Not Punched Out" %}
-                  <!-- Display punch out time if available -->
-                  <div class="info punch-out">
-                      <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch Out">
-                      Punch Out at <span>{{ last_punch_out }}</span>
-                  </div>
-                        {% elif last_punch_in != "Not Punched In" %}
-                            <!-- Otherwise, display punch in time -->
-                            <div class="info punch-in">
-                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="Punch In">
-                                Punch In at <span>{{ last_punch_in }}</span>
-                            </div>
-                        {% else %}
-                            <!-- If no punch in or out recorded, display a message -->
-                            <div class="info">
-                                <img src="{% static 'assets/images/fingerprint.png' %}" alt="No Punch">
-                                Click the button below to punchin.
-                            </div>
-                        {% endif %}
-              
-
-                  <a href="{% url 'hr_attendance_dashboard' %}" id="punchButton">
-                      {% if last_punch_in == "Not Punched In" %}
-                      Punch In
-                      {% else %}
-                      Punch Out
-                      {% endif %}
-                  </a>
-              </div>
-          </div>
-      </div>
-
-
-      <!-- Leave Details Card -->
-      <div class="col-lg-4 col-md-6">
-          <div class="widget-box leave-card-widget">
-              <div class="leave-card hr-leave-card">
-                  <button class="year-btn">{{ current_time|slice:"-4:" }}</button>
-                  <div class="widget-title">
-                      <h4>Leave Details</h4>
-                  </div>
-                  <div class="leave-details">
-                      <div>
-                          <span class="label">Annual Leave</span>
-                          <span class="value">{{ balance_annual_leave }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Sick Leave</span>
-                          <span class="value">{{ balance_sick_leave }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Taken</span>
-                          <span class="value">{{ leaves_taken }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Request</span>
-                          <span class="value">{{ leave_requests }}</span>
-                      </div>
-                      <div>
-                          <span class="label">Worked Days</span>
-                          <span class="value">{{ worked_days }}</span>
-                      </div>
-                  </div>
-                  <div class="aply-lv-btn">
-                      <a href="{% url 'hr_apply_leave' %}" class="apply-btn">Apply New Leave</a>
-                  </div>
-              </div>
-          </div>
-      </div>
-
-      <!-- Presence Overview Chart Card -->
-      <div class="col-lg-4 col-md-6 lv-chrt-col">
-          <div class="widget-box leave-card-widget">
-              <div class="leave-card">
-                  <div class="widget-title">
-                      <h4>Monthly Presence</h4>
-                      <div class="month-selector">
-                          <select id="presence-month" class="year-btn">
-                              {% for m in months %}
-                                  <option value="{{ m.value }}" {% if m.value == current_month %}selected{% endif %}>
-                                      {{ m.name }}
-                                  </option>
-                              {% endfor %}
-                          </select>
-                      </div>
-                  </div>
-                  <div id="leaveChart" style="width:90%;margin: auto;"></div>
-              </div>
-          </div>
-      </div>
-
-      <!-- Today's Attendance Table -->
-        <div class="widget-box mt-4 table-wdgt">
-    <div class="widget-title">
-        <h4>Today's Attendance</h4>
-    </div>
-    <table class="prjtc-table">
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Rank</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Login</th>
-                <th>Logout</th>
-                <th>Total Working Hours</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for attendance in today_attendance_records %}
-            <tr>
-                <td>{{ attendance.employee.user.username }}</td>
-                <td>{{ attendance.employee.rank }}</td>
-                <td>
-                    {% if attendance.attendance_status %}
-                    {% if attendance.status == 'APPROVED' %}
-                        <span class="status 
-                            {% if attendance.attendance_status == 'PRESENT' %}present
-                            {% elif attendance.attendance_status == 'LEAVE' %}leave
-                            {% elif attendance.attendance_status == 'WORK FROM HOME' %}work-from-home
-                            {% elif attendance.attendance_status == 'SICK LEAVE' %}sick-leave
-                            {% elif attendance.attendance_status == 'ANNUAL LEAVE' %}annual-leave
-                            {% elif attendance.attendance_status == 'CASUAL LEAVE' %}casual-leave
-                            {% endif %}
-                        ">
-                            {{ attendance.get_attendance_status_display }}
-                        </span>
-                    {% else %}
-                        <span class="status absent">No Status</span>
-                    {% endif %}
-                {% else %}
-                    <span class="status absent">No Status</span>
-                {% endif %}
-                </td>
-                <td>{{ attendance.login_time|date:"d M Y" }}</td>
-                <td>
-                    {% if attendance.login_time %}
-                        {{ attendance.login_time|time:"h:i A" }}
-                    {% else %}
-                        Not Punched In
-                    {% endif %}
-                </td>
-                <td>
-                    {% if attendance.log_out_time %}
-                        {{ attendance.log_out_time|time:"h:i A" }}
-                    {% else %}
-                        Not Punched Out
-                    {% endif %}
-                </td>
-                <td>
-                    {% if attendance.total_hours_of_work %}
-                        {{ attendance.total_hours_of_work }} hrs
-                    {% else %}
-                        0 hrs
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="7" style="text-align: center;">No attendance records found for today.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="pg-title d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="mb-0">HR Dashboard</h1>
+            <small class="text-muted">{{ target_date|date:"l, d M Y" }}{% if dept_obj %} · {{ dept_obj.name }}{% endif %}{% if branch_obj %} · {{ branch_obj.name }}{% endif %}</small>
         </div>
-  </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'notifications_page' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-bell me-1"></i> Notifications
+            </a>
+        </div>
+    </div>
+
+    {% include 'includes/filter_bar.html' with show_date_single=True show_department=True show_branch=True reset_url=reset_url %}
+
+    <!-- Clickable KPI Cards (always 3 per row on desktop, no gaps when cards are hidden) -->
+    <div class="row g-3 mb-4">
+        {% for card in cards_list %}
+        <div class="col-12 col-sm-6 col-lg-4">
+            {% if card.type == 'dual' %}
+            <div class="widget-box p-3 h-100 border-start border-4" style="border-color: {{ card.color }} !important;" data-card="{{ card.key }}">
+                <div class="text-muted small fw-semibold mb-1">{{ card.label }}</div>
+                <div class="d-flex justify-content-between align-items-center gap-2">
+                    {% for sub in card.sub_items %}
+                    <a href="{{ sub.url }}" class="text-decoration-none {% if not forloop.first %}text-end{% endif %}" data-card="{{ sub.key }}">
+                        <div class="fs-4 fw-bold" style="color: {{ sub.color }};">{{ sub.count }}</div>
+                        <div class="small text-muted">{{ sub.label }}</div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <a href="{{ card.url }}" class="text-decoration-none d-block h-100" data-card="{{ card.key }}">
+                <div class="widget-box p-3 h-100 border-start border-4 {% if card.border_class %}{{ card.border_class }}{% endif %}"{% if card.color %} style="border-color: {{ card.color }} !important;"{% endif %}>
+                    <div class="text-muted small fw-semibold">{{ card.label }}</div>
+                    <div class="fs-3 fw-bold {% if card.text_class %}{{ card.text_class }}{% endif %}"{% if card.color %} style="color: {{ card.color }};"{% endif %}>{{ card.count }}</div>
+                </div>
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Panels Row: My Attendance | Leave Summary | Mini Calendar -->
+    <div class="row g-3 mb-4">
+        <!-- Panel 1: My Attendance -->
+        <div class="col-12 col-lg-4">
+            <div class="widget-box p-3 h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0 fs-6 fw-bold"><i class="fas fa-fingerprint text-primary me-1"></i> My Attendance</h5>
+                    <small class="text-muted">{{ current_time }}</small>
+                </div>
+                {% if viewer_emp %}
+                <div class="bg-light rounded p-2 mb-3 small">
+                    <div class="d-flex justify-content-between">
+                        <span>Punch In:</span>
+                        <strong>{{ last_punch_in }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mt-1">
+                        <span>Punch Out:</span>
+                        <strong>{{ last_punch_out }}</strong>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mb-3">
+                    {% if not user_attendance %}
+                    <a href="{% url 'hr_attendance_dashboard' %}" class="btn btn-sm btn-success w-100" id="punchButton">Punch In</a>
+                    {% elif not user_attendance.log_out_time %}
+                    <a href="{% url 'hr_attendance_dashboard' %}" class="btn btn-sm btn-warning w-100" id="punchButton">Punch Out</a>
+                    {% else %}
+                    <a href="{% url 'hr_attendance_dashboard' %}" class="btn btn-sm btn-outline-primary w-100">View Punches</a>
+                    {% endif %}
+                    <a href="{% url 'hr_attendance_status' %}" class="btn btn-sm btn-outline-secondary w-100">My Log</a>
+                </div>
+                {% if my_month_summary %}
+                <div class="mt-auto border-top pt-2 small">
+                    <div class="fw-semibold text-muted mb-1">This Month Summary</div>
+                    <div class="row g-1 text-center">
+                        <div class="col-4">
+                            <div class="p-1 bg-light rounded">
+                                <div class="fw-bold text-success">{{ my_month_summary.present_days }}</div>
+                                <div class="text-muted" style="font-size: 11px;">Present</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1 bg-light rounded">
+                                <div class="fw-bold text-danger">{{ my_month_summary.absent_days }}</div>
+                                <div class="text-muted" style="font-size: 11px;">Absent</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1 bg-light rounded">
+                                <div class="fw-bold text-primary">{{ my_month_summary.total_hours }}h</div>
+                                <div class="text-muted" style="font-size: 11px;">Hours</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted small mb-0">No employee profile linked to this account.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Panel 2: Leave Summary (This Month) -->
+        <div class="col-12 col-lg-4">
+            <div class="widget-box p-3 h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0 fs-6 fw-bold"><i class="fas fa-calendar-check text-info me-1"></i> Leave Summary ({{ calendar_month_label }})</h5>
+                </div>
+                <div class="table-responsive flex-grow-1">
+                    <table class="table table-sm table-borderless align-middle mb-0 small">
+                        <thead class="border-bottom text-muted">
+                            <tr>
+                                <th>Type</th>
+                                <th class="text-center">Approved</th>
+                                <th class="text-center">Pending</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ls in leave_summary_rows %}
+                            <tr>
+                                <td class="fw-semibold">{{ ls.type }}</td>
+                                <td class="text-center"><span class="badge bg-success-subtle text-success">{{ ls.approved_count }} ({{ ls.approved_days }}d)</span></td>
+                                <td class="text-center"><span class="badge bg-warning-subtle text-warning">{{ ls.pending_count }} ({{ ls.pending_days }}d)</span></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="3" class="text-center text-muted py-3">No leave requests this month.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel 3: Mini Calendar -->
+        <div class="col-12 col-lg-4">
+            <div class="widget-box p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0 fs-6 fw-bold"><i class="far fa-calendar-alt text-primary me-1"></i> {{ calendar_month_label }}</h5>
+                    <small class="text-muted">Click day &rarr; register</small>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm text-center mb-0 small" style="table-layout: fixed;">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for week in calendar_weeks %}
+                            <tr>
+                                {% for cell in week %}
+                                <td class="p-1 {% if not cell.in_month %}text-muted bg-light{% elif cell.holiday %}table-warning{% elif cell.is_selected %}table-primary{% endif %}">
+                                    {% if cell.in_month %}
+                                    <a href="{{ cell.register_url }}" class="text-decoration-none d-block text-dark" title="{% if cell.holiday %}Holiday: {{ cell.holiday }}{% endif %}{% if cell.leave_count %} ({{ cell.leave_count }} on leave){% endif %}">
+                                        <div class="{% if cell.is_today %}fw-bold text-primary{% endif %}">{{ cell.day }}</div>
+                                        {% if cell.leave_count > 0 %}
+                                        <span class="badge bg-info text-white" style="font-size: 9px; padding: 1px 4px;">{{ cell.leave_count }}L</span>
+                                        {% elif cell.holiday %}
+                                        <span class="badge bg-warning text-dark" style="font-size: 9px; padding: 1px 4px;">H</span>
+                                        {% endif %}
+                                    </a>
+                                    {% else %}
+                                    <span style="opacity: 0.4;">{{ cell.day }}</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel 4: Today Table (25 per page, PDF & Excel export) -->
+    <div class="widget-box p-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <div>
+                <h5 class="mb-0 fs-6 fw-bold">Attendance Table — {{ target_date|date:"d M Y" }}</h5>
+                <small class="text-muted">{{ page_obj.paginator.count }} employee(s)</small>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="?date={{ selected_date }}&department={{ selected_department }}&branch={{ selected_branch }}&export=excel" class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-file-excel me-1"></i> Excel
+                </a>
+                <a href="?date={{ selected_date }}&department={{ selected_department }}&branch={{ selected_branch }}&export=pdf" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-file-pdf me-1"></i> PDF
+                </a>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code</th>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Location</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th>Hours</th>
+                        <th>OT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in page_obj %}
+                    <tr>
+                        <td class="text-nowrap small">{{ r.employee.employee_code|default:"-" }}</td>
+                        <td class="fw-semibold">{{ r.name }}</td>
+                        <td class="small">{{ r.employee.department.name|default:"-" }}</td>
+                        <td><span class="badge bg-secondary-subtle text-dark">{{ r.status_label }}</span></td>
+                        <td class="small">{{ r.location_label|default:"-" }}</td>
+                        <td class="text-nowrap small">{{ r.start|date:"H:i"|default:"-" }}</td>
+                        <td class="text-nowrap small">{{ r.end|date:"H:i"|default:"-" }}</td>
+                        <td class="small">{{ r.total_hours|floatformat:2 }}</td>
+                        <td class="small">{{ r.ot_hours|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">No attendance rows match the selected filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span class="small text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?date={{ selected_date }}&department={{ selected_department }}&branch={{ selected_branch }}&page={{ page_obj.previous_page_number }}">&laquo;</a></li>
+                {% endif %}
+                {% for num in page_obj.paginator.page_range %}
+                    {% if num >= page_obj.number|add:'-2' and num <= page_obj.number|add:'2' %}
+                    <li class="page-item {% if num == page_obj.number %}active{% endif %}">
+                        <a class="page-link" href="?date={{ selected_date }}&department={{ selected_department }}&branch={{ selected_branch }}&page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?date={{ selected_date }}&department={{ selected_department }}&branch={{ selected_branch }}&page={{ page_obj.next_page_number }}">&raquo;</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
 </div>
-
-
-<script>
-    function updateCurrentTime() {
-        let now = new Date();
-        let options = {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            timeZone: 'Asia/Dubai'  // Set the timezone to Asia/Dubai
-        };
-        document.querySelector('.date').innerText = now.toLocaleString('en-US', options);
-    }
-
-    // Update the time every second
-    setInterval(updateCurrentTime, 1000);
-    updateCurrentTime();
-</script>
-
 {% endblock %}

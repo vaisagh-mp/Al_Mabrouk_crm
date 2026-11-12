@@ -1,0 +1,106 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h1>Rest Day History</h1>
+            <p class="text-muted mb-0">
+                Employee: <strong>{{ employee.user.get_full_name|default:employee.user.username }}</strong>
+                ({{ employee.employee_code|default:"—" }})
+            </p>
+        </div>
+        <div>
+            <a href="{% url 'hr_weekly_rest_days' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Back to Rest Days
+            </a>
+        </div>
+    </div>
+
+    <div class="widget-box table-wdgt mb-4">
+        <h5 class="mb-3">Configured Rest Day Rules</h5>
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Rest Day / Type</th>
+                    <th>Effective From</th>
+                    <th>Effective To</th>
+                    <th>Created By</th>
+                    <th>Created At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule in rules %}
+                <tr>
+                    <td>
+                        {% if rule.uses_roster %}
+                        <span class="badge bg-secondary">Roster</span>
+                        {% else %}
+                        <span class="badge bg-primary">{{ rule.get_rest_weekday_display|default:"Sunday" }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ rule.effective_from|date:"d/m/Y" }}</td>
+                    <td>
+                        {% if rule.effective_to %}
+                        {{ rule.effective_to|date:"d/m/Y" }}
+                        {% else %}
+                        <span class="badge bg-success">Current / Open</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if rule.created_by %}{{ rule.created_by.get_full_name|default:rule.created_by.username }}{% else %}System{% endif %}</td>
+                    <td>{{ rule.created_at|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No explicit rest day rules configured (defaults to Sunday).</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <h5 class="mb-3">Audit Logs</h5>
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Previous Value</th>
+                    <th>New Value</th>
+                    <th>Changed By</th>
+                    <th>Source</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr>
+                    <td>{{ log.changed_at|date:"d/m/Y H:i" }}</td>
+                    <td>{{ log.old_value|default:"—" }}</td>
+                    <td><strong>{{ log.new_value }}</strong></td>
+                    <td>{% if log.changed_by %}{{ log.changed_by.get_full_name|default:log.changed_by.username }}{% else %}System{% endif %}</td>
+                    <td><span class="badge bg-light text-dark border">{{ log.source }}</span></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-3">No change logs recorded.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+

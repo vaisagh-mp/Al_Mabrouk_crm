@@ -1,0 +1,61 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title">
+        <h1>{% if form.instance.pk %}Edit Public Holiday{% else %}Add Public Holiday{% endif %}</h1>
+    </div>
+
+    <div class="widget-box table-wdgt" style="max-width: 600px;">
+        <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                Please correct the errors below.
+                {{ form.errors }}
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="id_date" class="form-label">Date*</label>
+                {{ form.date }}
+            </div>
+
+            <div class="mb-3">
+                <label for="id_description" class="form-label">Holiday Name*</label>
+                {{ form.description }}
+            </div>
+
+            <div class="mb-3">
+                <label for="id_branch" class="form-label">Branch</label>
+                {{ form.branch }}
+                <div class="form-text">Leave blank to apply to all branches.</div>
+            </div>
+
+            <div class="mb-3 form-check">
+                {{ form.is_active }}
+                <label class="form-check-label" for="id_is_active">Active</label>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Save Holiday</button>
+                <a href="{% url 'hr_public_holidays' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+

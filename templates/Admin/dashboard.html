@@ -2,6 +2,7 @@
 {% load static %}
 {% load custom_filters %}
 {% block content %}
+{{ spark_json|json_script:"admin-spark-data" }}
 
 <div class="dashbrd-wraper">
   <div class="pg-title">
@@ -12,14 +13,12 @@
     <div class="crm-filter-group">
       <!-- <span class="crm-filter-label">View</span> -->
 
-      <div class="crm-select">
-        <select name="period" onchange="this.form.submit()">
-          <!-- <option value="week"  {% if period == "week" %}selected{% endif %}>Week</option> -->
-          <option value="month" {% if period == "month" %}selected{% endif %}>Month</option>
-          <option value="year"  {% if period == "year" %}selected{% endif %}>Year</option>
-        </select>
-        <i class="bi bi-chevron-down"></i>
-      </div>
+      <label class="crm-filter-label" for="dash-from">From</label>
+      <input type="date" id="dash-from" name="from" class="crm-date" value="{{ from_date }}" required>
+      <label class="crm-filter-label" for="dash-to">To</label>
+      <input type="date" id="dash-to" name="to" class="crm-date" value="{{ to_date }}" required>
+      <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+      <a href="{% url 'admin-dashboard' %}" class="btn btn-outline-secondary btn-sm">This Month</a>
     </div>
   </form>
 
@@ -111,10 +110,10 @@
         <p>
           {% if profit_change_percent >= 0 %}
             <i class="fas fa-arrow-up text-success"></i>
-            <span>{{ profit_change_percent|floatformat:2 }}%</span> Since last month
+            <span>{{ profit_change_percent|floatformat:2 }}%</span> vs previous period
           {% else %}
             <i class="fas fa-arrow-down text-danger"></i>
-            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> Since last month
+            <span>{{ profit_change_percent_abs|floatformat:2 }}%</span> vs previous period
           {% endif %}
         </p>
         <div class="wdgt-bg-icons">
@@ -422,6 +421,16 @@
   color: #6b7280;
   pointer-events: none;
 }
+
+.crm-date {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  padding: 4px 8px;
+}
+.crm-date:focus { outline: none; border-color: var(--bs-blue); }
 
 /* Hover */
 .crm-filter-group:hover {

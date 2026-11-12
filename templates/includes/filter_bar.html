@@ -1,0 +1,120 @@
+<div class="widget-box p-3 mb-3 filter-bar-shared">
+    <form method="get" class="row g-2 align-items-end">
+        {% if hidden_fields %}
+            {% for hk, hv in hidden_fields.items %}
+                {% if hv %}<input type="hidden" name="{{ hk }}" value="{{ hv }}">{% endif %}
+            {% endfor %}
+        {% endif %}
+
+        {% if show_report_select %}
+        <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label small fw-bold mb-1">Report</label>
+            <select name="report" class="form-select form-select-sm" onchange="this.form.submit()">
+                {% for rkey, rmeta in allowed_reports %}
+                <option value="{{ rkey }}" {% if selected_report == rkey %}selected{% endif %}>{{ rmeta.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if show_date_single %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Date</label>
+            <input type="date" name="date" value="{{ selected_date|default:'' }}" class="form-control form-control-sm">
+        </div>
+        {% endif %}
+
+        {% if show_month %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Month</label>
+            <input type="month" name="month" value="{{ selected_month|default:'' }}" class="form-control form-control-sm">
+        </div>
+        {% endif %}
+
+        {% if show_start_end %}
+        <div class="col-6 col-sm-3 col-md-2">
+            <label class="form-label small fw-bold mb-1">From Date</label>
+            <input type="date" name="start" value="{{ selected_start|default:'' }}" class="form-control form-control-sm">
+        </div>
+        <div class="col-6 col-sm-3 col-md-2">
+            <label class="form-label small fw-bold mb-1">To Date</label>
+            <input type="date" name="end" value="{{ selected_end|default:'' }}" class="form-control form-control-sm">
+        </div>
+        {% endif %}
+
+        {% if show_analytics_date %}
+        <div class="col-12 col-sm-6 col-md-3">
+            <label class="form-label small fw-bold mb-1">Date / Range</label>
+            <input type="text" id="datePicker" name="date" class="form-control form-control-sm analytics-date-input" placeholder="Select date / range" value="{{ start_date|date:'Y-m-d' }}{% if end_date and start_date != end_date %} to {{ end_date|date:'Y-m-d' }}{% endif %}">
+        </div>
+        {% endif %}
+
+        {% if show_department %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Department</label>
+            <select name="department" class="form-select form-select-sm">
+                <option value="">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if selected_department|stringformat:'s' == d.id|stringformat:'s' %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if show_branch %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Branch</label>
+            <select name="branch" class="form-select form-select-sm">
+                <option value="">All Branches</option>
+                {% for b in branches %}
+                <option value="{{ b.id }}" {% if selected_branch|stringformat:'s' == b.id|stringformat:'s' %}selected{% endif %}>{{ b.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if show_employee %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Employee</label>
+            <select name="employee" class="form-select form-select-sm">
+                <option value="">All Employees</option>
+                {% for e in filter_employees %}
+                <option value="{{ e.id }}" {% if selected_employee|stringformat:'s' == e.id|stringformat:'s' %}selected{% endif %}>{{ e.user.get_full_name|default:e.user.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if show_work_type %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Work Type</label>
+            <select name="work_type" id="workTypeFilter" class="form-select form-select-sm">
+                <option value="All" {% if not work_type or work_type == "All" %}selected{% endif %}>All Work Types</option>
+                <option value="Vessel" {% if work_type == "Vessel" %}selected{% endif %}>Vessel</option>
+                <option value="Office" {% if work_type == "Office" %}selected{% endif %}>Office</option>
+                <option value="Mixed" {% if work_type == "Mixed" %}selected{% endif %}>Mixed</option>
+            </select>
+        </div>
+        {% endif %}
+
+        {% if show_status and status_choices %}
+        <div class="col-12 col-sm-6 col-md-2">
+            <label class="form-label small fw-bold mb-1">Status</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">All Statuses</option>
+                {% for scode, slabel in status_choices %}
+                <option value="{{ scode }}" {% if selected_status|stringformat:'s' == scode|stringformat:'s' %}selected{% endif %}>{{ slabel }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div class="col-12 col-sm-auto d-flex gap-2 ms-sm-auto">
+            <button type="submit" class="btn btn-sm btn-primary">Apply Filter</button>
+            {% if reset_url %}
+            <a href="{{ reset_url }}" class="btn btn-sm btn-outline-secondary">Reset</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+

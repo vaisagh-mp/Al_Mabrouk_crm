@@ -1,0 +1,338 @@
+{% load pdf_tags %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Payslip - {{ employee.name }} - {{ month_label }}</title>
+<style>
+    @page {
+        size: A4 portrait;
+        margin: 12mm 15mm 15mm 15mm;
+        @bottom-right {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 8pt;
+            color: #718096;
+        }
+    }
+    body {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        color: #2D3748;
+        margin: 0;
+        padding: 0;
+        font-size: 9pt;
+        line-height: 1.35;
+    }
+    .header {
+        border-bottom: 2px solid #1F3A52;
+        padding-bottom: 8px;
+        margin-bottom: 12px;
+    }
+    .company-title {
+        font-size: 16pt;
+        font-weight: bold;
+        color: #1F3A52;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .company-sub {
+        font-size: 8.5pt;
+        color: #718096;
+    }
+    .doc-title {
+        font-size: 13pt;
+        font-weight: 700;
+        color: #1F3A52;
+        text-transform: uppercase;
+        margin-top: 4px;
+        letter-spacing: 0.5px;
+    }
+    .meta-box {
+        background-color: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 4px;
+        padding: 8px 12px;
+        margin-bottom: 12px;
+    }
+    .meta-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .meta-table td {
+        padding: 3px 6px;
+        font-size: 8.5pt;
+        vertical-align: top;
+    }
+    .meta-label {
+        color: #718096;
+        font-weight: 600;
+        width: 18%;
+    }
+    .meta-val {
+        color: #1A202C;
+        font-weight: bold;
+        width: 32%;
+    }
+    .section-title {
+        font-size: 9.5pt;
+        font-weight: bold;
+        color: #1F3A52;
+        text-transform: uppercase;
+        margin: 10px 0 4px 0;
+        padding-bottom: 2px;
+        border-bottom: 1px solid #CBD5E1;
+        letter-spacing: 0.3px;
+    }
+    .summary-table, .breakdown-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+    }
+    .summary-table th, .summary-table td,
+    .breakdown-table th, .breakdown-table td {
+        border: 1px solid #E2E8F0;
+        padding: 5px 8px;
+        font-size: 8.5pt;
+    }
+    .summary-table th, .breakdown-table th {
+        background-color: #1F3A52;
+        color: #FFFFFF;
+        font-weight: 600;
+        text-align: center;
+    }
+    .tables-container {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    .col-half {
+        width: 49%;
+        vertical-align: top;
+    }
+    .col-gap {
+        width: 2%;
+    }
+    .text-right {
+        text-align: right;
+    }
+    .text-center {
+        text-align: center;
+    }
+    .text-left {
+        text-align: left;
+    }
+    .total-row {
+        background-color: #F1F5F9;
+        font-weight: bold;
+        border-top: 2px solid #1F3A52;
+    }
+    .net-pay-box {
+        background-color: #F0FDF4;
+        border: 2px solid #22C55E;
+        border-radius: 4px;
+        padding: 10px 14px;
+        margin-top: 10px;
+        margin-bottom: 12px;
+    }
+    .net-pay-amount {
+        font-size: 15pt;
+        font-weight: bold;
+        color: #15803D;
+    }
+    .net-pay-words {
+        font-size: 9pt;
+        color: #166534;
+        font-weight: 600;
+        margin-top: 3px;
+    }
+    .advance-box {
+        background-color: #FEF3C7;
+        border: 1px solid #F59E0B;
+        border-radius: 4px;
+        padding: 6px 12px;
+        font-size: 8.5pt;
+        color: #92400E;
+        margin-bottom: 12px;
+    }
+    .signatures-table {
+        width: 100%;
+        margin-top: 35px;
+        border-collapse: collapse;
+    }
+    .signatures-table td {
+        width: 50%;
+        text-align: center;
+        padding-top: 30px;
+        border-top: 1px dashed #A0AEC0;
+        font-size: 8.5pt;
+        color: #4A5568;
+    }
+    .footer-note {
+        margin-top: 15px;
+        font-size: 7.5pt;
+        color: #A0AEC0;
+        text-align: center;
+    }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <table style="width: 100%;">
+        <tr>
+            <td style="width: 65%;">
+                {% pdf_logo %}
+                <div class="company-sub">Marine Engineering, Vessel Support &amp; Technical Services</div>
+                <div class="company-sub">United Arab Emirates</div>
+            </td>
+            <td style="width: 35%; text-align: right; vertical-align: top;">
+                <div class="doc-title">PAYSLIP</div>
+                <div style="font-size: 9pt; font-weight: bold; color: #4A5568;">Period: {{ month_label }}</div>
+                <div style="font-size: 8pt; color: #718096;">Payslip No: <strong>{{ payslip.number }}</strong></div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div class="meta-box">
+    <table class="meta-table">
+        <tr>
+            <td class="meta-label">Employee Code:</td>
+            <td class="meta-val">{{ employee.employee_code|default:"—" }}</td>
+            <td class="meta-label">Department:</td>
+            <td class="meta-val">{{ employee.department.name|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">Employee Name:</td>
+            <td class="meta-val">{{ employee.name }}</td>
+            <td class="meta-label">Designation:</td>
+            <td class="meta-val">{{ employee.rank|default:"—" }}</td>
+        </tr>
+        <tr>
+            <td class="meta-label">Date of Joining:</td>
+            <td class="meta-val">{% if employee.date_of_join %}{{ employee.date_of_join|date:"d/m/Y" }}{% else %}—{% endif %}</td>
+            <td class="meta-label">Payment Mode:</td>
+            <td class="meta-val">Bank Transfer</td>
+        </tr>
+    </table>
+</div>
+
+<div class="section-title">Attendance &amp; Working Summary</div>
+<table class="summary-table">
+    <thead>
+        <tr>
+            <th>Worked Days</th>
+            <th>Leave Days</th>
+            <th>Absent Days</th>
+            <th>Unpaid Days</th>
+            <th>Overtime Hours</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="text-center">{{ metrics.worked_days|default:"0" }}</td>
+            <td class="text-center">{{ metrics.leave_days|default:"0" }}</td>
+            <td class="text-center">{{ metrics.absent_days|default:"0" }}</td>
+            <td class="text-center">{{ metrics.unpaid_days|default:"0" }}</td>
+            <td class="text-center">{{ metrics.ot_hours|default:"0.00" }} hrs</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="section-title">Salary Breakdown</div>
+<table class="tables-container">
+    <tr>
+        <td class="col-half">
+            <table class="breakdown-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">Earnings</th>
+                        <th class="text-right" style="width: 35%;">Amount (AED)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in earnings_lines %}
+                    <tr>
+                        <td>{{ item.description|default:item.code }}</td>
+                        <td class="text-right">{{ item.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td>Basic Salary</td>
+                        <td class="text-right">{{ payroll.basic_salary|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td>Total Earnings (Gross)</td>
+                        <td class="text-right">{{ total_earnings|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </td>
+        <td class="col-gap"></td>
+        <td class="col-half">
+            <table class="breakdown-table">
+                <thead>
+                    <tr>
+                        <th class="text-left">Deductions</th>
+                        <th class="text-right" style="width: 35%;">Amount (AED)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in deductions_lines %}
+                    <tr>
+                        <td>{{ item.description|default:item.code }}</td>
+                        <td class="text-right">{{ item.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="text-center" style="color: #718096; font-style: italic;">No deductions</td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="total-row">
+                        <td>Total Deductions</td>
+                        <td class="text-right">{{ total_deductions|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<div class="net-pay-box">
+    <table style="width: 100%;">
+        <tr>
+            <td>
+                <span style="font-size: 11pt; font-weight: bold; color: #1F3A52;">NET TAKE-HOME PAY:</span>
+                <div class="net-pay-amount">AED {{ net_pay|floatformat:2 }}</div>
+                <div class="net-pay-words">{{ net_pay_words }}</div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+{% if advance_balance_remaining > 0 %}
+<div class="advance-box">
+    <strong><i class="fas fa-info-circle"></i> Salary Advance Balance Remaining:</strong>
+    AED {{ advance_balance_remaining|floatformat:2 }}
+</div>
+{% endif %}
+
+<table class="signatures-table">
+    <tr>
+        <td style="padding-right: 25px;">
+            <strong>Employee Signature</strong><br>
+            <span>I acknowledge receipt of the payment specified above.</span>
+        </td>
+        <td style="padding-left: 25px;">
+            <strong>Authorized Signatory</strong><br>
+            <span>For {{ company_name }}</span>
+        </td>
+    </tr>
+</table>
+
+<div class="footer-note">
+    This document is confidential and intended solely for the named employee. Generated electronically on {{ generated_at|date:"d/m/Y H:i" }}.
+</div>
+
+</body>
+</html>
+

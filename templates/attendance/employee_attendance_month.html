@@ -1,0 +1,154 @@
+{% extends base_template %}
+{% load custom_filters %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    {% include 'finance/_messages.html' %}
+
+    <!-- Top header with actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div class="pg-title mb-0">
+            <h1 class="h3 mb-1 text-gray-800">
+                Attendance: {{ employee.name }}
+            </h1>
+            <p class="text-muted mb-0 small">
+                {{ employee.employee_code|default:"No ID" }} &bull; {{ employee.rank|default:"Staff" }} &bull; {% if employee.department %}{{ employee.department.name }}{% else %}General{% endif %} ({{ month_label }})
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="?format=pdf" class="btn btn-danger btn-sm" target="_blank">
+                <i class="fas fa-file-pdf me-1"></i> Download PDF
+            </a>
+            <a href="?format=excel" class="btn btn-success btn-sm">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+            <a href="{% if role == 'admin' %}{% url 'attendance_list_adminview' %}{% else %}{% url 'hr_attendance_list_view' %}{% endif %}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Back to Register
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Scheduled</div>
+                <div class="h4 mb-0 fw-bold text-dark">{{ summary.scheduled_working_days }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Present</div>
+                <div class="h4 mb-0 fw-bold text-success">{{ summary.present_days }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Rest / Holiday</div>
+                <div class="h4 mb-0 fw-bold text-secondary">{{ summary.rest_days|add:summary.holiday_days }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Leave</div>
+                <div class="h4 mb-0 fw-bold text-warning">{{ summary.total_leave_days }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Missing Punch</div>
+                <div class="h4 mb-0 fw-bold text-danger">{{ summary.missing_punch_days }}</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm border-0 text-center p-2">
+                <div class="text-muted small">Att %</div>
+                <div class="h4 mb-0 fw-bold text-primary">{{ summary.attendance_pct }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month Picker Filter -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body py-2">
+            <form method="get" class="d-flex align-items-center gap-2">
+                <label class="form-label mb-0 small fw-bold">Select Month:</label>
+                <input type="month" name="month" value="{{ month_str }}" class="form-control form-control-sm" style="max-width: 180px;" onchange="this.form.submit()">
+            </form>
+        </div>
+    </div>
+
+    <!-- Daily Details Table -->
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="employeeMonthTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date</th>
+                        <th>Day</th>
+                        <th>Status</th>
+                        <th>Location</th>
+                        <th>Punch In</th>
+                        <th>Punch Out</th>
+                        <th>Hours</th>
+                        <th>OT Hours</th>
+                        <th>Vessel / Job</th>
+                        <th>Notes / Off-Day</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in rows %}
+                    <tr>
+                        <td><strong>{{ r.date|date:"d/m/Y" }}</strong></td>
+                        <td>{{ r.date|date:"D" }}</td>
+                        <td>
+                            <span class="status {% if r.status_code == 'OFFICE' %}present{% elif r.status_code == 'VESSEL' %}att-reg-vessel{% elif r.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif r.status_code == 'ABSENT' %}cancelled{% elif r.status_code == 'MISSING_PUNCH' %}att-reg-missing-punch{% elif 'LEAVE' in r.status_code %}leave{% else %}completed{% endif %}">
+                                {{ r.status_label }}
+                            </span>
+                            {% if r.override_id %}
+                                <span class="badge bg-secondary ms-1">manual</span>
+                            {% endif %}
+                            {% if r.vessel_pending_approval %}
+                                <span class="badge bg-warning text-dark ms-1" title="Pending timesheet approval">Pending approval</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ r.location_label|default:"-" }}</td>
+                        <td>{% if r.start %}{{ r.start|time:"h:i A" }}{% else %}-{% endif %}</td>
+                        <td>
+                            {% if r.end %}
+                                {{ r.end|time:"h:i A" }}
+                                {% if r.auto_punched_out %}<span class="badge bg-danger ms-1">Auto</span>{% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ r.total_hours|format_work_duration }}</td>
+                        <td>{% if r.ot_hours and r.ot_hours > 0 %}{{ r.ot_hours|format_work_duration }}{% else %}-{% endif %}</td>
+                        <td>
+                            {% if r.vessel_job %}
+                                {{ r.vessel_job|join:", " }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.is_off_day %}
+                                <span class="badge bg-info text-dark">{{ r.off_day_label }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4 text-muted">No attendance rows found for this month.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

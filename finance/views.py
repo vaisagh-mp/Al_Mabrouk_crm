@@ -1,8 +1,10 @@
+from Admin.leave_service import is_leave_v2_active
 from collections import defaultdict
 from datetime import datetime, date, timedelta
 from decimal import Decimal, InvalidOperation
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.models import User
@@ -384,7 +386,7 @@ def fin_project_detail(request, project_id):
         outstanding = max((project.invoice_amount or Decimal('0.00')) - amount_received, Decimal('0.00'))
 
     service_logs = list(
-        EmployeeServiceLog.objects.filter(project=project)
+        EmployeeServiceLog.objects.counting().filter(project=project)
         .select_related('employee', 'employee__user')
         .order_by('-date', 'start_time')
     )
@@ -628,8 +630,16 @@ def _parse_month_param(month_param):
 
 
 @login_required
-@user_passes_test(is_accountant)
 def fin_payroll(request):
+    v2_payroll = getattr(settings, 'HR_PAYROLL_V2', False)
+    if v2_payroll:
+        from Admin.permissions import can_view_salary
+        if not can_view_salary(request.user):
+            raise PermissionDenied
+    else:
+        if not (request.user.is_superuser or (getattr(request.user, 'employee_profile', None) and request.user.employee_profile.is_accountant)):
+            raise PermissionDenied
+
     month_param = request.GET.get('month')
     selected_month = _parse_month_param(month_param)
     first_day, last_day, _ = get_month_range(selected_month)
@@ -639,6 +649,72 @@ def fin_payroll(request):
     has_draft = any(p.status == 'DRAFT' for p in payrolls)
     has_approved = any(p.status == 'APPROVED' for p in payrolls)
 
+    can_manage_payroll = request.user.is_superuser or (getattr(request.user, 'employee_profile', None) and request.user.employee_profile.is_accountant)
+    is_hr_viewer = getattr(request.user, 'employee_profile', None) and request.user.employee_profile.is_hr and not can_manage_payroll
+    if is_hr_viewer:
+        base_template = 'hr/hrbase.html'
+    elif request.user.is_superuser and request.GET.get('from') == 'admin':
+        base_template = 'Admin/adminbase.html'
+    elif request.user.is_superuser:
+        from Admin.portal import superuser_portal_base
+        base_template = superuser_portal_base(request, 'finance/financebase.html')
+    else:
+        base_template = 'finance/financebase.html'
+
+    missing_punch_warnings = []
+    for p in payrolls:
+        if getattr(p, 'missing_punch_days', 0) > 0:
+            missing_punch_warnings.append({
+                'name': p.employee.user.get_full_name() or p.employee.user.username,
+                'username': p.employee.user.username,
+                'dates': getattr(p, 'missing_punch_dates', []),
+                'count': p.missing_punch_days,
+            })
+
+    checklist_submitted_timesheets = []
+    checklist_draft_timesheets = []
+    checklist_pending_ot_days = []
+    timesheet_v2_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
+    if timesheet_v2_on:
+        from service_logs.models import EmployeeServiceLog
+        from Admin.models import OTApproval
+        submitted_logs = EmployeeServiceLog.objects.filter(
+            date__range=(first_day, last_day),
+            approval_status='SUBMITTED'
+        ).select_related('employee__user')
+        for l in submitted_logs:
+            checklist_submitted_timesheets.append({
+                'id': l.id,
+                'name': l.employee.user.get_full_name() or l.employee.user.username,
+                'date': l.date,
+                'hours': l.total_hours,
+            })
+
+        draft_logs = EmployeeServiceLog.objects.filter(
+            date__range=(first_day, last_day),
+            approval_status='DRAFT'
+        ).select_related('employee__user')
+        for l in draft_logs:
+            checklist_draft_timesheets.append({
+                'id': l.id,
+                'name': l.employee.user.get_full_name() or l.employee.user.username,
+                'date': l.date,
+                'hours': l.total_hours,
+            })
+
+        pending_ots = OTApproval.objects.filter(
+            date__range=(first_day, last_day),
+            status='PENDING'
+        ).select_related('employee__user')
+        for o in pending_ots:
+            checklist_pending_ot_days.append({
+                'id': o.id,
+                'name': o.employee.user.get_full_name() or o.employee.user.username,
+                'date': o.date,
+                'hours': o.ot_hours,
+                'cost': o.ot_cost,
+            })
+
     return render(request, 'finance/payroll.html', {
         'selected_month': selected_month.strftime('%Y-%m'),
         'month_display': selected_month.strftime('%B %Y'),
@@ -646,6 +722,14 @@ def fin_payroll(request):
         'totals': totals,
         'has_draft': has_draft,
         'has_approved': has_approved,
+        'missing_punch_warnings': missing_punch_warnings,
+        'checklist_submitted_timesheets': checklist_submitted_timesheets,
+        'checklist_draft_timesheets': checklist_draft_timesheets,
+        'checklist_pending_ot_days': checklist_pending_ot_days,
+        'timesheet_v2_on': timesheet_v2_on,
+        'v2_payroll': v2_payroll,
+        'can_manage_payroll': can_manage_payroll,
+        'base_template': base_template,
     })
 
 
@@ -699,6 +783,9 @@ def fin_payroll_revert(request, payroll_id):
     if payroll.status == 'APPROVED':
         payroll.status = 'DRAFT'
         payroll.save(update_fields=['status', 'updated_at'])
+        for inst in payroll.advance_instalments.filter(status='SCHEDULED'):
+            inst.payroll = None
+            inst.save(update_fields=['payroll'])
         messages.success(request, f"Payroll for {payroll.employee.user.get_full_name() or payroll.employee.user.username} reverted to DRAFT.")
     else:
         messages.error(request, f"Cannot revert record with status {payroll.get_status_display()}. Only APPROVED records can be reverted.")
@@ -713,6 +800,11 @@ def fin_payroll_delete(request, payroll_id):
     if payroll.status == 'PAID':
         messages.error(request, "Cannot delete a payroll record with status PAID.")
     else:
+        for inst in payroll.advance_instalments.all():
+            if inst.status != 'DEDUCTED':
+                inst.payroll = None
+                inst.status = 'SCHEDULED'
+                inst.save(update_fields=['payroll', 'status'])
         emp_name = payroll.employee.user.get_full_name() or payroll.employee.user.username
         payroll.delete()
         messages.success(request, f"Payroll record for {emp_name} deleted.")
@@ -725,9 +817,121 @@ def fin_payroll_delete(request, payroll_id):
 def fin_payroll_approve_all(request):
     month_param = request.POST.get('month')
     selected_month = _parse_month_param(month_param)
+    from django.conf import settings
+    v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
+    if v2_on:
+        payrolls, _, _ = get_payroll_list_with_metrics(selected_month)
+        draft_payrolls = [p for p in payrolls if p.status == 'DRAFT']
+        unresolved = [p for p in draft_payrolls if getattr(p, 'missing_punch_days', 0) > 0]
+        if unresolved:
+            names = ", ".join((p.employee.user.get_full_name() or p.employee.user.username) for p in unresolved)
+            messages.error(
+                request,
+                f"Cannot approve payroll for {selected_month.strftime('%B %Y')}: unresolved Missing Punch days exist for {names}. "
+                f"Please resolve them in the attendance register before approving."
+            )
+            return redirect(f"{redirect('fin_payroll').url}?month={selected_month.strftime('%Y-%m')}")
+
+    timesheet_v2_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
+    if timesheet_v2_on:
+        first_day, last_day, _ = get_month_range(selected_month)
+        from service_logs.models import EmployeeServiceLog
+        from Admin.models import OTApproval
+        draft_emp_ids = list(Payroll.objects.filter(month=selected_month, status='DRAFT').values_list('employee_id', flat=True))
+        if draft_emp_ids:
+            submitted_logs = list(EmployeeServiceLog.objects.filter(
+                employee_id__in=draft_emp_ids,
+                date__range=(first_day, last_day),
+                approval_status='SUBMITTED'
+            ).select_related('employee__user'))
+            if submitted_logs:
+                names = ", ".join(sorted({(l.employee.user.get_full_name() or l.employee.user.username) for l in submitted_logs}))
+                messages.error(
+                    request,
+                    f"Cannot approve payroll for {selected_month.strftime('%B %Y')}: unapproved submitted timesheet rows exist for {names}. "
+                    f"Please approve or reject them on the Timesheet Approvals page first."
+                )
+                return redirect(f"{redirect('fin_payroll').url}?month={selected_month.strftime('%Y-%m')}")
+
+            pending_ots = list(OTApproval.objects.filter(
+                employee_id__in=draft_emp_ids,
+                date__range=(first_day, last_day),
+                status='PENDING'
+            ).select_related('employee__user'))
+            if pending_ots:
+                names = ", ".join(sorted({(o.employee.user.get_full_name() or o.employee.user.username) for o in pending_ots}))
+                messages.error(
+                    request,
+                    f"Cannot approve payroll for {selected_month.strftime('%B %Y')}: pending overtime approval days exist for {names}. "
+                    f"Please approve or reject them on the OT Approval page first."
+                )
+                return redirect(f"{redirect('fin_payroll').url}?month={selected_month.strftime('%Y-%m')}")
+
     updated = Payroll.objects.filter(month=selected_month, status='DRAFT').update(status='APPROVED')
     messages.success(request, f"Approved {updated} payroll drafts for {selected_month.strftime('%B %Y')}.")
     return redirect(f"{redirect('fin_payroll').url}?month={selected_month.strftime('%Y-%m')}")
+
+
+@login_required
+@user_passes_test(is_accountant)
+@require_POST
+def fin_payroll_approve(request, payroll_id):
+    payroll = get_object_or_404(Payroll.objects.select_related('employee', 'employee__user'), id=payroll_id)
+    if payroll.status != 'DRAFT':
+        messages.error(request, f"Cannot approve payroll with status {payroll.get_status_display()}.")
+        return redirect(f"{redirect('fin_payroll').url}?month={payroll.month.strftime('%Y-%m')}")
+
+    from django.conf import settings
+    v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
+    if v2_on:
+        payrolls, _, _ = get_payroll_list_with_metrics(payroll.month)
+        matched = next((p for p in payrolls if p.id == payroll.id), None)
+        if matched and getattr(matched, 'missing_punch_days', 0) > 0:
+            emp_name = payroll.employee.user.get_full_name() or payroll.employee.user.username
+            messages.error(
+                request,
+                f"Cannot approve payroll for {emp_name}: unresolved Missing Punch days exist for {payroll.month.strftime('%B %Y')}. "
+                f"Please resolve them in the attendance register before approving."
+            )
+            return redirect(f"{redirect('fin_payroll').url}?month={payroll.month.strftime('%Y-%m')}")
+
+    timesheet_v2_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
+    if timesheet_v2_on:
+        first_day, last_day, _ = get_month_range(payroll.month)
+        from service_logs.models import EmployeeServiceLog
+        from Admin.models import OTApproval
+        emp_name = payroll.employee.user.get_full_name() or payroll.employee.user.username
+        submitted_exists = EmployeeServiceLog.objects.filter(
+            employee=payroll.employee,
+            date__range=(first_day, last_day),
+            approval_status='SUBMITTED'
+        ).exists()
+        if submitted_exists:
+            messages.error(
+                request,
+                f"Cannot approve payroll for {emp_name}: unapproved submitted timesheet rows exist for {payroll.month.strftime('%B %Y')}. "
+                f"Please approve or reject them on the Timesheet Approvals page first."
+            )
+            return redirect(f"{redirect('fin_payroll').url}?month={payroll.month.strftime('%Y-%m')}")
+
+        pending_ot_exists = OTApproval.objects.filter(
+            employee=payroll.employee,
+            date__range=(first_day, last_day),
+            status='PENDING'
+        ).exists()
+        if pending_ot_exists:
+            messages.error(
+                request,
+                f"Cannot approve payroll for {emp_name}: pending overtime approval days exist for {payroll.month.strftime('%B %Y')}. "
+                f"Please approve or reject them on the OT Approval page first."
+            )
+            return redirect(f"{redirect('fin_payroll').url}?month={payroll.month.strftime('%Y-%m')}")
+
+    payroll.status = 'APPROVED'
+    payroll.save(update_fields=['status', 'updated_at'])
+    emp_name = payroll.employee.user.get_full_name() or payroll.employee.user.username
+    messages.success(request, f"Payroll for {emp_name} approved.")
+    return redirect(f"{redirect('fin_payroll').url}?month={payroll.month.strftime('%Y-%m')}")
 
 
 @login_required
@@ -737,16 +941,54 @@ def fin_payroll_mark_paid(request):
     month_param = request.POST.get('month')
     selected_month = _parse_month_param(month_param)
     today = timezone.localdate()
-    updated = Payroll.objects.filter(month=selected_month, status__in=['DRAFT', 'APPROVED']).update(
-        status='PAID', paid_on=today
-    )
-    messages.success(request, f"Marked {updated} payroll records as PAID for {selected_month.strftime('%B %Y')}.")
+    draft_count = Payroll.objects.filter(month=selected_month, status='DRAFT').count()
+    approved_payrolls = list(Payroll.objects.filter(month=selected_month, status='APPROVED').select_related('employee', 'employee__user'))
+    updated = len(approved_payrolls)
+    for p in approved_payrolls:
+        p.status = 'PAID'
+        p.paid_on = today
+        p.save(update_fields=['status', 'paid_on'])
+
+        # Advance instalments deducted & completed check
+        for inst in p.advance_instalments.all():
+            inst.status = 'DEDUCTED'
+            inst.save(update_fields=['status'])
+            adv = inst.advance
+            if adv.balance <= Decimal('0.00'):
+                adv.status = 'COMPLETED'
+                adv.save(update_fields=['status'])
+
+        # Auto-create payslip if V2 on
+        if getattr(settings, 'HR_PAYROLL_V2', False):
+            from finance.payroll_service import create_or_update_payslip
+            from Admin.notifications import notify
+            payslip_obj = create_or_update_payslip(p, generated_by=request.user)
+            notify(
+                p.employee.user,
+                'PAYSLIP',
+                f"Your payslip for {p.month.strftime('%B %Y')} is ready.",
+                link='/finance/my-payslips/',
+                related=payslip_obj,
+                actor=request.user,
+            )
+
+    if updated > 0 or draft_count == 0:
+        messages.success(request, f"Marked {updated} payroll records as PAID for {selected_month.strftime('%B %Y')}.")
+    if draft_count > 0:
+        messages.warning(request, f"{draft_count} draft rows must be approved first.")
     return redirect(f"{redirect('fin_payroll').url}?month={selected_month.strftime('%Y-%m')}")
 
 
 @login_required
-@user_passes_test(is_accountant)
 def fin_payroll_export_excel(request):
+    v2_payroll = getattr(settings, 'HR_PAYROLL_V2', False)
+    if v2_payroll:
+        from Admin.permissions import can_view_salary
+        if not can_view_salary(request.user):
+            raise PermissionDenied
+    else:
+        if not (request.user.is_superuser or (getattr(request.user, 'employee_profile', None) and request.user.employee_profile.is_accountant)):
+            raise PermissionDenied
     month_param = request.GET.get('month')
     selected_month = _parse_month_param(month_param)
     payrolls, totals, _ = get_payroll_list_with_metrics(selected_month)
@@ -1106,27 +1348,21 @@ def fin_attendance_status(request):
         return redirect('admin-dashboard')
     try:
         employee = request.user.employee_profile
-    except AttributeError:
+    except (AttributeError, Employee.DoesNotExist):
         messages.error(request, "Your account does not have an employee profile.")
         return redirect('fin_dashboard')
 
     close_stale_sessions(employee)
-    user_attendance = Attendance.objects.filter(employee=employee, log_out_time__isnull=True).first()
-    attendances_list = Attendance.objects.filter(employee=employee).order_by('-login_time')
-    paginator = Paginator(attendances_list, 10)
-    page_number = request.GET.get('page')
-    attendances = paginator.get_page(page_number)
-
-    return render(request, 'finance/attendance_status.html', {
-        'user_attendance': user_attendance,
-        'attendances': attendances,
-        'attendance_records': attendances,
-    })
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(request, "Finance", 'finance/financebase.html', template_name='finance/attendance_status.html')
 
 
 @login_required
 @user_passes_test(is_accountant)
 def fin_apply_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_apply_leave
+        return render_role_apply_leave(request, 'Accountant', 'finance/financebase.html', 'fin_leave_status')
     if request.user.is_superuser:
         return redirect('admin-dashboard')
     if request.method == 'POST':
@@ -1143,6 +1379,9 @@ def fin_apply_leave(request):
 @login_required
 @user_passes_test(is_accountant)
 def fin_leave_status(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_status
+        return render_role_leave_status(request, 'Accountant', 'finance/financebase.html')
     if request.user.is_superuser:
         return redirect('admin-dashboard')
     leaves_list = Leave.objects.filter(user=request.user).order_by('-from_date')
@@ -1155,6 +1394,9 @@ def fin_leave_status(request):
 @login_required
 @user_passes_test(is_accountant)
 def fin_leave_records(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_statement
+        return render_role_leave_statement(request, 'Accountant', 'finance/financebase.html')
     if request.user.is_superuser:
         return redirect('admin-dashboard')
     leave_balance, _ = LeaveBalance.objects.get_or_create(user=request.user)

@@ -1,8 +1,12 @@
 from decimal import Decimal
+import os
+import uuid
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
+from django.utils import timezone
+from Admin.models import private_storage
 from .currency import CURRENCY_CHOICES, NON_BASE_CURRENCY_CHOICES, to_aed
 
 
@@ -119,6 +123,185 @@ class Payroll(models.Model):
             val = getattr(self, field)
             if val is not None and val < 0:
                 raise ValidationError({field: f'{field} must be greater than or equal to 0.'})
+
+
+def private_payslip_upload_path(instance, filename):
+    ext = os.path.splitext(filename)[1].lower() or '.pdf'
+    return f"payslips/{uuid.uuid4().hex}{ext}"
+
+
+class PayrollLine(models.Model):
+    KIND_CHOICES = [
+        ('EARNING', 'Earning'),
+        ('DEDUCTION', 'Deduction'),
+    ]
+    CODE_CHOICES = [
+        ('BASIC', 'Basic Salary'),
+        ('HOUSING', 'Housing Allowance'),
+        ('TRANSPORT', 'Transport Allowance'),
+        ('OTHER_ALLOWANCE', 'Other Allowance'),
+        ('OT', 'Overtime'),
+        ('ABSENCE', 'Absence Deduction'),
+        ('UNPAID_LEAVE', 'Unpaid Leave'),
+        ('ADVANCE', 'Salary Advance'),
+        ('OTHER', 'Other'),
+    ]
+    SOURCE_CHOICES = [
+        ('auto', 'Auto'),
+        ('manual', 'Manual'),
+    ]
+    payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE, related_name='lines')
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    code = models.CharField(max_length=30, choices=CODE_CHOICES)
+    description = models.CharField(max_length=255, blank=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal('0.00'))
+    sort_order = models.IntegerField(default=0)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='auto')
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='payroll_lines_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f"{self.payroll} - {self.code}: {self.amount}"
+
+
+class SalaryAdvance(models.Model):
+    STATUS_CHOICES = [
+        ('REQUESTED', 'Requested'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('ACTIVE', 'Active'),
+        ('COMPLETED', 'Completed'),
+        ('CANCELLED', 'Cancelled'),
+    ]
+    employee = models.ForeignKey('Admin.Employee', on_delete=models.CASCADE, related_name='salary_advances')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    request_date = models.DateField(default=timezone.localdate)
+    reason = models.TextField(blank=True)
+    instalments = models.PositiveIntegerField(default=1)
+    monthly_deduction = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    start_month = models.DateField()  # Always 1st of month
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='REQUESTED')
+    approved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='advances_approved')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    disbursed_on = models.DateField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='advances_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-request_date', '-id']
+
+    def __str__(self):
+        emp_name = self.employee.name if hasattr(self.employee, 'name') else str(self.employee)
+        return f"Advance {self.id} - {emp_name} - AED {self.amount} ({self.status})"
+
+    @property
+    def total_deducted(self):
+        return sum(inst.amount for inst in self.instalments_schedule.filter(status='DEDUCTED'))
+
+    @property
+    def balance(self):
+        return max(Decimal('0.00'), (self.amount or Decimal('0.00')) - self.total_deducted)
+
+
+class AdvanceInstalment(models.Model):
+    STATUS_CHOICES = [
+        ('SCHEDULED', 'Scheduled'),
+        ('DEDUCTED', 'Deducted'),
+        ('SKIPPED', 'Skipped'),
+    ]
+    advance = models.ForeignKey(SalaryAdvance, on_delete=models.CASCADE, related_name='instalments_schedule')
+    month = models.DateField()  # 1st of month
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='SCHEDULED')
+    payroll = models.ForeignKey(Payroll, null=True, blank=True, on_delete=models.SET_NULL, related_name='advance_instalments')
+    skip_reason = models.TextField(blank=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['month', 'sort_order', 'id']
+
+    def __str__(self):
+        return f"Instalment {self.advance_id} - {self.month.strftime('%b %Y')}: AED {self.amount} ({self.status})"
+
+
+class SalaryIncrement(models.Model):
+    TYPE_CHOICES = [
+        ('ANNUAL', 'Annual'),
+        ('PROMOTION', 'Promotion'),
+        ('CORRECTION', 'Correction'),
+        ('OTHER', 'Other'),
+    ]
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+    ]
+    employee = models.ForeignKey('Admin.Employee', on_delete=models.CASCADE, related_name='salary_increments')
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='ANNUAL')
+    effective_from = models.DateField()
+    previous_structure = models.ForeignKey('Admin.SalaryStructure', null=True, blank=True, on_delete=models.SET_NULL, related_name='increments_from')
+    previous_basic = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    previous_housing = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    previous_transport = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    previous_other = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    previous_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    new_basic = models.DecimalField(max_digits=12, decimal_places=2)
+    new_housing = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    new_transport = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    new_other = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    new_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
+    reason = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    proposed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='increments_proposed')
+    approved_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='increments_approved')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-effective_from', '-created_at']
+
+    def __str__(self):
+        emp_name = self.employee.name if hasattr(self.employee, 'name') else str(self.employee)
+        return f"{emp_name} - {self.get_type_display()} from {self.effective_from} ({self.status})"
+
+    @property
+    def percentage_change(self):
+        if self.previous_total and self.previous_total > Decimal('0.00'):
+            return round(((self.new_total - self.previous_total) / self.previous_total) * Decimal('100.00'), 2)
+        return Decimal('0.00')
+
+    def save(self, *args, **kwargs):
+        self.new_basic = Decimal(str(self.new_basic or '0.00'))
+        self.new_housing = Decimal(str(self.new_housing or '0.00'))
+        self.new_transport = Decimal(str(self.new_transport or '0.00'))
+        self.new_other = Decimal(str(self.new_other or '0.00'))
+        self.new_total = self.new_basic + self.new_housing + self.new_transport + self.new_other
+        super().save(*args, **kwargs)
+
+
+class Payslip(models.Model):
+    payroll = models.OneToOneField(Payroll, on_delete=models.CASCADE, related_name='payslip')
+    number = models.CharField(max_length=50, unique=True)
+    file = models.FileField(upload_to=private_payslip_upload_path, storage=private_storage)
+    generated_at = models.DateTimeField(auto_now=True)
+    generated_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='payslips_generated')
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['-payroll__month', 'number']
+
+    def __str__(self):
+        return f"Payslip {self.number} ({self.payroll})"
 
 
 class Invoice(models.Model):

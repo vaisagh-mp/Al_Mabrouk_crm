@@ -1,3 +1,4 @@
+from Admin.leave_service import is_leave_v2_active
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -42,6 +43,8 @@ from django.views.decorators.http import require_POST
 from django.core.exceptions import PermissionDenied
 from .attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
 from Admin.staff_lifecycle import deactivate_employee, reactivate_employee, delete_blockers
+from Admin.permissions import can_view_salary
+
 
 
 # Home
@@ -55,21 +58,15 @@ def dashboard(request):
         first_day_last_month = last_day_last_month.replace(day=1)
 
 
-        period = request.GET.get("period", "month")
-
-        today = now().date()
-
-        if period == "week":
-            start_date = today - timedelta(days=today.weekday())  # Monday
-            end_date = start_date + timedelta(days=6)
-
-        elif period == "year":
-            start_date = today.replace(month=1, day=1)
-            end_date = today.replace(month=12, day=31)
-
-        else:  # month (default)
-            start_date = today.replace(day=1)
-            end_date = (start_date + relativedelta(months=1)) - timedelta(days=1)
+        # Date range filter (From / To). Default = this month to date, same as Finance "This Month".
+        from django.utils.dateparse import parse_date
+        from_str = request.GET.get("from") or ""
+        to_str = request.GET.get("to") or ""
+        start_date = parse_date(from_str) or today.replace(day=1)
+        end_date = parse_date(to_str) or today
+        if start_date > end_date:
+            messages.error(request, "From date cannot be after To date. Showing this month.")
+            start_date, end_date = today.replace(day=1), today
 
         # Get total projects
         total_projects = Project.objects.count()
@@ -109,106 +106,40 @@ def dashboard(request):
             user__date_joined__date__lte=end_of_last_month
         ).count()
 
-        attendance_qs = Attendance.objects.filter(
-            login_time__date__range=(start_date, end_date)
-        ).select_related("employee")
-
-        total_employee_hours = Decimal(0)
-        total_employee_cost = Decimal(0)
-
-        for record in attendance_qs:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            total_employee_cost += hourly_cost * hours
-
         # Calculate change percentage
         if employees_last_month > 0:
             emp_change_percent = ((employees_this_month - employees_last_month) / employees_last_month) * 100
         else:
             emp_change_percent = 100 if employees_this_month > 0 else 0
         
-        # Total Revenue (Invoice Amount Sum)
-        total_revenue = Project.objects.filter(
-            created_at__date__range=(start_date, end_date)
-        ).aggregate(Sum("invoice_amount"))["invoice_amount__sum"] or Decimal(0)
+        # Revenue / Expenses / Profit come from the Finance P&L engine, so the
+        # numbers match the Finance dashboard for the same dates.
+        from finance.services import pnl_for_range
+        range_tot = pnl_for_range(start_date, end_date, granularity='range', request=request)['totals']
+        total_revenue = range_tot.get('revenue') or Decimal(0)
+        total_expenses = range_tot.get('total_cost') or Decimal(0)
+        total_profit = range_tot.get('profit') or Decimal(0)
 
-        
-        # Total Expenses (Purchase & Expenses Sum)
-        purchase_expenses = Project.objects.filter(
-            created_at__date__range=(start_date, end_date)
-        ).aggregate(Sum("purchase_and_expenses"))["purchase_and_expenses__sum"] or Decimal(0)
+        # Previous period of the same length, for the "vs previous period" arrow
+        num_days = (end_date - start_date).days + 1
+        prev_end = start_date - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=num_days - 1)
+        prev_profit = pnl_for_range(prev_start, prev_end, granularity='range', request=request)['totals'].get('profit') or Decimal(0)
 
-        
-        total_expenses = purchase_expenses + total_employee_cost
-        
-        # Total Profit = Revenue - Expenses
-        total_profit = total_revenue - total_expenses
+        # Sparkline series (weekly up to ~3 months, monthly beyond)
+        spark_gran = 'week' if num_days <= 92 else 'month'
+        spark_buckets = pnl_for_range(start_date, end_date, granularity=spark_gran, request=request)['buckets']
+        spark_json = ({
+            'revenue': [float(x.get('revenue') or 0) for x in spark_buckets],
+            'expenses': [float(x.get('total_cost') or 0) for x in spark_buckets],
+            'profit': [float(x.get('profit') or 0) for x in spark_buckets],
+        })
 
-        current_month_attendance = Attendance.objects.filter(
-            login_time__date__gte=start_of_this_month
-        )
-
-        current_employee_cost = Decimal(0)
-
-        for record in current_month_attendance:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            current_employee_cost += hourly_cost * hours
-
-        # current_profit = current_revenue - (current_expenses + current_employee_cost)
-
-        last_month_attendance = Attendance.objects.filter(
-            login_time__date__gte=start_of_last_month,
-            login_time__date__lte=end_of_last_month
-        )
-
-        last_employee_cost = Decimal(0)
-
-        for record in last_month_attendance:
-            emp = record.employee
-            hours = Decimal(record.total_hours_of_work or 0)
-            hourly_cost = emp.salary / Decimal(26 * 8)
-            last_employee_cost += hourly_cost * hours
-
-        # last_profit = last_revenue - (last_expenses + last_employee_cost)
-
-        # Current Month Revenue and Expenses
-        current_revenue = Project.objects.filter(
-            created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
-
-        current_expenses = Project.objects.filter(
-            created_at__date__gte=start_of_this_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
-
-        current_profit = current_revenue - (current_expenses + current_employee_cost)
-
-        # Last Month Revenue and Expenses
-        last_revenue = Project.objects.filter(
-            created_at__date__gte=start_of_last_month,
-            created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('invoice_amount'))['invoice_amount__sum'] or Decimal(0)
-
-        last_expenses = Project.objects.filter(
-            created_at__date__gte=start_of_last_month,
-            created_at__date__lte=end_of_last_month
-        ).aggregate(Sum('purchase_and_expenses'))['purchase_and_expenses__sum'] or Decimal(0)
-
-        last_profit = last_revenue - (last_expenses + last_employee_cost)
-
-
-        # Profit Change %
-        if last_profit == 0:
-            if current_profit > 0:
-                profit_change_percent = 100
-            elif current_profit < 0:
-                profit_change_percent = -100
-            else:
-                profit_change_percent = 0
+        # Profit Change % (selected range vs previous range of the same length)
+        if prev_profit == 0:
+            profit_change_percent = 100 if total_profit > 0 else (-100 if total_profit < 0 else 0)
         else:
-            profit_change_percent = ((current_profit - last_profit) / abs(last_profit)) * 100
+            profit_change_percent = ((total_profit - prev_profit) / abs(prev_profit)) * 100
 
         # Pending Invoices (Projects where invoice_amount is 0)
         pending_invoices = Project.objects.filter(invoice_amount=0).count()
@@ -356,13 +287,13 @@ def dashboard(request):
             'emp_change_percent_abs': abs(round(emp_change_percent, 2)),
             'active_employees': active_employees,
             'total_revenue': round(total_revenue, 2),
-            "total_employee_hours": round(total_employee_hours, 2),
-            "total_employee_cost": round(total_employee_cost, 2),
+            "total_employee_cost": round(range_tot.get('payroll_cost') or Decimal(0), 2),
             "total_expenses": round(total_expenses, 2),
             "total_profit": round(total_profit, 2),
-            "period": period,
-            # 'current_profit': round(current_profit, 2),
-            'net_profit': round(current_profit, 2),
+            "from_date": start_date.strftime('%Y-%m-%d'),
+            "to_date": end_date.strftime('%Y-%m-%d'),
+            "spark_json": spark_json,
+            'net_profit': round(total_profit, 2),
             'profit_change_percent': round(profit_change_percent, 2),
             'profit_change_percent_abs' : abs(profit_change_percent),
             'pending_invoices': pending_invoices,
@@ -399,77 +330,41 @@ def dashboard(request):
 @login_required
 def create_employee(request):
     if not request.user.is_staff:
-        return redirect('dashboard')
+        return HttpResponseForbidden("You do not have permission to create employees.")
     
     if request.method == 'POST':
-        form = EmployeeCreationForm(request.POST, request.FILES)
+        form = EmployeeCreationForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             try:
                 form.save()
                 messages.success(request, 'Employee created successfully!')
+                if 'save_and_add_another' in request.POST or 'save_add_another' in request.POST:
+                    return redirect('create-employee')
                 return redirect('employee_list')
             except Exception as e:
                 messages.error(request, f'There was an error creating the employee: {e}')
         else:
             messages.error(request, 'Please correct the errors below.')
     else:
-        form = EmployeeCreationForm()
+        form = EmployeeCreationForm(user=request.user)
 
-    return render(request, 'Admin/create_employee.html', {'form': form, 'role': 'Admin'})
+    return render(request, 'Admin/create_employee.html', {
+        'form': form,
+        'role': 'Admin',
+        'can_view_salary': can_view_salary(request.user)
+    })
+
 
 # employee list
 @login_required
 def employee_list(request):
-    if not request.user.is_staff:
-        return redirect('custom-login')
-
-    # Annotate both team-based and manager-based ongoing projects
-    employees = Employee.objects.select_related('user').annotate(
-        team_ongoing_count=Count(
-            'project_statuses',
-            filter=Q(project_statuses__status='ONGOING'),
-            distinct=True
-        ),
-        manager_ongoing_count=Count(
-            'managed_projects',
-            filter=Q(managed_projects__status='ONGOING'),
-            distinct=True
-        ),
-        ongoing_project_count=F('team_ongoing_count') + F('manager_ongoing_count')
-    ).prefetch_related(
-        Prefetch(
-            'project_statuses',
-            queryset=TeamMemberStatus.objects.filter(status='ONGOING').select_related('team__project'),
-            to_attr='assigned_projects'
-        ),
-        Prefetch(
-            'managed_projects',
-            queryset=Project.objects.filter(status='ONGOING'),
-            to_attr='ongoing_managed_projects'
-        )
-    ).order_by('-user__date_joined')
-
-    status_filter = request.GET.get('status', 'active')
-    if status_filter == 'inactive':
-        employees = employees.filter(user__is_active=False)
-    elif status_filter == 'all':
-        pass
-    else:
-        status_filter = 'active'
-        employees = employees.filter(user__is_active=True)
-
-    paginator = Paginator(employees, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    return render(request, 'Admin/employee_list.html', {
-        'page_obj': page_obj, 'role': 'Admin', 'status_filter': status_filter
-    })
+    from Admin.employee_views import render_employee_list
+    return render_employee_list(request, role='admin', base_template='Admin/adminbase.html')
 
 @login_required
 def manager_list(request):
     if not request.user.is_staff:
-        return redirect('login')
+        return HttpResponseForbidden("You do not have permission to view managers.")
 
     # Filter projects with status 'ONGOING' and a manager assigned
     ongoing_project_assignments = Project.objects.filter(
@@ -532,6 +427,10 @@ def manager_attendance_list_view(request):
 def attendance_list_view(request):
     if not request.user.is_superuser:
         raise PermissionDenied
+    if request.method == 'POST':
+        from Admin.attendance_correction import handle_attendance_status_post
+        emp = getattr(request.user, 'employee_profile', None)
+        return handle_attendance_status_post(request, emp)
     export_format = request.GET.get('export')
     if export_format in ('summary_excel', 'summary_csv', 'excel'):
         context = _register_context(request)
@@ -544,6 +443,14 @@ def attendance_list_view(request):
     context = _register_context(request)
     context['role'] = 'Admin'
     return render(request, 'Admin/attendance_list.html', context)
+
+
+@login_required
+def employee_attendance_month_view(request, employee_id, month):
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    from Admin.attendance_register import employee_attendance_month_view_helper
+    return employee_attendance_month_view_helper(request, employee_id, month, role='admin')
 
 
 @login_required
@@ -561,6 +468,9 @@ def manage_attendance(request):
     # Ensure the user is a superuser (or manager)
     if not request.user.is_superuser:
         return redirect('admin-dashboard')
+
+    if request.method == 'GET':
+        messages.info(request, "Note: Attendance corrections are now managed under Attendance Status -> Team Requests.")
     
     pending_requests = Attendance.objects.filter(
         status='PENDING',
@@ -647,9 +557,14 @@ def admin_manage_project_status(request):
                 messages.error(request, "Invalid action.")
             tms.save()
 
-            Notification.objects.create(
-                recipient=tms.employee.user,
-                message=f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin."
+            from Admin.notifications import notify, get_user_role_link
+            notify(
+                tms.employee.user,
+                'PROJECT',
+                f"Your project status '{tms.status}' was {tms.manager_approval_status.lower()} by the admin.",
+                link=get_user_role_link(tms.employee.user, 'project', obj_id=tms.team.project_id),
+                related=tms.team.project,
+                actor=request.user,
             )
 
         except TeamMemberStatus.DoesNotExist:
@@ -829,8 +744,7 @@ def project_list_view(request):
 def admin_project_summary_view(request, project_id):
     # Ensure only admins can access this page
     if not request.user.is_superuser:
-        messages.error(request, "You do not have permission to access this page.")
-        return redirect("admin_dashboard")  # Redirect to admin dashboard
+        return HttpResponseForbidden("You do not have permission to access this page.")
 
     project = get_object_or_404(Project, id=project_id)
 
@@ -1007,7 +921,7 @@ def update_team_admin_status(request, project_id):
     # Ensure only admins can access this function
     if not request.user.is_superuser:
         messages.error(request, "You do not have permission to update project status.")
-        return redirect("admin_dashboard")
+        return redirect("admin-dashboard")
 
     if request.method == "POST":
         project = get_object_or_404(Project, id=project_id)
@@ -1327,110 +1241,8 @@ def project_assignment_delete(request, pk):
 
 @login_required
 def employee_profile(request, employee_id):
-    # Get the employee
-    employee = get_object_or_404(Employee, pk=employee_id)
-    teams = employee.teams_assigned.all()
-
-    team_member_statuses = TeamMemberStatus.objects.filter(employee=employee)
-
-    # Project status counts (as team member)
-    completed_projects = team_member_statuses.filter(status='COMPLETED').count()
-    pending_projects = team_member_statuses.exclude(status='COMPLETED').count()
-    assigned_projects = team_member_statuses.filter(status='ASSIGN').count()
-    total_projects = completed_projects + pending_projects + assigned_projects
-
-    # All assigned projects for display
-    all_projects = [
-        {
-            'project': status.team.project,
-            'manager': status.team.project.manager,
-            'status': status.status
-        }
-        for status in team_member_statuses
-    ]
-
-    # ---- Attendance % Calculation ----
-    today = date.today()
-    first_day_this_month = today.replace(day=1)
-    
-    # Safely determine work start date
-    if employee.date_of_join:
-        work_start_date = max(employee.date_of_join, first_day_this_month)
-    else:
-        work_start_date = first_day_this_month
-
-    # Get all weekdays (Mon-Sat) between work_start_date and today
-    all_days = [work_start_date + timedelta(days=i) for i in range((today - work_start_date).days + 1)]
-    weekdays = [d for d in all_days if d.weekday() < 6]
-
-    # Remove holidays
-    holidays = Holiday.objects.filter(date__range=(work_start_date, today)).values_list('date', flat=True)
-    working_days_this_month = [d for d in weekdays if d not in holidays]
-    total_working_days = len(working_days_this_month)
-
-    # Attendance records
-    approved_attendance = Attendance.objects.filter(employee=employee, status="APPROVED", login_time__date__gte=work_start_date)
-
-    # Working hours
-    full_day_hours = 10
-    half_day_min_hours = 5
-
-    full_days = approved_attendance.filter(total_hours_of_work__gte=full_day_hours).values('login_time__date').distinct().count()
-    half_days = approved_attendance.filter(
-        total_hours_of_work__gte=half_day_min_hours,
-        total_hours_of_work__lt=full_day_hours
-    ).values('login_time__date').distinct().count()
-
-    attendance_percentage = (
-        ((full_days + 0.5 * half_days) / total_working_days * 100)
-        if total_working_days > 0 else 0
-    )
-
-    # ---- Manager Projects ----
-    manager_projects = []
-    manager_completed_projects = 0
-    manager_pending_projects = 0
-    manager_assigned_projects = 0
-
-    if employee.is_manager:
-        manager_projects = Project.objects.filter(manager=employee)
-        manager_completed_projects = manager_projects.filter(status='COMPLETED').count()
-        manager_pending_projects = manager_projects.exclude(status__in=['COMPLETED']).count()
-        manager_assigned_projects = manager_projects.filter(status='ASSIGN').count()
-
-    
-    engineer_attendance_qs = Attendance.objects.filter(employee=employee, status='APPROVED')
-    overseas_attendance = engineer_attendance_qs.filter(project__category="OVERSEAS").count()
-    anchorage_attendance = engineer_attendance_qs.filter(project__category="ANCHORAGE").count()
-    at_berth_attendance = engineer_attendance_qs.filter(project__category="AT_BERTH").count()
-
-
-    # Context
-    context = {
-        'role': 'Admin',
-        'employee': employee,
-        'teams': teams,
-        'all_projects': all_projects,
-        'attendance_percentage': round(attendance_percentage, 1),
-
-        # Team member stats
-        'total_projects': total_projects,
-        'completed_projects': completed_projects,
-        'pending_projects': pending_projects,
-
-        # Manager stats
-        'manager_projects': manager_projects,
-        'manager_completed_projects': manager_completed_projects,
-        'manager_pending_projects': manager_pending_projects,
-        'manager_assigned_projects': manager_assigned_projects,
-
-        "overseas_attendance": overseas_attendance,
-        "anchorage_attendance": anchorage_attendance,
-        "at_berth_attendance": at_berth_attendance,
-        'delete_blockers': delete_blockers(employee),
-    }
-
-    return render(request, 'Admin/employee_profile.html', context)
+    from Admin.employee_views import render_employee_profile
+    return render_employee_profile(request, employee_id, role='admin', base_template='Admin/adminbase.html')
 
 def is_admin(user):
     """Check if user is an admin"""
@@ -1440,7 +1252,6 @@ def is_admin(user):
 @user_passes_test(is_admin)
 def admin_edit_employee(request, employee_id):
     """Admin can edit an employee's profile"""
-    
     try:
         employee = Employee.objects.select_related("user").get(id=employee_id)
     except Employee.DoesNotExist:
@@ -1451,102 +1262,24 @@ def admin_edit_employee(request, employee_id):
         messages.error(request, "This employee does not have a linked user account.")
         return redirect("employee_list")
 
-    user = employee.user
-
     if request.method == "POST":
-        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee, user=request.user)
         if form.is_valid():
-            print("Form is valid")  # Debugging
-            # Update User fields
-            user.username = form.cleaned_data["username"]
-            user.first_name = form.cleaned_data["first_name"]
-            user.last_name = form.cleaned_data["last_name"]
-            user.email = form.cleaned_data["email"]
-
-            # Handle password change
-            if form.cleaned_data.get("password"):
-                user.set_password(form.cleaned_data["password"])
-
-            user.save()
-
-            # Update Employee fields
-            employee.phone_number = form.cleaned_data["phone_number"]
-            employee.rank = form.cleaned_data["rank"]
-            employee.salary = form.cleaned_data.get("salary") or 0
-            employee.date_of_birth = form.cleaned_data["date_of_birth"]
-            employee.date_of_join = form.cleaned_data["date_of_join"]
-            employee.work_days = form.cleaned_data.get("work_days") or 0
-            employee.holidays = form.cleaned_data.get("holidays") or 0
-            employee.overseas_days = form.cleaned_data.get("overseas_days") or 0
-            employee.address = form.cleaned_data["address"]
-
-            # Handle profile picture upload
-            if "profile_picture" in request.FILES:
-                employee.profile_picture = request.FILES["profile_picture"]
-
-            # Reset all role fields before setting the new role
-            employee.is_employee = False
-            employee.is_manager = False
-            employee.is_administration = False
-            employee.is_hr = False
-            employee.is_accountant = False
-
-            # Update role based on form input
-            selected_role = request.POST.get("role")
-            if selected_role == "employee":
-                employee.is_employee = True
-                user.is_staff = False  # Regular employee
-            elif selected_role == "manager":
-                employee.is_manager = True
-                user.is_staff = True   # Manager is staff
-            elif selected_role == "administration":
-                employee.is_administration = True
-                user.is_staff = True   # Admin is staff
-            elif selected_role == "hr":
-                employee.is_hr = True
-                user.is_staff = True   # HR is staff
-            elif selected_role == "accountant":
-                employee.is_accountant = True
-                user.is_staff = True   # Accountant is staff
-
-            employee.save()
-            user.save()
-
+            form.save(changed_by=request.user, source='Admin edit')
             messages.success(request, "Employee profile updated successfully.")
             return redirect("employee_list")
-
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
-        initial_role = None  # Default to None
-        if employee.is_employee:
-            initial_role = "employee"
-        elif employee.is_manager:
-            initial_role = "manager"
-        elif employee.is_administration:
-            initial_role = "administration"
-        elif employee.is_hr:
-            initial_role = "hr"
-        elif employee.is_accountant:
-            initial_role = "accountant"
-    
-        form = ManagerEmployeeUpdateForm(instance=employee, initial={
-            "username": user.username,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "email": user.email,
-            "phone_number": employee.phone_number,
-            "rank": employee.rank,
-            "salary": employee.salary,
-            "date_of_birth": employee.date_of_birth.strftime("%Y-%m-%d") if employee.date_of_birth else '',
-            "date_of_join": employee.date_of_join.strftime("%Y-%m-%d") if employee.date_of_join else '',
-            "work_days": employee.work_days,
-            "holidays": employee.holidays,
-            "overseas_days": employee.overseas_days,
-            "address": employee.address,
-            "role": initial_role  # Ensure role is set
-        })
+        form = ManagerEmployeeUpdateForm(instance=employee, user=request.user)
 
+    return render(request, "Admin/edit_employee.html", {
+        "form": form,
+        "employee": employee,
+        'role': 'Admin',
+        'can_view_salary': can_view_salary(request.user)
+    })
 
-    return render(request, "Admin/edit_employee.html", {"form": form, "employee": employee, 'role': 'Admin'})
 
 @login_required
 def admin_delete_employee(request, employee_id):
@@ -1683,7 +1416,9 @@ def manager_profile(request, manager_id):
         "manager_attendance_percentage": manager_attendance_percentage,
         "is_manager": True,
         'delete_blockers': delete_blockers(manager),
+        'can_view_salary': can_view_salary(request.user),
     }
+
 
     return render(request, 'Admin/manager_profile.html', context)
 @login_required
@@ -1692,40 +1427,23 @@ def admin_edit_manager(request, manager_id):
     employee = get_object_or_404(Employee, pk=manager_id)
 
     if request.method == "POST":
-        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee)
+        form = ManagerEmployeeUpdateForm(request.POST, request.FILES, instance=employee, user=request.user)
         if form.is_valid():
-            user = employee.user
-            user.first_name = form.cleaned_data["first_name"]
-            user.last_name = form.cleaned_data["last_name"]
-            user.email = form.cleaned_data["email"]
-
-            # Save new password if provided
-            if form.cleaned_data["password"]:
-                user.set_password(form.cleaned_data["password"])
-
-            user.save()
-            form.save()
-
+            form.save(changed_by=request.user, source='Admin edit')
             messages.success(request, "Employee profile updated successfully.")
-            return redirect("manager_list")  # Redirect to employee list page
-
+            return redirect("manager_list")
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
-        form = ManagerEmployeeUpdateForm(instance=employee, initial={
-            "first_name": employee.user.first_name,
-            "last_name": employee.user.last_name,
-            "email": employee.user.email,
-            "phone_number": employee.phone_number,
-            "rank": employee.rank,
-            "salary": employee.salary,
-            "date_of_birth": employee.date_of_birth,
-            "date_of_join": employee.date_of_join,
-            "work_days": employee.work_days,
-            "holidays": employee.holidays,
-            "overseas_days": employee.overseas_days,
-            "address": employee.address,
-        })
+        form = ManagerEmployeeUpdateForm(instance=employee, user=request.user)
 
-    return render(request, "Admin/edit_manager.html", {"form": form, "employee": employee, 'role': 'Admin'})
+    return render(request, "Admin/edit_manager.html", {
+        "form": form,
+        "employee": employee,
+        'role': 'Admin',
+        'can_view_salary': can_view_salary(request.user)
+    })
+
 
 
 @login_required
@@ -1779,8 +1497,10 @@ def admin_reactivate_manager(request, manager_id):
 @login_required
 def employee_leave_list(request):
     if not request.user.is_superuser:
-        return redirect('admin-dashboard')
-
+        raise PermissionDenied("Only superusers can access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_list
+        return render_role_leave_list(request, 'Admin', 'Admin/adminbase.html')
     search_query = request.GET.get('search', '').strip()
 
     # Fetch only employee leave records
@@ -1806,8 +1526,10 @@ def employee_leave_list(request):
 @login_required
 def manager_leave_list(request):
     if not request.user.is_superuser:
-        return redirect('admin-dashboard')
-
+        raise PermissionDenied("Only superusers can access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_list
+        return render_role_leave_list(request, 'Admin', 'Admin/adminbase.html')
     search_query = request.GET.get('search', '').strip()
 
     # Fetch only manager leave records
@@ -1834,16 +1556,24 @@ def manager_leave_list(request):
 @login_required
 def employee_manage_leave(request):
     if not request.user.is_superuser:
-        return redirect('admin-dashboard')
-
+        raise PermissionDenied("Only superusers can access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_manage_leave
+        return render_role_manage_leave(request, 'Admin', 'Admin/adminbase.html')
     search_query = request.GET.get('search', '').strip()
 
     # Fetch only employee leave requests
     pending_leaves = Leave.objects.filter(approval_status='PENDING').select_related('user')
 
-    # Apply search filter
+    # Apply search/dept/branch filters
     if search_query:
         pending_leaves = pending_leaves.filter(user__username__icontains=search_query)
+    dept_filter = request.GET.get('department')
+    branch_filter = request.GET.get('branch')
+    if dept_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__department_id=dept_filter)
+    if branch_filter:
+        pending_leaves = pending_leaves.filter(user__employee_profile__branch_id=branch_filter)
 
     # Paginate leave records (10 per page)
     paginator = Paginator(pending_leaves, 10)
@@ -1881,8 +1611,10 @@ def employee_manage_leave(request):
 @login_required
 def manager_manage_leave(request):
     if not request.user.is_superuser:
-        return redirect('admin-dashboard')
-
+        raise PermissionDenied("Only superusers can access this page.")
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_manage_leave
+        return render_role_manage_leave(request, 'Admin', 'Admin/adminbase.html')
     search_query = request.GET.get('search', '').strip()
 
     # Fetch only manager leave requests
@@ -1950,8 +1682,8 @@ def admin_notifications(request):
 def admin_mark_all_notifications(request):
     """Mark all notifications as read."""
     if request.method == "POST":
-        Notification.objects.filter(is_read=False).update(is_read=True)
-        return redirect("admin-notifications")
+        Notification.objects.filter(is_read=False).update(is_read=True, read_at=timezone.now())
+    return redirect("admin-notifications")
 
 @login_required
 def admin_mark_single_notification(request, notification_id):
@@ -1959,18 +1691,24 @@ def admin_mark_single_notification(request, notification_id):
     notification = get_object_or_404(Notification, id=notification_id)
     if request.method == "POST":
         notification.is_read = True
-        notification.save()
+        notification.read_at = timezone.now()
+        notification.save(update_fields=['is_read', 'read_at'])
     return redirect("admin-notifications")
 
 
 @login_required
 def fetch_notifications(request):
-    unread_count = Notification.objects.filter(is_read=False).count()
-    return JsonResponse({"unread_count": unread_count})
+    from Admin.notifications import serialize_notifications_for_user
+    unread_count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+    return JsonResponse({
+        "unread_count": unread_count,
+        "notifications": serialize_notifications_for_user(request.user),
+    })
 
 @login_required
 def mark_notifications_as_read(request):
-    request.user.notifications.update(is_read=True)
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 
@@ -2179,51 +1917,37 @@ def admin_update_work_order_view(request, pk):
                     work_order_detail.save()
 
                     # ---------------------------
-                    # Clear old auto-created service logs and WorkOrderTime entries
+                    # Sync WorkOrderTime entries in place (preserving submitted/approved rows)
                     # ---------------------------
-                    EmployeeServiceLog.objects.filter(time_log__work_order=work_order, is_auto_created=True).delete()
-                    WorkOrderTime.objects.filter(work_order=work_order).delete()
-
+                    from Admin.work_order_helpers import sync_work_order_times
+                    _action = request.POST.get('action', 'save_draft')
                     time_employees = request.POST.getlist('time_employee[]') or request.POST.getlist('time_employee')
                     time_dates = request.POST.getlist('time_date[]') or request.POST.getlist('time_date')
                     time_starts = request.POST.getlist('start_time[]') or request.POST.getlist('start_time')
                     time_finishes = request.POST.getlist('finish_time[]') or request.POST.getlist('finish_time')
 
                     # Save multiple WorkOrderTime rows
-                    _new_time_logs = []
                     _time_rows, _time_warnings = clean_time_rows(
                         time_dates,
                         time_starts,
                         time_finishes,
                         time_employees,
+                        row_ids=request.POST.getlist('time_row_id[]'),
+                        break_minutes=request.POST.getlist('break_minutes[]'),
+                        travel_minutes=request.POST.getlist('travel_minutes[]'),
+                        descriptions=request.POST.getlist('time_description[]'),
+                        attachments=request.FILES.getlist('time_attachment[]'),
                     )
                     _wo_warnings.extend(_time_warnings)
-                    for _row in _time_rows:
-                        emp_val = _row['emp_val']
-                        row_employee = None
-                        if emp_val:
-                            try:
-                                row_employee = allowed_for_save.get(int(emp_val))
-                            except (ValueError, TypeError):
-                                row_employee = None
-
-                        # Blank/unknown -> the project manager; if none, skip row with warning
-                        if not row_employee:
-                            row_employee = proj_manager_emp
-
-                        if not row_employee:
-                            row_num = _row.get('row_idx', len(_new_time_logs) + 1)
-                            _wo_warnings.append(f"Time row {row_num} was skipped: choose who did the work.")
-                            continue
-
-                        _tl = WorkOrderTime.objects.create(
-                            work_order=work_order,
-                            date=_row['date'],
-                            start_time=_row['start'],
-                            finish_time=_row['finish'],
-                            employee=row_employee,
-                        )
-                        _new_time_logs.append(_tl)
+                    _new_time_logs = sync_work_order_times(
+                        work_order=work_order,
+                        time_rows=_time_rows,
+                        allowed_for_save=allowed_for_save,
+                        default_employee=proj_manager_emp,
+                        action=_action,
+                        user=request.user,
+                        warnings=_wo_warnings,
+                    )
 
                     # Clear existing related objects
                     Spare.objects.filter(work_order=work_order).delete()
@@ -2385,7 +2109,7 @@ def admin_update_work_order_view(request, pk):
 
     times_data = []
     assigned_member_ids = {m['id'] for m in assigned_members}
-    for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user'):
+    for t in WorkOrderTime.objects.filter(work_order=work_order).select_related('employee__user', 'service_log'):
         name = ''
         extra_member = None
         if t.employee and t.employee.user:
@@ -2396,11 +2120,18 @@ def admin_update_work_order_view(request, pk):
                 else:
                     label = f"{name} (not on team)"
                 extra_member = {'id': t.employee_id, 'name': label}
+        slog = getattr(t, 'service_log', None)
         times_data.append({
             'id': t.id,
             'date': t.date.isoformat() if t.date else '',
             'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
             'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
+            'break_minutes': t.break_minutes or 0,
+            'travel_minutes': t.travel_minutes or 0,
+            'description': t.description or '',
+            'attachment_url': t.attachment.url if t.attachment else '',
+            'status': getattr(slog, 'approval_status', 'DRAFT'),
+            'remarks': getattr(slog, 'decision_remarks', '') or '',
             'employee_id': t.employee_id or '',
             'member_name': extra_member['name'] if extra_member else name,
             'extra_member': extra_member,
@@ -2526,3 +2257,44 @@ def search_redirect_view(request):
 
     # Default fallback
     return redirect('project-list')
+
+@login_required
+def admin_import_opening_balances(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.leave_views import render_import_opening_balances
+    return render_import_opening_balances(request, 'Admin/adminbase.html')
+
+
+@login_required
+def admin_leave_year_reviews(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.leave_views import render_year_end_reviews
+    return render_year_end_reviews(request, 'Admin/adminbase.html')
+
+
+@login_required
+def admin_leave_statement(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.leave_views import render_role_leave_statement
+    return render_role_leave_statement(request, 'Admin', 'Admin/adminbase.html')
+
+
+@login_required
+def admin_hr_dashboard(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.hr_dashboard import render_hr_dashboard
+    return render_hr_dashboard(request, role='admin', base_template='Admin/adminbase.html')
+
+
+@login_required
+def admin_attendance_status(request):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can access this page.")
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(
+        request, 'Admin', 'Admin/adminbase.html', template_name='hr/attendance.html'
+    )

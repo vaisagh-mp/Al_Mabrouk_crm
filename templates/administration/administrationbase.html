@@ -16,7 +16,7 @@
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261111" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
     <!-- Add Select2 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
@@ -27,17 +27,9 @@
     <header>
 
       <div class="mb-top-hdr">
-        <div class="hdr-notification">
-        <a href="#" id="open-notification-popup">
-            <button type="button" class="btn btn-primary position-relative">
-                <i class="fas fa-bell"></i>
-                <span id="notification-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    0
-                    <span class="visually-hidden">unread messages</span>
-                </span>
-            </button>
-        </a>
-    </div>
+        {% url 'admstrn_fetch_notifications' as notif_fetch_url %}
+        {% url 'admstrn_mark_notifications_as_read' as notif_mark_url %}
+        {% include 'includes/notification_bell.html' with fetch_url=notif_fetch_url mark_read_url=notif_mark_url %}
 
         <div class="hdr-user">
           <div class="dropdown">
@@ -64,22 +56,7 @@
             </ul>
           </div>
 
-          <!-- Notification Popup -->
-          <div id="notification-popup" class="notification-popup">
-            <div class="popup-header">
-                <h5>Project Notifications</h5>
-                <button class="close-popup">&times;</button>
-            </div>
-
-            <div class="popup-body">
-                <div id="notification-list-manager">
-                    <p>Loading...</p>
-                </div>
-            </div>
-          
-            <!-- Button should be outside the list -->
-            <button class="mark-all-read" id="mark-read-manager">Mark All as Read</button>
-          </div>
+          <!-- Notification bell popup included in top header -->
 
         </div>
 
@@ -464,69 +441,7 @@ document.getElementById("presence-month").addEventListener("change", function() 
 });
 </script>
       
-      <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const notificationPopup = document.getElementById("notification-popup");
-            const notificationList = document.getElementById("notification-list-manager");
-            const markReadBtn = document.getElementById("mark-read-manager");
-            const openNotificationBtn = document.getElementById("open-notification-popup");
-            const closePopupBtn = document.querySelector(".close-popup");
-            const notificationCount = document.getElementById("notification-count");
-      
-            // Function to Fetch Notifications and Update Badge
-            function fetchManagerNotifications() {
-                fetch("{% url 'admstrn_fetch_notifications' %}")
-                    .then(response => response.json())
-                    .then(data => {
-                        notificationList.innerHTML = "";
-      
-                        if (data.notifications.length === 0) {
-                            notificationList.innerHTML = "<p>No new notifications</p>";
-                            markReadBtn.style.display = "none";  // Hide button
-                            notificationCount.style.display = "none";  // Hide badge
-                        } else {
-                            data.notifications.forEach(notification => {
-                                const item = document.createElement("div");
-                                item.classList.add("notification-item");
-                                item.innerHTML = `<p>${notification.message}</p><small>${notification.created_at}</small>`;
-                                notificationList.prepend(item);
-                            });
-                            markReadBtn.style.display = "block";  // Show button
-                            notificationCount.textContent = data.notifications.length;  // Update badge count
-                            notificationCount.style.display = "inline-block";  // Show badge
-                        }
-                    });
-            }
-      
-            // Show Popup When Clicking Notification Menu
-            openNotificationBtn.addEventListener("click", function (event) {
-                event.preventDefault();
-                fetchManagerNotifications();
-                notificationPopup.style.display = "block";
-            });
-      
-            // Close Popup
-            closePopupBtn.addEventListener("click", function () {
-                notificationPopup.style.display = "none";
-            });
-      
-            // Mark All Notifications as Read
-            markReadBtn.addEventListener("click", function () {
-                fetch("{% url 'admstrn_mark_notifications_as_read' %}", {
-                    method: "POST",
-                    headers: { "X-CSRFToken": "{{ csrf_token }}" }
-                }).then(response => response.json())
-                  .then(data => {
-                      alert(data.message);
-                      fetchManagerNotifications();
-                  });
-            });
-      
-            // Auto Fetch Notifications Every 5 Seconds
-            setInterval(fetchManagerNotifications, 5000);
-            fetchManagerNotifications();
-        });
-      </script>
+      <!-- Notification bell script handled by includes/notification_bell.html -->
 
 
 <!-- jQuery -->

@@ -96,6 +96,18 @@ from Admin.templatetags.text_tags import plain_text
 register.filter('plain_text', plain_text)
 
 
+@register.filter
+def can_view_salary(user):
+    from Admin.permissions import can_view_salary as cvs
+    return cvs(user)
+
+
+@register.filter
+def can_manage_hr_settings(user):
+    from Admin.permissions import can_manage_hr_settings as cmh
+    return cmh(user)
+
+
 @register.simple_tag
 def project_attachment_accept():
     from Admin.upload_helpers import PROJECT_ATTACHMENT_ACCEPT
@@ -112,3 +124,4 @@ def file_icon_class(file_or_name):
 def is_download_file(file_or_name):
     from Admin.upload_helpers import get_file_type_info
     return get_file_type_info(file_or_name)['is_download']
+

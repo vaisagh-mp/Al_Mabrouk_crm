@@ -1,16 +1,19 @@
 from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
 from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment, WorkOrder, WorkOrderTime
-from django.contrib.auth.models import User
+from Admin.notifications import notify, notify_role, get_user_role_link
 
 
 # Signal to notify manager when a new project is assigned
 @receiver(post_save, sender=Project)
 def notify_manager_on_project_creation(sender, instance, created, **kwargs):
     if created and instance.manager:
-        Notification.objects.create(
-            recipient=instance.manager.user,  # Assuming Employee model has a OneToOne relation with User
-            message=f"A new project '{instance.name}' has been assigned to you."
+        notify(
+            instance.manager.user,
+            'PROJECT',
+            f"A new project '{instance.name}' has been assigned to you.",
+            link=get_user_role_link(instance.manager.user, 'project', obj_id=instance.id),
+            related=instance,
         )
 
 # Signal to notify admin when project status changes
@@ -19,12 +22,13 @@ def notify_admin_on_status_change(sender, instance, **kwargs):
     if instance.pk:  # Ensure this is an update and not a new creation
         old_project = Project.objects.get(pk=instance.pk)
         if old_project.status != instance.status:
-            admin_users = User.objects.filter(is_superuser=True)  # Notify all superusers (admins)
-            for admin in admin_users:
-                Notification.objects.create(
-                    recipient=admin,
-                    message=f"Project '{instance.name}' status changed from '{old_project.status}' to '{instance.status}'."
-                )
+            notify_role(
+                'ADMIN',
+                'PROJECT',
+                f"Project '{instance.name}' status changed from '{old_project.status}' to '{instance.status}'.",
+                link=lambda u: get_user_role_link(u, 'project', obj_id=instance.id),
+                related=instance,
+            )
 
 
 # Send a notification to employees when a new team is created
@@ -36,9 +40,12 @@ def notify_employees_on_team_assignment(sender, instance, action, pk_set, **kwar
     if action == "post_add":  # Only trigger when employees are added
         for employee_id in pk_set:
             employee = Employee.objects.get(pk=employee_id)
-            Notification.objects.create(
-                recipient=employee.user,
-                message=f"You have been added to the team '{instance.name}' for project '{instance.project.name}'."
+            notify(
+                employee.user,
+                'PROJECT',
+                f"You have been added to the team '{instance.name}' for project '{instance.project.name}'.",
+                link=get_user_role_link(employee.user, 'project', obj_id=instance.project_id),
+                related=instance.project,
             )
 
 # Send a notification to the manager when project status changes
@@ -54,13 +61,25 @@ def notify_manager_and_admin_on_status_change(sender, instance, **kwargs):
             if instance.team.manager:
                 manager = instance.team.manager.user
                 if not Notification.objects.filter(recipient=manager, message=message).exists():
-                    Notification.objects.create(recipient=manager, message=message)
+                    notify(
+                        manager,
+                        'PROJECT',
+                        message,
+                        link=get_user_role_link(manager, 'project', obj_id=instance.team.project_id),
+                        related=instance.team.project,
+                    )
 
             # Notify all administration users
             admin_users = Employee.objects.filter(is_administration=True).select_related("user")
             for admin in admin_users:
                 if not Notification.objects.filter(recipient=admin.user, message=message).exists():
-                    Notification.objects.create(recipient=admin.user, message=message)
+                    notify(
+                        admin.user,
+                        'PROJECT',
+                        message,
+                        link=get_user_role_link(admin.user, 'project', obj_id=instance.team.project_id),
+                        related=instance.team.project,
+                    )
                     
 @receiver(post_save, sender=Leave)
 def notify_manager_and_hr_on_leave_application(sender, instance, created, **kwargs):
@@ -79,13 +98,27 @@ def notify_manager_and_hr_on_leave_application(sender, instance, created, **kwar
         if user_team and user_team.manager:
             manager = user_team.manager.user  # Get manager's User instance
             if not Notification.objects.filter(recipient=manager, message=message).exists():
-                Notification.objects.create(recipient=manager, message=message)
+                notify(
+                    manager,
+                    'LEAVE',
+                    message,
+                    link=get_user_role_link(manager, 'leave_manage'),
+                    related=instance,
+                    actor=instance.user,
+                )
 
         # Notify all HR users
         hr_users = Employee.objects.filter(is_hr=True).select_related("user")
         for hr in hr_users:
             if not Notification.objects.filter(recipient=hr.user, message=message).exists():
-                Notification.objects.create(recipient=hr.user, message=message)
+                notify(
+                    hr.user,
+                    'LEAVE',
+                    message,
+                    link=get_user_role_link(hr.user, 'leave_manage'),
+                    related=instance,
+                    actor=instance.user,
+                )
 
 @receiver(pre_save, sender=Leave)
 def notify_employee_on_leave_status_change(sender, instance, **kwargs):
@@ -94,9 +127,12 @@ def notify_employee_on_leave_status_change(sender, instance, **kwargs):
         try:
             old_leave = Leave.objects.get(pk=instance.pk)
             if old_leave.approval_status != instance.approval_status and instance.approval_status in ['APPROVED', 'REJECTED']:
-                Notification.objects.create(
-                    recipient=instance.user,
-                    message=f"Your leave request for {instance.leave_type} from {instance.from_date} to {instance.to_date} has been {instance.approval_status.lower()}."
+                notify(
+                    instance.user,
+                    'LEAVE',
+                    f"Your leave request for {instance.leave_type} from {instance.from_date} to {instance.to_date} has been {instance.approval_status.lower()}.",
+                    link=get_user_role_link(instance.user, 'leave_status'),
+                    related=instance,
                 )
         except Leave.DoesNotExist:
             pass  # If the leave does not exist yet, skip
@@ -115,30 +151,38 @@ def notify_on_project_attachment_upload(sender, instance, created, **kwargs):
     message = f"A file has been uploaded to the project '{project.name}' by {uploaded_by.user.get_full_name()}."
 
     # Notify Admins
-    admin_users = User.objects.filter(is_superuser=True)
-    for admin in admin_users:
-        Notification.objects.create(
-            recipient=admin,
-            message=message
-        )
+    notify_role(
+        'ADMIN',
+        'PROJECT',
+        message,
+        link=lambda u: get_user_role_link(u, 'project', obj_id=project.id),
+        related=project,
+        actor=uploaded_by.user,
+    )
 
     # If uploaded by employee, notify manager
     if uploaded_by.is_employee and manager:
-        Notification.objects.create(
-            recipient=manager.user,
-            message=message
+        notify(
+            manager.user,
+            'PROJECT',
+            message,
+            link=get_user_role_link(manager.user, 'project', obj_id=project.id),
+            related=project,
+            actor=uploaded_by.user,
         )
 
     # If uploaded by manager, notify team employees
     elif uploaded_by.is_manager:
         teams = project.teams.all()
         employees = Employee.objects.filter(teams_assigned__in=teams, is_employee=True).distinct()
-
-        for emp in employees:
-            Notification.objects.create(
-                recipient=emp.user,
-                message=message
-            )
+        notify(
+            [emp.user for emp in employees],
+            'PROJECT',
+            message,
+            link=lambda u: get_user_role_link(u, 'project', obj_id=project.id),
+            related=project,
+            actor=uploaded_by.user,
+        )
 
 @receiver(m2m_changed, sender=Team.employees.through)
 def track_all_members(sender, instance, action, pk_set, **kwargs):

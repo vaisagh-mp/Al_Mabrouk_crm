@@ -1,3 +1,4 @@
+from Admin.leave_service import is_leave_v2_active
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from calendar import monthrange
@@ -285,6 +286,8 @@ def employee_dashboard(request):
 
         return render(request, 'employee/employee_dashboard.html', context)
 
+    return HttpResponseForbidden("You are not authorized to access the employee dashboard.")
+
 
 @login_required
 def engg_get_presence_data(request):
@@ -298,7 +301,9 @@ def engg_get_presence_data(request):
             return JsonResponse({"error": "Invalid month"}, status=400)
 
         user = request.user
-        employee = get_object_or_404(Employee, user=user)
+        employee = getattr(user, 'employee_profile', None)
+        if not employee:
+            return JsonResponse({"error": "No employee profile"}, status=404)
 
         today = timezone.now().date()
 
@@ -367,67 +372,9 @@ def engg_get_presence_data(request):
     
 
 @login_required
+@login_required
 def submit_attendance_request(request):
-    # Ensure the user has an employee profile
-    if not hasattr(request.user, 'employee_profile'):
-        return redirect('dashboard')
-
-    # Get the employee object for both GET and POST requests
-    employee = request.user.employee_profile
-
-    if request.method == 'POST':
-        location = request.POST.get('location')
-        attendance_status = request.POST.get('attendance_status')
-        login_time = request.POST.get('login_time')
-        log_out_time = request.POST.get('log_out_time')
-        project_id = request.POST.get('project')
-
-        # Calculate total hours if times are provided
-        total_hours_of_work = 0
-        if login_time and log_out_time:
-            # Convert the string to datetime objects
-            login_time_obj = datetime.strptime(login_time, "%Y-%m-%dT%H:%M")
-            log_out_time_obj = datetime.strptime(log_out_time, "%Y-%m-%dT%H:%M")
-
-            # Calculate the total hours of work
-            delta = log_out_time_obj - login_time_obj
-            total_hours_of_work = delta.total_seconds() / 3600  # Convert seconds to hours
-
-        # Fetch the project instance if a project ID is provided
-        project = None
-        if project_id:
-            try:
-                project = Project.objects.get(id=project_id)
-            except Project.DoesNotExist:
-                messages.error(request, "Selected project does not exist.")
-                return redirect('submit_attendance_request')
-
-        # Create the attendance request
-        Attendance.objects.create(
-            employee=employee,
-            login_time=login_time_obj,
-            log_out_time=log_out_time_obj,
-            total_hours_of_work=total_hours_of_work,
-            location=location,
-            attendance_status=attendance_status,
-            project=project,  # Include the project field
-            status='APPROVED',
-        )
-        messages.success(request, "Attendance request submitted successfully!")
-        return redirect('employee_dashboard')
-    
-    # Fetch projects assigned to the current employee via projectassignment
-    assigned_projects = Project.objects.filter(projectassignment__employee=employee)
-
-    # Add context for location, attendance status, and project choices
-    context = {
-        "role": "Engineer",
-        'location_choices': Attendance.LOCATION_CHOICES,
-        'attendance_status_choices': Attendance.ATTENDANCE_STATUS,
-        'projects': assigned_projects,  # Pass projects for the form dropdown
-    }
-
-    return render(request, 'employee/submit_attendance_request.html', context)
+    return redirect(f"{reverse('attendance_list_view')}?tab=my_requests&action=new")
 
 @login_required
 def update_project_status(request, project_id):
@@ -455,19 +402,8 @@ def update_project_status(request, project_id):
 
 @login_required
 def attendance_list(request):
-    employee = get_object_or_404(Employee, user=request.user)
-    attendance_records = Attendance.objects.filter(employee=employee).order_by('-login_time')
-
-    # Pagination settings
-    paginator = Paginator(attendance_records, 10)  # Show 10 records per page
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        "role": "Engineer",
-        'attendance_records': page_obj,  # Use `page_obj` instead of `attendance_records`
-    }
-    return render(request, 'employee/attendance_list.html', context)
+    from Admin.attendance_correction import render_role_attendance_status
+    return render_role_attendance_status(request, "Employee", 'employee/employeebase.html', template_name='employee/attendance_list.html')
 
 @login_required
 def profile(request):
@@ -550,7 +486,9 @@ def profile(request):
 
 @login_required
 def update_profile(request):
-    employee = request.user.employee_profile  # Get the Employee model related to the logged-in user
+    employee = getattr(request.user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     if request.method == "POST":
         form = EmployeeUpdateForm(request.POST, request.FILES, instance=employee)
@@ -565,7 +503,9 @@ def update_profile(request):
                 user.set_password(form.cleaned_data["password"])
 
             user.save()
-            form.save()
+            emp = form.save(commit=False)
+            emp.personal_email = form.cleaned_data["email"]
+            emp.save()
 
             messages.success(request, "Your profile has been updated successfully.")
             return redirect("profile_view")
@@ -582,7 +522,9 @@ def update_profile(request):
 @login_required
 def projects(request):
     current_user = request.user
-    employee = current_user.employee_profile
+    employee = getattr(current_user, 'employee_profile', None)
+    if not employee:
+        return HttpResponseForbidden("Employee profile required.")
 
     status_filter = request.GET.get('status', '')
     search_query = request.GET.get('search', '')
@@ -1040,6 +982,9 @@ def employee_update_travel_time(request, attendance_id):
 
 @login_required
 def apply_leave(request):
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_apply_leave
+        return render_role_apply_leave(request, 'Employee', 'employee/employeebase.html', 'my_leave')
     if request.method == 'POST':
         form = LeaveForm(request.POST,request.FILES)
         if form.is_valid():
@@ -1088,6 +1033,9 @@ def employee_upload_medical_certificate(request, leave_id):
 @login_required
 def my_leave_status(request):
     """View to display the leave status of the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_status
+        return render_role_leave_status(request, 'Employee', 'employee/employeebase.html')
     leaves_list = Leave.objects.filter(user=request.user).order_by("-from_date")
     
     # Paginate leave requests (10 per page)
@@ -1100,6 +1048,9 @@ def my_leave_status(request):
 @login_required
 def leave_records(request):
     """View to display the leave records for the logged-in user."""
+    if is_leave_v2_active():
+        from Admin.leave_views import render_role_leave_statement
+        return render_role_leave_statement(request, 'Employee', 'employee/employeebase.html')
 
     # Retrieve leave balance from the database
     leave_balance = LeaveBalance.objects.filter(user=request.user).first()
@@ -1134,17 +1085,14 @@ def leave_records(request):
 @login_required
 def employee_fetch_notifications(request):
     """Fetch unread notifications for the logged-in employee."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False).values("id", "message", "created_at")
-    return JsonResponse({"notifications": list(notifications)})
+    from Admin.notifications import serialize_notifications_for_user
+    return JsonResponse({"notifications": serialize_notifications_for_user(request.user)})
 
 @login_required
 def employee_mark_notifications_as_read(request):
     """Mark all unread notifications for the logged-in employee as read."""
-    notifications = Notification.objects.filter(recipient=request.user, is_read=False)
-    
-    if notifications.exists():
-        notifications.update(is_read=True)  # Bulk update for efficiency
-    
+    from Admin.notifications import mark_notifications_read
+    mark_notifications_read(request.user)
     return JsonResponse({"message": "Notifications marked as read"})
 
 
@@ -1226,36 +1174,29 @@ def employee_update_work_order_view(request, pk):
                 work_order_detail.save()
 
                 # ---------------------------
-                # Clear old auto-created service logs and WorkOrderTime entries for this employee only
+                # Sync WorkOrderTime entries in place (preserving submitted/approved rows)
                 # ---------------------------
-                if _employee:
-                    EmployeeServiceLog.objects.filter(
-                        time_log__work_order=work_order,
-                        employee=_employee,
-                        is_auto_created=True
-                    ).delete()
-                    WorkOrderTime.objects.filter(
-                        work_order=work_order,
-                        employee=_employee
-                    ).delete()
-
-                # Save multiple WorkOrderTime rows
-                _new_time_logs = []
+                from Admin.work_order_helpers import sync_work_order_times
+                _action = request.POST.get('action', 'save_draft')
                 _time_rows, _time_warnings = clean_time_rows(
                     request.POST.getlist('time_date[]'),
                     request.POST.getlist('start_time[]'),
                     request.POST.getlist('finish_time[]'),
+                    row_ids=request.POST.getlist('time_row_id[]'),
+                    break_minutes=request.POST.getlist('break_minutes[]'),
+                    travel_minutes=request.POST.getlist('travel_minutes[]'),
+                    descriptions=request.POST.getlist('time_description[]'),
+                    attachments=request.FILES.getlist('time_attachment[]'),
                 )
                 _wo_warnings.extend(_time_warnings)
-                for _row in _time_rows:
-                    _tl = WorkOrderTime.objects.create(
-                        work_order=work_order,
-                        date=_row['date'],
-                        start_time=_row['start'],
-                        finish_time=_row['finish'],
-                        employee=_employee,
-                    )
-                    _new_time_logs.append(_tl)
+                _new_time_logs = sync_work_order_times(
+                    work_order=work_order,
+                    time_rows=_time_rows,
+                    scope_employee=_employee,
+                    action=_action,
+                    user=request.user,
+                    warnings=_wo_warnings,
+                )
 
                 # Clear and save Spares
                 Spare.objects.filter(work_order=work_order).delete()
@@ -1384,15 +1325,22 @@ def employee_update_work_order_view(request, pk):
     else:
         my_times_qs = my_times_qs.none()
 
-    for t in my_times_qs.select_related('employee__user'):
+    for t in my_times_qs.select_related('employee__user', 'service_log'):
         name = ''
         if t.employee and t.employee.user:
             name = t.employee.user.get_full_name() or t.employee.user.username
+        slog = getattr(t, 'service_log', None)
         times_data.append({
             'id': t.id,
             'date': t.date.isoformat() if t.date else '',
             'start_time': t.start_time.strftime('%H:%M') if t.start_time else '',
             'finish_time': t.finish_time.strftime('%H:%M') if t.finish_time else '',
+            'break_minutes': t.break_minutes or 0,
+            'travel_minutes': t.travel_minutes or 0,
+            'description': t.description or '',
+            'attachment_url': t.attachment.url if t.attachment else '',
+            'status': getattr(slog, 'approval_status', 'DRAFT'),
+            'remarks': getattr(slog, 'decision_remarks', '') or '',
             'member_name': name or (request.user.get_full_name() or request.user.username),
         })
 

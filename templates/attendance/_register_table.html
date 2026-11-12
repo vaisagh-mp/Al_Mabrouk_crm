@@ -2,6 +2,34 @@
 {% load static %}
 
 <style>
+/* Navigation Tabs */
+.att-main-tabs {
+    border-bottom: 2px solid #E2E8F0;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 8px;
+    padding-left: 0;
+    list-style: none;
+}
+.att-main-tab-item .att-main-tab-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #64748B;
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s ease;
+}
+.att-main-tab-item .att-main-tab-link:hover {
+    color: #1F3A52;
+}
+.att-main-tab-item .att-main-tab-link.active {
+    color: #1F3A52;
+    border-bottom-color: #1F3A52;
+}
+
 /* Filter bar card */
 .widget-box.att-reg-filter {
     margin-bottom: 20px;
@@ -98,167 +126,252 @@
     border-radius: 8px;
     padding: 10px 16px;
     min-width: 110px;
-    flex: 1 1 auto;
-    border-left: 3px solid #ccc;
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     justify-content: center;
+    border-left: 4px solid #ccc;
 }
-.att-reg-chip-office { border-left-color: #155724; }
-.att-reg-chip-vessel { border-left-color: #004085; }
-.att-reg-chip-office-vessel { border-left-color: #0c5460; }
-.att-reg-chip-absent { border-left-color: #721c24; }
-.att-reg-chip-leave { border-left-color: #ffc107; }
-.att-reg-chip-training { border-left-color: #4b2e83; }
-.att-reg-chip-rest { border-left-color: var(--secondary-font-color); }
-
 .att-reg-chip-label {
-    font-size: 13px;
-    color: var(--secondary-font-color);
-    font-weight: 500;
-    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: #6c757d;
+    margin-bottom: 2px;
 }
 .att-reg-chip-count {
-    font-size: 18px;
-    font-weight: bold;
-    color: var(--primary-font-color);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #212529;
 }
+.att-reg-chip-office { border-left-color: #28a745; }
+.att-reg-chip-vessel { border-left-color: #007bff; }
+.att-reg-chip-office-vessel { border-left-color: #17a2b8; }
+.att-reg-chip-absent { border-left-color: #dc3545; }
+.att-reg-chip-leave { border-left-color: #ffc107; }
+.att-reg-chip-training { border-left-color: #6f42c1; }
+.att-reg-chip-rest { border-left-color: #6c757d; }
+.att-reg-chip-missing { border-left-color: #d9534f; }
 
-/* Table Card & Overrides */
-.att-reg-table-wrap {
-    margin-bottom: 20px;
-}
-.att-reg-table-wrap th,
-.att-reg-table-wrap td {
-    padding: 14px 10px !important;
-    vertical-align: middle;
-    white-space: nowrap;
-}
-.att-reg-table-wrap td.att-reg-wrap-cell {
-    white-space: normal !important;
-}
+/* Status Badges */
+.status.att-reg-vessel { background-color: #007bff; color: #fff; }
+.status.att-reg-office-vessel { background-color: #17a2b8; color: #fff; }
+.status.att-reg-training { background-color: #6f42c1; color: #fff; }
+.status.att-reg-rest { background-color: #6c757d; color: #fff; }
+.status.att-reg-sunday { background-color: #adb5bd; color: #212529; }
+.status.att-reg-rest-day { background-color: #adb5bd; color: #212529; }
+.status.att-reg-missing-punch { background-color: #d9534f; color: #fff; font-weight: 700; }
+.status.att-reg-manual { background-color: #fd7e14; color: #fff; font-size: 10px; padding: 2px 6px; margin-left: 4px; }
+.status.att-reg-sm { font-size: 10px; padding: 2px 6px; margin-top: 3px; display: inline-block; }
+
 .att-reg-weekday {
     font-size: 11px;
-    color: var(--secondary-font-color);
-    font-weight: normal;
+    color: #6c757d;
+    font-weight: 500;
 }
-.att-reg-empty {
-    color: var(--secondary-font-color);
-    text-align: center;
-    padding: 24px;
-}
-
-/* Status Pill Modifiers */
-.status.att-reg-vessel {
-    background-color: #cce5ff;
-    color: #004085;
-}
-.status.att-reg-office-vessel {
-    background-color: #d1ecf1;
-    color: #0c5460;
-}
-.status.att-reg-training {
-    background-color: #e2d9f3;
-    color: #4b2e83;
-}
-.status.att-reg-rest {
-    background-color: #e9ecef;
-    color: var(--primary-font-color);
-}
-.status.att-reg-sunday {
-    background-color: #ffe5d0;
-    color: #8b4f00;
-}
-
-/* Smaller badges for Pending, Off-day working and Manual */
-.status.att-reg-sm {
-    font-size: 10px;
-    padding: 2px 8px;
-    line-height: 1.2;
-    display: inline-block;
-}
-.status.att-reg-manual {
-    font-size: 10px;
-    padding: 2px 8px;
-    line-height: 1.2;
-    background-color: var(--secondary-bg);
-    color: #fff;
-    display: inline-block;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
 .att-reg-status-col {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 3px;
 }
-
-/* Multi-value cell stack */
+.att-reg-wrap-cell {
+    max-width: 220px;
+    word-break: break-word;
+}
 .att-reg-cell-stack {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
-
-/* Service Ref / WO badge */
 .service-ref-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #f0fdf4;
-    color: #15803d !important;
-    border: 1px solid #bbf7d0;
-    font-weight: 600;
-    font-size: 12px;
-    letter-spacing: 0.02em;
-    padding: 4px 10px;
-    border-radius: 6px;
-    text-decoration: none !important;
-    transition: all 0.2s ease-in-out;
+    background-color: #e9ecef;
+    color: #495057;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    display: inline-block;
 }
-.service-ref-badge:hover {
-    background: #16a34a;
-    color: #ffffff !important;
-    border-color: #15803d;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 5px rgba(22, 163, 74, 0.25);
+.att-reg-empty {
+    text-align: center;
+    color: #6c757d;
+    padding: 30px !important;
 }
 
-/* Action icons & buttons */
-.list-action-col .fa-calendar-alt,
-.list-action-col .fa-wrench {
-    color: var(--bs-blue);
-}
-.att-reg-icon-btn {
-    background: none;
+/* Quick Action Buttons for Missing Punch */
+.att-btn-absent-sm {
+    background-color: #dc3545;
+    color: #fff !important;
     border: none;
-    padding: 7px 9px;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
     cursor: pointer;
-    color: inherit;
-    font-size: inherit;
-    line-height: inherit;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
+    gap: 4px;
+    transition: background 0.2s;
 }
-.att-reg-icon-btn:hover {
+.att-btn-absent-sm:hover {
+    background-color: #bd2130;
+}
+.att-btn-correct-sm {
+    background-color: var(--bs-blue);
+    color: #fff !important;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: background 0.2s;
+}
+.att-btn-correct-sm:hover {
+    background-color: #0b5ed7;
+}
+
+/* Monthly Matrix Calendar Grid Styles */
+.matrix-container {
+    overflow-x: auto;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    margin-bottom: 25px;
+}
+.matrix-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    font-size: 12px;
+}
+.matrix-table th, .matrix-table td {
+    border: 1px solid #E2E8F0;
+    padding: 6px 4px;
+    text-align: center;
+    vertical-align: middle;
+}
+.matrix-sticky-col {
+    position: sticky;
+    left: 0;
+    background-color: #fff;
+    z-index: 3;
+    text-align: left !important;
+    min-width: 180px;
+    max-width: 220px;
+    padding-left: 10px !important;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.04);
+}
+.matrix-table thead th.matrix-sticky-col {
+    background-color: #F8FAFC;
+    z-index: 5;
+}
+.matrix-day-th {
+    min-width: 32px;
+    background-color: #F8FAFC;
+    font-size: 11px;
+    font-weight: 600;
+}
+.matrix-day-th.weekend {
+    background-color: #EDF2F7;
+    color: #718096;
+}
+.matrix-cell {
+    position: relative;
+    cursor: pointer;
+    height: 38px;
+    min-width: 34px;
+    transition: background 0.15s;
+}
+.matrix-cell:hover {
+    filter: brightness(0.95);
+}
+.matrix-badge {
+    display: inline-block;
+    padding: 3px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+.badge-P { background-color: #28a745; color: #fff; }
+.badge-VD { background-color: #007bff; color: #fff; }
+.badge-OV { background-color: #17a2b8; color: #fff; }
+.badge-A { background-color: #dc3545; color: #fff; }
+.badge-RD { background-color: #6c757d; color: #fff; }
+.badge-PH { background-color: #fd7e14; color: #fff; }
+.badge-AL { background-color: #ffc107; color: #212529; }
+.badge-SL { background-color: #e83e8c; color: #fff; }
+.badge-PL { background-color: #20c997; color: #fff; }
+.badge-UL { background-color: #d63384; color: #fff; }
+.badge-MP { background-color: #b02a37; color: #fff; font-weight: 800; }
+.badge-TR { background-color: #6f42c1; color: #fff; }
+.badge-RST { background-color: #495057; color: #fff; }
+
+.matrix-offday-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    background-color: #ffc107;
     border-radius: 50%;
-    background-color: rgb(212, 222, 241);
+    box-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
+.matrix-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+    font-size: 11px;
+    background: #f8fafc;
+    padding: 10px 14px;
+    border-radius: 6px;
+}
+.matrix-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 </style>
 
-<!-- Filter bar card -->
-<div class="widget-box att-reg-filter">
-    <form method="get" action="" class="att-reg-filter-form">
+<!-- Main Tab Navigation -->
+<ul class="att-main-tabs">
+    <li class="att-main-tab-item">
+        <a class="att-main-tab-link {% if active_tab == 'daily' or not active_tab %}active{% endif %}" href="?tab=daily&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}">
+            <i class="fas fa-list me-1"></i> Daily Register
+        </a>
+    </li>
+    <li class="att-main-tab-item">
+        <a class="att-main-tab-link {% if active_tab == 'calendar' or active_tab == 'monthly' %}active{% endif %}" href="?tab=calendar&calendar_month={{ calendar_month }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}">
+            <i class="fas fa-calendar-alt me-1"></i> Monthly Calendar
+        </a>
+    </li>
+    <li class="att-main-tab-item">
+        <a class="att-main-tab-link {% if active_tab == 'summary' %}active{% endif %}" href="?tab=summary&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}">
+            <i class="fas fa-chart-pie me-1"></i> Summary
+        </a>
+    </li>
+</ul>
+
+<!-- ==================== TAB 1: DAILY REGISTER ==================== -->
+{% if active_tab == 'daily' or not active_tab %}
+
+<!-- Filter Card -->
+<div class="widget-box table-wdgt att-reg-filter">
+    <form method="get" class="att-reg-filter-form">
+        <input type="hidden" name="tab" value="daily">
         <div class="att-reg-filter-group">
-            <label for="att_reg_start">From:</label>
-            <input type="date" id="att_reg_start" name="start" value="{{ start }}" class="form-control att-reg-input-date" />
+            <label for="att-start-date">Start:</label>
+            <input type="date" id="att-start-date" name="start" class="form-control att-reg-input-date" value="{{ start }}" required />
         </div>
         <div class="att-reg-filter-group">
-            <label for="att_reg_end">To:</label>
-            <input type="date" id="att_reg_end" name="end" value="{{ end }}" class="form-control att-reg-input-date" />
+            <label for="att-end-date">End:</label>
+            <input type="date" id="att-end-date" name="end" class="form-control att-reg-input-date" value="{{ end }}" required />
         </div>
         <div class="att-reg-filter-group">
             <input type="text" name="search" class="form-control" value="{{ search_query }}" placeholder="Search by Employee Name" />
@@ -271,6 +384,30 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="att-reg-filter-group">
+            <select name="department" class="form-control att-reg-select">
+                <option value="">All Departments</option>
+                {% for dept in departments %}
+                    <option value="{{ dept.id }}" {% if department_filter == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="branch" class="form-control att-reg-select">
+                <option value="">All Branches</option>
+                {% for br in branches %}
+                    <option value="{{ br.id }}" {% if branch_filter == br.id|stringformat:"s" %}selected{% endif %}>{{ br.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="work_type" class="form-control att-reg-select">
+                <option value="">All Work Types</option>
+                {% for wt_val, wt_label in work_type_choices %}
+                    <option value="{{ wt_val }}" {% if work_type_filter == wt_val %}selected{% endif %}>{{ wt_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="att-reg-btn-group">
             <button class="att-reg-filter-btn" type="submit" title="Filter">
                 <i class="fa fa-filter" aria-hidden="true"></i> Filter
@@ -279,8 +416,6 @@
         </div>
     </form>
 </div>
-
-{% include 'attendance/_summary_table.html' %}
 
 <!-- Summary chips -->
 <div class="att-reg-chips">
@@ -312,9 +447,15 @@
         <span class="att-reg-chip-label">REST</span>
         <span class="att-reg-chip-count">{{ summary_counts.rest }}</span>
     </div>
+    {% if summary_counts.missing_punch %}
+    <div class="att-reg-chip att-reg-chip-missing">
+        <span class="att-reg-chip-label">Missing Punch</span>
+        <span class="att-reg-chip-count">{{ summary_counts.missing_punch }}</span>
+    </div>
+    {% endif %}
 </div>
 
-<!-- White Card Table Wrapper -->
+<!-- Daily Register Table -->
 <div class="widget-box table-wdgt att-reg-table-wrap">
     <table id="employeeTable" style="min-width: 1200px;">
         <thead>
@@ -345,11 +486,9 @@
 
                 <!-- 2. Name -->
                 <td>
-                    {% if row.attendance_ids|length == 1 %}
-                        <a href="{% if role|lower == 'admin' %}{% url 'attendance_detail' row.attendance_ids.0 %}{% else %}{% url 'hr_attendance_detail' row.attendance_ids.0 %}{% endif %}">{{ row.name }}</a>
-                    {% else %}
-                        {{ row.name }}
-                    {% endif %}
+                    <a href="{% if role|lower == 'admin' %}{% url 'employee_attendance_month' row.employee.id row.date|date:'Y-m' %}{% else %}{% url 'hr_employee_attendance_month' row.employee.id row.date|date:'Y-m' %}{% endif %}" title="View monthly attendance for {{ row.name }}">
+                        <strong>{{ row.name }}</strong>
+                    </a>
                 </td>
 
                 <!-- 3. Rank -->
@@ -359,7 +498,7 @@
                 <td>
                     <div class="att-reg-status-col">
                         <div>
-                            <span class="status {% if row.status_code == 'OFFICE' %}present{% elif row.status_code == 'ANNUAL_LEAVE' %}annual-leave{% elif row.status_code == 'SICK_LEAVE' %}sick-leave{% elif row.status_code == 'PERSONAL_LEAVE' %}leave{% elif row.status_code == 'HOLIDAY' %}completed{% elif row.status_code == 'ABSENT' %}cancelled{% elif row.status_code == 'VESSEL' %}att-reg-vessel{% elif row.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif row.status_code == 'TRAINING' %}att-reg-training{% elif row.status_code == 'REST' %}att-reg-rest{% elif row.status_code == 'SUNDAY' %}att-reg-sunday{% endif %}">
+                            <span class="status {% if row.status_code == 'OFFICE' %}present{% elif row.status_code == 'ANNUAL_LEAVE' %}annual-leave{% elif row.status_code == 'SICK_LEAVE' %}sick-leave{% elif row.status_code == 'PERSONAL_LEAVE' %}leave{% elif row.status_code == 'HOLIDAY' %}completed{% elif row.status_code == 'ABSENT' %}cancelled{% elif row.status_code == 'VESSEL' %}att-reg-vessel{% elif row.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif row.status_code == 'TRAINING' %}att-reg-training{% elif row.status_code == 'REST' %}att-reg-rest{% elif row.status_code == 'SUNDAY' %}att-reg-sunday{% elif row.status_code == 'REST_DAY' %}att-reg-rest-day{% elif row.status_code == 'MISSING_PUNCH' %}att-reg-missing-punch{% endif %}">
                                 {{ row.status_label }}
                             </span>
                             {% if row.override_id %}
@@ -368,6 +507,9 @@
                         </div>
                         {% if row.has_pending %}
                             <span class="status pending att-reg-sm" title="Pending approval">Pending</span>
+                        {% endif %}
+                        {% if row.vessel_pending_approval %}
+                            <span class="status pending att-reg-sm" title="Pending timesheet approval" style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba;">Pending approval</span>
                         {% endif %}
                         {% if row.is_off_day %}
                             <span class="status ongoing att-reg-sm">{{ row.off_day_label }}</span>
@@ -433,6 +575,23 @@
 
                 <!-- 13. Action -->
                 <td class="list-action-col">
+                    {% if row.status_code == 'MISSING_PUNCH' %}
+                        <!-- Quick Actions for Missing Punch: Mark Absent + Correct -->
+                        <div class="d-flex align-items-center gap-1 mb-1">
+                            <form method="post" action="{% if role|lower == 'admin' %}{% url 'admin_set_day_status' row.employee.id row.date|date:'Y-m-d' %}{% else %}{% url 'hr_set_day_status' row.employee.id row.date|date:'Y-m-d' %}{% endif %}?next={{ request.get_full_path|urlencode }}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="status" value="ABSENT">
+                                <input type="hidden" name="note" value="Marked absent from register">
+                                <button type="submit" class="att-btn-absent-sm" title="Mark Absent" onclick="return confirm('Mark {{ row.name }} as Absent?');">
+                                    <i class="fas fa-user-times"></i> Absent
+                                </button>
+                            </form>
+                            <button type="button" class="att-btn-correct-sm" onclick="openRegisterCorrectionModal('{{ row.employee.id }}', '{{ row.name|escapejs }}', '{{ row.date|date:'Y-m-d' }}', '{{ row.start|default:'' }}', '{{ row.end|default:'' }}', '{{ row.missing_punch_type|default:'NO_PUNCH' }}')" title="Correct Punch">
+                                <i class="fas fa-edit"></i> Correct
+                            </button>
+                        </div>
+                    {% endif %}
+
                     {% if row.attendance_ids|length == 1 %}
                         <a href="{% if role|lower == 'admin' %}{% url 'edit_attendance' row.attendance_ids.0 %}{% else %}{% url 'hr_edit_attendance' row.attendance_ids.0 %}{% endif %}" title="Edit Attendance"><i class="far fa-edit"></i></a>
                     {% endif %}
@@ -484,3 +643,284 @@
         </a>
     {% endif %}
 </div>
+
+{% include 'attendance/_summary_table.html' %}
+
+<!-- ==================== TAB 2: MONTHLY CALENDAR ==================== -->
+{% elif active_tab == 'calendar' or active_tab == 'monthly' %}
+
+<!-- Calendar Filter Bar -->
+<div class="widget-box table-wdgt att-reg-filter">
+    <form method="get" class="att-reg-filter-form">
+        <input type="hidden" name="tab" value="calendar">
+        <div class="att-reg-filter-group">
+            <label for="att-cal-month">Month:</label>
+            <input type="month" id="att-cal-month" name="calendar_month" class="form-control" value="{{ calendar_month }}" onchange="this.form.submit()" />
+        </div>
+        <div class="att-reg-filter-group">
+            <input type="text" name="search" class="form-control" value="{{ search_query }}" placeholder="Filter employee..." />
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="department" class="form-control att-reg-select" onchange="this.form.submit()">
+                <option value="">All Departments</option>
+                {% for dept in departments %}
+                    <option value="{{ dept.id }}" {% if department_filter == dept.id|stringformat:"s" %}selected{% endif %}>{{ dept.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="branch" class="form-control att-reg-select" onchange="this.form.submit()">
+                <option value="">All Branches</option>
+                {% for br in branches %}
+                    <option value="{{ br.id }}" {% if branch_filter == br.id|stringformat:"s" %}selected{% endif %}>{{ br.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-filter-group">
+            <select name="work_type" class="form-control att-reg-select" onchange="this.form.submit()">
+                <option value="">All Work Types</option>
+                {% for wt_val, wt_label in work_type_choices %}
+                    <option value="{{ wt_val }}" {% if work_type_filter == wt_val %}selected{% endif %}>{{ wt_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="att-reg-btn-group">
+            <button class="att-reg-filter-btn" type="submit">
+                <i class="fa fa-search"></i> Apply
+            </button>
+            <a href="?tab=calendar" class="att-reg-reset-btn">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Legend -->
+<div class="matrix-legend">
+    <div class="matrix-legend-item"><span class="matrix-badge badge-P">P</span> Office</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-VD">VD</span> Vessel</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-OV">OV</span> Office+Vessel</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-A">A</span> Absent</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-RD">RD</span> Rest Day</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-PH">PH</span> Holiday</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-AL">AL</span> Annual</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-SL">SL</span> Sick</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-PL">PL</span> Personal</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-UL">UL</span> Unpaid</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-MP">MP</span> Missing Punch</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-TR">TR</span> Training</div>
+    <div class="matrix-legend-item"><span class="matrix-badge badge-RST">RST</span> Rest</div>
+    <div class="matrix-legend-item ms-2"><span class="matrix-offday-dot" style="position:static;display:inline-block;vertical-align:middle;"></span> Off-day worked</div>
+</div>
+
+<!-- Monthly Calendar Matrix -->
+<div class="matrix-container">
+    <table class="matrix-table">
+        <thead>
+            <tr>
+                <th class="matrix-sticky-col">Employee</th>
+                {% for d in calendar_days_header %}
+                    <th class="matrix-day-th {% if d.is_weekend %}weekend{% endif %}">
+                        <div>{{ d.day_num }}</div>
+                        <div style="font-size:9px;color:#718096;">{{ d.weekday }}</div>
+                    </th>
+                {% endfor %}
+                <th style="background-color:#F8FAFC;font-size:11px;">P</th>
+                <th style="background-color:#F8FAFC;font-size:11px;">A</th>
+                <th style="background-color:#F8FAFC;font-size:11px;">MP</th>
+                <th style="background-color:#F8FAFC;font-size:11px;">Leave</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in calendar_matrix_rows %}
+            <tr>
+                <td class="matrix-sticky-col">
+                    <a href="{% if role|lower == 'admin' %}{% url 'employee_attendance_month' row.employee.id calendar_month %}{% else %}{% url 'hr_employee_attendance_month' row.employee.id calendar_month %}{% endif %}" title="View monthly details for {{ row.name }}">
+                        <strong>{{ row.name }}</strong>
+                    </a>
+                    <div style="font-size:10px;color:#718096;">{{ row.designation }}</div>
+                </td>
+                {% for cell in row.cells %}
+                    <td class="matrix-cell {% if cell.is_future %}opacity-50{% endif %}" onclick="showCalendarCellModal('{{ row.employee.id }}', '{{ row.name|escapejs }}', '{{ cell.date|date:'Y-m-d' }}', '{{ cell.status_label|escapejs }}', '{{ cell.short_code }}', '{{ cell.start|default:'' }}', '{{ cell.end|default:'' }}', '{{ cell.total_hours }}', '{{ cell.ot_hours }}', '{{ cell.can_correct }}')">
+                        {% if cell.short_code %}
+                            <span class="matrix-badge badge-{{ cell.short_code }}">{{ cell.short_code }}</span>
+                            {% if cell.is_off_day_worked %}
+                                <span class="matrix-offday-dot" title="Worked on off-day"></span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                {% endfor %}
+                <td style="font-weight:700;color:#28a745;">{{ row.p_count }}</td>
+                <td style="font-weight:700;color:#dc3545;">{{ row.a_count }}</td>
+                <td style="font-weight:700;color:#b02a37;">{{ row.mp_count }}</td>
+                <td style="font-weight:700;color:#ffc107;">{{ row.leave_count }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{{ calendar_days_header|length|add:5 }}" class="py-4 text-center text-muted">No employees found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ==================== TAB 3: SUMMARY ==================== -->
+{% elif active_tab == 'summary' %}
+
+{% include 'attendance/_summary_table.html' %}
+
+{% endif %}
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- 1. HR Quick Correction Modal (for Daily Tab & Calendar Tab) -->
+<div class="modal fade" id="registerCorrectionModal" tabindex="-1" aria-labelledby="registerCorrectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" action="{% if role|lower == 'admin' %}{% url 'attendance_list_adminview' %}{% else %}{% url 'hr_attendance_list_view' %}{% endif %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="request_correction">
+            <input type="hidden" name="approve_immediately" value="1">
+            <input type="hidden" name="employee_id" id="reg_corr_employee_id">
+            
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerCorrectionModalLabel">Correct Attendance Punch</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small">
+                        This correction will be applied immediately and overtime will be recalculated automatically.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Employee</label>
+                        <input type="text" id="reg_corr_employee_name" class="form-control form-control-sm" readonly>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Date</label>
+                            <input type="date" name="date" id="reg_corr_date" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Correction Type</label>
+                            <select name="correction_type" id="reg_corr_type" class="form-select form-select-sm" required>
+                                <option value="FORGOT_IN">Forgot Punch-In</option>
+                                <option value="FORGOT_OUT">Forgot Punch-Out</option>
+                                <option value="NO_PUNCH">No Punch (Worked)</option>
+                                <option value="WRONG_TIME">Wrong Time Recorded</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Punch In Time</label>
+                            <input type="time" name="requested_login" id="reg_corr_login" class="form-control form-control-sm" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold">Punch Out Time</label>
+                            <input type="time" name="requested_logout" id="reg_corr_logout" class="form-control form-control-sm" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Location</label>
+                        <select name="location" id="reg_corr_location" class="form-select form-select-sm">
+                            <option value="OFFICE">Office</option>
+                            <option value="BDO">BDO</option>
+                            <option value="DMC">DMC</option>
+                            <option value="ABU">Abu Dhabi</option>
+                            <option value="PORT">Port / Vessel</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Reason / Remarks *</label>
+                        <textarea name="reason" id="reg_corr_reason" class="form-control form-control-sm" rows="2" placeholder="e.g. Corrected missed logout as approved" required>Punch corrected by HR/Admin</textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">Save &amp; Apply</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 2. Calendar Cell Details Modal -->
+<div class="modal fade" id="calCellModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title" id="calCellTitle">Attendance Details</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body small">
+                <div class="mb-1"><strong>Employee:</strong> <span id="calCellEmp"></span></div>
+                <div class="mb-1"><strong>Date:</strong> <span id="calCellDate"></span></div>
+                <div class="mb-1"><strong>Status:</strong> <span id="calCellStatus" class="badge bg-primary"></span></div>
+                <div class="mb-1"><strong>In:</strong> <span id="calCellIn">-</span></div>
+                <div class="mb-1"><strong>Out:</strong> <span id="calCellOut">-</span></div>
+                <div class="mb-1"><strong>Hours:</strong> <span id="calCellHours">0.00</span></div>
+                <div class="mb-2"><strong>OT:</strong> <span id="calCellOt">0.00</span></div>
+                
+                <div id="calCellCorrectWrap" style="display:none;" class="mt-3 text-center">
+                    <button type="button" class="btn btn-primary btn-sm w-100" id="calCellCorrectBtn">
+                        <i class="fas fa-edit me-1"></i> Correct Punch
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openRegisterCorrectionModal(empId, empName, dateStr, startTime, endTime, corrType) {
+    document.getElementById('reg_corr_employee_id').value = empId;
+    document.getElementById('reg_corr_employee_name').value = empName;
+    document.getElementById('reg_corr_date').value = dateStr;
+    if (corrType) {
+        document.getElementById('reg_corr_type').value = corrType;
+    }
+    if (startTime) {
+        document.getElementById('reg_corr_login').value = startTime.substring(0, 5);
+    } else {
+        document.getElementById('reg_corr_login').value = '08:00';
+    }
+    if (endTime) {
+        document.getElementById('reg_corr_logout').value = endTime.substring(0, 5);
+    } else {
+        document.getElementById('reg_corr_logout').value = '17:00';
+    }
+    var modal = new bootstrap.Modal(document.getElementById('registerCorrectionModal'));
+    modal.show();
+}
+
+function showCalendarCellModal(empId, empName, dateStr, statusLabel, shortCode, inTime, outTime, totalHrs, otHrs, canCorrect) {
+    document.getElementById('calCellEmp').innerText = empName;
+    document.getElementById('calCellDate').innerText = dateStr;
+    var statusBadge = document.getElementById('calCellStatus');
+    statusBadge.innerText = statusLabel || 'No status';
+    document.getElementById('calCellIn').innerText = inTime || '-';
+    document.getElementById('calCellOut').innerText = outTime || '-';
+    document.getElementById('calCellHours').innerText = totalHrs || '0.00';
+    document.getElementById('calCellOt').innerText = otHrs || '0.00';
+
+    var correctWrap = document.getElementById('calCellCorrectWrap');
+    if (canCorrect === 'True') {
+        correctWrap.style.display = 'block';
+        document.getElementById('calCellCorrectBtn').onclick = function() {
+            var cellModal = bootstrap.Modal.getInstance(document.getElementById('calCellModal'));
+            if (cellModal) cellModal.hide();
+            openRegisterCorrectionModal(empId, empName, dateStr, inTime, outTime, shortCode === 'MP' ? 'NO_PUNCH' : 'WRONG_TIME');
+        };
+    } else {
+        correctWrap.style.display = 'none';
+    }
+
+    var modal = new bootstrap.Modal(document.getElementById('calCellModal'));
+    modal.show();
+}
+</script>

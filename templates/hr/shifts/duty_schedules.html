@@ -1,0 +1,91 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h1>Duty Schedules</h1>
+        <div>
+            <a href="{% url 'hr_duty_schedule_create' %}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Add Duty Schedule
+            </a>
+        </div>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <table class="table table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 80px;">Sort Order</th>
+                    <th>Schedule Name</th>
+                    <th>Working Hours</th>
+                    <th>Break (min)</th>
+                    <th>Expected Hours</th>
+                    <th style="width: 120px;">Status</th>
+                    <th style="width: 140px;">Assigned</th>
+                    <th style="width: 220px;" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sched in schedules %}
+                <tr>
+                    <td>{{ sched.sort_order }}</td>
+                    <td><strong>{{ sched.name }}</strong></td>
+                    <td>{{ sched.start_time|time:"H:i" }} - {{ sched.end_time|time:"H:i" }}</td>
+                    <td>{{ sched.break_minutes }}</td>
+                    <td><span class="badge bg-info text-dark">{{ sched.expected_hours }} hrs</span></td>
+                    <td>
+                        {% if sched.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ sched.employee_schedules.count }}</td>
+                    <td class="text-end">
+                        <a href="{% url 'hr_duty_schedule_edit' sched.pk %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <form method="post" action="{% url 'hr_duty_schedule_toggle_active' sched.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            {% if sched.is_active %}
+                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate">
+                                Deactivate
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn btn-sm btn-outline-success" title="Activate">
+                                Activate
+                            </button>
+                            {% endif %}
+                        </form>
+                        <form method="post" action="{% url 'hr_duty_schedule_delete' sched.pk %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this duty schedule?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No duty schedules defined yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endblock %}
+

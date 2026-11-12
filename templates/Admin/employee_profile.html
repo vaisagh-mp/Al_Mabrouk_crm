@@ -50,11 +50,28 @@
           </div>
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
+              <i class="fas fa-clock"></i>
+              Duty Schedule
+            </span>
+            <p class="text-dark">{{ employee.current_duty_schedule|default:"Standard" }}</p>
+          </div>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
+              <i class="fas fa-calendar-day"></i>
+              Weekly Rest Day
+            </span>
+            <p class="text-dark">{{ employee.current_rest_day_display }}</p>
+          </div>
+          {% if can_view_salary %}
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="d-inline-flex align-items-center">
               <i class="fas fa-money-bill-alt"></i>
               Salary
             </span>
-            <p class="text-dark">{{ employee.salary }} AED</p>
+            <div class="text-end"><p class="text-dark mb-0">{{ employee.salary }} AED</p>{% if employee.upcoming_salary_structure %}<span class="badge bg-info text-dark">Upcoming: AED {{ employee.upcoming_salary_structure.total }} from {{ employee.upcoming_salary_structure.effective_from|date:"d/m/Y" }}</span>{% endif %}</div>
           </div>
+          {% endif %}
+
           <div class="d-flex align-items-center justify-content-between mb-2">
               <span class="d-inline-flex align-items-center">
                 <i class="fas fa-anchor"></i>

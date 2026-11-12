@@ -1,0 +1,132 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="emply-list-wraper">
+    <div class="pg-title d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <div>
+            <h1 class="mb-0">Notifications</h1>
+            <small class="text-muted">Unread: <strong>{{ unread_count }}</strong></small>
+        </div>
+        {% if unread_count > 0 %}
+        <form method="post" action="{% url 'notifications_mark_all_read' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button type="submit" class="btn btn-sm btn-primary">
+                <i class="fas fa-check-double me-1"></i> Mark All Read
+            </button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="widget-box mb-3 p-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small fw-bold mb-1">Type</label>
+                <select name="type" class="form-select form-select-sm">
+                    <option value="">All Types</option>
+                    {% for code, label in type_choices %}
+                    <option value="{{ code }}" {% if selected_type == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small fw-bold mb-1">Status</label>
+                <select name="read" class="form-select form-select-sm">
+                    <option value="all" {% if selected_read == 'all' %}selected{% endif %}>All</option>
+                    <option value="unread" {% if selected_read == 'unread' %}selected{% endif %}>Unread Only</option>
+                    <option value="read" {% if selected_read == 'read' %}selected{% endif %}>Read Only</option>
+                </select>
+            </div>
+            <div class="col-12 col-sm-8 col-md-4">
+                <label class="form-label small fw-bold mb-1">Search</label>
+                <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Search message...">
+            </div>
+            <div class="col-12 col-sm-4 col-md-2 d-flex gap-1">
+                <button type="submit" class="btn btn-sm btn-primary w-100">Filter</button>
+                {% if selected_type or selected_read != 'all' or q %}
+                <a href="{% url 'notifications_page' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <div class="widget-box table-wdgt">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th>Date / Time</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for n in page_obj %}
+                    <tr class="{% if not n.is_read %}table-light fw-semibold{% endif %}">
+                        <td class="text-nowrap">
+                            <span class="badge d-inline-flex align-items-center gap-1" style="background-color: {{ n.meta.bg }}; color: {{ n.meta.color }}; padding: 6px 10px;">
+                                <i class="{{ n.meta.icon }}"></i>
+                                {{ n.meta.label }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{% url 'notification_open' n.id %}" class="text-decoration-none text-dark d-block">
+                                {{ n.message }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if n.is_read %}
+                            <span class="badge bg-secondary-subtle text-secondary">Read</span>
+                            {% else %}
+                            <span class="badge bg-primary">Unread</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small text-muted">
+                            {{ n.created_at|date:"d/m/Y H:i" }}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <a href="{% url 'notification_open' n.id %}" class="btn btn-sm btn-outline-primary">
+                                {% if n.link %}Open{% elif not n.is_read %}Mark Read{% else %}View{% endif %}
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No notifications found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span class="small text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total)</span>
+        <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}&type={{ selected_type }}&read={{ selected_read }}&q={{ q|urlencode }}">&laquo;</a>
+            </li>
+            {% endif %}
+            {% for num in page_obj.paginator.page_range %}
+                {% if num >= page_obj.number|add:'-2' and num <= page_obj.number|add:'2' %}
+                <li class="page-item {% if num == page_obj.number %}active{% endif %}">
+                    <a class="page-link" href="?page={{ num }}&type={{ selected_type }}&read={{ selected_read }}&q={{ q|urlencode }}">{{ num }}</a>
+                </li>
+                {% endif %}
+            {% endfor %}
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}&type={{ selected_type }}&read={{ selected_read }}&q={{ q|urlencode }}">&raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+

@@ -1,5 +1,8 @@
 from django.urls import path
 from . import views
+from Admin import timesheet_views
+from Admin import document_views
+from Admin import reports_views
 
 urlpatterns = [
     path('dashboard/', views.dashboard, name='manager-dashboard'),
@@ -35,6 +38,7 @@ urlpatterns = [
     path('attendance/delete/<int:attendance_id>/', views.manager_delete_attendance, name='manager_delete_attendance'),
     path('employee/manage-attendance/', views.manage_attendance, name='pending_attendance'),
     path('employee/employee-profile/<int:employee_id>/', views.employee_profile, name='employee_profile_view'),
+    path('employees/<int:employee_id>/', views.employee_profile, name='manager_employee_profile'),
     path('projects/', views.project_list_view, name='project_list'),
     path('project/<int:project_id>/', views.project_summary_view, name='project-summary-view'),
     path('update-status/<int:project_id>/', views.update_team_manager_status, name='update_team_manager_status'),
@@ -66,4 +70,9 @@ urlpatterns = [
     
     path('manager-fetch-notifications/', views.manager_fetch_notifications, name='manager-fetch-notifications'),
     path('manager-mark-notifications-as-read', views.manager_mark_notifications_as_read, name='manager-mark-notifications-as-read'),
+
+    path('timesheet-approvals/', timesheet_views.timesheet_approvals_view, {'role': 'manager'}, name='timesheet_approvals_manager'),
+    path('ot-approval/', timesheet_views.ot_approval_view, {'role': 'manager'}, name='ot_approval_manager'),
+    path('documents/download/<str:category>/<int:doc_id>/', document_views.download_private_document_view, name='manager_document_download'),
+    path('reports/', reports_views.reports_center_view, {'role': 'manager'}, name='manager_reports_center'),
 ]

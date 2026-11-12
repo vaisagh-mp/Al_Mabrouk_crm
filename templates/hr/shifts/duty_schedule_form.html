@@ -1,0 +1,73 @@
+{% extends 'hr/hrbase.html' %}
+{% load static %}
+{% block content %}
+
+<div class="emply-list-wraper">
+    <div class="container mt-3">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="pg-title">
+        <h1>{% if form.instance.pk %}Edit Duty Schedule{% else %}Add Duty Schedule{% endif %}</h1>
+    </div>
+
+    <div class="widget-box table-wdgt" style="max-width: 650px;">
+        <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}
+            <div class="alert alert-danger">
+                Please correct the errors below.
+                {{ form.errors }}
+            </div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label for="id_name" class="form-label">Schedule Name*</label>
+                {{ form.name }}
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="id_start_time" class="form-label">Start Time*</label>
+                    {{ form.start_time }}
+                </div>
+                <div class="col-md-6">
+                    <label for="id_end_time" class="form-label">End Time*</label>
+                    {{ form.end_time }}
+                </div>
+            </div>
+
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="id_break_minutes" class="form-label">Break Duration (Minutes)*</label>
+                    {{ form.break_minutes }}
+                    <div class="form-text">e.g. 60 for 1-hour lunch break.</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="id_sort_order" class="form-label">Sort Order</label>
+                    {{ form.sort_order }}
+                </div>
+            </div>
+
+            <div class="mb-3 form-check">
+                {{ form.is_active }}
+                <label class="form-check-label" for="id_is_active">Active</label>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">Save Schedule</button>
+                <a href="{% url 'hr_duty_schedules' %}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+

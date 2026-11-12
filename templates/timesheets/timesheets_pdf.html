@@ -1,0 +1,118 @@
+{% load pdf_tags %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Timesheet Approvals Report</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 12mm;
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 10px;
+            color: #222;
+        }
+        .header {
+            margin-bottom: 15px;
+            border-bottom: 2px solid #1F3A52;
+            padding-bottom: 8px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 16px;
+            color: #1F3A52;
+        }
+        .header p {
+            margin: 2px 0 0;
+            color: #666;
+            font-size: 9px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 5px 6px;
+            text-align: left;
+        }
+        th {
+            background-color: #1F3A52;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 9px;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 4px;
+            font-size: 8px;
+            font-weight: bold;
+            border-radius: 3px;
+        }
+        .badge-approved { background-color: #d4edda; color: #155724; }
+        .badge-submitted { background-color: #fff3cd; color: #856404; }
+        .badge-rejected { background-color: #f8d7da; color: #721c24; }
+        .badge-draft { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        {% pdf_logo %}
+        <h1>Timesheet Approvals Report</h1>
+        <p>Generated: {{ generated_at|date:"d/m/Y H:i" }} | Records: {{ timesheets|length }}</p>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Employee</th>
+                <th>WO / Project</th>
+                <th>Vessel</th>
+                <th>Times</th>
+                <th>Break</th>
+                <th>Travel</th>
+                <th class="text-right">Hours</th>
+                <th class="text-right">OT</th>
+                <th>Status</th>
+                <th>Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for l in timesheets %}
+            <tr>
+                <td>{{ l.date|date:"d/m/Y" }}</td>
+                <td>{{ l.employee.name }} ({{ l.employee.employee_code|default:"" }})</td>
+                <td>
+                    {% if l.time_log and l.time_log.work_order %}
+                        {{ l.time_log.work_order.work_order_number }}
+                    {% else %}
+                        {{ l.service_reference|default:l.project.name|default:"-" }}
+                    {% endif %}
+                </td>
+                <td>{{ l.vessel_name|default:l.project.vessel_name|default:"-" }}</td>
+                <td>{{ l.start_time|time:"H:i" }} – {{ l.end_time|time:"H:i"|default:"-" }}</td>
+                <td>{{ l.break_minutes }}m</td>
+                <td>{{ l.travel_minutes }}m</td>
+                <td class="text-right">{{ l.total_hours|default:"0.00" }}</td>
+                <td class="text-right">{{ l.ot_hours|default:"0.00" }}</td>
+                <td>
+                    <span class="badge badge-{{ l.approval_status|lower }}">{{ l.approval_status }}</span>
+                </td>
+                <td>{% if l.decision_remarks %}{{ l.decision_remarks|truncatechars:35 }}{% elif l.time_log %}{{ l.time_log.description|truncatechars:35 }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
+

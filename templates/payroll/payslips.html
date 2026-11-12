@@ -1,0 +1,128 @@
+{% extends base_template|default:'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Payslips — {{ month_display }} | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #1F3A52;">
+                <i class="fas fa-file-invoice-dollar me-2"></i>Payslips
+            </h3>
+            <p class="text-muted small mb-0">Manage monthly payslips, regenerate, and download individually or in bulk ZIP.</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <!-- Month Selector -->
+            <form method="get" class="d-flex gap-2 align-items-center">
+                <input type="month" name="month" value="{{ selected_month }}" class="form-control form-control-sm" style="width: 170px;">
+                <button type="submit" class="btn btn-sm btn-primary">View</button>
+            </form>
+
+            <!-- Generate Month Payslips Form -->
+            <form method="post" action="{% url 'payslip_generate_month' %}">
+                {% csrf_token %}
+                <input type="hidden" name="month" value="{{ selected_month }}">
+                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Generate payslips for all PAID payrolls in {{ month_display }}?');">
+                    <i class="fas fa-magic me-1"></i>Generate Payslips
+                </button>
+            </form>
+
+            <!-- Download ZIP -->
+            <a href="{% url 'payslips_download_zip' %}?month={{ selected_month }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-file-archive me-1"></i>Download Month ZIP
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">Employee</th>
+                            <th>Code</th>
+                            <th>Designation</th>
+                            <th class="text-end">Gross (AED)</th>
+                            <th class="text-end">Deductions (AED)</th>
+                            <th class="text-end">Net Pay (AED)</th>
+                            <th class="text-center">Payroll Status</th>
+                            <th class="text-center">Payslip</th>
+                            <th class="text-center pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in payrolls %}
+                        <tr>
+                            <td class="ps-3 fw-bold">
+                                {{ p.employee.name }}
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ p.employee.employee_code|default:"—" }}</span></td>
+                            <td>{{ p.employee.rank|default:"—" }}</td>
+                            <td class="text-end font-monospace">{{ p.gross|floatformat:2 }}</td>
+                            <td class="text-end font-monospace text-danger">
+                                {{ p.deductions|add:p.effective_absence_deduction|floatformat:2 }}
+                            </td>
+                            <td class="text-end font-monospace fw-bold text-success">{{ p.net_pay|floatformat:2 }}</td>
+                            <td class="text-center">
+                                {% if p.status == 'PAID' %}
+                                <span class="badge bg-success">Paid</span>
+                                {% elif p.status == 'APPROVED' %}
+                                <span class="badge bg-info text-dark">Approved</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Draft</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if p.payslip and p.payslip.file %}
+                                <span class="badge bg-primary">
+                                    <i class="fas fa-check-circle me-1"></i>{{ p.payslip.number }} (v{{ p.payslip.version }})
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">Not Generated</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center pe-3">
+                                <div class="d-flex gap-1 justify-content-center">
+                                    {% if p.payslip and p.payslip.file %}
+                                    <a href="{% url 'payslip_download' p.payslip.id %}" target="_blank" class="btn btn-sm btn-outline-primary" title="Download PDF">
+                                        <i class="fas fa-file-pdf me-1"></i>PDF
+                                    </a>
+                                    {% if p.status == 'PAID' %}
+                                    <form method="post" action="{% url 'payslip_regenerate' p.payslip.id %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Regenerate Payslip (bump version)" onclick="return confirm('Regenerate payslip for {{ p.employee.name }}?');">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                    {% elif p.status == 'PAID' %}
+                                    <form method="post" action="{% url 'payslip_generate_month' %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="month" value="{{ selected_month }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Generate Payslip">
+                                            <i class="fas fa-plus"></i> Generate
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <span class="text-muted small" title="Payroll must be marked PAID first">Requires Paid</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-muted">No payroll records for {{ month_display }}.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

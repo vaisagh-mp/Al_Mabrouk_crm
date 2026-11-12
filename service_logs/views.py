@@ -1,9 +1,14 @@
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render
-from django.shortcuts import redirect
+from django.shortcuts import render, redirect, get_object_or_404
+from django.conf import settings
+from django.http import HttpResponse, HttpResponseForbidden, JsonResponse, HttpResponseBadRequest
+import io
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 from .models import EmployeeServiceLog
-from Admin.models import Project, Employee, ActivityLog, Attendance
-from Admin.attendance_register import build_attendance_register
+from Admin.models import Project, Employee, ActivityLog, Attendance, Department, Branch, OTApproval
+from Admin.permissions import can_view_salary
+from Admin.attendance_register import build_attendance_register, build_attendance_summary
 from Admin.attendance_analytics import build_attendance_analytics
 from Admin.attendance_autoclose import close_stale_sessions
 from .ot import calculate_office_ot_cost
@@ -100,17 +105,63 @@ def service_log_create(request):
         except (TypeError, ValueError):
             return HttpResponseForbidden("Invalid date or time format.")
 
+        from Admin.models import check_payroll_lock_for_employee
+        from Admin.timesheet_helpers import check_timesheet_overlap
+        from django.core.exceptions import ValidationError
+        try:
+            check_payroll_lock_for_employee(employee, date)
+        except ValidationError as e:
+            return HttpResponseForbidden(str(e.message if hasattr(e, 'message') else e))
+
+        try:
+            break_minutes = max(0, int(request.POST.get("break_minutes") or 0))
+        except (ValueError, TypeError):
+            break_minutes = 0
+
+        try:
+            travel_minutes = max(0, int(request.POST.get("travel_minutes") or 0))
+        except (ValueError, TypeError):
+            travel_minutes = 0
+
+        # Break < duration check
+        dt_start = datetime.combine(date, start_time)
+        dt_end = datetime.combine(date, end_time)
+        if dt_end < dt_start:
+            dt_end += timedelta(days=1)
+        dur_mins = int((dt_end - dt_start).total_seconds() // 60)
+        if break_minutes >= dur_mins:
+            return HttpResponseForbidden("Break duration must be less than working duration.")
+
+        overlap_err = check_timesheet_overlap(employee.id, date, start_time, end_time)
+        if overlap_err:
+            return HttpResponseForbidden(overlap_err)
+
+        action = request.POST.get("action", "save_draft")
+        approval_status = 'DRAFT'
+        submitted_at = None
+        approver = None
+        if action == 'submit_approval':
+            approval_status = 'SUBMITTED'
+            from django.utils import timezone
+            submitted_at = timezone.now()
+            approver = employee.reporting_manager
+
         EmployeeServiceLog.objects.create(
             employee=employee,
             project_id=request.POST.get("project"),
             date=date,                      # ✅ date object
-            vessel_name=request.POST.get("vessel_name"),
-            port=request.POST.get("port"),
-            service_type=request.POST.get("service_type"),
-            service_reference=request.POST.get("service_reference"),
+            vessel_name=request.POST.get("vessel_name") or "",
+            port=request.POST.get("port") or "",
+            service_type=request.POST.get("service_type") or "JOB",
+            service_reference=request.POST.get("service_reference") or "",
             start_time=start_time,          # ✅ time object
             end_time=end_time,              # ✅ time object
-            location_type=request.POST.get("location_type"),
+            break_minutes=break_minutes,
+            travel_minutes=travel_minutes,
+            approval_status=approval_status,
+            submitted_at=submitted_at,
+            approver=approver,
+            location_type=request.POST.get("location_type") or "ANCHORAGE",
             is_holiday=request.POST.get("is_holiday") == "on",
         )
 
@@ -123,6 +174,9 @@ def service_log_create(request):
 def service_log_edit(request, log_id):
     user = request.user
     log = get_object_or_404(EmployeeServiceLog, id=log_id)
+
+    if log.approval_status == 'APPROVED':
+        return HttpResponseForbidden("Cannot edit an APPROVED service log. Please ask Admin/HR to reopen it.")
 
     if is_admin(user):
         template = "service_logs/admin_edit.html"
@@ -152,19 +206,65 @@ def service_log_edit(request, log_id):
 
     if request.method == "POST":
         try:
-            log.date = datetime.strptime(request.POST.get("date"), "%Y-%m-%d").date()
-            log.start_time = datetime.strptime(request.POST.get("start_time"), "%H:%M").time()
-            log.end_time = datetime.strptime(request.POST.get("end_time"), "%H:%M").time()
+            date_val = datetime.strptime(request.POST.get("date"), "%Y-%m-%d").date()
+            start_time = datetime.strptime(request.POST.get("start_time"), "%H:%M").time()
+            end_time = datetime.strptime(request.POST.get("end_time"), "%H:%M").time()
         except (TypeError, ValueError):
             return HttpResponseForbidden("Invalid date or time format.")
 
+        from Admin.models import check_payroll_lock_for_employee
+        from Admin.timesheet_helpers import check_timesheet_overlap
+        from django.core.exceptions import ValidationError
+        try:
+            check_payroll_lock_for_employee(log.employee, date_val)
+        except ValidationError as e:
+            return HttpResponseForbidden(str(e.message if hasattr(e, 'message') else e))
+
+        try:
+            break_minutes = max(0, int(request.POST.get("break_minutes") or 0))
+        except (ValueError, TypeError):
+            break_minutes = 0
+
+        try:
+            travel_minutes = max(0, int(request.POST.get("travel_minutes") or 0))
+        except (ValueError, TypeError):
+            travel_minutes = 0
+
+        dt_start = datetime.combine(date_val, start_time)
+        dt_end = datetime.combine(date_val, end_time)
+        if dt_end < dt_start:
+            dt_end += timedelta(days=1)
+        dur_mins = int((dt_end - dt_start).total_seconds() // 60)
+        if break_minutes >= dur_mins:
+            return HttpResponseForbidden("Break duration must be less than working duration.")
+
+        overlap_err = check_timesheet_overlap(log.employee_id, date_val, start_time, end_time, exclude_service_log_id=log.pk)
+        if overlap_err:
+            return HttpResponseForbidden(overlap_err)
+
+        log.date = date_val
+        log.start_time = start_time
+        log.end_time = end_time
+        log.break_minutes = break_minutes
+        log.travel_minutes = travel_minutes
         log.project_id = request.POST.get("project")
-        log.vessel_name = request.POST.get("vessel_name")
-        log.port = request.POST.get("port")
-        log.service_type = request.POST.get("service_type")
-        log.service_reference = request.POST.get("service_reference")
-        log.location_type = request.POST.get("location_type")
+        log.vessel_name = request.POST.get("vessel_name") or ""
+        log.port = request.POST.get("port") or ""
+        log.service_type = request.POST.get("service_type") or "JOB"
+        log.service_reference = request.POST.get("service_reference") or ""
+        log.location_type = request.POST.get("location_type") or "ANCHORAGE"
         log.is_holiday = request.POST.get("is_holiday") == "on"
+
+        action = request.POST.get("action", "save_draft")
+        if action == 'submit_approval':
+            log.approval_status = 'SUBMITTED'
+            from django.utils import timezone
+            log.submitted_at = timezone.now()
+            log.approver = log.employee.reporting_manager if log.employee else None
+            log.decision_remarks = ''
+        elif log.approval_status == 'REJECTED':
+            # Kept as draft when edited
+            log.approval_status = 'DRAFT'
 
         log.save()
         return redirect("service_log_list")
@@ -183,8 +283,12 @@ def service_log_delete(request, pk):
     if not (is_admin(request.user) or is_manager(request.user) or log.employee.user == request.user):
         return HttpResponseForbidden("Access denied")
 
+    if log.approval_status in ('SUBMITTED', 'APPROVED'):
+        return HttpResponseForbidden("Cannot delete a SUBMITTED or APPROVED service log.")
+
     log.delete()
     return redirect("service_log_list")
+
 
 
 
@@ -215,7 +319,7 @@ def service_log_utilization(request):
         except ValueError:
             pass
 
-    logs = EmployeeServiceLog.objects.filter(
+    logs = EmployeeServiceLog.objects.counting().filter(
         date__range=(start_date, end_date)
     )
 
@@ -274,9 +378,18 @@ def analytics_project(request):
         start_date = today.replace(day=1)
         end_date = today
 
-    logs = EmployeeServiceLog.objects.select_related(
+    dept_raw = (request.GET.get("department") or "").strip()
+    branch_raw = (request.GET.get("branch") or "").strip()
+    dept_id = int(dept_raw) if dept_raw.isdigit() else None
+    branch_id = int(branch_raw) if branch_raw.isdigit() else None
+
+    logs = EmployeeServiceLog.objects.counting().select_related(
         "employee", "employee__user", "project"
     ).filter(date__range=(start_date, end_date))
+    if dept_id:
+        logs = logs.filter(employee__department_id=dept_id)
+    if branch_id:
+        logs = logs.filter(employee__branch_id=branch_id)
 
     # =====================================================
     # PROJECT ANALYTICS
@@ -457,7 +570,7 @@ def analytics_project(request):
     last_year_end = end_date.replace(year=end_date.year - 1)
 
     last_year_logs = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             date__range=(last_year_start, last_year_end)
         ).values_list('date', 'project_id')
     )
@@ -508,11 +621,11 @@ def analytics_project(request):
     all_projects = list(Project.objects.exclude(status="CANCELLED").order_by("-created_at"))
     all_pids = [p.id for p in all_projects]
 
-    last_dates_qs = EmployeeServiceLog.objects.filter(project_id__in=all_pids).values('project_id').annotate(last_date=Max('date'))
+    last_dates_qs = EmployeeServiceLog.objects.counting().filter(project_id__in=all_pids).values('project_id').annotate(last_date=Max('date'))
     last_date_map = {row['project_id']: row['last_date'] for row in last_dates_qs}
 
     logs_with_ref = (
-        EmployeeServiceLog.objects.filter(project_id__in=all_pids, service_reference__isnull=False)
+        EmployeeServiceLog.objects.counting().filter(project_id__in=all_pids, service_reference__isnull=False)
         .exclude(service_reference="")
         .order_by('project_id', '-date')
         .values('project_id', 'service_reference', 'vessel_name')
@@ -586,6 +699,14 @@ def analytics_project(request):
     sc_page = request.GET.get("sc_page", 1)
     service_completions_page = sc_paginator.get_page(sc_page)
 
+    if (request.GET.get("export") or "").strip().lower() == "excel":
+        return _export_project_analytics_excel(
+            project_analytics_sorted, user_can_view_finance, start_date, end_date, request.user
+        )
+
+    departments = Department.objects.filter(is_active=True).order_by('sort_order', 'name')
+    branches = Branch.objects.filter(is_active=True).order_by('sort_order', 'name')
+
     return render(
         request,
         "analytics/project_based.html",
@@ -617,8 +738,57 @@ def analytics_project(request):
 
             "start_date": start_date,
             "end_date": end_date,
+            "departments": departments,
+            "branches": branches,
+            "selected_department": dept_raw,
+            "selected_branch": branch_raw,
         }
     )
+
+
+def _export_project_analytics_excel(project_analytics_sorted, user_can_view_finance, start_date, end_date, user):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Project Analytics"
+    ws['A1'] = f"Project Analytics ({start_date.strftime('%d/%m/%Y')} - {end_date.strftime('%d/%m/%Y')})"
+    ws['A1'].font = Font(size=13, bold=True, color='1F3A52')
+
+    headers = ['Project', 'Service Ref', 'Client', 'Vessel', 'Total Hours', 'Period Emp Cost (AED)', 'Total Emp Cost (AED)']
+    if user_can_view_finance:
+        headers.extend(['Spares Cost (AED)', 'Other Costs (AED)', 'Total Cost (AED)', 'Revenue (AED)', 'Profit (AED)'])
+
+    fill = PatternFill(start_color='1F3A52', end_color='1F3A52', fill_type='solid')
+    font = Font(bold=True, color='FFFFFF')
+    for idx, h in enumerate(headers, 1):
+        c = ws.cell(row=3, column=idx, value=h)
+        c.fill = fill
+        c.font = font
+
+    for r_idx, pa in enumerate(project_analytics_sorted, 4):
+        p = pa['project']
+        ws.cell(row=r_idx, column=1, value=p.name)
+        ws.cell(row=r_idx, column=2, value=getattr(p, 'service_ref', '') or getattr(p, 'code', '') or '-')
+        ws.cell(row=r_idx, column=3, value=p.client_name or '-')
+        ws.cell(row=r_idx, column=4, value=p.vessel_name or '-')
+        ws.cell(row=r_idx, column=5, value=float(pa['total_hours'] or 0))
+        ws.cell(row=r_idx, column=6, value=float(pa['period_employee_cost'] or 0))
+        ws.cell(row=r_idx, column=7, value=float(pa['employee_cost'] or 0))
+        if user_can_view_finance:
+            ws.cell(row=r_idx, column=8, value=float(pa['spares_cost'] or 0))
+            ws.cell(row=r_idx, column=9, value=float(pa['other_job_costs'] or 0))
+            ws.cell(row=r_idx, column=10, value=float(pa['expense'] or 0))
+            ws.cell(row=r_idx, column=11, value=float(pa['revenue'] or 0))
+            ws.cell(row=r_idx, column=12, value=float(pa['profit'] or 0))
+
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = min(max((len(str(c.value or '')) for c in col), default=10) + 4, 40)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(buf.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="project_analytics_{start_date}_{end_date}.xlsx"'
+    return resp
 
 
 @login_required
@@ -626,7 +796,7 @@ def project_drilldown(request, project_id):
     if not (is_admin(request.user) or is_manager(request.user)):
         return JsonResponse({"error": "Unauthorized"}, status=403)
 
-    logs = EmployeeServiceLog.objects.filter(project_id=project_id)
+    logs = EmployeeServiceLog.objects.counting().filter(project_id=project_id)
 
     data = []
 
@@ -704,26 +874,40 @@ def build_employee_analytics_context(request):
         start_date = today.replace(day=1)
         end_date = today
 
-    # 1. Source Data
-    register_rows = build_attendance_register(start_date, end_date)
+    dept_raw = (request.GET.get("department") or "").strip()
+    branch_raw = (request.GET.get("branch") or "").strip()
+    dept_id = int(dept_raw) if dept_raw.isdigit() else None
+    branch_id = int(branch_raw) if branch_raw.isdigit() else None
 
-    logs = list(
-        EmployeeServiceLog.objects.select_related(
-            "employee", "employee__user", "project"
-        ).filter(date__range=(start_date, end_date))
+    # 1. Source Data
+    register_rows = build_attendance_register(
+        start_date, end_date,
+        department=dept_id, branch=branch_id
     )
+
+    logs_qs = EmployeeServiceLog.objects.counting().select_related(
+        "employee", "employee__user", "project"
+    ).filter(date__range=(start_date, end_date))
+    if dept_id:
+        logs_qs = logs_qs.filter(employee__department_id=dept_id)
+    if branch_id:
+        logs_qs = logs_qs.filter(employee__branch_id=branch_id)
+    logs = list(logs_qs)
 
     tz = timezone.get_current_timezone()
     start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
     end_dt = timezone.make_aware(datetime.combine(end_date, time.max), tz)
 
-    attendances_with_project = list(
-        Attendance.objects.filter(
-            login_time__gte=start_dt,
-            login_time__lte=end_dt,
-            project__isnull=False
-        ).exclude(status='REJECTED').select_related('project')
-    )
+    atts_qs = Attendance.objects.filter(
+        login_time__gte=start_dt,
+        login_time__lte=end_dt,
+        project__isnull=False
+    ).exclude(status='REJECTED').select_related('project')
+    if dept_id:
+        atts_qs = atts_qs.filter(employee__department_id=dept_id)
+    if branch_id:
+        atts_qs = atts_qs.filter(employee__branch_id=branch_id)
+    attendances_with_project = list(atts_qs)
 
     logs_by_emp = defaultdict(list)
     for l in logs:
@@ -733,13 +917,30 @@ def build_employee_analytics_context(request):
     for a in attendances_with_project:
         atts_by_emp[a.employee_id].append(a)
 
-    all_employees = list(
-        Employee.objects.filter(
-            user__is_active=True
-        ).filter(
-            Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
-        ).select_related('user').order_by('user__username')
-    )
+    emp_qs = Employee.objects.filter(
+        user__is_active=True
+    ).filter(
+        Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
+    ).select_related('user', 'department', 'branch').order_by('user__username')
+    if dept_id:
+        emp_qs = emp_qs.filter(department_id=dept_id)
+    if branch_id:
+        emp_qs = emp_qs.filter(branch_id=branch_id)
+    all_employees = list(emp_qs)
+
+    ts_approval_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
+    approval_from = getattr(settings, 'HR_TIMESHEET_APPROVAL_FROM', None)
+    app_from_date = None
+    if approval_from:
+        from django.utils.dateparse import parse_date
+        app_from_date = approval_from if isinstance(approval_from, (date, datetime)) else parse_date(str(approval_from))
+        if isinstance(app_from_date, datetime):
+            app_from_date = app_from_date.date()
+
+    approved_ot_by_emp = defaultdict(list)
+    if ts_approval_on:
+        for oa in OTApproval.objects.filter(date__range=(start_date, end_date), status='APPROVED'):
+            approved_ot_by_emp[oa.employee_id].append(oa)
 
     rows_by_emp = defaultdict(list)
     for r in register_rows:
@@ -785,11 +986,21 @@ def build_employee_analytics_context(request):
             else:
                 day_office = Decimal(0)
 
-        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs)
+        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs, employee=emp)
 
         total_hours = vessel_hours + office_hours
 
         ot_hours = sum((r['ot_hours'] or Decimal(0)) for r in emp_rows)
+        if ts_approval_on:
+            emp_oa = approved_ot_by_emp.get(emp.id, [])
+            if app_from_date:
+                approved_post = sum((o.ot_hours or Decimal(0)) for o in emp_oa if o.date >= app_from_date)
+                prior_reg = sum((r['ot_hours'] or Decimal(0)) for r in emp_rows if r.get('date') and r['date'] < app_from_date)
+                approved_ot_hours = approved_post + prior_reg
+            else:
+                approved_ot_hours = sum((o.ot_hours or Decimal(0)) for o in emp_oa)
+        else:
+            approved_ot_hours = ot_hours
 
         vessel_normal_cost = sum((l.normal_cost or Decimal(0)) for l in emp_logs)
         vessel_ot_cost = sum((l.ot_cost or Decimal(0)) for l in emp_logs)
@@ -801,13 +1012,17 @@ def build_employee_analytics_context(request):
 
         days_worked = sum(1 for r in emp_rows if r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL'))
         days_absent = sum(1 for r in emp_rows if r['status_code'] == 'ABSENT')
-        days_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE'))
+        days_leave = sum(1 for r in emp_rows if r['status_code'] in ('ANNUAL_LEAVE', 'SICK_LEAVE', 'PERSONAL_LEAVE', 'UNPAID_LEAVE'))
         days_training = sum(1 for r in emp_rows if r['status_code'] == 'TRAINING')
-        days_rest = sum(1 for r in emp_rows if r['status_code'] == 'REST')
+        days_rest = sum(
+            1 for r in emp_rows
+            if r['status_code'] in ('REST', 'REST_DAY', 'SUNDAY') and (not r.get('is_off_day') or Decimal(str(r.get('total_hours') or '0')) == 0)
+        )
+        days_missing_punch = sum(1 for r in emp_rows if r['status_code'] == 'MISSING_PUNCH')
 
         working_days = sum(
             1 for r in emp_rows
-            if (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+            if (r['status_code'] not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
         )
 
         capacity_hours = working_days * 8
@@ -871,11 +1086,13 @@ def build_employee_analytics_context(request):
             "vessel_hours": vessel_hours,
             "total_hours": total_hours,
             "ot_hours": ot_hours,
+            "approved_ot_hours": approved_ot_hours,
             "days_worked": days_worked,
             "days_absent": days_absent,
             "days_leave": days_leave,
             "days_training": days_training,
             "days_rest": days_rest,
+            "days_missing_punch": days_missing_punch,
             "working_days": working_days,
             "capacity_hours": capacity_hours,
             "attendance_rate": attendance_rate,
@@ -901,6 +1118,10 @@ def build_employee_analytics_context(request):
     kpi_vessel_hours = sum(e["vessel_hours"] for e in filtered_analytics)
     kpi_total_cost = sum(e["total_cost"] for e in filtered_analytics)
     kpi_total_ot = sum(e["ot_hours"] for e in filtered_analytics)
+    kpi_total_approved_ot = sum(e["approved_ot_hours"] for e in filtered_analytics)
+    kpi_total_absent = sum(e["days_absent"] for e in filtered_analytics)
+    kpi_total_rest = sum(e["days_rest"] for e in filtered_analytics)
+    kpi_total_missing_punch = sum(e["days_missing_punch"] for e in filtered_analytics)
 
     kpi_total_projects = len(set(
         p["name"]
@@ -939,7 +1160,7 @@ def build_employee_analytics_context(request):
             period_key = date(d.year, d.month, 1)
 
         period_data[period_key]['hours'] += (r['total_hours'] or Decimal(0))
-        is_working = (r['status_code'] not in ('SUNDAY', 'HOLIDAY')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
+        is_working = (r['status_code'] not in ('SUNDAY', 'REST_DAY', 'HOLIDAY', 'NONE')) or r['is_off_day'] or ((r['total_hours'] or Decimal(0)) > 0)
         if is_working:
             period_data[period_key]['working_days'] += 1
 
@@ -1005,7 +1226,7 @@ def build_employee_analytics_context(request):
     elif vv_start_date and vv_end_date and vv_start_date > vv_end_date:
         vv_start_date, vv_end_date = vv_end_date, vv_start_date
 
-    vv_logs = EmployeeServiceLog.objects.select_related("employee", "employee__user", "project").all()
+    vv_logs = EmployeeServiceLog.objects.counting().select_related("employee", "employee__user", "project").all()
     if vv_start_date and vv_end_date:
         vv_logs = vv_logs.filter(date__range=(vv_start_date, vv_end_date))
     elif vv_start_date:
@@ -1065,7 +1286,7 @@ def build_employee_analytics_context(request):
         days_in_range = end_date - start_date
         prev_end = start_date - timedelta(days=1)
         prev_start = prev_end - days_in_range
-        prev_rows = build_attendance_register(prev_start, prev_end)
+        prev_rows = build_attendance_register(prev_start, prev_end, department=dept_id, branch=branch_id)
         employees_filter_ids = {e["employee"].id for e in filtered_analytics}
         att = build_attendance_analytics(
             register_rows,
@@ -1080,10 +1301,14 @@ def build_employee_analytics_context(request):
     q_att = request.GET.copy()
     q_att["tab"] = "attendance"
 
+    req_user = getattr(request, "user", None)
     try:
-        register_url = reverse('attendance_list_adminview') if request.user.is_superuser else None
+        register_url = reverse('attendance_list_adminview') if (req_user and req_user.is_superuser) else None
     except Exception:
         register_url = None
+
+    departments = Department.objects.filter(is_active=True).order_by('sort_order', 'name')
+    branches = Branch.objects.filter(is_active=True).order_by('sort_order', 'name')
 
     return {
         "tab": tab,
@@ -1092,6 +1317,7 @@ def build_employee_analytics_context(request):
         "querystring_att": q_att.urlencode(),
         "register_url": register_url,
         "employee_analytics": page_obj,
+        "all_filtered_analytics": filtered_analytics,
         "page_obj": page_obj,
         "vessel_visits_page": vessel_visits_page,
         "vv_date": vv_date_str,
@@ -1103,6 +1329,10 @@ def build_employee_analytics_context(request):
         "kpi_vessel_hours": kpi_vessel_hours,
         "kpi_total_cost": kpi_total_cost,
         "kpi_total_ot": kpi_total_ot,
+        "kpi_total_approved_ot": kpi_total_approved_ot,
+        "kpi_total_absent": kpi_total_absent,
+        "kpi_total_rest": kpi_total_rest,
+        "kpi_total_missing_punch": kpi_total_missing_punch,
         "kpi_total_projects": kpi_total_projects,
         "kpi_avg_utilization": round(kpi_avg_utilization, 2),
         "kpi_avg_attendance_rate": round(kpi_avg_attendance_rate, 2),
@@ -1116,7 +1346,75 @@ def build_employee_analytics_context(request):
         "work_type": work_type_filter,
         "start_date": start_date,
         "end_date": end_date,
+        "departments": departments,
+        "branches": branches,
+        "selected_department": dept_raw,
+        "selected_branch": branch_raw,
+        "can_view_salary": can_view_salary(req_user),
     }
+
+
+def export_employee_analytics_excel(request, context):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Employee Analytics"
+
+    start_d = context['start_date']
+    end_d = context['end_date']
+    ws['A1'] = f"Employee Analytics ({start_d.strftime('%d/%m/%Y')} - {end_d.strftime('%d/%m/%Y')})"
+    ws['A1'].font = Font(size=13, bold=True, color='1F3A52')
+
+    show_cost = bool(context.get('can_view_salary'))
+    headers = [
+        'Code', 'Employee', 'Department', 'Branch', 'Role', 'Work Type',
+        'Office Hours', 'Vessel Hours', 'Total Hours', 'OT Hours', 'Approved OT Hours',
+        'Days Worked', 'Rest Days', 'Missing Punch', 'Absent Days', 'Leave Days',
+        'Attendance %', 'Utilization %',
+    ]
+    if show_cost:
+        headers.extend(['Normal Cost (AED)', 'OT Cost (AED)', 'Total Cost (AED)'])
+
+    fill = PatternFill(start_color='1F3A52', end_color='1F3A52', fill_type='solid')
+    font = Font(bold=True, color='FFFFFF')
+    for idx, h in enumerate(headers, 1):
+        c = ws.cell(row=3, column=idx, value=h)
+        c.fill = fill
+        c.font = font
+
+    for r_idx, row in enumerate(context['all_filtered_analytics'], 4):
+        emp = row['employee']
+        ws.cell(row=r_idx, column=1, value=emp.employee_code or '-')
+        ws.cell(row=r_idx, column=2, value=emp.name)
+        ws.cell(row=r_idx, column=3, value=emp.department.name if emp.department else '-')
+        ws.cell(row=r_idx, column=4, value=emp.branch.name if emp.branch else '-')
+        ws.cell(row=r_idx, column=5, value=emp.get_role())
+        ws.cell(row=r_idx, column=6, value=row['work_type'])
+        ws.cell(row=r_idx, column=7, value=float(row['office_hours']))
+        ws.cell(row=r_idx, column=8, value=float(row['vessel_hours']))
+        ws.cell(row=r_idx, column=9, value=float(row['total_hours']))
+        ws.cell(row=r_idx, column=10, value=float(row['ot_hours']))
+        ws.cell(row=r_idx, column=11, value=float(row['approved_ot_hours']))
+        ws.cell(row=r_idx, column=12, value=row['days_worked'])
+        ws.cell(row=r_idx, column=13, value=row['days_rest'])
+        ws.cell(row=r_idx, column=14, value=row['days_missing_punch'])
+        ws.cell(row=r_idx, column=15, value=row['days_absent'])
+        ws.cell(row=r_idx, column=16, value=row['days_leave'])
+        ws.cell(row=r_idx, column=17, value=float(row['attendance_rate']))
+        ws.cell(row=r_idx, column=18, value=float(row['utilization']))
+        if show_cost:
+            ws.cell(row=r_idx, column=19, value=float(row['normal_cost']))
+            ws.cell(row=r_idx, column=20, value=float(row['ot_cost']))
+            ws.cell(row=r_idx, column=21, value=float(row['total_cost']))
+
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = min(max((len(str(c.value or '')) for c in col), default=10) + 4, 38)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(buf.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="employee_analytics_{start_d}_{end_d}.xlsx"'
+    return resp
 
 
 @login_required
@@ -1126,6 +1424,8 @@ def analytics_employee(request):
         return HttpResponseForbidden("Access denied")
 
     context = build_employee_analytics_context(request)
+    if (request.GET.get("export") or "").strip().lower() == "excel":
+        return export_employee_analytics_excel(request, context)
     return render(request, "analytics/employee_based.html", context)
 
 

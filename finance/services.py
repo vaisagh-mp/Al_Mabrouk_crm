@@ -114,6 +114,92 @@ def calculate_employee_prorated_salary(employee, first_day, last_day, days_in_mo
         return salary
 
 
+def calculate_employee_salary_split(employee, first_day, last_day, days_in_month):
+    """
+    For HR_PAYROLL_V2:
+    Calculates active days and prorates each component of the effective SalaryStructure(s)
+    (Basic, Housing, Transport, Other Allowances) by calendar days.
+    - If joined after month or left before month: returns None (no payroll row).
+    - If mid-month change: prorated by calendar days of each structure.
+    - If joiner (date_of_join in month) or leaver (last_working_day in month):
+      prorated by active calendar days.
+    - If no structure exists: falls back to employee.salary as BASIC.
+    """
+    doj = employee.date_of_join
+    lwd = getattr(employee, 'last_working_day', None)
+
+    if lwd and lwd < first_day:
+        return None
+
+    if doj and doj > last_day:
+        return None
+
+    active_start = max(first_day, doj) if doj else first_day
+    active_end = min(last_day, lwd) if lwd else last_day
+
+    if active_start > active_end:
+        return None
+
+    active_days_count = (active_end - active_start).days + 1
+
+    structures = list(
+        employee.salary_structures.filter(
+            effective_from__lte=active_end
+        ).filter(
+            Q(effective_to__isnull=True) | Q(effective_to__gte=active_start)
+        ).order_by('-effective_from', '-created_at')
+    )
+
+    if not structures:
+        salary = employee.salary or Decimal('0.00')
+        basic = round(salary * Decimal(active_days_count) / Decimal(days_in_month), 2)
+        return {
+            'basic': basic,
+            'housing': Decimal('0.00'),
+            'transport': Decimal('0.00'),
+            'other': Decimal('0.00'),
+            'total': basic,
+            'active_days': active_days_count,
+        }
+
+    basic_sum = Decimal('0.00')
+    housing_sum = Decimal('0.00')
+    transport_sum = Decimal('0.00')
+    other_sum = Decimal('0.00')
+
+    cur_d = active_start
+    while cur_d <= active_end:
+        matched = None
+        for s in structures:
+            if s.effective_from <= cur_d and (s.effective_to is None or s.effective_to >= cur_d):
+                matched = s
+                break
+        if matched:
+            basic_sum += (matched.basic or Decimal('0.00')) / Decimal(days_in_month)
+            housing_sum += (matched.housing_allowance or Decimal('0.00')) / Decimal(days_in_month)
+            transport_sum += (matched.transport_allowance or Decimal('0.00')) / Decimal(days_in_month)
+            other_sum += (matched.other_allowances or Decimal('0.00')) / Decimal(days_in_month)
+        else:
+            salary = employee.salary or Decimal('0.00')
+            basic_sum += salary / Decimal(days_in_month)
+        cur_d += timedelta(days=1)
+
+    basic = round(basic_sum, 2)
+    housing = round(housing_sum, 2)
+    transport = round(transport_sum, 2)
+    other = round(other_sum, 2)
+    total = basic + housing + transport + other
+
+    return {
+        'basic': basic,
+        'housing': housing,
+        'transport': transport,
+        'other': other,
+        'total': total,
+        'active_days': active_days_count,
+    }
+
+
 def get_month_attendance_metrics(first_day, last_day):
     """
     Builds attendance register once for the whole month and loads service logs.
@@ -138,7 +224,7 @@ def get_month_attendance_metrics(first_day, last_day):
         rows_by_emp[r['employee'].id].append(r)
 
     logs = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             date__range=(first_day, last_day)
         ).select_related('employee')
     )
@@ -167,15 +253,83 @@ def get_month_attendance_metrics(first_day, last_day):
             if r.get('status_code') == 'ABSENT' and not (emp_obj and emp_obj.date_of_join and r['date'] < emp_obj.date_of_join)
         )
 
+        leave_v2_on = getattr(settings, 'HR_LEAVE_V2', False)
+        if leave_v2_on:
+            unpaid_leave = Decimal('0.00')
+            for r in emp_rows:
+                is_ul = (r.get('status_code') == 'UNPAID_LEAVE')
+                is_hd_ul = (r.get('is_half_day') and getattr(r.get('leave_obj'), 'leave_type_ref', None) and r['leave_obj'].leave_type_ref.code == 'UNPAID')
+                if is_ul:
+                    if r.get('is_half_day'):
+                        unpaid_leave += Decimal('0.50')
+                    else:
+                        unpaid_leave += Decimal('1.00')
+                elif is_hd_ul:
+                    unpaid_leave += Decimal('0.50')
+            unpaid_days = Decimal(str(unpaid_days)) + unpaid_leave
+
         vessel_hours = sum((l.total_hours or Decimal('0.00')) for l in emp_logs)
         vessel_ot_hours = sum((l.ot_hours or Decimal('0.00')) for l in emp_logs)
         vessel_ot_cost = sum((l.ot_cost or Decimal('0.00')) for l in emp_logs)
 
+        missing_punch_days = sum(1 for r in emp_rows if r.get('status_code') == 'MISSING_PUNCH')
+        missing_punch_dates = [r['date'] for r in emp_rows if r.get('status_code') == 'MISSING_PUNCH']
         office_ot_hours = sum((r.get('office_ot_hours') or Decimal('0.00')) for r in emp_rows)
-        office_ot_cost = calculate_office_ot_cost(salary, emp_rows, emp_logs)
+        office_ot_cost = calculate_office_ot_cost(salary, emp_rows, emp_logs, employee=emp_obj)
 
         total_ot_hours = round(vessel_ot_hours + office_ot_hours, 2)
         total_ot_cost = round(vessel_ot_cost + office_ot_cost, 2)
+
+        # Phase 5: When HR_TIMESHEET_APPROVAL is on, payroll ot_amount includes only APPROVED OTApproval days
+        if getattr(settings, 'HR_TIMESHEET_APPROVAL', False):
+            from Admin.models import OTApproval
+            approval_from = getattr(settings, 'HR_TIMESHEET_APPROVAL_FROM', None)
+            if approval_from:
+                from datetime import date, datetime
+                from django.utils.dateparse import parse_date
+                app_from_date = approval_from if isinstance(approval_from, (date, datetime)) else parse_date(str(approval_from))
+                if isinstance(app_from_date, datetime):
+                    app_from_date = app_from_date.date()
+
+                # For days >= app_from_date, only APPROVED OTApproval rows count
+                approved_ot_apps = list(OTApproval.objects.filter(
+                    employee_id=emp_id,
+                    date__range=(max(first_day, app_from_date), last_day),
+                    status='APPROVED'
+                ))
+                approved_post_cost = sum((a.ot_cost or Decimal('0.00')) for a in approved_ot_apps)
+                approved_post_hours = sum((a.ot_hours or Decimal('0.00')) for a in approved_ot_apps)
+
+                # For days < app_from_date, include vessel OT and office OT (same rule as before the switch)
+                prior_vessel_ot = sum(
+                    (l.ot_cost or Decimal('0.00')) for l in emp_logs
+                    if l.date < app_from_date
+                )
+                prior_vessel_ot_h = sum(
+                    (l.ot_hours or Decimal('0.00')) for l in emp_logs
+                    if l.date < app_from_date
+                )
+                prior_rows = [r for r in emp_rows if r.get('date') and r['date'] < app_from_date]
+                prior_logs = [l for l in emp_logs if l.date < app_from_date]
+                prior_office_ot_h = sum((r.get('office_ot_hours') or Decimal('0.00')) for r in prior_rows)
+                prior_office_ot_c = calculate_office_ot_cost(
+                    salary,
+                    prior_rows,
+                    prior_logs,
+                    employee=emp_obj
+                )
+
+                total_ot_cost = round(approved_post_cost + prior_vessel_ot + prior_office_ot_c, 2)
+                total_ot_hours = round(approved_post_hours + prior_vessel_ot_h + prior_office_ot_h, 2)
+            else:
+                approved_ot_apps = OTApproval.objects.filter(
+                    employee_id=emp_id,
+                    date__range=(first_day, last_day),
+                    status='APPROVED'
+                )
+                total_ot_cost = round(sum((a.ot_cost or Decimal('0.00')) for a in approved_ot_apps), 2)
+                total_ot_hours = round(sum((a.ot_hours or Decimal('0.00')) for a in approved_ot_apps), 2)
+
 
         metrics_by_emp[emp_id] = {
             'worked_days': worked_days,
@@ -189,6 +343,8 @@ def get_month_attendance_metrics(first_day, last_day):
             'vessel_ot_cost': round(vessel_ot_cost, 2),
             'office_ot_cost': round(office_ot_cost, 2),
             'total_ot_cost': total_ot_cost,
+            'missing_punch_days': missing_punch_days,
+            'missing_punch_dates': missing_punch_dates,
         }
 
     return metrics_by_emp
@@ -233,52 +389,118 @@ def generate_payroll(month_date, user=None):
     to_create = []
     to_update = []
 
-    for emp in active_employees:
-        if emp.date_of_join and emp.date_of_join > last_day:
-            continue
+    v2_payroll = getattr(settings, 'HR_PAYROLL_V2', False)
+    if not v2_payroll:
+        for emp in active_employees:
+            if emp.date_of_join and emp.date_of_join > last_day:
+                continue
 
-        basic = calculate_employee_prorated_salary(emp, first_day, last_day, days_in_month)
-        emp_metrics = metrics_by_emp.get(emp.id, {})
-        ot_amount = emp_metrics.get('total_ot_cost', Decimal('0.00'))
-        ot_hours = emp_metrics.get('ot_hours', Decimal('0.00'))
-        unpaid_days = emp_metrics.get('unpaid_days', 0)
+            basic = calculate_employee_prorated_salary(emp, first_day, last_day, days_in_month)
+            emp_metrics = metrics_by_emp.get(emp.id, {})
+            ot_amount = emp_metrics.get('total_ot_cost', Decimal('0.00'))
+            ot_hours = emp_metrics.get('ot_hours', Decimal('0.00'))
+            unpaid_days = emp_metrics.get('unpaid_days', 0)
 
-        # Daily rate uses the FULL monthly salary (not the prorated basic), so a
-        # mid-month joiner is not under-deducted; the result is capped at the prorated basic.
-        emp_salary = emp.salary or Decimal('0.00')
-        daily_rate = (emp_salary / PAYROLL_DAYS_DIVISOR) if emp_salary else Decimal('0.00')
-        raw_deduction = round(daily_rate * Decimal(str(unpaid_days)), 2)
-        absence_deduction = min(raw_deduction, basic)
+            # Daily rate uses the FULL monthly salary (or basic when V2 on), so a
+            # mid-month joiner is not under-deducted; the result is capped at the prorated basic.
+            from Admin.attendance_engine import pay_base_salary
+            emp_salary = pay_base_salary(emp, first_day)
+            daily_rate = (emp_salary / PAYROLL_DAYS_DIVISOR) if emp_salary else Decimal('0.00')
+            raw_deduction = round(daily_rate * Decimal(str(unpaid_days)), 2)
+            absence_deduction = min(raw_deduction, basic)
 
-        if (ot_amount > Decimal('0.00') and ot_hours == Decimal('0.00')) or (ot_hours > Decimal('0.00') and ot_amount == Decimal('0.00')):
-            logger.warning(
-                "OT hours/amount mismatch for %s (%s) in %s: OT Amount=%s, OT Hours=%s",
-                emp.user.get_full_name() or emp.user.username,
-                emp.id,
-                first_day.strftime('%Y-%m'),
-                ot_amount,
-                ot_hours
-            )
+            if (ot_amount > Decimal('0.00') and ot_hours == Decimal('0.00')) or (ot_hours > Decimal('0.00') and ot_amount == Decimal('0.00')):
+                logger.warning(
+                    "OT hours/amount mismatch for %s (%s) in %s: OT Amount=%s, OT Hours=%s",
+                    emp.user.get_full_name() or emp.user.username,
+                    emp.id,
+                    first_day.strftime('%Y-%m'),
+                    ot_amount,
+                    ot_hours
+                )
 
-        existing = existing_payrolls.get(emp.id)
-        if existing:
-            if existing.status in ('APPROVED', 'PAID'):
-                skipped_count += 1
+            existing = existing_payrolls.get(emp.id)
+            if existing:
+                if existing.status in ('APPROVED', 'PAID'):
+                    skipped_count += 1
+                else:
+                    existing.basic_salary = basic
+                    existing.ot_amount = ot_amount
+                    existing.absent_days_unpaid = Decimal(str(unpaid_days))
+                    existing.absence_deduction = absence_deduction
+                    existing.updated_at = timezone.now()
+                    to_update.append(existing)
+                    updated_count += 1
             else:
-                existing.basic_salary = basic
-                existing.ot_amount = ot_amount
-                existing.absent_days_unpaid = Decimal(str(unpaid_days))
-                existing.absence_deduction = absence_deduction
-                existing.updated_at = timezone.now()
-                to_update.append(existing)
+                to_create.append(
+                    Payroll(
+                        employee=emp,
+                        month=first_day,
+                        basic_salary=basic,
+                        allowances=Decimal('0.00'),
+                        ot_amount=ot_amount,
+                        deductions=Decimal('0.00'),
+                        absent_days_unpaid=Decimal(str(unpaid_days)),
+                        absence_deduction=absence_deduction,
+                        absence_waived=False,
+                        notes='',
+                        status='DRAFT',
+                        created_by=user,
+                    )
+                )
+                created_count += 1
+
+        if to_create:
+            Payroll.objects.bulk_create(to_create)
+        if to_update:
+            Payroll.objects.bulk_update(to_update, ['basic_salary', 'ot_amount', 'absent_days_unpaid', 'absence_deduction', 'updated_at'])
+    else:
+        from finance.models import AdvanceInstalment, PayrollLine, SalaryAdvance
+        for emp in active_employees:
+            split = calculate_employee_salary_split(emp, first_day, last_day, days_in_month)
+            if split is None:
+                continue
+
+            basic = split['basic']
+            housing = split['housing']
+            transport = split['transport']
+            other_allowance = split['other']
+            allowances_base = housing + transport + other_allowance
+
+            emp_metrics = metrics_by_emp.get(emp.id, {})
+            ot_amount = emp_metrics.get('total_ot_cost', Decimal('0.00'))
+            ot_hours = emp_metrics.get('ot_hours', Decimal('0.00'))
+            unpaid_days = emp_metrics.get('unpaid_days', 0)
+
+            from Admin.attendance_engine import pay_base_salary
+            emp_salary = pay_base_salary(emp, first_day)
+            daily_rate = (emp_salary / PAYROLL_DAYS_DIVISOR) if emp_salary else Decimal('0.00')
+            raw_deduction = round(daily_rate * Decimal(str(unpaid_days)), 2)
+            earnings_before_ot = basic + allowances_base
+            absence_deduction = min(raw_deduction, earnings_before_ot)
+
+            absent_days_count = emp_metrics.get('absent_days', 0)
+            leave_days_unpaid = max(Decimal('0.00'), Decimal(str(unpaid_days)) - Decimal(str(absent_days_count)))
+            if leave_days_unpaid > Decimal('0.00'):
+                unpaid_leave_amount = min(absence_deduction, round(daily_rate * leave_days_unpaid, 2))
+                absence_amount = max(Decimal('0.00'), absence_deduction - unpaid_leave_amount)
+            else:
+                absence_amount = absence_deduction
+                unpaid_leave_amount = Decimal('0.00')
+
+            existing = existing_payrolls.get(emp.id)
+            if existing:
+                if existing.status in ('APPROVED', 'PAID'):
+                    skipped_count += 1
+                    continue
+                payroll = existing
                 updated_count += 1
-        else:
-            to_create.append(
-                Payroll(
+            else:
+                payroll = Payroll(
                     employee=emp,
                     month=first_day,
                     basic_salary=basic,
-                    allowances=Decimal('0.00'),
+                    allowances=allowances_base,
                     ot_amount=ot_amount,
                     deductions=Decimal('0.00'),
                     absent_days_unpaid=Decimal(str(unpaid_days)),
@@ -288,13 +510,159 @@ def generate_payroll(month_date, user=None):
                     status='DRAFT',
                     created_by=user,
                 )
-            )
-            created_count += 1
+                payroll.save()
+                existing_payrolls[emp.id] = payroll
+                created_count += 1
 
-    if to_create:
-        Payroll.objects.bulk_create(to_create)
-    if to_update:
-        Payroll.objects.bulk_update(to_update, ['basic_salary', 'ot_amount', 'absent_days_unpaid', 'absence_deduction', 'updated_at'])
+            # Preserve manual lines
+            manual_lines = list(payroll.lines.filter(source='manual'))
+            manual_earnings = sum((l.amount or Decimal('0.00')) for l in manual_lines if l.kind == 'EARNING')
+            manual_deductions = sum((l.amount or Decimal('0.00')) for l in manual_lines if l.kind == 'DEDUCTION')
+
+            # Delete existing auto lines
+            payroll.lines.filter(source='auto').delete()
+
+            # Handle Advance instalments for this month
+            instalments = list(
+                AdvanceInstalment.objects.filter(
+                    advance__employee=emp,
+                    advance__status='ACTIVE',
+                    month=first_day,
+                    status='SCHEDULED'
+                ).order_by('id')
+            )
+
+            gross_calc = basic + allowances_base + manual_earnings + ot_amount
+            eff_absence = Decimal('0.00') if payroll.absence_waived else absence_deduction
+            deductions_before_advance = eff_absence + manual_deductions
+            available_net = max(Decimal('0.00'), gross_calc - deductions_before_advance)
+
+            total_advance_ded = Decimal('0.00')
+            for inst in instalments:
+                if inst.amount <= available_net:
+                    deduct = inst.amount
+                    available_net -= deduct
+                else:
+                    deduct = available_net
+                    rem = inst.amount - deduct
+                    available_net = Decimal('0.00')
+                    if rem > Decimal('0.00'):
+                        last_inst = inst.advance.instalments_schedule.order_by('-month').first()
+                        if last_inst:
+                            if last_inst.month.month == 12:
+                                next_m = date(last_inst.month.year + 1, 1, 1)
+                            else:
+                                next_m = date(last_inst.month.year, last_inst.month.month + 1, 1)
+                        else:
+                            next_m = first_day
+                        AdvanceInstalment.objects.create(
+                            advance=inst.advance,
+                            month=next_m,
+                            amount=rem,
+                            status='SCHEDULED',
+                            sort_order=(last_inst.sort_order + 1 if last_inst else 1)
+                        )
+                        inst.amount = deduct
+                        inst.save(update_fields=['amount'])
+                        inst.advance.remarks = (inst.advance.remarks or '') + f"\n[{timezone.localdate()}] Partial deduction of AED {deduct} in {first_day.strftime('%b %Y')}; remaining AED {rem} deferred to {next_m.strftime('%b %Y')}."
+                        inst.advance.save(update_fields=['remarks'])
+
+                if deduct > Decimal('0.00'):
+                    PayrollLine.objects.create(
+                        payroll=payroll,
+                        kind='DEDUCTION',
+                        code='ADVANCE',
+                        description=f"Salary Advance ({inst.advance_id})",
+                        amount=deduct,
+                        source='auto',
+                        sort_order=50,
+                    )
+                    inst.payroll = payroll
+                    inst.save(update_fields=['payroll'])
+                    total_advance_ded += deduct
+
+            # Auto Earning lines
+            PayrollLine.objects.create(
+                payroll=payroll,
+                kind='EARNING',
+                code='BASIC',
+                description='Basic Salary',
+                amount=basic,
+                source='auto',
+                sort_order=10
+            )
+            if housing > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='EARNING',
+                    code='HOUSING',
+                    description='Housing Allowance',
+                    amount=housing,
+                    source='auto',
+                    sort_order=20
+                )
+            if transport > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='EARNING',
+                    code='TRANSPORT',
+                    description='Transport Allowance',
+                    amount=transport,
+                    source='auto',
+                    sort_order=30
+                )
+            if other_allowance > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='EARNING',
+                    code='OTHER_ALLOWANCE',
+                    description='Other Allowance',
+                    amount=other_allowance,
+                    source='auto',
+                    sort_order=40
+                )
+            if ot_amount > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='EARNING',
+                    code='OT',
+                    description=f"Overtime ({ot_hours} hrs)",
+                    amount=ot_amount,
+                    source='auto',
+                    sort_order=50
+                )
+
+            # Auto Deduction lines
+            if absence_amount > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='DEDUCTION',
+                    code='ABSENCE',
+                    description='Absence Deduction',
+                    amount=absence_amount,
+                    source='auto',
+                    sort_order=10
+                )
+            if unpaid_leave_amount > Decimal('0.00'):
+                PayrollLine.objects.create(
+                    payroll=payroll,
+                    kind='DEDUCTION',
+                    code='UNPAID_LEAVE',
+                    description='Unpaid Leave Deduction',
+                    amount=unpaid_leave_amount,
+                    source='auto',
+                    sort_order=20
+                )
+
+            # Sync totals
+            payroll.basic_salary = basic
+            payroll.allowances = allowances_base + manual_earnings
+            payroll.ot_amount = ot_amount
+            payroll.absent_days_unpaid = Decimal(str(unpaid_days))
+            payroll.absence_deduction = absence_deduction
+            payroll.deductions = total_advance_ded + manual_deductions
+            payroll.updated_at = timezone.now()
+            payroll.save()
 
     return created_count, updated_count, skipped_count
 
@@ -338,6 +706,8 @@ def get_payroll_list_with_metrics(month_date):
         p.leave_days = m['leave_days']
         p.vessel_hours = m['vessel_hours']
         p.ot_hours = m['ot_hours']
+        p.missing_punch_days = m.get('missing_punch_days', 0)
+        p.missing_punch_dates = m.get('missing_punch_dates', [])
         p.ot_mismatch = (p.ot_amount > Decimal('0.00') and p.ot_hours == Decimal('0.00')) or (p.ot_hours > Decimal('0.00') and p.ot_amount == Decimal('0.00'))
 
         total_basic += p.basic_salary or Decimal('0.00')
@@ -356,6 +726,7 @@ def get_payroll_list_with_metrics(month_date):
         'deductions': total_deductions,
         'unpaid_days': total_unpaid_days,
         'absence_deduction': total_absence_ded,
+        'missing_punch_days': sum(getattr(p, 'missing_punch_days', 0) for p in payrolls),
         'gross': total_gross,
         'net': total_net,
     }
@@ -393,6 +764,177 @@ def payroll_excel_response(payrolls, totals, month_date):
         top=Side(border_style="medium", color="1F3A52"),
         bottom=Side(border_style="double", color="1F3A52")
     )
+
+    v2_payroll = getattr(settings, 'HR_PAYROLL_V2', False)
+    if v2_payroll:
+        headers = [
+            "Employee", "Code", "Designation",
+            "Basic (AED)", "Housing (AED)", "Transport (AED)", "Other Allowance (AED)", "OT Amount (AED)", "Other Earnings (AED)", "Gross (AED)",
+            "Absence Ded. (AED)", "Unpaid Leave (AED)", "Advance Ded. (AED)", "Other Ded. (AED)", "Total Deductions (AED)", "Net Pay (AED)",
+            "Status", "Notes"
+        ]
+        ws.row_dimensions[1].height = 26
+        for col_idx, h in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=h)
+            cell.font = font_header
+            cell.fill = fill_primary
+            cell.alignment = align_center
+            cell.border = border_cell
+
+        current_row = 2
+        sum_basic = Decimal('0.00')
+        sum_housing = Decimal('0.00')
+        sum_transport = Decimal('0.00')
+        sum_other_allow = Decimal('0.00')
+        sum_ot = Decimal('0.00')
+        sum_other_earn = Decimal('0.00')
+        sum_gross = Decimal('0.00')
+        sum_abs_ded = Decimal('0.00')
+        sum_ul_ded = Decimal('0.00')
+        sum_adv_ded = Decimal('0.00')
+        sum_other_ded = Decimal('0.00')
+        sum_tot_ded = Decimal('0.00')
+        sum_net = Decimal('0.00')
+
+        for idx, p in enumerate(payrolls):
+            row_fill = fill_zebra if idx % 2 == 1 else None
+            ws.row_dimensions[current_row].height = 20
+
+            emp_name = p.employee.user.get_full_name() or p.employee.user.username
+            emp_code = p.employee.employee_code or f"AMMS-{p.employee.id:04d}"
+
+            lines = list(p.lines.all())
+            lines_by_code = defaultdict(Decimal)
+            for l in lines:
+                lines_by_code[l.code] += (l.amount or Decimal('0.00'))
+
+            if not lines:
+                # Fallback to model fields
+                val_basic = p.basic_salary or Decimal('0.00')
+                val_housing = Decimal('0.00')
+                val_transport = Decimal('0.00')
+                val_other_allow = p.allowances or Decimal('0.00')
+                val_ot = p.ot_amount or Decimal('0.00')
+                val_other_earn = Decimal('0.00')
+                val_abs_ded = p.effective_absence_deduction
+                val_ul_ded = Decimal('0.00')
+                val_adv_ded = Decimal('0.00')
+                val_other_ded = p.deductions or Decimal('0.00')
+            else:
+                val_basic = lines_by_code.get('BASIC', Decimal('0.00'))
+                val_housing = lines_by_code.get('HOUSING', Decimal('0.00'))
+                val_transport = lines_by_code.get('TRANSPORT', Decimal('0.00'))
+                val_other_allow = lines_by_code.get('OTHER_ALLOWANCE', Decimal('0.00'))
+                val_ot = lines_by_code.get('OT', Decimal('0.00'))
+                val_other_earn = sum(l.amount for l in lines if l.kind == 'EARNING' and l.code == 'OTHER')
+                val_abs_ded = lines_by_code.get('ABSENCE', Decimal('0.00'))
+                if p.absence_waived:
+                    val_abs_ded = Decimal('0.00')
+                val_ul_ded = lines_by_code.get('UNPAID_LEAVE', Decimal('0.00'))
+                if p.absence_waived:
+                    val_ul_ded = Decimal('0.00')
+                val_adv_ded = lines_by_code.get('ADVANCE', Decimal('0.00'))
+                val_other_ded = sum(l.amount for l in lines if l.kind == 'DEDUCTION' and l.code == 'OTHER')
+
+            val_gross = p.gross
+            val_tot_ded = (val_abs_ded + val_ul_ded + val_adv_ded + val_other_ded)
+            val_net = p.net_pay
+
+            sum_basic += val_basic
+            sum_housing += val_housing
+            sum_transport += val_transport
+            sum_other_allow += val_other_allow
+            sum_ot += val_ot
+            sum_other_earn += val_other_earn
+            sum_gross += val_gross
+            sum_abs_ded += val_abs_ded
+            sum_ul_ded += val_ul_ded
+            sum_adv_ded += val_adv_ded
+            sum_other_ded += val_other_ded
+            sum_tot_ded += val_tot_ded
+            sum_net += val_net
+
+            row_data = [
+                (emp_name, align_left, font_data, "text"),
+                (emp_code, align_center, font_data, "text"),
+                (p.employee.rank or "—", align_left, font_data, "text"),
+                (float(val_basic), align_right, font_data, "0.00"),
+                (float(val_housing), align_right, font_data, "0.00"),
+                (float(val_transport), align_right, font_data, "0.00"),
+                (float(val_other_allow), align_right, font_data, "0.00"),
+                (float(val_ot), align_right, font_data, "0.00"),
+                (float(val_other_earn), align_right, font_data, "0.00"),
+                (float(val_gross), align_right, font_data, "0.00"),
+                (float(val_abs_ded), align_right, font_data, "0.00"),
+                (float(val_ul_ded), align_right, font_data, "0.00"),
+                (float(val_adv_ded), align_right, font_data, "0.00"),
+                (float(val_other_ded), align_right, font_data, "0.00"),
+                (float(val_tot_ded), align_right, font_data, "0.00"),
+                (float(val_net), align_right, font_data, "0.00"),
+                (p.get_status_display(), align_center, font_data, "text"),
+                (p.notes or "", align_left, font_data, "text"),
+            ]
+            for col_idx, (val, alignment, font, kind) in enumerate(row_data, start=1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
+                cell.alignment = alignment
+                cell.font = font
+                cell.border = border_cell
+                if row_fill:
+                    cell.fill = row_fill
+                if kind == "0.00":
+                    cell.number_format = "#,##0.00"
+            current_row += 1
+
+        # Totals Row
+        ws.row_dimensions[current_row].height = 22
+        total_data = [
+            ("TOTAL", align_left, font_total, "text"),
+            ("", align_center, font_total, "text"),
+            ("", align_left, font_total, "text"),
+            (float(sum_basic), align_right, font_total, "0.00"),
+            (float(sum_housing), align_right, font_total, "0.00"),
+            (float(sum_transport), align_right, font_total, "0.00"),
+            (float(sum_other_allow), align_right, font_total, "0.00"),
+            (float(sum_ot), align_right, font_total, "0.00"),
+            (float(sum_other_earn), align_right, font_total, "0.00"),
+            (float(sum_gross), align_right, font_total, "0.00"),
+            (float(sum_abs_ded), align_right, font_total, "0.00"),
+            (float(sum_ul_ded), align_right, font_total, "0.00"),
+            (float(sum_adv_ded), align_right, font_total, "0.00"),
+            (float(sum_other_ded), align_right, font_total, "0.00"),
+            (float(sum_tot_ded), align_right, font_total, "0.00"),
+            (float(sum_net), align_right, font_total, "0.00"),
+            ("", align_center, font_total, "text"),
+            ("", align_left, font_total, "text"),
+        ]
+        for col_idx, (val, alignment, font, kind) in enumerate(total_data, start=1):
+            cell = ws.cell(row=current_row, column=col_idx, value=val)
+            cell.alignment = alignment
+            cell.font = font
+            cell.fill = fill_total
+            cell.border = border_total
+            if kind == "0.00":
+                cell.number_format = "#,##0.00"
+
+        ws.freeze_panes = "D2"
+        for col in ws.columns:
+            col_letter = get_column_letter(col[0].column)
+            max_len = 0
+            for cell in col:
+                val_str = str(cell.value or '')
+                if len(val_str) > max_len:
+                    max_len = len(val_str)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        response['Content-Disposition'] = f'attachment; filename="payroll_{month_str}.xlsx"'
+        return response
 
     headers = [
         "Employee", "Designation", "Basic (AED)", "Allowances (AED)", "OT Amount (AED)",
@@ -656,7 +1198,7 @@ def calculate_month_estimated_payroll(first_day, last_day, days_in_month, active
         emp_rows = month_rows_by_emp.get(emp.id, [])
         emp_logs = month_logs_by_emp.get(emp.id, [])
         vessel_ot_cost = sum((l.ot_cost or Decimal('0.00')) for l in emp_logs)
-        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs)
+        office_ot_cost = calculate_office_ot_cost(emp.salary, emp_rows, emp_logs, employee=emp)
         total_ot = vessel_ot_cost + office_ot_cost
 
         emp_cost = basic + total_ot
@@ -830,7 +1372,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
         active_employees = get_active_payroll_employees()
         est_register_rows = build_attendance_register(min_est, max_est)
         est_logs = list(
-            EmployeeServiceLog.objects.filter(
+            EmployeeServiceLog.objects.counting().filter(
                 date__range=(min_est, max_est)
             ).select_related('employee')
         )
@@ -889,7 +1431,7 @@ def pnl_for_range(start_date, end_date, granularity='month', request=None):
         date__lte=effective_end
     ).values('date', 'amount_aed', 'category__kind', 'category__name'))
 
-    logs_qs = list(EmployeeServiceLog.objects.filter(
+    logs_qs = list(EmployeeServiceLog.objects.counting().filter(
         date__gte=start_date,
         date__lte=effective_end
     ).values('date', 'employee_id'))
@@ -1453,7 +1995,7 @@ def get_projects_profitability(filters=None, sort_by=None):
 
     # Engineer days tracking
     logs_data = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             project_id__in=project_ids
         ).values('project_id', 'employee_id', 'date')
     )
@@ -1843,7 +2385,7 @@ def get_attributed_revenue_by_employee(start_date, end_date):
 
     project_ids = [p.id for p in invoiced_projects]
     logs = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             project_id__in=project_ids
         ).values('project_id', 'employee_id', 'total_hours')
     )
@@ -1927,7 +2469,7 @@ def get_employee_cost_data(start_date, end_date, request=None, sort_by=None):
     extra_emp_ids = set(
         Payroll.objects.filter(month__in=months).values_list('employee_id', flat=True)
     ) | set(
-        EmployeeServiceLog.objects.filter(date__range=(start_date, effective_end)).values_list('employee_id', flat=True)
+        EmployeeServiceLog.objects.counting().filter(date__range=(start_date, effective_end)).values_list('employee_id', flat=True)
     )
     extra_ids_to_fetch = extra_emp_ids - active_emp_ids
     extra_employees = list(Employee.objects.filter(id__in=extra_ids_to_fetch).select_related('user'))
@@ -1957,7 +2499,7 @@ def get_employee_cost_data(start_date, end_date, request=None, sort_by=None):
 
         est_register_rows = build_attendance_register(min_est, max_est)
         est_logs = list(
-            EmployeeServiceLog.objects.filter(
+            EmployeeServiceLog.objects.counting().filter(
                 date__range=(min_est, max_est),
                 employee_id__in=emp_ids
             ).select_related('employee')
@@ -1972,7 +2514,7 @@ def get_employee_cost_data(start_date, end_date, request=None, sort_by=None):
 
     # Vessel hours in period
     vessel_logs = list(
-        EmployeeServiceLog.objects.filter(
+        EmployeeServiceLog.objects.counting().filter(
             employee_id__in=emp_ids,
             date__range=(start_date, effective_end)
         ).values('employee_id').annotate(total_hours=Sum('total_hours'), total_ot_cost=Sum('ot_cost'))
@@ -2033,7 +2575,7 @@ def get_employee_cost_data(start_date, end_date, request=None, sort_by=None):
                 emp_rows = month_reg_by_emp.get((m.year, m.month), {}).get(emp.id, [])
                 emp_m_logs = month_logs_by_emp.get((m.year, m.month), {}).get(emp.id, [])
                 vessel_ot = sum((l.ot_cost or Decimal('0.00')) for l in emp_m_logs)
-                office_ot = calculate_office_ot_cost(emp.salary, emp_rows, emp_m_logs)
+                office_ot = calculate_office_ot_cost(emp.salary, emp_rows, emp_m_logs, employee=emp)
                 month_ot = vessel_ot + office_ot
                 month_gross = basic + month_ot
 
@@ -4250,7 +4792,7 @@ def engineer_cost_for_projects(project_ids):
 
     # Query 1: EmployeeServiceLog
     logs = (
-        EmployeeServiceLog.objects.filter(project_id__in=pids)
+        EmployeeServiceLog.objects.counting().filter(project_id__in=pids)
         .values('project_id', 'employee_id', 'date', 'total_hours', 'normal_cost', 'ot_cost')
     )
     logged_emp_proj_dates = set()

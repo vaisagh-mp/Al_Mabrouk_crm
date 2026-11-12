@@ -20,7 +20,7 @@
     <!-- Apex Chart css -->
     <link rel="stylesheet" href="{% static 'assets/styles.css' %}" />
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261111" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
 
     <!-- Add Select2 CSS -->
@@ -91,17 +91,9 @@
     <header>
 
       <div class="mb-top-hdr">
-        <div class="hdr-notification">
-        <a href="#" id="open-notification-popup-employee">
-            <button type="button" class="btn btn-primary position-relative">
-                <i class="fas fa-bell"></i>
-                <span id="notification-count-employee" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                    0
-                    <span class="visually-hidden">unread messages</span>
-                </span>
-            </button>
-        </a>
-    </div>
+        {% url 'employee-fetch-notifications' as notif_fetch_url %}
+        {% url 'employee-mark-notifications-as-read' as notif_mark_url %}
+        {% include 'includes/notification_bell.html' with fetch_url=notif_fetch_url mark_read_url=notif_mark_url %}
 
       <div class="hdr-user">
         <div class="dropdown">
@@ -146,27 +138,7 @@
           </ul>
         </div>
 
-        <!-- Notification Popup -->
-        <div
-          id="notification-popup-employee"
-          class="notification-popup-employee"
-        >
-          <div class="popup-header">
-            <h5>Project Notifications</h5>
-            <button class="close-popup-employee">&times;</button>
-          </div>
-
-          <div class="popup-body">
-            <div id="notification-list-employee">
-              <p>Loading...</p>
-            </div>
-          </div>
-
-          <!-- Button should be outside the list -->
-          <button class="mark-all-read" id="mark-read-employee" style="display: block;color: rgb(83, 105, 207);">
-            Mark All as Read
-          </button>
-        </div>
+        <!-- Notification bell popup included in top header -->
       </div>
 
       </div>
@@ -283,6 +255,14 @@
                   <span>Leave</span>
                 </a>
               </li>
+              {% if request.user.employee_profile %}
+              <li>
+                <a href="{% url 'my_payslips' %}">
+                  <i class="fas fa-file-alt"></i>
+                  <span>My Payslips</span>
+                </a>
+              </li>
+              {% endif %}
               <li class="sidebar-dropdown">
                 <a href="{% url 'profile_view' %}">
                   <i class="fas fa-tasks"></i>
@@ -591,96 +571,7 @@ document.getElementById("presence-month").addEventListener("change", function() 
       }
     </script>
 
-    <!-- JavaScript for Fetching Employee Notifications -->
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const notificationPopup = document.getElementById(
-          "notification-popup-employee"
-        );
-        const notificationList = document.getElementById(
-          "notification-list-employee"
-        );
-        const markReadBtn = document.getElementById("mark-read-employee");
-        const openNotificationBtn = document.getElementById(
-          "open-notification-popup-employee"
-        );
-        const closePopupBtn = document.querySelector(".close-popup-employee");
-        const notificationCount = document.getElementById(
-          "notification-count-employee"
-        );
-
-        function formatCustomDateTime(dateString) {
-        const date = new Date(dateString);
-
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-
-        let hours = date.getHours();
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        const ampm = hours >= 12 ? 'pm' : 'am';
-
-        hours = hours % 12;
-        hours = hours ? hours : 12;
-
-        return `${year}-${month}-${day} ${hours}:${minutes} ${ampm}`;
-    }
-
-        // Function to Fetch Notifications
-        function fetchEmployeeNotifications() {
-          fetch("{% url 'employee-fetch-notifications' %}")
-            .then((response) => response.json())
-            .then((data) => {
-              notificationList.innerHTML = "";
-
-              if (data.notifications.length === 0) {
-                notificationList.innerHTML = "<p>No new notifications</p>";
-              } else {
-                data.notifications.forEach((notification) => {
-                  const item = document.createElement("div");
-                  item.classList.add("notification-item");
-                  item.innerHTML = `<p>${notification.message}</p><small>${formatCustomDateTime(notification.created_at)}</small>`;
-                  notificationList.prepend(item);
-                });
-              }
-
-              // Update Notification Count Badge
-              notificationCount.textContent = data.notifications.length;
-              notificationCount.style.display =
-                data.notifications.length > 0 ? "inline-block" : "none";
-            });
-        }
-
-        // Show Popup When Clicking Notification Menu
-        openNotificationBtn.addEventListener("click", function (event) {
-          event.preventDefault();
-          fetchEmployeeNotifications();
-          notificationPopup.style.display = "block";
-        });
-
-        // Close Popup
-        closePopupBtn.addEventListener("click", function () {
-          notificationPopup.style.display = "none";
-        });
-
-        // Mark All Notifications as Read
-        markReadBtn.addEventListener("click", function () {
-          fetch("{% url 'employee-mark-notifications-as-read' %}", {
-            method: "POST",
-            headers: { "X-CSRFToken": "{{ csrf_token }}" },
-          })
-            .then((response) => response.json())
-            .then((data) => {
-              alert(data.message);
-              fetchEmployeeNotifications();
-            });
-        });
-
-        // Auto Fetch Notifications Every 5 Seconds
-        setInterval(fetchEmployeeNotifications, 5000);
-        fetchEmployeeNotifications();
-      });
-    </script>
+    <!-- Notification bell script handled by includes/notification_bell.html -->
 
 <!-- jQuery -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -745,17 +636,42 @@ document.getElementById("presence-month").addEventListener("change", function() 
 
   const currentUserName = "{{ request.user.get_full_name|default:request.user.username|escapejs }}";
 
-  function addTimeRow(date = '', start = '', finish = '', memberName = '') {
+  function addTimeRow(date = '', start = '', finish = '', memberName = '', id = '', breakMins = 0, travelMins = 0, desc = '', attUrl = '', status = 'DRAFT', remarks = '') {
     const table = document.querySelector('#timeTable tbody');
     if (!table) return;
     const row = table.insertRow();
     const escapedMemberName = escapeHtml(memberName);
     const displayName = escapedMemberName || escapeHtml(currentUserName);
+    const isLocked = (status === 'SUBMITTED' || status === 'APPROVED');
+    const readOnlyAttr = isLocked ? 'readonly' : '';
+
+    let statusBadge = '<span class="badge bg-secondary" style="font-size: 11px;">Draft</span>';
+    if (status === 'SUBMITTED') statusBadge = '<span class="badge bg-warning text-dark" style="font-size: 11px;">Submitted</span>';
+    else if (status === 'APPROVED') statusBadge = '<span class="badge bg-success" style="font-size: 11px;">Approved</span>';
+    else if (status === 'REJECTED') statusBadge = '<span class="badge bg-danger" style="font-size: 11px;">Rejected</span>';
+
+    let remarksHtml = remarks ? `<div class="text-danger small" style="max-width: 150px; font-size: 11px;">${escapeHtml(remarks)}</div>` : '';
+    let attHtml = attUrl ? `<a href="${escapeHtml(attUrl)}" target="_blank" class="small d-block">View file</a>` : '';
+    if (!isLocked) {
+      attHtml += `<input type="file" name="time_attachment[]" accept=".pdf,.jpg,.jpeg,.png" style="width: 120px; font-size: 11px;">`;
+    }
+
+    let delBtn = !isLocked ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()" style="padding: 1px 6px;">&times;</button>` : '';
+
     row.innerHTML = `
-      <td><span class="member-name-text" style="font-weight: 500;">${displayName}</span></td>
-      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
-      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
-      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
+      <td>
+        <input type="hidden" name="time_row_id[]" value="${escapeHtml(id)}">
+        <span class="member-name-text" style="font-weight: 500;">${displayName}</span>
+      </td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}" ${readOnlyAttr}></td>
+      <td><input type="number" name="break_minutes[]" value="${escapeHtml(breakMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="number" name="travel_minutes[]" value="${escapeHtml(travelMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="text" name="time_description[]" value="${escapeHtml(desc)}" placeholder="Description" style="width: 140px;" ${readOnlyAttr}></td>
+      <td>${attHtml}</td>
+      <td>${statusBadge}${remarksHtml}</td>
+      <td>${delBtn}</td>`;
   }
 
   window.onload = function () {
@@ -780,7 +696,14 @@ document.getElementById("presence-month").addEventListener("change", function() 
         t.date || '',
         t.start_time ? t.start_time.slice(0, 5) : '',
         t.finish_time ? t.finish_time.slice(0, 5) : '',
-        t.member_name || ''
+        t.member_name || '',
+        t.id || '',
+        t.break_minutes || 0,
+        t.travel_minutes || 0,
+        t.description || '',
+        t.attachment_url || '',
+        t.status || 'DRAFT',
+        t.remarks || ''
       )
     );
   };

@@ -1,0 +1,196 @@
+{% extends base_template|default:'finance/financebase.html' %}
+{% load static %}
+
+{% block title %}Salary Increments | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #1F3A52;">
+                <i class="fas fa-chart-line me-2"></i>Salary Increments
+            </h3>
+            <p class="text-muted small mb-0">Propose, review and track salary increments, promotions and structure updates.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#proposeIncrementModal">
+                <i class="fas fa-plus me-1"></i>Propose Increment
+            </button>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm border-0 mb-3">
+        <div class="card-body p-2 d-flex gap-2 align-items-center">
+            <span class="small fw-bold text-muted ps-2">Filter Status:</span>
+            <a href="{% url 'salary_increments_list' %}" class="btn btn-sm {% if not status_filter %}btn-dark{% else %}btn-outline-secondary{% endif %}">All</a>
+            <a href="{% url 'salary_increments_list' %}?status=PENDING" class="btn btn-sm {% if status_filter == 'PENDING' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">Pending</a>
+            <a href="{% url 'salary_increments_list' %}?status=APPROVED" class="btn btn-sm {% if status_filter == 'APPROVED' %}btn-success{% else %}btn-outline-success{% endif %}">Approved</a>
+            <a href="{% url 'salary_increments_list' %}?status=REJECTED" class="btn btn-sm {% if status_filter == 'REJECTED' %}btn-danger{% else %}btn-outline-danger{% endif %}">Rejected</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">Employee</th>
+                            <th>Type</th>
+                            <th>Effective Date</th>
+                            <th class="text-end">Previous Total (AED)</th>
+                            <th class="text-end">New Total (AED)</th>
+                            <th class="text-center">% Change</th>
+                            <th>Reason</th>
+                            <th class="text-center">Status</th>
+                            <th>Proposed By</th>
+                            <th>Approved By</th>
+                            <th class="text-center pe-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inc in increments %}
+                        <tr>
+                            <td class="ps-3 fw-bold">
+                                {{ inc.employee.name }}
+                                <div class="small text-muted fw-normal">{{ inc.employee.employee_code|default:"—" }}</div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">{{ inc.get_type_display }}</span></td>
+                            <td>{{ inc.effective_from|date:"d/m/Y" }}</td>
+                            <td class="text-end font-monospace">{{ inc.previous_total|floatformat:2 }}</td>
+                            <td class="text-end font-monospace fw-bold text-primary">{{ inc.new_total|floatformat:2 }}</td>
+                            <td class="text-center">
+                                {% if inc.percentage_change > 0 %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">+{{ inc.percentage_change }}%</span>
+                                {% elif inc.percentage_change < 0 %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ inc.percentage_change }}%</span>
+                                {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">0%</span>
+                                {% endif %}
+                            </td>
+                            <td class="small" style="max-width: 180px;">{{ inc.reason|default:"—" }}</td>
+                            <td class="text-center">
+                                {% if inc.status == 'APPROVED' %}
+                                <span class="badge bg-success">Approved</span>
+                                {% elif inc.status == 'REJECTED' %}
+                                <span class="badge bg-danger">Rejected</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">{{ inc.proposed_by.get_full_name|default:inc.proposed_by.username|default:"—" }}</td>
+                            <td class="small">
+                                {% if inc.approved_by %}
+                                {{ inc.approved_by.get_full_name|default:inc.approved_by.username }}
+                                <div class="text-muted" style="font-size: 7.5pt;">{{ inc.approved_at|date:"d/m/Y H:i" }}</div>
+                                {% else %}
+                                —
+                                {% endif %}
+                            </td>
+                            <td class="text-center pe-3">
+                                {% if inc.status == 'PENDING' and is_admin %}
+                                <div class="d-flex gap-1 justify-content-center">
+                                    <form method="post" action="{% url 'salary_increment_action' inc.id 'approve' %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-success" title="Approve" onclick="return confirm('Approve this salary increment?');">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'salary_increment_action' inc.id 'reject' %}">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Reject" onclick="return confirm('Reject this salary increment?');">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="11" class="text-center py-4 text-muted">No salary increments found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Propose Increment -->
+<div class="modal fade" id="proposeIncrementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="post" action="{% url 'salary_increment_propose' %}">
+                {% csrf_token %}
+                <div class="modal-header" style="background-color: #1F3A52; color: #FFF;">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-chart-line me-2"></i>Propose Salary Increment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small">Employee <span class="text-danger">*</span></label>
+                            <select name="employee_id" class="form-select form-select-sm" required>
+                                <option value="">Select Employee...</option>
+                                {% for emp in active_employees %}
+                                <option value="{{ emp.id }}">{{ emp.name }} ({{ emp.employee_code|default:"AMMS" }}) - Current Salary: {{ emp.salary }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Increment Type <span class="text-danger">*</span></label>
+                            <select name="type" class="form-select form-select-sm" required>
+                                <option value="ANNUAL">Annual Increment</option>
+                                <option value="PROMOTION">Promotion</option>
+                                <option value="CORRECTION">Correction</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Effective Date <span class="text-danger">*</span></label>
+                            <input type="date" name="effective_from" class="form-control form-control-sm" required>
+                        </div>
+
+                        <div class="col-12"><hr class="my-2"></div>
+                        <h6 class="fw-bold small text-muted text-uppercase mb-1">New Salary Structure Components</h6>
+
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Basic Salary (AED) <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" name="new_basic" class="form-control form-control-sm" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Housing (AED)</label>
+                            <input type="number" step="0.01" name="new_housing" class="form-control form-control-sm" value="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Transport (AED)</label>
+                            <input type="number" step="0.01" name="new_transport" class="form-control form-control-sm" value="0.00">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small">Other Allowances (AED)</label>
+                            <input type="number" step="0.01" name="new_other" class="form-control form-control-sm" value="0.00">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Reason / Justification</label>
+                            <textarea name="reason" class="form-control form-control-sm" rows="3" placeholder="Explain the rationale for this increment..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-paper-plane me-1"></i>Submit Proposal</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

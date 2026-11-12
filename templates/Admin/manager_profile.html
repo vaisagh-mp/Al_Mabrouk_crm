@@ -48,13 +48,16 @@
             </span>
             <p class="text-dark">{{ employee.date_of_join|date:"d-m-Y" }}</p>
           </div>
+          {% if can_view_salary %}
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
               <i class="fas fa-rupee-sign"></i>
               Salary
             </span>
-            <p class="text-dark">{{ employee.salary }} ₹</p>
+            <div class="text-end"><p class="text-dark mb-0">{{ employee.salary }} AED</p>{% if employee.upcoming_salary_structure %}<span class="badge bg-info text-dark">Upcoming: AED {{ employee.upcoming_salary_structure.total }} from {{ employee.upcoming_salary_structure.effective_from|date:"d/m/Y" }}</span>{% endif %}</div>
           </div>
+          {% endif %}
+
           <div class="d-flex align-items-center justify-content-between mb-2">
             <span class="d-inline-flex align-items-center">
               <i class="fas fa-globe"></i>

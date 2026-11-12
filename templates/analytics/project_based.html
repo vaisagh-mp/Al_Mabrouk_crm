@@ -2,23 +2,14 @@
 {% load static humanize %}
 {% block content %}
 
-<div class="pg-title">
-    <h1>Project Analytics</h1>
+<div class="pg-title d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="mb-0">Project Analytics</h1>
+    <a href="?date={{ start_date|date:'Y-m-d' }} to {{ end_date|date:'Y-m-d' }}&department={{ selected_department }}&branch={{ selected_branch }}&sort={{ sort }}&export=excel" class="btn btn-sm btn-success">
+        <i class="fas fa-file-excel me-1"></i> Export Excel
+    </a>
 </div>
 
-<!-- ================= DATE FILTER ================= -->
-<!-- <form method="get" class="date-filter mb-20">
-    <input
-        type="text"
-        id="datePicker"
-        name="date"
-        placeholder="Select date / range"
-        value="{{ start_date }}{% if end_date and start_date != end_date %} to {{ end_date }}{% endif %}"
-        style="width: 260px;"
-        required
-    >
-    <button type="submit" class="prmry-btn">Filter</button>
-</form> -->
+{% include 'includes/filter_bar.html' with show_analytics_date=True show_department=True show_branch=True reset_url=request.path %}
 <div class="kpi-box">
     <div class="row rg-24">
 
@@ -180,7 +171,7 @@
 
             </div>
 
-            <div class="table-wdgt" style="overflow-x: auto;">
+            <div class="table-wdgt table-responsive" style="overflow-x: auto;">
                 <table class="widget-box-table">
                     <thead>
                         <tr>

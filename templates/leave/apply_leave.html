@@ -1,0 +1,320 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">APPLY FOR LEAVE</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Submit a new leave application with live working day calculation.</p>
+        </div>
+        <div>
+            <a href="{% if role == 'HR' %}{% url 'hr_leave_status' %}{% elif role == 'Manager' %}{% url 'manager_leave_status' %}{% elif role == 'Admin' %}{% url 'employee_leave_list' %}{% elif role == 'Accountant' %}{% url 'fin_leave_status' %}{% elif role == 'Administration' %}{% url 'admstrn_leave_status' %}{% else %}{% url 'my_leave' %}{% endif %}" class="btn btn-outline-secondary btn-sm" style="font-weight: 500;">
+                <i class="fa fa-list"></i> My Requests
+            </a>
+        </div>
+    </div>
+
+    <!-- Balance Summary Header Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px;">
+        {% for s in leave_summary %}
+        <div style="background: #ffffff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid {% if s.code == 'ANNUAL' %}#2B5876{% elif s.code == 'SICK' %}#E67E22{% elif s.code == 'PERSONAL' %}#27AE60{% else %}#7F8C8D{% endif %};">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span style="font-size: 13px; font-weight: 700; color: #1F3A52; text-transform: uppercase;">{{ s.name }}</span>
+                {% if s.uses_balance %}
+                    <span style="font-size: 11px; background: #eef2f7; color: #334e68; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Balance</span>
+                {% else %}
+                    <span style="font-size: 11px; background: #fdf2e9; color: #b9770e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Unpaid</span>
+                {% endif %}
+            </div>
+            <div style="margin-top: 10px; display: flex; align-items: baseline; gap: 8px;">
+                {% if s.uses_balance %}
+                    <span style="font-size: 26px; font-weight: 800; color: #1F3A52;">{{ s.available_days }}</span>
+                    <span style="font-size: 12px; color: #6c757d;">days available</span>
+                {% else %}
+                    <span style="font-size: 22px; font-weight: 700; color: #7F8C8D;">N/A</span>
+                    <span style="font-size: 12px; color: #6c757d;">approval required</span>
+                {% endif %}
+            </div>
+            {% if s.uses_balance %}
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between;">
+                <span>Net: <strong>{{ s.net_balance }}</strong> d</span>
+                <span>Pending: <strong>{{ s.pending_days }}</strong> d</span>
+                <span>Taken: <strong>{{ s.taken_days }}</strong> d</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Application Form Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); max-width: 850px;">
+        <form method="POST" enctype="multipart/form-data" id="leaveApplicationForm">
+            {% csrf_token %}
+
+            {% if is_hr_or_admin and all_employees %}
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">Applying For Employee <span style="color: #dc3545;">*</span></label>
+                <select name="employee_id" id="id_employee_id" class="form-control" style="border-radius: 6px; font-size: 13px;">
+                    {% for emp in all_employees %}
+                        <option value="{{ emp.id }}" {% if emp.id == current_employee.id %}selected{% endif %}>
+                            {{ emp.name }} ({% if emp.employee_code %}{{ emp.employee_code }}{% else %}AMMS-{{ emp.id|stringformat:"04d" }}{% endif %}) - {{ emp.get_role }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">As HR/Admin, you can apply on behalf of any staff member.</small>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6 form-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">Leave Type <span style="color: #dc3545;">*</span></label>
+                    <select name="leave_type" id="id_leave_type" class="form-control" required style="border-radius: 6px; font-size: 13px;">
+                        {% for lt in leave_types %}
+                            <option value="{{ lt.id }}" data-code="{{ lt.code }}" data-uses-balance="{{ lt.uses_balance|yesno:'1,0' }}" data-allows-half="{{ lt.allows_half_day|yesno:'1,0' }}" data-cert-days="{{ lt.certificate_required_after_days }}">
+                                {{ lt.name }} {% if not lt.is_paid %}(Unpaid){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-6 form-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">Duration Type</label>
+                    <div style="padding-top: 8px;">
+                        <label style="margin-right: 20px; font-weight: 500; cursor: pointer;">
+                            <input type="checkbox" name="is_half_day" id="id_is_half_day" value="1" style="margin-right: 5px;"> Half-Day Leave
+                        </label>
+                        <span id="halfDayPartWrap" style="display: none;">
+                            <label style="margin-right: 12px; font-weight: 500; cursor: pointer;">
+                                <input type="radio" name="half_day_part" value="AM" checked style="margin-right: 3px;"> AM
+                            </label>
+                            <label style="font-weight: 500; cursor: pointer;">
+                                <input type="radio" name="half_day_part" value="PM" style="margin-right: 3px;"> PM
+                            </label>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-6 form-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">From Date <span style="color: #dc3545;">*</span></label>
+                    <input type="date" name="from_date" id="id_from_date" class="form-control" required style="border-radius: 6px; font-size: 13px;">
+                </div>
+                <div class="col-md-6 form-group" style="margin-bottom: 20px;">
+                    <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">To Date <span style="color: #dc3545;">*</span></label>
+                    <input type="date" name="to_date" id="id_to_date" class="form-control" required style="border-radius: 6px; font-size: 13px;">
+                </div>
+            </div>
+
+            <!-- Live Calculation Feedback Badge -->
+            <div id="calcFeedbackBox" style="display: none; margin-bottom: 20px; padding: 14px 18px; border-radius: 8px; background: #F8FAFC; border: 1px solid #E2E8F0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div>
+                        <span style="font-size: 13px; color: #475569;">Working Days To Deduct:</span>
+                        <span id="calcWorkingDaysBadge" style="font-size: 16px; font-weight: 800; color: #1F3A52; margin-left: 6px;">0.0</span>
+                        <span style="font-size: 12px; color: #64748B;">days</span>
+                    </div>
+                    <div id="calcBalanceNotice" style="font-size: 12px; color: #475569;">
+                        Available: <strong id="calcAvailDays">0</strong> d
+                    </div>
+                </div>
+                <div id="calcExcludedDaysList" style="margin-top: 6px; font-size: 11px; color: #0284C7; display: none;">
+                    <i class="fa fa-info-circle"></i> Excluded off-days: <span id="calcExcludedDaysText"></span>
+                </div>
+                <div id="probationAlert" class="alert alert-warning" style="display: none; margin-top: 10px; margin-bottom: 0; font-size: 12px; padding: 8px 12px;">
+                    <i class="fa fa-exclamation-triangle"></i> <span id="probationAlertMsg"></span>
+                </div>
+                <div id="balanceAlert" class="alert alert-danger" style="display: none; margin-top: 10px; margin-bottom: 0; font-size: 12px; padding: 8px 12px;">
+                    <i class="fa fa-times-circle"></i> Insufficient leave balance for this request.
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">Reason <span style="color: #dc3545;">*</span></label>
+                <textarea name="reason" id="id_reason" rows="3" class="form-control" required placeholder="Please describe the purpose of leave..." style="border-radius: 6px; font-size: 13px;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 20px;" id="attachmentWrap">
+                <label style="font-weight: 600; color: #1F3A52; font-size: 13px;">
+                    Medical / Supporting Certificate
+                    <span id="certRequiredBadge" class="badge badge-warning" style="display: none; font-size: 10px; margin-left: 5px;">Required</span>
+                </label>
+                <input type="file" name="medical_certificate" id="id_medical_certificate" class="form-control-file" accept=".pdf,.jpg,.jpeg,.png" style="font-size: 12px;">
+                <small class="form-text text-muted">Required for Sick Leave of 2+ days. Max file size: 5 MB (PDF, JPG, PNG).</small>
+            </div>
+
+            {% if is_hr_or_admin %}
+            <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                <label style="font-weight: 700; color: #92400E; font-size: 13px; cursor: pointer; margin-bottom: 8px; display: block;">
+                    <input type="checkbox" name="hr_override" id="id_hr_override" value="1" style="margin-right: 6px;"> HR Override Leave Balance
+                </label>
+                <div id="hrOverrideWrap" style="display: none; margin-top: 10px;">
+                    <label style="font-weight: 600; color: #92400E; font-size: 12px;">Override Reason <span style="color: #dc3545;">*</span></label>
+                    <textarea name="hr_override_reason" id="id_hr_override_reason" rows="2" class="form-control" placeholder="Specify why the balance restriction is being overridden (logged in audit history)..." style="font-size: 12px;"></textarea>
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
+                <a href="javascript:history.back()" class="btn btn-light" style="border-radius: 6px; padding: 8px 18px; font-weight: 500;">Cancel</a>
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="background: #1F3A52; border-color: #1F3A52; border-radius: 6px; padding: 8px 24px; font-weight: 600;">
+                    Submit Application
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fromInput = document.getElementById('id_from_date');
+    const toInput = document.getElementById('id_to_date');
+    const halfDayCheck = document.getElementById('id_is_half_day');
+    const halfDayPartWrap = document.getElementById('halfDayPartWrap');
+    const leaveTypeSelect = document.getElementById('id_leave_type');
+    const empSelect = document.getElementById('id_employee_id');
+    const hrOverrideCheck = document.getElementById('id_hr_override');
+    const hrOverrideWrap = document.getElementById('hrOverrideWrap');
+
+    const feedbackBox = document.getElementById('calcFeedbackBox');
+    const workingDaysBadge = document.getElementById('calcWorkingDaysBadge');
+    const excludedDaysList = document.getElementById('calcExcludedDaysList');
+    const excludedDaysText = document.getElementById('calcExcludedDaysText');
+    const availDaysSpan = document.getElementById('calcAvailDays');
+    const probationAlert = document.getElementById('probationAlert');
+    const probationAlertMsg = document.getElementById('probationAlertMsg');
+    const balanceAlert = document.getElementById('balanceAlert');
+    const certRequiredBadge = document.getElementById('certRequiredBadge');
+    const submitBtn = document.getElementById('submitBtn');
+
+    // Half day checkbox behavior
+    if (halfDayCheck) {
+        halfDayCheck.addEventListener('change', function() {
+            if (this.checked) {
+                halfDayPartWrap.style.display = 'inline-block';
+                if (fromInput.value) {
+                    toInput.value = fromInput.value;
+                }
+            } else {
+                halfDayPartWrap.style.display = 'none';
+            }
+            triggerCalc();
+        });
+    }
+
+    if (fromInput) {
+        fromInput.addEventListener('change', function() {
+            if (halfDayCheck && halfDayCheck.checked) {
+                toInput.value = this.value;
+            }
+            triggerCalc();
+        });
+    }
+
+    if (toInput) {
+        toInput.addEventListener('change', function() {
+            if (halfDayCheck && halfDayCheck.checked) {
+                fromInput.value = this.value;
+            }
+            triggerCalc();
+        });
+    }
+
+    if (leaveTypeSelect) {
+        leaveTypeSelect.addEventListener('change', function() {
+            const opt = this.options[this.selectedIndex];
+            const allowsHalf = opt.getAttribute('data-allows-half') === '1';
+            if (halfDayCheck) {
+                if (!allowsHalf) {
+                    halfDayCheck.checked = false;
+                    halfDayCheck.disabled = true;
+                    halfDayPartWrap.style.display = 'none';
+                } else {
+                    halfDayCheck.disabled = false;
+                }
+            }
+            triggerCalc();
+        });
+    }
+
+    if (empSelect) {
+        empSelect.addEventListener('change', triggerCalc);
+    }
+
+    if (hrOverrideCheck) {
+        hrOverrideCheck.addEventListener('change', function() {
+            if (hrOverrideWrap) {
+                hrOverrideWrap.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    }
+
+    function triggerCalc() {
+        const fromVal = fromInput ? fromInput.value : '';
+        const toVal = toInput ? toInput.value : '';
+        const ltVal = leaveTypeSelect ? leaveTypeSelect.value : '';
+        const empVal = empSelect ? empSelect.value : '';
+        const isHalf = halfDayCheck ? halfDayCheck.checked : false;
+
+        if (!fromVal || !toVal || !ltVal) {
+            if (feedbackBox) feedbackBox.style.display = 'none';
+            return;
+        }
+
+        const params = new URLSearchParams({
+            from_date: fromVal,
+            to_date: toVal,
+            leave_type_id: ltVal,
+            is_half_day: isHalf ? '1' : '0'
+        });
+        if (empVal) {
+            params.append('employee_id', empVal);
+        }
+
+        fetch('/api/leave/calculate-days/?' + params.toString())
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    if (feedbackBox) feedbackBox.style.display = 'block';
+                    if (workingDaysBadge) workingDaysBadge.innerText = data.working_days.toFixed(1);
+                    if (availDaysSpan) availDaysSpan.innerText = data.available_days.toFixed(1);
+
+                    // Excluded off-days
+                    if (data.excluded_days && data.excluded_days.length > 0) {
+                        excludedDaysText.innerText = data.excluded_days.join(', ');
+                        excludedDaysList.style.display = 'block';
+                    } else {
+                        excludedDaysList.style.display = 'none';
+                    }
+
+                    // Probation check
+                    if (data.is_probation_blocked) {
+                        probationAlertMsg.innerText = data.probation_message;
+                        probationAlert.style.display = 'block';
+                    } else {
+                        probationAlert.style.display = 'none';
+                    }
+
+                    // Balance check
+                    if (data.uses_balance && data.working_days > data.available_days) {
+                        balanceAlert.style.display = 'block';
+                    } else {
+                        balanceAlert.style.display = 'none';
+                    }
+
+                    // Certificate check
+                    if (data.certificate_required_after_days > 0 && data.working_days >= data.certificate_required_after_days) {
+                        certRequiredBadge.style.display = 'inline-block';
+                    } else {
+                        certRequiredBadge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(err => console.error("Day calc error:", err));
+    }
+});
+</script>
+{% endblock %}
+

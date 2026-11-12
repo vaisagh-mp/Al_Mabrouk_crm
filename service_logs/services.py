@@ -56,12 +56,15 @@ def create_or_update_service_log(time_log):
                 or (project and project.category == 'HOLIDAY_WORKING')
             )
 
+            from django.conf import settings
             defaults = {
                 'employee': employee,
                 'project': project,
                 'date': time_log.date,
                 'start_time': time_log.start_time,
                 'end_time': time_log.finish_time,  # None until finish is saved
+                'break_minutes': getattr(time_log, 'break_minutes', 0) or 0,
+                'travel_minutes': getattr(time_log, 'travel_minutes', 0) or 0,
                 'service_reference': service_reference,
                 'vessel_name': vessel_name,
                 'port': port,
@@ -70,6 +73,8 @@ def create_or_update_service_log(time_log):
                 'is_holiday': is_holiday,
                 'is_auto_created': True,
             }
+            if not getattr(settings, 'HR_TIMESHEET_APPROVAL', False):
+                defaults['approval_status'] = 'APPROVED'
 
             log, created = EmployeeServiceLog.objects.update_or_create(
                 time_log=time_log,

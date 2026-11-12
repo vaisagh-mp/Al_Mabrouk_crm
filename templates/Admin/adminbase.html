@@ -17,7 +17,7 @@
     <!-- Apex Chart css -->
     <!-- <link rel="stylesheet" href="{% static 'assets/styles.css' %}" /> -->
     <!-- Style.css -->
-    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261016b" />
+    <link rel="stylesheet" href="{% static 'assets/css/style.css' %}?v=20261111" />
     <link rel="manifest" href="{% static 'assets/js/manifest.json' %}">
 </head>
 
@@ -25,20 +25,9 @@
     <!-- Header -->
     <header>
       <div class="mb-top-hdr">
-         <div class="hdr-notification">
-        <a href="{% url 'admin-notifications' %}">
-            <button type="button" class="btn btn-primary position-relative">
-                <i class="fas fa-bell"></i>
-                <span 
-                    id="admin-notification-count"
-                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                    data-count="{{ unread_notifications|add:'0' }}">
-                    0
-                    <span class="visually-hidden">unread messages</span>
-                </span>
-            </button>
-        </a>
-    </div>
+        {% url 'fetch-notifications' as notif_fetch_url %}
+        {% url 'mark-notifications-as-read' as notif_mark_url %}
+        {% include 'includes/notification_bell.html' with fetch_url=notif_fetch_url mark_read_url=notif_mark_url %}
 
         <div class="hdr-user">
           <div class="dropdown">
@@ -166,6 +155,12 @@
                     </ul>
                   </div> -->
                   </li>
+                  <li>
+                    <a href="{% url 'hr-dashboard' %}">
+                      <i class="fas fa-chart-pie"></i>
+                      <span>HR Dashboard</span>
+                    </a>
+                  </li>
                   <li class="sidebar-dropdown">
                     <a href="#">
                       <i class="fas fa-users"></i>
@@ -177,7 +172,13 @@
                           <a href="{% url 'employee_list' %}">Employee List </a>
                         </li>
                         <li>
+                          <a href="{% url 'admin_documents_list' %}">Documents &amp; Expiry</a>
+                        </li>
+                        <li>
                           <a href="{% url 'attendance_list_adminview' %}">Employee Attendance</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'admin_attendance_status' %}?tab=team_requests">Correction Requests</a>
                         </li>
                         <li>
                           <a href="{% url 'manage_attendance' %}">Manage Attendance</a>
@@ -187,6 +188,9 @@
                         </li>
                         <li>
                           <a href="{% url 'employee_manage_leave' %}">Manage Leave</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'admin_reports_center' %}">Reports Center</a>
                         </li>
                       </ul>
                     </div>
@@ -201,6 +205,16 @@
       <li>
         <a href="{% url 'service_log_list' %}">
           All Service Logs
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'timesheet_approvals_admin' %}">
+          Timesheet Approvals
+        </a>
+      </li>
+      <li>
+        <a href="{% url 'ot_approval_admin' %}">
+          OT Approval
         </a>
       </li>
       <li>
@@ -239,6 +253,43 @@
                       <span>Finance</span>
                     </a>
                   </li>
+
+                  {% if can_view_salary %}
+                  <li class="sidebar-dropdown">
+                    <a href="#">
+                      <i class="fas fa-money-check-alt"></i>
+                      <span>Payroll &amp; Salary</span>
+                    </a>
+                    <div class="sidebar-submenu">
+                      <ul>
+                        <li>
+                          <a href="{% url 'fin_payroll' %}">Payroll</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_structures_list' %}">Salary Structures</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_increments_list' %}">Increments</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'salary_advances_list' %}">Salary Advances</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'payslips_list' %}">Payslips</a>
+                        </li>
+                      </ul>
+                    </div>
+                  </li>
+                  {% endif %}
+
+                  {% if request.user.employee_profile %}
+                  <li>
+                    <a href="{% url 'my_payslips' %}">
+                      <i class="fas fa-file-invoice-dollar"></i>
+                      <span>My Payslips</span>
+                    </a>
+                  </li>
+                  {% endif %}
 
 
                   <!-- <li class="sidebar-dropdown">
@@ -389,10 +440,19 @@
         <script src="{% static 'assets/js/main.js' %}"></script>
 
         <script>
+          // Real Revenue / Expenses / Profit series from the dashboard view (falls back to the demo shape elsewhere)
+          function adminSpark(key) {
+            var el = document.getElementById('admin-spark-data');
+            if (!el) { return randomizeArray(sparklineData); }
+            var vals = (JSON.parse(el.textContent) || {})[key] || [];
+            if (vals.length === 0) { vals = [0, 0]; }
+            if (vals.length === 1) { vals = [vals[0], vals[0]]; }
+            return vals;
+          }
           var options = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('revenue'),
               },
             ],
             chart: {
@@ -437,7 +497,7 @@
           var optionsSpark2 = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('expenses'),
               },
             ],
             chart: {
@@ -482,7 +542,7 @@
           var optionsSpark3 = {
             series: [
               {
-                data: randomizeArray(sparklineData),
+                data: adminSpark('profit'),
               },
             ],
             chart: {
@@ -503,9 +563,7 @@
                 width: 1,
               },
             },
-            yaxis: {
-              min: 0,
-            },
+            yaxis: {},
             title: {
               text: "{{ total_profit|default:0|floatformat:0}} AED",
               offsetX: 0,
@@ -674,27 +732,7 @@
           chart2.render();
         </script>
 
-<script> 
-  document.addEventListener("DOMContentLoaded", function () {
-      const adminNotificationCount = document.getElementById("admin-notification-count");
-
-      function fetchAdminNotificationCount() {
-          fetch("{% url 'fetch-notifications' %}")
-              .then(response => response.json())
-              .then(data => {
-                  if (data.unread_count === 0) {
-                      adminNotificationCount.style.display = "none";
-                  } else {
-                      adminNotificationCount.textContent = data.unread_count > 99 ? "99+" : data.unread_count;
-                      adminNotificationCount.style.display = "inline-block";
-                  }
-              });
-      }
-
-      setInterval(fetchAdminNotificationCount, 10000);
-      fetchAdminNotificationCount();
-  });
-</script>
+<!-- Notification bell polling handled by includes/notification_bell.html -->
 
 
 <script>
@@ -749,10 +787,13 @@
     return String(s ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   }
 
-  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null) {
+  function addTimeRow(date = '', start = '', finish = '', employeeId = '', memberName = '', extraMember = null, id = '', breakMins = 0, travelMins = 0, desc = '', attUrl = '', status = 'DRAFT', remarks = '') {
     const table = document.querySelector('#timeTable tbody');
     if (!table) return;
     const row = table.insertRow();
+
+    const isLocked = (status === 'SUBMITTED' || status === 'APPROVED');
+    const readOnlyAttr = isLocked ? 'readonly' : '';
 
     const fallbackEmpId = (typeof defaultEmpId !== 'undefined' && defaultEmpId !== null)
       ? String(defaultEmpId)
@@ -777,11 +818,40 @@
     const displayName = escapeHtml(extraMember ? extraMember.name : memberName);
     const readOnlyText = displayName ? `<span class="member-name-text" style="font-weight: 500; margin-right: 8px;">${displayName}</span>` : '';
 
+    let selectHtml = '';
+    if (isLocked) {
+      selectHtml = `<input type="hidden" name="time_employee[]" value="${escapeHtml(selectedId)}">${readOnlyText}`;
+    } else {
+      selectHtml = `${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select>`;
+    }
+
+    let statusBadge = '<span class="badge bg-secondary" style="font-size: 11px;">Draft</span>';
+    if (status === 'SUBMITTED') statusBadge = '<span class="badge bg-warning text-dark" style="font-size: 11px;">Submitted</span>';
+    else if (status === 'APPROVED') statusBadge = '<span class="badge bg-success" style="font-size: 11px;">Approved</span>';
+    else if (status === 'REJECTED') statusBadge = '<span class="badge bg-danger" style="font-size: 11px;">Rejected</span>';
+
+    let remarksHtml = remarks ? `<div class="text-danger small" style="max-width: 150px; font-size: 11px;">${escapeHtml(remarks)}</div>` : '';
+    let attHtml = attUrl ? `<a href="${escapeHtml(attUrl)}" target="_blank" class="small d-block">View file</a>` : '';
+    if (!isLocked) {
+      attHtml += `<input type="file" name="time_attachment[]" accept=".pdf,.jpg,.jpeg,.png" style="width: 120px; font-size: 11px;">`;
+    }
+
+    let delBtn = !isLocked ? `<button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()" style="padding: 1px 6px;">&times;</button>` : '';
+
     row.innerHTML = `
-      <td>${readOnlyText}<select name="time_employee[]" class="form-select form-select-sm" style="display: inline-block; width: auto; min-width: 140px;">${optionsHtml}</select></td>
-      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}"></td>
-      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}"></td>
-      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}"></td>`;
+      <td>
+        <input type="hidden" name="time_row_id[]" value="${escapeHtml(id)}">
+        ${selectHtml}
+      </td>
+      <td><input type="date" name="time_date[]" value="${escapeHtml(date)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="start_time[]" value="${escapeHtml(start)}" ${readOnlyAttr} required></td>
+      <td><input type="time" name="finish_time[]" value="${escapeHtml(finish)}" ${readOnlyAttr}></td>
+      <td><input type="number" name="break_minutes[]" value="${escapeHtml(breakMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="number" name="travel_minutes[]" value="${escapeHtml(travelMins)}" min="0" style="width: 60px;" ${readOnlyAttr}></td>
+      <td><input type="text" name="time_description[]" value="${escapeHtml(desc)}" placeholder="Description" style="width: 140px;" ${readOnlyAttr}></td>
+      <td>${attHtml}</td>
+      <td>${statusBadge}${remarksHtml}</td>
+      <td>${delBtn}</td>`;
   }
 
   window.onload = function () {
@@ -813,7 +883,14 @@
           t.finish_time ? t.finish_time.slice(0, 5) : '',
           t.employee_id || '',
           t.member_name || '',
-          t.extra_member || null
+          t.extra_member || null,
+          t.id || '',
+          t.break_minutes || 0,
+          t.travel_minutes || 0,
+          t.description || '',
+          t.attachment_url || '',
+          t.status || 'DRAFT',
+          t.remarks || ''
         )
       );
     }

@@ -1,0 +1,414 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">TIMESHEET APPROVALS</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">Review, approve, and manage vessel and site work order timesheets.</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="?{{ request.GET.urlencode }}&export=excel" class="btn btn-outline-success btn-sm" style="font-weight: 500;">
+                <i class="fas fa-file-excel me-1"></i> Export Excel
+            </a>
+            <a href="?{{ request.GET.urlencode }}&export=pdf" class="btn btn-outline-danger btn-sm" style="font-weight: 500;" target="_blank">
+                <i class="fas fa-file-pdf me-1"></i> Export PDF
+            </a>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div style="margin-bottom: 15px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not ts_approval_on %}
+    <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <div>Timesheet approval is switched off — all hours count automatically.</div>
+    </div>
+    {% endif %}
+
+    <!-- Filter Card -->
+    <div style="background: #ffffff; border-radius: 8px; padding: 15px 20px; margin-bottom: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">Employee</label>
+                <select name="employee" class="form-control form-control-sm" style="font-size: 12px;">
+                    <option value="">All Employees</option>
+                    {% for emp in employees_list %}
+                        <option value="{{ emp.id }}" {% if selected_employee == emp.id|stringformat:"s" %}selected{% endif %}>
+                            {{ emp.name }} {% if emp.employee_code %}({{ emp.employee_code }}){% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">Vessel</label>
+                <input type="text" name="vessel" value="{{ vessel_filter }}" placeholder="Vessel name" class="form-control form-control-sm" style="font-size: 12px;">
+            </div>
+            <div class="col-md-2">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">WO / Project</label>
+                <input type="text" name="project" value="{{ project_filter }}" placeholder="WO or ref #" class="form-control form-control-sm" style="font-size: 12px;">
+            </div>
+            <div class="col-md-2">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">From Date</label>
+                <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm" style="font-size: 12px;">
+            </div>
+            <div class="col-md-2">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">To Date</label>
+                <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm" style="font-size: 12px;">
+            </div>
+            <div class="col-md-1">
+                <label style="font-size: 11px; font-weight: 600; color: #1F3A52;">Status</label>
+                <select name="status" class="form-control form-control-sm" style="font-size: 12px;">
+                    <option value="">All</option>
+                    <option value="SUBMITTED" {% if status_filter == 'SUBMITTED' %}selected{% endif %}>Submitted</option>
+                    <option value="APPROVED" {% if status_filter == 'APPROVED' %}selected{% endif %}>Approved</option>
+                    <option value="REJECTED" {% if status_filter == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                    <option value="DRAFT" {% if status_filter == 'DRAFT' %}selected{% endif %}>Draft</option>
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-primary btn-sm w-100" style="background: #1F3A52; border-color: #1F3A52; font-weight: 600;">
+                    <i class="fas fa-filter"></i>
+                </button>
+                <a href="?" class="btn btn-light btn-sm" title="Reset"><i class="fas fa-undo"></i></a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Bulk Action Toolbar -->
+    <form method="POST" id="bulkActionForm">
+        {% csrf_token %}
+        {% if ts_approval_on %}
+        <div style="background: #eef2f7; border-radius: 6px; padding: 10px 15px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 12px; font-weight: 600; color: #1F3A52;">
+                <span id="selectedCount">0</span> row(s) selected
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn btn-success btn-sm" onclick="submitBulkAction('bulk_approve')" style="font-weight: 600; font-size: 12px;">
+                    <i class="fas fa-check-double me-1"></i> Approve Selected
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="openBulkRejectModal()" style="font-weight: 600; font-size: 12px;">
+                    <i class="fas fa-times-circle me-1"></i> Reject Selected
+                </button>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Timesheets Table Card -->
+        <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto;">
+            {% if page_obj.object_list %}
+            <table class="table table-hover align-middle" style="font-size: 12px; margin-bottom: 0;">
+                <thead style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                    <tr>
+                        {% if ts_approval_on %}<th style="width: 30px;"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"></th>{% endif %}
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>WO / Ref</th>
+                        <th>Vessel</th>
+                        <th>Time</th>
+                        <th>Brk/Trv</th>
+                        <th>Hours</th>
+                        <th>OT</th>
+                        <th>Status</th>
+                        <th>Description / File</th>
+                        <th>Approver</th>
+                        {% if ts_approval_on %}<th style="text-align: right; min-width: 140px;">Actions</th>{% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in page_obj.object_list %}
+                    <tr>
+                        {% if ts_approval_on %}
+                        <td>
+                            {% if log.employee_id != current_user_emp_id and log.approval_status == 'SUBMITTED' %}
+                            <input type="checkbox" name="selected_ids" value="{{ log.id }}" class="row-checkbox" onchange="updateSelectedCount()">
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                        <td style="font-weight: 600; white-space: nowrap;">{{ log.date|date:"d/m/Y" }}</td>
+                        <td>
+                            <div style="font-weight: 600; color: #1F3A52;">{{ log.employee.name }}</div>
+                            <small class="text-muted">{{ log.employee.employee_code|default:"" }} {% if log.employee.department %}• {{ log.employee.department.name }}{% endif %}</small>
+                        </td>
+                        <td>
+                            {% if log.time_log and log.time_log.work_order %}
+                                <span class="badge bg-light text-dark border">{{ log.time_log.work_order.work_order_number }}</span>
+                            {% elif log.project %}
+                                <span class="badge bg-light text-dark border">{{ log.project.service_reference|default:log.project.name }}</span>
+                            {% else %}
+                                {{ log.service_reference|default:"-" }}
+                            {% endif %}
+                        </td>
+                        <td style="font-weight: 500;">
+                            {{ log.vessel_name|default:log.project.vessel_name|default:"-" }}
+                        </td>
+                        <td style="white-space: nowrap;">
+                            {{ log.start_time|time:"H:i" }} – {{ log.end_time|time:"H:i"|default:"Open" }}
+                        </td>
+                        <td style="white-space: nowrap; font-size: 11px;">
+                            <div><i class="fas fa-coffee text-muted me-1"></i>{{ log.break_minutes }}m</div>
+                            <div><i class="fas fa-car text-muted me-1"></i>{{ log.travel_minutes }}m</div>
+                        </td>
+                        <td style="font-weight: 700; color: #1F3A52;">{{ log.total_hours|default:"0.00" }}h</td>
+                        <td style="font-weight: 700; color: #e67e22;">
+                            {% if log.ot_hours and log.ot_hours > 0 %}{{ log.ot_hours }}h{% else %}-{% endif %}
+                        </td>
+                        <td>
+                            {% if log.approval_status == 'APPROVED' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif log.approval_status == 'SUBMITTED' %}
+                                <span class="badge bg-warning text-dark">Submitted</span>
+                            {% elif log.approval_status == 'REJECTED' %}
+                                <span class="badge bg-danger" title="{{ log.decision_remarks }}">Rejected</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Draft</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 180px;">
+                            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ log.time_log.description }}">
+                                {{ log.time_log.description|default:"-" }}
+                            </div>
+                            {% if log.time_log and log.time_log.attachment %}
+                                <div class="mt-1">
+                                    <a href="{{ log.time_log.attachment.url }}" target="_blank" class="badge bg-info text-dark" style="text-decoration: none;">
+                                        <i class="fas fa-paperclip me-1"></i> Attachment
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>
+                                {% if log.approver %}
+                                    {{ log.approver.name }}
+                                {% elif log.decided_by %}
+                                    {{ log.decided_by.get_full_name|default:log.decided_by.username }}
+                                {% else %}
+                                    <span class="text-muted">Queue</span>
+                                {% endif %}
+                            </small>
+                        </td>
+                        {% if ts_approval_on %}
+                        <td style="text-align: right; white-space: nowrap;">
+                            {% if log.employee_id == current_user_emp_id %}
+                                <span class="badge bg-light text-muted border" title="Cannot approve own timesheet">Self</span>
+                            {% else %}
+                                {% if log.approval_status == 'SUBMITTED' or log.approval_status == 'REJECTED' or log.approval_status == 'DRAFT' %}
+                                    <button type="button" class="btn btn-outline-success btn-sm py-0 px-2" style="font-size: 11px;" onclick="approveSingle('{{ log.id }}')">
+                                        Approve
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size: 11px;" onclick="openRejectModal('{{ log.id }}')">
+                                        Reject
+                                    </button>
+                                {% elif log.approval_status == 'APPROVED' and is_admin_or_hr %}
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 11px;" onclick="openReopenModal('{{ log.id }}')">
+                                        Reopen
+                                    </button>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; font-size: 12px;">
+                <span class="text-muted">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }} ({{ page_obj.paginator.count }} total records)</span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?page=1&{{ request.GET.urlencode }}">First</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode }}">Previous</a></li>
+                        {% endif %}
+                        <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+                        {% if page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode }}">Next</a></li>
+                            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode }}">Last</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <div style="text-align: center; padding: 40px; color: #6c757d;">
+                <i class="fas fa-clipboard-list fa-3x mb-3" style="color: #dee2e6;"></i>
+                <h5>No timesheets found</h5>
+                <p style="font-size: 13px;">No timesheets match your active filter criteria.</p>
+            </div>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+<!-- Reject Single Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reject">
+            <input type="hidden" name="log_id" id="rejectLogId">
+            <div class="modal-header">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">Reject Timesheet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label style="font-size: 12px; font-weight: 600; margin-bottom: 5px;">Remarks (Required):</label>
+                <textarea name="remarks" class="form-control" rows="3" required placeholder="State reason for rejection..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Reject Modal -->
+<div class="modal fade" id="bulkRejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">Bulk Reject Timesheets</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #6c757d;">Reject all selected timesheet rows. A rejection remark is required.</p>
+                <label style="font-size: 12px; font-weight: 600; margin-bottom: 5px;">Remarks (Required):</label>
+                <textarea id="bulkRejectRemarks" class="form-control" rows="3" placeholder="State reason for rejection..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="submitBulkReject()">Confirm Bulk Rejection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reopen Modal -->
+<div class="modal fade" id="reopenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="POST" class="modal-content">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reopen">
+            <input type="hidden" name="log_id" id="reopenLogId">
+            <div class="modal-header">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">Reopen Approved Timesheet</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 12px; color: #e67e22;">
+                    <i class="fas fa-exclamation-triangle me-1"></i> Reopening this approved timesheet will revert it to Draft and recalculate daily OT. This change is permanently logged.
+                </p>
+                <label style="font-size: 12px; font-weight: 600; margin-bottom: 5px;">Reason for Reopening (Required):</label>
+                <textarea name="reason" class="form-control" rows="3" required placeholder="State why this record must be reopened..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-warning btn-sm">Confirm Reopen</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Hidden Single Action Form -->
+<form method="POST" id="singleActionForm" style="display: none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" id="singleAction">
+    <input type="hidden" name="log_id" id="singleLogId">
+</form>
+
+<script>
+function toggleSelectAll(master) {
+    const boxes = document.querySelectorAll('.row-checkbox');
+    boxes.forEach(b => b.checked = master.checked);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    document.getElementById('selectedCount').innerText = checked;
+}
+
+function approveSingle(logId) {
+    if (confirm('Approve this timesheet record?')) {
+        const form = document.getElementById('singleActionForm');
+        document.getElementById('singleAction').value = 'approve';
+        document.getElementById('singleLogId').value = logId;
+        form.submit();
+    }
+}
+
+function openRejectModal(logId) {
+    document.getElementById('rejectLogId').value = logId;
+    new bootstrap.Modal(document.getElementById('rejectModal')).show();
+}
+
+function openReopenModal(logId) {
+    document.getElementById('reopenLogId').value = logId;
+    new bootstrap.Modal(document.getElementById('reopenModal')).show();
+}
+
+function submitBulkAction(action) {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    if (checked === 0) {
+        alert('Please select at least one timesheet row.');
+        return;
+    }
+    if (confirm(`Are you sure you want to approve ${checked} selected timesheet(s)?`)) {
+        const form = document.getElementById('bulkActionForm');
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'action';
+        input.value = action;
+        form.appendChild(input);
+        form.submit();
+    }
+}
+
+function openBulkRejectModal() {
+    const checked = document.querySelectorAll('.row-checkbox:checked').length;
+    if (checked === 0) {
+        alert('Please select at least one timesheet row to reject.');
+        return;
+    }
+    new bootstrap.Modal(document.getElementById('bulkRejectModal')).show();
+}
+
+function submitBulkReject() {
+    const remarks = document.getElementById('bulkRejectRemarks').value.trim();
+    if (!remarks) {
+        alert('Please provide remarks for bulk rejection.');
+        return;
+    }
+    const form = document.getElementById('bulkActionForm');
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'bulk_reject';
+    form.appendChild(actionInput);
+
+    const remarksInput = document.createElement('input');
+    remarksInput.type = 'hidden';
+    remarksInput.name = 'remarks';
+    remarksInput.value = remarks;
+    form.appendChild(remarksInput);
+
+    form.submit();
+}
+</script>
+{% endblock %}
+

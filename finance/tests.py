@@ -4660,3 +4660,45 @@ class PayrollAbsenceDeductionTests(TestCase):
         expected_net = float(sum(p.net_pay for p in Payroll.objects.filter(month=self.SEP)))
         self.assertAlmostEqual(ws.cell(row=total_row, column=ded_col).value, expected_ded, places=2)
         self.assertAlmostEqual(ws.cell(row=total_row, column=net_col).value, expected_net, places=2)
+
+
+class AdminDashboardMatchesFinanceTests(TestCase):
+    """Admin dashboard Revenue / Expenses / Profit must equal the Finance dashboard for the same dates."""
+
+    def setUp(self):
+        self.su = User.objects.create_superuser('su_dash', 'su_dash@example.com', 'pass1234')
+        self.client = Client()
+        self.client.force_login(self.su)
+        today = timezone.localdate()
+        p = Project.objects.create(
+            name='Admin Dash Project', client_name='Mega Maritime', category='Main Engine Overhaul',
+            invoice_amount=Decimal('15000.00'), invoice_date=today.replace(day=1), invoice_number='INV-ADM-01',
+        )
+        Invoice.objects.create(
+            invoice_number='INV-ADM-01', invoice_date=today.replace(day=1), project=p,
+            invoice_type='SERVICE_JOB', amount_excl_vat=Decimal('15000.00'),
+        )
+
+    def test_this_month_matches_finance(self):
+        fin = self.client.get(reverse('fin_dashboard') + '?period=this_month').context['kpis']
+        res = self.client.get(reverse('admin-dashboard'))
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['total_revenue'], fin['revenue']['value'])
+        self.assertEqual(res.context['total_revenue'], Decimal('15000.00'))
+        self.assertEqual(res.context['total_expenses'], fin['total_cost']['value'])
+        self.assertEqual(res.context['total_profit'], fin['net_profit']['value'] if 'net_profit' in fin else fin['profit']['value'])
+        html = res.content.decode()
+        self.assertIn('name="from"', html)
+        self.assertIn('name="to"', html)
+        self.assertIn('id="admin-spark-data"', html)
+        self.assertNotIn('name="period"', html)
+        self.assertIn('text: "15000 AED"', html)
+        self.assertIn('"revenue": [15000.0', html)
+
+    def test_custom_range_and_bad_range(self):
+        today = timezone.localdate()
+        res = self.client.get(reverse('admin-dashboard') + f'?from={today.year - 1}-01-01&to={today.year - 1}-12-31')
+        self.assertEqual(res.context['total_revenue'], Decimal('0'))
+        res = self.client.get(reverse('admin-dashboard') + '?from=2026-10-20&to=2026-10-10')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['from_date'], today.replace(day=1).strftime('%Y-%m-%d'))

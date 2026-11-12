@@ -1,0 +1,266 @@
+{% extends base_template %}
+{% load static %}
+
+{% block content %}
+<div class="content-body" style="padding: 20px;">
+    <!-- Page Header -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+        <div>
+            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">MY LEAVE REQUESTS</h3>
+            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">View application status, submit clarifications, or manage your requests.</p>
+        </div>
+        <div>
+            <a href="{% if role == 'HR' %}{% url 'hr_apply_leave' %}{% elif role == 'Manager' %}{% url 'manager_apply_leave' %}{% elif role == 'Accountant' %}{% url 'fin_apply_leave' %}{% elif role == 'Administration' %}{% url 'admstrn_apply_leave' %}{% else %}{% url 'apply_leave' %}{% endif %}" class="btn btn-primary btn-sm" style="background: #1F3A52; border-color: #1F3A52; font-weight: 600;">
+                <i class="fa fa-plus"></i> Apply Leave
+            </a>
+            <a href="{% if role == 'HR' %}{% url 'hr_leave_statement' %}{% elif role == 'Admin' %}{% url 'admin_leave_statement' %}{% else %}?statement=1{% endif %}" class="btn btn-outline-secondary btn-sm" style="font-weight: 500; margin-left: 5px;">
+                <i class="fa fa-book"></i> Leave Statement
+            </a>
+        </div>
+    </div>
+
+    <!-- Balance Summary Header Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 25px;">
+        {% for s in leave_summary %}
+        <div style="background: #ffffff; border-radius: 8px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid {% if s.code == 'ANNUAL' %}#2B5876{% elif s.code == 'SICK' %}#E67E22{% elif s.code == 'PERSONAL' %}#27AE60{% else %}#7F8C8D{% endif %};">
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <span style="font-size: 13px; font-weight: 700; color: #1F3A52; text-transform: uppercase;">{{ s.name }}</span>
+                {% if s.uses_balance %}
+                    <span style="font-size: 11px; background: #eef2f7; color: #334e68; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Balance</span>
+                {% else %}
+                    <span style="font-size: 11px; background: #fdf2e9; color: #b9770e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Unpaid</span>
+                {% endif %}
+            </div>
+            <div style="margin-top: 10px; display: flex; align-items: baseline; gap: 8px;">
+                {% if s.uses_balance %}
+                    <span style="font-size: 26px; font-weight: 800; color: #1F3A52;">{{ s.available_days }}</span>
+                    <span style="font-size: 12px; color: #6c757d;">days available</span>
+                {% else %}
+                    <span style="font-size: 22px; font-weight: 700; color: #7F8C8D;">N/A</span>
+                    <span style="font-size: 12px; color: #6c757d;">approval required</span>
+                {% endif %}
+            </div>
+            {% if s.uses_balance %}
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between;">
+                <span>Net: <strong>{{ s.net_balance }}</strong> d</span>
+                <span>Pending: <strong>{{ s.pending_days }}</strong> d</span>
+                <span>Taken: <strong>{{ s.taken_days }}</strong> d</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Status Tabs -->
+    <div style="display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; flex-wrap: wrap;">
+        <a href="?tab=ALL" class="btn btn-sm {% if current_tab == 'ALL' %}btn-primary{% else %}btn-light{% endif %}" style="border-radius: 6px; font-weight: 600;">
+            All Requests
+        </a>
+        <a href="?tab=PENDING" class="btn btn-sm {% if current_tab == 'PENDING' %}btn-primary{% else %}btn-light{% endif %}" style="border-radius: 6px; font-weight: 600;">
+            Pending / Clarification
+        </a>
+        <a href="?tab=APPROVED" class="btn btn-sm {% if current_tab == 'APPROVED' %}btn-primary{% else %}btn-light{% endif %}" style="border-radius: 6px; font-weight: 600;">
+            Approved
+        </a>
+        <a href="?tab=HISTORY" class="btn btn-sm {% if current_tab == 'HISTORY' %}btn-primary{% else %}btn-light{% endif %}" style="border-radius: 6px; font-weight: 600;">
+            Rejected / Cancelled
+        </a>
+    </div>
+
+    <!-- Requests Table -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        {% if leaves %}
+        <div class="table-responsive">
+            <table class="table table-hover" style="font-size: 13px; margin: 0; vertical-align: middle;">
+                <thead style="background: #f8fafc; color: #1F3A52;">
+                    <tr>
+                        <th style="font-weight: 700; width: 80px;">Req #</th>
+                        <th style="font-weight: 700;">Leave Type</th>
+                        <th style="font-weight: 700;">Dates</th>
+                        <th style="font-weight: 700; text-align: center;">Days</th>
+                        <th style="font-weight: 700;">Status</th>
+                        <th style="font-weight: 700;">Approver</th>
+                        <th style="font-weight: 700;">Reason</th>
+                        <th style="font-weight: 700; text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for l in leaves %}
+                    <tr>
+                        <td><strong>#{{ l.id }}</strong></td>
+                        <td>
+                            <span style="font-weight: 600;">{% if l.leave_type_ref %}{{ l.leave_type_ref.name }}{% else %}{{ l.leave_type }}{% endif %}</span>
+                            {% if l.is_half_day %}
+                                <span class="badge badge-info" style="font-size: 10px; margin-left: 4px;">Half Day ({{ l.half_day_part }})</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ l.from_date|date:"d/m/Y" }}
+                            {% if l.from_date != l.to_date %}
+                                - {{ l.to_date|date:"d/m/Y" }}
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center; font-weight: 700;">
+                            {% if l.days %}{{ l.days }}{% else %}{{ l.no_of_days|default:"1" }}{% endif %}
+                        </td>
+                        <td>
+                            {% if l.approval_status == 'PENDING' %}
+                                <span class="badge badge-warning" style="background: #FFF3CD; color: #856404; font-weight: 600; padding: 5px 10px; border-radius: 4px;">Pending Decision</span>
+                            {% elif l.approval_status == 'CLARIFICATION' %}
+                                <span class="badge badge-info" style="background: #D1ECF1; color: #0C5460; font-weight: 600; padding: 5px 10px; border-radius: 4px;">Clarification Needed</span>
+                            {% elif l.approval_status == 'APPROVED' %}
+                                <span class="badge badge-success" style="background: #D4EDDA; color: #155724; font-weight: 600; padding: 5px 10px; border-radius: 4px;">Approved</span>
+                            {% elif l.approval_status == 'REJECTED' %}
+                                <span class="badge badge-danger" style="background: #F8D7DA; color: #721C24; font-weight: 600; padding: 5px 10px; border-radius: 4px;">Rejected</span>
+                            {% elif l.approval_status == 'CANCELLED' %}
+                                <span class="badge badge-secondary" style="background: #E2E3E5; color: #383D41; font-weight: 600; padding: 5px 10px; border-radius: 4px;">Cancelled</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if l.approver %}
+                                {{ l.approver.name }}
+                            {% else %}
+                                <span style="color: #64748b; font-style: italic;">HR Queue</span>
+                            {% endif %}
+                        </td>
+                        <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ l.reason|default:"-" }}
+                        </td>
+                        <td style="text-align: right; white-space: nowrap;">
+                            {% if l.approval_status == 'CLARIFICATION' %}
+                                <button type="button" class="btn btn-sm btn-info" onclick="openClarificationModal('{{ l.id }}', '{{ l.clarification_request|escapejs }}')" style="font-size: 11px; padding: 4px 8px; border-radius: 4px;">
+                                    <i class="fa fa-question-circle"></i> Respond
+                                </button>
+                            {% endif %}
+                            {% if l.approval_status == 'PENDING' or l.approval_status == 'CLARIFICATION' %}
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="openCancelModal('{{ l.id }}')" style="font-size: 11px; padding: 4px 8px; border-radius: 4px;">
+                                    <i class="fa fa-times"></i> Cancel
+                                </button>
+                            {% endif %}
+                            {% if l.medical_certificate %}
+                                <a href="{{ l.medical_certificate.url }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="View attachment" style="font-size: 11px; padding: 4px 8px; border-radius: 4px;">
+                                    <i class="fa fa-paperclip"></i>
+                                </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if l.approval_status == 'CLARIFICATION' and l.clarification_request %}
+                    <tr style="background: #F0F9FF;">
+                        <td colspan="8" style="padding: 10px 15px; font-size: 12px; color: #0369A1; border-top: none;">
+                            <strong><i class="fa fa-question-circle"></i> Question from Approver:</strong> {{ l.clarification_request }}
+                            {% if l.clarification_response %}
+                                <div style="margin-top: 4px; color: #047857;"><strong>Your Response:</strong> {{ l.clarification_response }}</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% if l.decision_remarks %}
+                    <tr style="background: #FAFAFA;">
+                        <td colspan="8" style="padding: 6px 15px; font-size: 11px; color: #64748B; border-top: none;">
+                            <strong>Remarks:</strong> {{ l.decision_remarks }}
+                            {% if l.decided_by %}(by {{ l.decided_by.username }} on {{ l.decided_at|date:"d/m/Y H:i" }}){% endif %}
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if leaves.has_other_pages %}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; font-size: 13px;">
+            <span style="color: #64748B;">Showing page {{ leaves.number }} of {{ leaves.paginator.num_pages }}</span>
+            <ul class="pagination pagination-sm" style="margin: 0;">
+                {% if leaves.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?tab={{ current_tab }}&page={{ leaves.previous_page_number }}">Previous</a></li>
+                {% endif %}
+                <li class="page-item active"><span class="page-link">{{ leaves.number }}</span></li>
+                {% if leaves.has_next %}
+                    <li class="page-item"><a class="page-link" href="?tab={{ current_tab }}&page={{ leaves.next_page_number }}">Next</a></li>
+                {% endif %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #64748B;">
+            <i class="fa fa-folder-open-o" style="font-size: 32px; color: #CBD5E1; margin-bottom: 10px;"></i>
+            <p style="margin: 0; font-size: 14px;">No leave requests found for this filter.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Clarification Response Modal -->
+<div class="modal fade" id="clarificationModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form method="POST" class="modal-content" style="border-radius: 8px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="respond_clarification">
+            <input type="hidden" name="leave_id" id="clarificationLeaveId">
+            <div class="modal-header" style="background: #1F3A52; color: #ffffff;">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Respond to Clarification Request</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 6px; padding: 12px; margin-bottom: 15px;">
+                    <label style="font-size: 12px; font-weight: 700; color: #0369A1; margin-bottom: 4px; display: block;">Approver's Question:</label>
+                    <div id="clarificationQuestionText" style="font-size: 13px; color: #0C4A6E;"></div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 600; color: #1F3A52;">Your Response <span style="color: #dc3545;">*</span></label>
+                    <textarea name="clarification_response" rows="3" class="form-control" required placeholder="Type your response here..." style="font-size: 13px;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px;">
+                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-primary btn-sm" style="background: #1F3A52; border-color: #1F3A52;">Submit Response</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Cancel Request Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form method="POST" class="modal-content" style="border-radius: 8px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="cancel">
+            <input type="hidden" name="leave_id" id="cancelLeaveId">
+            <div class="modal-header" style="background: #dc3545; color: #ffffff;">
+                <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Cancel Leave Request</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <p style="font-size: 13px; color: #334155;">Are you sure you want to cancel this leave application? This action cannot be undone.</p>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-size: 13px; font-weight: 600; color: #1F3A52;">Cancellation Reason (Optional)</label>
+                    <input type="text" name="remarks" class="form-control" placeholder="Optional note..." style="font-size: 13px;">
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 12px 20px;">
+                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-danger btn-sm">Yes, Cancel Request</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openClarificationModal(leaveId, question) {
+    document.getElementById('clarificationLeaveId').value = leaveId;
+    document.getElementById('clarificationQuestionText').innerText = question;
+    $('#clarificationModal').modal('show');
+}
+function openCancelModal(leaveId) {
+    document.getElementById('cancelLeaveId').value = leaveId;
+    $('#cancelModal').modal('show');
+}
+</script>
+{% endblock %}
+

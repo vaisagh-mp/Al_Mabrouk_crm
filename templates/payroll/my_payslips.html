@@ -1,0 +1,144 @@
+{% extends base_template|default:'employee/employeebase.html' %}
+{% load static %}
+
+{% block title %}My Payslips | Almabrouk CRM{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    {% include 'finance/_messages.html' %}
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #1F3A52;">
+                <i class="fas fa-file-alt me-2"></i>My Payslips &amp; Salary Advances
+            </h3>
+            <p class="text-muted small mb-0">View and download your monthly payslips and track salary advances.</p>
+        </div>
+    </div>
+
+    <!-- My Payslips Table -->
+    {% if no_employee_record %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-1"></i>
+        This account has no employee record, so it has no payslips. Use <strong>Payroll &amp; Salary &rarr; Payslips</strong> to see staff payslips.
+    </div>
+    {% endif %}
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="fw-bold mb-0" style="color: #1F3A52;">
+                <i class="fas fa-file-pdf me-2 text-danger"></i>Monthly Payslips
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">Month</th>
+                            <th>Payslip Number</th>
+                            <th class="text-end">Gross Pay (AED)</th>
+                            <th class="text-end">Deductions (AED)</th>
+                            <th class="text-end">Net Take-Home (AED)</th>
+                            <th class="text-center">Status</th>
+                            <th class="text-center pe-3">Download</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in payrolls %}
+                        <tr>
+                            <td class="ps-3 fw-bold">{{ p.month|date:"F Y" }}</td>
+                            <td>
+                                {% if p.payslip %}
+                                <span class="badge bg-light text-dark border">{{ p.payslip.number }}</span>
+                                {% else %}
+                                <span class="text-muted small">—</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end font-monospace">{{ p.gross|floatformat:2 }}</td>
+                            <td class="text-end font-monospace text-danger">
+                                {{ p.deductions|add:p.effective_absence_deduction|floatformat:2 }}
+                            </td>
+                            <td class="text-end font-monospace fw-bold text-success">{{ p.net_pay|floatformat:2 }}</td>
+                            <td class="text-center"><span class="badge bg-success">Paid</span></td>
+                            <td class="text-center pe-3">
+                                {% if p.payslip and p.payslip.file %}
+                                <a href="{% url 'payslip_download' p.payslip.id %}" target="_blank" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-download me-1"></i>Download PDF
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">Not available</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">No paid payslips available yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Salary Advances Table -->
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3">
+            <h5 class="fw-bold mb-0" style="color: #1F3A52;">
+                <i class="fas fa-dollar-sign me-2 text-warning"></i>My Salary Advances
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead style="background-color: #1F3A52; color: #FFFFFF;">
+                        <tr>
+                            <th class="ps-3 py-3">Request Date</th>
+                            <th class="text-end">Advance Amount (AED)</th>
+                            <th class="text-center">Instalments</th>
+                            <th class="text-end">Monthly Deduction (AED)</th>
+                            <th class="text-center">Start Month</th>
+                            <th class="text-end">Deducted So Far (AED)</th>
+                            <th class="text-end">Remaining Balance (AED)</th>
+                            <th class="text-center pe-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for adv in advances %}
+                        <tr>
+                            <td class="ps-3">{{ adv.request_date|date:"d/m/Y" }}</td>
+                            <td class="text-end font-monospace fw-bold">AED {{ adv.amount|floatformat:2 }}</td>
+                            <td class="text-center">{{ adv.instalments }} month{{ adv.instalments|pluralize }}</td>
+                            <td class="text-end font-monospace">AED {{ adv.monthly_deduction|floatformat:2 }}</td>
+                            <td class="text-center">{{ adv.start_month|date:"M Y" }}</td>
+                            <td class="text-end font-monospace text-success">AED {{ adv.total_deducted|floatformat:2 }}</td>
+                            <td class="text-end font-monospace fw-bold {% if adv.balance > 0 %}text-danger{% else %}text-muted{% endif %}">
+                                AED {{ adv.balance|floatformat:2 }}
+                            </td>
+                            <td class="text-center pe-3">
+                                {% if adv.status == 'ACTIVE' %}
+                                <span class="badge bg-success">Active</span>
+                                {% elif adv.status == 'COMPLETED' %}
+                                <span class="badge bg-secondary">Completed</span>
+                                {% elif adv.status == 'APPROVED' %}
+                                <span class="badge bg-info text-dark">Approved</span>
+                                {% elif adv.status == 'REQUESTED' %}
+                                <span class="badge bg-warning text-dark">Requested</span>
+                                {% else %}
+                                <span class="badge bg-danger">{{ adv.status }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-muted">No salary advances on record.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+

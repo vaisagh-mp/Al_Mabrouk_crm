@@ -618,3 +618,45 @@ class StaffLifecycleTests(TestCase):
         self.assertIsNotNone(att_today.log_out_time)
         self.assertFalse(att_today.auto_punched_out)
         self.assertAlmostEqual(att_today.total_hours_of_work, Decimal('2.00'), delta=Decimal('0.10'))
+
+
+class SalaryTabNullUserTests(TestCase):
+    """Salary tab must render when an increment/change log has no user (system entries)."""
+
+    def test_salary_tab_with_system_entries(self):
+        import datetime
+        from decimal import Decimal
+        from django.contrib.auth.models import User
+        from Admin.models import Employee, EmployeeChangeLog
+        from finance.models import SalaryIncrement
+        su = User.objects.create_superuser('su_sal', 'su_sal@example.com', 'pw')
+        emp = Employee.objects.create(user=User.objects.create_user('eng_sal', 'e@x.com', 'pw'),
+                                      is_employee=True, salary=Decimal('3000'), date_of_join=datetime.date(2026, 1, 1))
+        SalaryIncrement.objects.create(employee=emp, effective_from=datetime.date(2026, 6, 1),
+                                       new_basic=Decimal('3500'), status='PENDING')
+        EmployeeChangeLog.objects.create(employee=emp, field='basic', old_value='3000', new_value='3500',
+                                         changed_by=None, source='import')
+        self.client.force_login(su)
+        res = self.client.get(f'/admin-panel/employee/{emp.id}/?tab=salary')
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'System')
+
+
+class RestDayHistoryPageTests(TestCase):
+    """Rest-day history page renders, including system entries with no user."""
+
+    def test_history_page_renders(self):
+        from Admin.models import Employee, EmployeeChangeLog, RestDayRule
+        su = User.objects.create_superuser('su_rd', 'su_rd@example.com', 'pw')
+        emp = Employee.objects.create(user=User.objects.create_user('eng_rd', 'rd@x.com', 'pw'),
+                                      is_employee=True, salary=Decimal('3000'), date_of_join=datetime.date(2026, 1, 1))
+        RestDayRule.objects.create(employee=emp, rest_weekday=4, effective_from=datetime.date(2026, 1, 1), created_by=None)
+        EmployeeChangeLog.objects.create(employee=emp, field='rest_day', old_value='Sunday', new_value='Friday',
+                                         changed_by=su, source='HR edit')
+        EmployeeChangeLog.objects.create(employee=emp, field='rest_day', old_value='Friday', new_value='Roster',
+                                         changed_by=None, source='import')
+        self.client.force_login(su)
+        res = self.client.get(reverse('hr_weekly_rest_day_history', args=[emp.id]))
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, 'Roster')
+        self.assertContains(res, 'System')

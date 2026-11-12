@@ -61,6 +61,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'Admin.portal.PortalMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
@@ -164,6 +165,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+PRIVATE_MEDIA_ROOT = os.path.join(BASE_DIR, 'private_media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -172,3 +174,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Feature Switch: Multi-Currency
 FINANCE_MULTI_CURRENCY = True
+
+# HR Module Upgrade - Phase 2 Feature Switches
+HR_ATTENDANCE_ENGINE_V2 = False
+HR_BASIC_SALARY_FROM = None
+
+# HR Module Upgrade - Phase 4 Feature Switch
+HR_LEAVE_V2 = False
+
+# HR Module Upgrade - Phase 5 Feature Switches
+HR_TIMESHEET_APPROVAL = False
+HR_TIMESHEET_APPROVAL_FROM = None
+HR_TRAVEL_COUNTS_AS_WORK = True
+
+# HR Module Upgrade - Phase 7 Feature Switch
+HR_PAYROLL_V2 = False
+

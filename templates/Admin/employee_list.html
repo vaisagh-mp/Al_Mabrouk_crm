@@ -71,7 +71,7 @@
                             <span class="badge bg-secondary ms-1">Inactive</span>
                         {% endif %}
                     </td>
-                    <td>{{ employee.pk }}</td>
+                    <td>{{ employee.employee_code|default:employee.pk }}</td>
                     <td>{{ employee.get_role }}</td>
                     <td>{{ employee.rank }}</td>
                     <td>

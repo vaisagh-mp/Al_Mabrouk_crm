@@ -2,6 +2,7 @@ from collections import defaultdict
 from decimal import Decimal
 from datetime import datetime, time, timedelta
 from django.utils import timezone
+from django.db.models import Q
 
 
 OT_THRESHOLD_HOURS = Decimal('10')
@@ -11,47 +12,64 @@ OT_MULT_SUNDAY = Decimal('1.5')
 OT_MULT_PUBLIC_HOLIDAY = Decimal('2.0')
 
 
-def ot_multiplier(day, is_public_holiday) -> Decimal:
+def ot_multiplier(day, is_public_holiday, is_rest_day=None) -> Decimal:
     if is_public_holiday:
         return OT_MULT_PUBLIC_HOLIDAY
-    if day.weekday() == 6:
+    if is_rest_day is None:
+        is_rest = (day.weekday() == 6)
+    else:
+        is_rest = bool(is_rest_day)
+    if is_rest:
         return OT_MULT_SUNDAY
     return OT_MULT_NORMAL
 
 
-def ot_type_for(day, is_public_holiday) -> str:
+def ot_type_for(day, is_public_holiday, is_rest_day=None) -> str:
     """
-    Returns 'HOLIDAY' | 'SUNDAY' | 'WEEKDAY'
+    Returns 'HOLIDAY' | 'SUNDAY' | 'WEEKDAY'.
+    Note: 'SUNDAY' is stored in the DB for rest day OT, but displayed as 'Rest Day' on screen.
     """
     if is_public_holiday:
         return 'HOLIDAY'
-    if day.weekday() == 6:
+    if is_rest_day is None:
+        is_rest = (day.weekday() == 6)
+    else:
+        is_rest = bool(is_rest_day)
+    if is_rest:
         return 'SUNDAY'
     return 'WEEKDAY'
 
 
-def calculate_office_ot_cost(salary, register_rows, logs=None):
+def calculate_office_ot_cost(salary, register_rows, logs=None, employee=None):
     """
     Computes office overtime cost from attendance register rows.
     Formula: row['office_ot_hours'] * rate * multiplier.
     Multiplier:
       - Public holiday (date in Holiday table or any log that day has is_holiday=True): 2.0
-      - Sunday (not public holiday): 1.5
-      - Normal day (Monday-Saturday, not public holiday): 1.25
-    rate = salary / 208.
+      - Rest day (Sunday or employee rest day when V2 is on): 1.5
+      - Normal day (Monday-Saturday, not public holiday, not rest day): 1.25
+    rate = base_salary / 208.
     """
-    if not salary:
-        return Decimal('0.00')
-    rate = Decimal(str(salary)) / Decimal('208')
-    if rate <= 0:
-        return Decimal('0.00')
+    from django.conf import settings
+    from Admin.attendance_engine import is_rest_day, pay_base_salary
+    v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
 
     from Admin.models import Holiday
 
     dates = {r['date'] for r in register_rows if 'date' in r and (r.get('office_ot_hours') or Decimal('0.00')) > 0}
     holiday_dates = set()
     if dates:
-        holiday_dates = set(Holiday.objects.filter(date__in=dates).values_list('date', flat=True))
+        if v2_on and employee:
+            holiday_dates = set(
+                Holiday.objects.filter(
+                    date__in=dates,
+                    is_active=True
+                ).filter(
+                    Q(branch__isnull=True) | Q(branch_id=employee.branch_id)
+                ).values_list('date', flat=True)
+            )
+        else:
+            holiday_dates = set(Holiday.objects.filter(date__in=dates).values_list('date', flat=True))
 
     logs_by_date = defaultdict(list)
     if logs:
@@ -63,12 +81,30 @@ def calculate_office_ot_cost(salary, register_rows, logs=None):
         off_ot = r.get('office_ot_hours') or Decimal('0.00')
         if off_ot > 0:
             day = r['date']
+            emp = employee or r.get('employee')
+            if v2_on and emp:
+                base_sal = pay_base_salary(emp, day)
+                rate = (base_sal / Decimal('208')) if base_sal else Decimal('0.00')
+                rest_flag = is_rest_day(emp, day)
+            else:
+                sal = Decimal(str(salary or '0.00'))
+                rate = (sal / Decimal('208')) if sal else Decimal('0.00')
+                rest_flag = None
+
+            if rate <= 0:
+                continue
+
             day_logs = logs_by_date.get(day, [])
+
+            # Phase 5: office OT on Office+Vessel days only from days whose vessel logs are all approved
+            if getattr(settings, 'HR_TIMESHEET_APPROVAL', False):
+                if day_logs and not all(getattr(l, 'is_counting', lambda: True)() for l in day_logs):
+                    continue
+
             is_public_holiday = (day in holiday_dates) or any(getattr(l, 'is_holiday', False) for l in day_logs)
-            mult = ot_multiplier(day, is_public_holiday)
+            mult = ot_multiplier(day, is_public_holiday, is_rest_day=rest_flag)
             office_ot_cost += off_ot * rate * mult
     return round(office_ot_cost, 2)
-
 
 
 def build_day_timeline(attendances, logs, day):
@@ -100,47 +136,43 @@ def build_day_timeline(attendances, logs, day):
         if e_dt > s_dt:
             vessel_intervals.append((s_dt, e_dt, l))
 
-    points = set()
-    for s, e in office_intervals:
-        points.add(s)
-        points.add(e)
-    for s, e, l in vessel_intervals:
-        points.add(s)
-        points.add(e)
+    events = []
+    for s_dt, e_dt in office_intervals:
+        events.append((s_dt, 'START', 'OFFICE', None))
+        events.append((e_dt, 'END', 'OFFICE', None))
+    for s_dt, e_dt, l in vessel_intervals:
+        events.append((s_dt, 'START', 'VESSEL', l))
+        events.append((e_dt, 'END', 'VESSEL', l))
 
-    if not points:
-        return []
+    events.sort(key=lambda x: (x[0], 0 if x[1] == 'END' else 1))
 
-    sorted_points = sorted(points)
-    raw_segments = []
+    segments = []
+    current_time = None
+    active_office = 0
+    active_vessels = []
 
-    for p_curr, p_next in zip(sorted_points, sorted_points[1:]):
-        # Vessel takes precedence over office when overlapping
-        vessel_match = None
-        for s, e, l in vessel_intervals:
-            if s <= p_curr and p_next <= e:
-                vessel_match = l
-                break
+    for ev_time, ev_type, source, log_obj in events:
+        if current_time is not None and ev_time > current_time:
+            if active_vessels:
+                segments.append((current_time, ev_time, 'VESSEL', active_vessels[-1]))
+            elif active_office > 0:
+                segments.append((current_time, ev_time, 'OFFICE', None))
 
-        if vessel_match is not None:
-            raw_segments.append((p_curr, p_next, 'VESSEL', vessel_match))
+        if ev_type == 'START':
+            if source == 'OFFICE':
+                active_office += 1
+            else:
+                active_vessels.append(log_obj)
         else:
-            office_match = False
-            for s, e in office_intervals:
-                if s <= p_curr and p_next <= e:
-                    office_match = True
-                    break
-            if office_match:
-                raw_segments.append((p_curr, p_next, 'OFFICE', None))
+            if source == 'OFFICE':
+                active_office = max(0, active_office - 1)
+            else:
+                if log_obj in active_vessels:
+                    active_vessels.remove(log_obj)
 
-    merged = []
-    for s, e, source, log_obj in raw_segments:
-        if merged and merged[-1][2] == source and merged[-1][3] == log_obj and merged[-1][1] == s:
-            merged[-1] = (merged[-1][0], e, source, log_obj)
-        else:
-            merged.append((s, e, source, log_obj))
+        current_time = ev_time
 
-    return merged
+    return segments
 
 
 def split_day_ot(attendances, logs, day):
@@ -155,38 +187,77 @@ def split_day_ot(attendances, logs, day):
       }
     If there are no closed logs -> ot is 0 (office-only days never have OT).
     """
-    closed_logs = [l for l in logs if getattr(l, 'end_time', None) is not None]
-    timeline = build_day_timeline(attendances, logs, day)
-    tot_secs = sum((seg[1] - seg[0]).total_seconds() for seg in timeline)
-    total_hours = Decimal(str(round(tot_secs / 3600.0, 2))).quantize(Decimal('0.01'))
-
-    vessel_ot_by_log_id = {l.id: Decimal('0.00') for l in logs}
-
+    closed_logs = [l for l in logs if l.end_time is not None]
     if not closed_logs:
+        tz = timezone.get_current_timezone()
+        office_intervals = []
+        for a in attendances:
+            if a.login_time and a.log_out_time:
+                login_dt = timezone.localtime(a.login_time, tz)
+                logout_dt = timezone.localtime(a.log_out_time, tz)
+                if logout_dt > login_dt:
+                    office_intervals.append((login_dt, logout_dt))
+        if office_intervals:
+            sorted_ints = sorted(office_intervals, key=lambda x: x[0])
+            merged = []
+            for s, e in sorted_ints:
+                if not merged:
+                    merged.append([s, e])
+                else:
+                    if s <= merged[-1][1]:
+                        merged[-1][1] = max(merged[-1][1], e)
+                    else:
+                        merged.append([s, e])
+            tot_secs = sum((m[1] - m[0]).total_seconds() for m in merged)
+            tot_hours = Decimal(str(round(tot_secs / 3600.0, 2))).quantize(Decimal('0.01'))
+        else:
+            tot_hours = Decimal('0.00')
+
         return {
-            'total_hours': total_hours,
+            'total_hours': tot_hours,
             'ot_hours': Decimal('0.00'),
-            'vessel_ot_by_log_id': vessel_ot_by_log_id,
+            'vessel_ot_by_log_id': {},
             'office_ot_hours': Decimal('0.00'),
         }
 
-    threshold_secs = OT_THRESHOLD_HOURS * Decimal('3600')  # 36000
-    vessel_ot_seconds_by_log = {l.id: Decimal('0') for l in logs}
+    segments = build_day_timeline(attendances, closed_logs, day)
+
+    total_seconds = Decimal('0')
+    threshold_seconds = OT_THRESHOLD_HOURS * Decimal('3600')  # 36000 sec
+
+    vessel_ot_seconds_by_log = defaultdict(Decimal)
     office_ot_seconds = Decimal('0')
-    cum_secs = Decimal('0')
+    vessel_ot_by_log_id = {}
 
-    for start_dt, end_dt, source, log_obj in timeline:
-        seg_secs = Decimal(str((end_dt - start_dt).total_seconds()))
-        seg_start = cum_secs
-        seg_end = cum_secs + seg_secs
-        cum_secs = seg_end
+    from django.conf import settings
+    travel_counts = getattr(settings, 'HR_TRAVEL_COUNTS_AS_WORK', True)
+    tz = timezone.get_current_timezone()
 
-        if seg_end <= threshold_secs:
-            continue
-        elif seg_start >= threshold_secs:
-            ot_sec = seg_secs
+    for s_dt, e_dt, source, log_obj in segments:
+        seg_raw_duration = Decimal(str((e_dt - s_dt).total_seconds()))
+        if source == 'VESSEL' and log_obj and log_obj.start_time and log_obj.end_time:
+            l_start_dt = timezone.make_aware(datetime.combine(day, log_obj.start_time), tz)
+            l_end_date = day + timedelta(days=1) if log_obj.end_time < log_obj.start_time else day
+            l_end_dt = timezone.make_aware(datetime.combine(l_end_date, log_obj.end_time), tz)
+            l_raw_sec = Decimal(str(max(1, int((l_end_dt - l_start_dt).total_seconds()))))
+            brk_sec = Decimal(str((getattr(log_obj, 'break_minutes', 0) or 0) * 60))
+            trv_sec = Decimal(str((getattr(log_obj, 'travel_minutes', 0) or 0) * 60)) if travel_counts else Decimal('0')
+            net_sec = max(Decimal('0'), l_raw_sec - brk_sec + trv_sec)
+            ratio = net_sec / l_raw_sec
+            seg_duration = seg_raw_duration * ratio
         else:
-            ot_sec = seg_end - threshold_secs
+            seg_duration = seg_raw_duration
+
+        new_total = total_seconds + seg_duration
+
+        if new_total <= threshold_seconds:
+            ot_sec = Decimal('0')
+        elif total_seconds < threshold_seconds:
+            ot_sec = new_total - threshold_seconds
+        else:
+            ot_sec = seg_duration
+
+        total_seconds = new_total
 
         if source == 'VESSEL' and log_obj:
             log_key = getattr(log_obj, 'id', None)
@@ -202,6 +273,7 @@ def split_day_ot(attendances, logs, day):
     office_ot_hours = round(office_ot_seconds / Decimal('3600'), 2).quantize(Decimal('0.01'))
     vessel_ot_total = sum(vessel_ot_by_log_id.values(), Decimal('0.00')).quantize(Decimal('0.01'))
     ot_hours = (vessel_ot_total + office_ot_hours).quantize(Decimal('0.01'))
+    total_hours = round(total_seconds / Decimal('3600'), 2).quantize(Decimal('0.01'))
 
     return {
         'total_hours': total_hours,
@@ -235,18 +307,35 @@ def recalculate_day_ot(employee_id, day):
     Saves via bulk_update (fixed query count, no save() recursion).
     """
     from service_logs.models import EmployeeServiceLog
-    from Admin.models import Holiday
+    from Admin.models import Holiday, Employee
+    from Admin.attendance_engine import is_rest_day, pay_base_salary
+    from django.conf import settings
+    v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
 
     logs = list(
         EmployeeServiceLog.objects.filter(
             employee_id=employee_id,
             date=day
-        ).select_related('employee').order_by('start_time', 'id')
+        ).select_related('employee', 'employee__branch').order_by('start_time', 'id')
     )
     if not logs:
         return
 
-    is_holiday_date = Holiday.objects.filter(date=day).exists()
+    emp = logs[0].employee if logs else None
+    if not emp:
+        emp = Employee.objects.filter(id=employee_id).select_related('branch').first()
+
+    if v2_on and emp:
+        is_holiday_date = Holiday.objects.filter(
+            date=day,
+            is_active=True
+        ).filter(
+            Q(branch__isnull=True) | Q(branch_id=emp.branch_id)
+        ).exists()
+        rest_flag = is_rest_day(emp, day)
+    else:
+        is_holiday_date = Holiday.objects.filter(date=day).exists()
+        rest_flag = None
 
     attendances = employee_office_attendances(employee_id, day)
     split_info = split_day_ot(attendances, logs, day)
@@ -266,26 +355,49 @@ def recalculate_day_ot(employee_id, day):
             end_dt = datetime.combine(log.date, log.end_time)
             if end_dt < start_dt:
                 end_dt += timedelta(days=1)
-            log.total_hours = round(Decimal(str((end_dt - start_dt).total_seconds() / 3600)), 2)
+            dur_mins = Decimal(str(int((end_dt - start_dt).total_seconds() // 60)))
+            brk = Decimal(str(getattr(log, 'break_minutes', 0) or 0))
+            trv = Decimal(str(getattr(log, 'travel_minutes', 0) or 0))
+            from django.conf import settings
+            travel_counts = getattr(settings, 'HR_TRAVEL_COUNTS_AS_WORK', True)
+            work_mins = dur_mins - brk + (trv if travel_counts else Decimal('0'))
+            log.total_hours = round(max(Decimal('0'), work_mins / Decimal('60')), 2)
 
         v_ot = vessel_ot_map.get(log.id, Decimal('0.00'))
         log.ot_hours = v_ot
         normal_hours = max(log.total_hours - log.ot_hours, Decimal('0.00'))
 
         is_public_holiday = bool(log.is_holiday or is_holiday_date)
-        log.ot_type = ot_type_for(log.date, is_public_holiday) if log.ot_hours > 0 else None
+        log.ot_type = ot_type_for(log.date, is_public_holiday, is_rest_day=rest_flag) if log.ot_hours > 0 else None
 
-        salary = log.employee.salary if log.employee else None
-        if salary:
-            rate = salary / Decimal('208')  # 26 * 8 = 208
-            log.normal_cost = round(normal_hours * rate, 2)
-            mult = ot_multiplier(log.date, is_public_holiday)
-            log.ot_cost = round(log.ot_hours * rate * mult, 2)
+        total_salary = log.employee.salary if log.employee else None
+        if total_salary:
+            normal_rate = total_salary / Decimal('208')
+            log.normal_cost = round(normal_hours * normal_rate, 2)
         else:
             log.normal_cost = Decimal('0.00')
+
+        if v2_on and log.employee:
+            ot_salary = pay_base_salary(log.employee, log.date)
+        else:
+            ot_salary = total_salary
+
+        if ot_salary and log.ot_hours > 0:
+            ot_rate = ot_salary / Decimal('208')
+            mult = ot_multiplier(log.date, is_public_holiday, is_rest_day=rest_flag)
+            log.ot_cost = round(log.ot_hours * ot_rate * mult, 2)
+        else:
             log.ot_cost = Decimal('0.00')
 
     EmployeeServiceLog.objects.bulk_update(
         logs,
         ['ot_hours', 'ot_type', 'normal_cost', 'ot_cost']
     )
+
+    if getattr(settings, 'HR_TIMESHEET_APPROVAL', False):
+        try:
+            from Admin.timesheet_service import sync_ot_approval_for_day
+            sync_ot_approval_for_day(employee_id, day)
+        except Exception:
+            pass
+

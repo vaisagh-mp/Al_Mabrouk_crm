@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from calendar import monthrange
 from decimal import Decimal
 from collections import defaultdict
 import csv
@@ -36,6 +37,9 @@ STATUS_OPTIONS = [
     'REST',
     'Sunday',
     'Holiday',
+    'Rest Day',
+    'Missing Punch',
+    'Unpaid Leave',
 ]
 
 STATUS_CODE_TO_LABEL = {
@@ -46,10 +50,13 @@ STATUS_CODE_TO_LABEL = {
     'ANNUAL_LEAVE': 'Annual Leave',
     'SICK_LEAVE': 'Sick Leave',
     'PERSONAL_LEAVE': 'Personal Leave',
+    'UNPAID_LEAVE': 'Unpaid Leave',
     'TRAINING': 'Training',
     'REST': 'REST',
     'SUNDAY': 'Sunday',
     'HOLIDAY': 'Holiday',
+    'REST_DAY': 'Rest Day',
+    'MISSING_PUNCH': 'Missing Punch',
 }
 
 STATUS_LABEL_TO_CODE = {v: k for k, v in STATUS_CODE_TO_LABEL.items()}
@@ -100,7 +107,7 @@ def _attendance_location(att):
     return 'Port'
 
 
-def build_attendance_register(start_date, end_date, search="", status_filter=""):
+def build_attendance_register(start_date, end_date, search="", status_filter="", department=None, branch=None, work_type=None, employee_ids=None, employee_id=None):
     """
     Build daily attendance register for all active employees across [start_date, end_date].
     Uses a fixed number of queries (no N+1).
@@ -119,7 +126,12 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
         user__is_active=True
     ).filter(
         Q(is_employee=True) | Q(is_manager=True) | Q(is_administration=True) | Q(is_hr=True) | Q(is_accountant=True)
-    ).select_related('user')
+    ).select_related('user', 'department', 'branch')
+
+    if employee_id:
+        employee_qs = employee_qs.filter(id=employee_id)
+    if employee_ids:
+        employee_qs = employee_qs.filter(id__in=employee_ids)
 
     search_query = (search or "").strip()
     if search_query:
@@ -128,6 +140,26 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
             Q(user__first_name__icontains=search_query) |
             Q(user__last_name__icontains=search_query)
         )
+
+    if department:
+        if isinstance(department, int) or (isinstance(department, str) and str(department).isdigit()):
+            employee_qs = employee_qs.filter(department_id=int(department))
+        elif hasattr(department, 'id'):
+            employee_qs = employee_qs.filter(department=department)
+        elif isinstance(department, str) and department.strip():
+            employee_qs = employee_qs.filter(department__name__iexact=department.strip())
+
+    if branch:
+        if isinstance(branch, int) or (isinstance(branch, str) and str(branch).isdigit()):
+            employee_qs = employee_qs.filter(branch_id=int(branch))
+        elif hasattr(branch, 'id'):
+            employee_qs = employee_qs.filter(branch=branch)
+        elif isinstance(branch, str) and branch.strip():
+            employee_qs = employee_qs.filter(branch__name__iexact=branch.strip())
+
+    if work_type:
+        if isinstance(work_type, str) and work_type.strip():
+            employee_qs = employee_qs.filter(work_type=work_type.strip())
 
     employees = list(employee_qs)
     if not employees:
@@ -188,12 +220,14 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
             leave_by_emp_date[(emp.id, curr_d)] = leave
             curr_d += timedelta(days=1)
 
-    # 5. Bulk load Holidays
-    holiday_qs = Holiday.objects.filter(
-        date__gte=start_date,
-        date__lte=end_date,
-    )
-    holidays_by_date = {h.date: h for h in holiday_qs}
+    # 5. Bulk load Holidays & Rest Days
+    from Admin.attendance_engine import rest_day_map, public_holiday_map
+    from django.conf import settings
+    v2_on = getattr(settings, 'HR_ATTENDANCE_ENGINE_V2', False)
+    leave_v2_on = getattr(settings, 'HR_LEAVE_V2', False)
+
+    rday_by_emp_date = rest_day_map(employees, start_date, end_date)
+    holidays_by_emp_date = public_holiday_map(employees, start_date, end_date)
 
     # 6. Bulk load DailyAttendanceStatus
     status_qs = DailyAttendanceStatus.objects.filter(
@@ -212,10 +246,12 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
     rows = []
 
     for d in date_list:
-        is_holiday_date = d in holidays_by_date
         is_sunday = (d.weekday() == 6)
 
         for emp in employees:
+            is_holiday_date = (emp.id, d) in holidays_by_emp_date
+            is_emp_rest_day = rday_by_emp_date.get((emp.id, d), is_sunday)
+
             override = daily_status_by_emp_date.get((emp.id, d))
             day_atts = att_by_emp_date.get((emp.id, d), [])
             day_logs = slog_by_emp_date.get((emp.id, d), [])
@@ -232,30 +268,67 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
 
             has_work = bool(day_atts or day_logs)
 
+            has_incomplete_punch = (
+                v2_on and (d < today) and
+                (any(a.login_time and not a.log_out_time and not getattr(a, 'missing_punch_resolved', False) for a in day_atts) or
+                 any(getattr(a, 'auto_punched_out', False) and not getattr(a, 'missing_punch_resolved', False) for a in day_atts))
+            )
+
             # Determine status based on priority rules
             rule_applied = None
-            if override is not None:
-                rule_applied = 1
-            elif has_work:
-                rule_applied = 2
-            elif leave is not None:
-                rule_applied = 3
-            elif is_holiday_date:
-                rule_applied = 4
-            elif is_sunday:
-                rule_applied = 5
-            elif d > today:
-                # Rule 6: The date is in the future -> skip the row
-                continue
+            missing_punch_type = None
+
+            if not v2_on:
+                if override is not None:
+                    rule_applied = 1
+                elif has_work:
+                    rule_applied = 2
+                elif leave is not None:
+                    rule_applied = 3
+                elif is_holiday_date:
+                    rule_applied = 4
+                elif is_sunday:
+                    rule_applied = 5
+                elif d > today:
+                    continue
+                else:
+                    rule_applied = 7
             else:
-                rule_applied = 7
+                # V2 Priority Rules (D11 / Plan)
+                if override is not None:
+                    rule_applied = 1
+                elif has_incomplete_punch:
+                    rule_applied = 'incomplete_punch'
+                    missing_punch_type = 'INCOMPLETE'
+                elif has_work:
+                    rule_applied = 2
+                elif leave_v2_on and (is_holiday_date or is_emp_rest_day):
+                    # D8: under Leave V2, rest days and holidays inside leave range are excluded from leave count
+                    if is_holiday_date:
+                        rule_applied = 4
+                    else:
+                        rule_applied = 5
+                elif leave is not None:
+                    rule_applied = 3
+                elif is_holiday_date:
+                    rule_applied = 4
+                elif is_emp_rest_day:
+                    rule_applied = 5
+                elif d > today:
+                    continue
+                else:
+                    rule_applied = 'no_punch'
+                    missing_punch_type = 'NO_PUNCH'
 
             is_off_day = False
             off_day_label = ""
-            if has_work and (is_holiday_date or is_sunday):
+            effective_is_off = (is_emp_rest_day if v2_on else is_sunday)
+            if (has_work or has_incomplete_punch) and (is_holiday_date or effective_is_off):
                 is_off_day = True
                 if is_holiday_date:
                     off_day_label = "Holiday working"
+                elif v2_on:
+                    off_day_label = "Rest day working"
                 else:
                     off_day_label = "Sunday working"
 
@@ -274,8 +347,14 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
 
             if rule_applied == 1:
                 status_code = override.status
-                status_label = STATUS_CODE_TO_LABEL.get(override.status, override.status)
+                if v2_on and status_code == 'SUNDAY':
+                    status_code = 'REST_DAY'
+                status_label = STATUS_CODE_TO_LABEL.get(status_code, override.status)
                 location_label = dict(DailyAttendanceStatus.LOCATION_CHOICES).get(override.location, '') if override.location else ''
+            elif rule_applied == 'incomplete_punch':
+                status_code = 'MISSING_PUNCH'
+                status_label = 'Missing Punch'
+                location_label = ''
             elif rule_applied == 2:
                 if day_logs and not day_atts:
                     status_code = 'VESSEL'
@@ -287,32 +366,61 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                     status_code = 'OFFICE'
                     status_label = 'Office'
             elif rule_applied == 3:
-                leave_type = (leave.leave_type or '').strip().upper()
-                if leave_type == 'ANNUAL LEAVE':
-                    status_code = 'ANNUAL_LEAVE'
-                    status_label = 'Annual Leave'
-                elif leave_type == 'SICK LEAVE':
-                    status_code = 'SICK_LEAVE'
-                    status_label = 'Sick Leave'
+                if leave_v2_on and leave and getattr(leave, 'leave_type_ref', None):
+                    reg_code = leave.leave_type_ref.register_code or 'AL'
+                    if reg_code == 'UL' or leave.leave_type_ref.code == 'UNPAID':
+                        status_code = 'UNPAID_LEAVE'
+                        status_label = 'Unpaid Leave'
+                    elif reg_code == 'AL' or leave.leave_type_ref.code == 'ANNUAL':
+                        status_code = 'ANNUAL_LEAVE'
+                        status_label = 'Annual Leave'
+                    elif reg_code == 'SL' or leave.leave_type_ref.code == 'SICK':
+                        status_code = 'SICK_LEAVE'
+                        status_label = 'Sick Leave'
+                    elif reg_code == 'PL' or leave.leave_type_ref.code == 'PERSONAL':
+                        status_code = 'PERSONAL_LEAVE'
+                        status_label = 'Personal Leave'
+                    else:
+                        status_code = f"{reg_code}_LEAVE"
+                        status_label = leave.leave_type_ref.name
+
+                    if getattr(leave, 'is_half_day', False):
+                        status_label = f"Half day {reg_code} ({leave.half_day_part or 'AM'})"
                 else:
-                    status_code = 'PERSONAL_LEAVE'
-                    status_label = 'Personal Leave'
+                    leave_type = (leave.leave_type or '').strip().upper()
+                    if leave_type == 'ANNUAL LEAVE':
+                        status_code = 'ANNUAL_LEAVE'
+                        status_label = 'Annual Leave'
+                    elif leave_type == 'SICK LEAVE':
+                        status_code = 'SICK_LEAVE'
+                        status_label = 'Sick Leave'
+                    else:
+                        status_code = 'PERSONAL_LEAVE'
+                        status_label = 'Personal Leave'
                 location_label = ''
             elif rule_applied == 4:
                 status_code = 'HOLIDAY'
                 status_label = 'Holiday'
                 location_label = 'Holiday'
             elif rule_applied == 5:
-                status_code = 'SUNDAY'
-                status_label = 'Sunday'
+                if v2_on:
+                    status_code = 'REST_DAY'
+                    status_label = 'Rest Day'
+                else:
+                    status_code = 'SUNDAY'
+                    status_label = 'Sunday'
                 location_label = 'Holiday'
+            elif rule_applied == 'no_punch':
+                status_code = 'MISSING_PUNCH'
+                status_label = 'Missing Punch'
+                location_label = ''
             elif rule_applied == 7:
                 status_code = 'ABSENT'
                 status_label = 'Absent'
                 location_label = ''
 
-            # Fill in work data if work exists (applies to rule 2 and rule 1 if work data exists)
-            if has_work:
+            # Fill in work data if work exists or incomplete punch (keep hours & vessel data)
+            if has_work or has_incomplete_punch:
                 if day_logs and not day_atts:
                     # Vessel work only
                     v_list = []
@@ -488,6 +596,11 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
             name = emp.user.get_full_name() or emp.user.username
             rank = emp.rank or "-"
 
+            ts_approval_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
+            vessel_pending_approval = (
+                ts_approval_on and bool(day_logs) and any(not getattr(l, 'is_counting', lambda: True)() for l in day_logs)
+            )
+
             # OT = hours above 10 per day on days with vessel work (office+vessel combined). Office-only days have no OT. See service_logs/ot.py.
             row = {
                 'date': d,
@@ -510,9 +623,14 @@ def build_attendance_register(start_date, end_date, search="", status_filter="")
                 'service_log_ids': service_log_ids,
                 'override_id': override_id,
                 'has_pending': has_pending,
+                'vessel_pending_approval': vessel_pending_approval,
                 'is_off_day': is_off_day,
                 'off_day_label': off_day_label,
                 'auto_punched_out': any(getattr(a, 'auto_punched_out', False) for a in day_atts),
+                'missing_punch_type': missing_punch_type,
+                'leave_obj': leave,
+                'is_half_day': bool(leave and getattr(leave, 'is_half_day', False)),
+                'half_day_label': f"Half day {leave.leave_type_ref.register_code if (leave and getattr(leave, 'leave_type_ref', None)) else 'AL'} ({leave.half_day_part or 'AM'})" if (leave and getattr(leave, 'is_half_day', False)) else "",
             }
             rows.append(row)
 
@@ -556,23 +674,49 @@ def build_attendance_summary(rows):
         annual_leave_days = sum(1 for r in emp_rows if r['status_code'] == 'ANNUAL_LEAVE')
         sick_leave_days = sum(1 for r in emp_rows if r['status_code'] == 'SICK_LEAVE')
         personal_leave_days = sum(1 for r in emp_rows if r['status_code'] == 'PERSONAL_LEAVE')
-        rest_days = sum(1 for r in emp_rows if r['status_code'] == 'REST')
+        rest_days = sum(1 for r in emp_rows if r['status_code'] in ('REST', 'REST_DAY', 'SUNDAY') and (not r.get('is_off_day') or Decimal(str(r.get('total_hours') or '0')) == 0))
+        missing_punch_days = sum(1 for r in emp_rows if r['status_code'] == 'MISSING_PUNCH')
         training_days = sum(1 for r in emp_rows if r['status_code'] == 'TRAINING')
-        total_leave_days = annual_leave_days + sick_leave_days + personal_leave_days
-        sunday_days = sum(1 for r in emp_rows if r['status_code'] == 'SUNDAY')
-        holiday_days = sum(1 for r in emp_rows if r['status_code'] == 'HOLIDAY')
+        unpaid_leave_days = sum(
+            Decimal('0.5') if r.get('is_half_day') else Decimal('1.0')
+            for r in emp_rows
+            if r['status_code'] == 'UNPAID_LEAVE' or (r.get('is_half_day') and getattr(r.get('leave_obj'), 'leave_type_ref', None) and r['leave_obj'].leave_type_ref.code == 'UNPAID')
+        )
+        total_leave_days = annual_leave_days + sick_leave_days + personal_leave_days + int(unpaid_leave_days)
+        sunday_days = rest_days
+        holiday_days = sum(1 for r in emp_rows if r['status_code'] == 'HOLIDAY' and Decimal(str(r.get('total_hours') or '0')) == 0)
 
         total_hours = sum((Decimal(str(r.get('total_hours') or '0.00')) for r in emp_rows), Decimal('0.00')).quantize(Decimal('0.01'))
         gross_ot_hours = sum((Decimal(str(r.get('ot_hours') or '0.00')) for r in emp_rows), Decimal('0.00')).quantize(Decimal('0.01'))
         gross_ot_days = (gross_ot_hours / STANDARD_DAY_HOURS).quantize(Decimal('0.01'))
         absent_days = sum(1 for r in emp_rows if r['status_code'] == 'ABSENT')
         absent_hours = (Decimal(absent_days) * STANDARD_DAY_HOURS).quantize(Decimal('0.01'))
-        off_day_worked = sum(1 for r in emp_rows if r.get('is_off_day') and r.get('status_code') not in ('SUNDAY', 'HOLIDAY'))
+        off_day_worked = sum(1 for r in emp_rows if r.get('is_off_day') and r.get('status_code') not in ('SUNDAY', 'REST_DAY', 'HOLIDAY'))
+
+        scheduled_working_days = sum(
+            1 for r in emp_rows
+            if (not r.get('is_off_day', False)) and
+               (r['status_code'] not in ('REST', 'REST_DAY', 'SUNDAY', 'HOLIDAY')) and
+               (emp.date_of_join is None or r.get('date') is None or r['date'] >= emp.date_of_join) and
+               (emp.deactivated_at is None or r.get('date') is None or r['date'] <= emp.deactivated_at.date())
+        )
+        present_days = sum(
+            1 for r in emp_rows
+            if (not r.get('is_off_day', False)) and
+               (r['status_code'] not in ('REST', 'REST_DAY', 'SUNDAY', 'HOLIDAY')) and
+               (emp.date_of_join is None or r.get('date') is None or r['date'] >= emp.date_of_join) and
+               (emp.deactivated_at is None or r.get('date') is None or r['date'] <= emp.deactivated_at.date()) and
+               (r['status_code'] in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL', 'TRAINING') or Decimal(str(r.get('total_hours') or '0')) > 0)
+        )
+        attendance_pct = min(100.0, round((present_days / scheduled_working_days) * 100, 1)) if scheduled_working_days > 0 else 0.0
 
         summary_rows.append({
             'employee': emp,
             'name': name,
             'designation': designation,
+            'scheduled_working_days': scheduled_working_days,
+            'present_days': present_days,
+            'attendance_pct': attendance_pct,
             'office_days': office_days,
             'vessel_days': vessel_days,
             'office_vessel_days': office_vessel_days,
@@ -580,7 +724,9 @@ def build_attendance_summary(rows):
             'sick_leave_days': sick_leave_days,
             'personal_leave_days': personal_leave_days,
             'rest_days': rest_days,
+            'missing_punch_days': missing_punch_days,
             'training_days': training_days,
+            'unpaid_leave_days': unpaid_leave_days,
             'total_leave_days': total_leave_days,
             'sunday_days': sunday_days,
             'holiday_days': holiday_days,
@@ -594,9 +740,16 @@ def build_attendance_summary(rows):
 
     summary_rows.sort(key=lambda s: s['name'].lower())
 
+    tot_sched = sum(r['scheduled_working_days'] for r in summary_rows)
+    tot_pres = sum(r['present_days'] for r in summary_rows)
+    tot_pct = min(100.0, round((tot_pres / tot_sched) * 100, 1)) if tot_sched > 0 else 0.0
+
     totals = {
         'name': 'TOTAL',
         'designation': '',
+        'scheduled_working_days': tot_sched,
+        'present_days': tot_pres,
+        'attendance_pct': tot_pct,
         'office_days': sum(r['office_days'] for r in summary_rows),
         'vessel_days': sum(r['vessel_days'] for r in summary_rows),
         'office_vessel_days': sum(r['office_vessel_days'] for r in summary_rows),
@@ -604,7 +757,9 @@ def build_attendance_summary(rows):
         'sick_leave_days': sum(r['sick_leave_days'] for r in summary_rows),
         'personal_leave_days': sum(r['personal_leave_days'] for r in summary_rows),
         'rest_days': sum(r['rest_days'] for r in summary_rows),
+        'missing_punch_days': sum(r.get('missing_punch_days', 0) for r in summary_rows),
         'training_days': sum(r['training_days'] for r in summary_rows),
+        'unpaid_leave_days': sum(r.get('unpaid_leave_days', Decimal('0.00')) for r in summary_rows),
         'total_leave_days': sum(r['total_leave_days'] for r in summary_rows),
         'sunday_days': sum(r['sunday_days'] for r in summary_rows),
         'holiday_days': sum(r['holiday_days'] for r in summary_rows),
@@ -697,7 +852,7 @@ def summary_excel_response(summary_rows, totals, start, end):
         ("F1:K1", "F1", "Leave", fill_leave),
         ("L1:M1", "L1", "Off Days", fill_off),
         ("N1:P1", "N1", "Hours", fill_hours),
-        ("Q1:R1", "Q1", "Absence", fill_absence),
+        ("Q1:S1", "Q1", "Absence", fill_absence),
     ]
     for cell_range, top_left, text, fill in groups:
         ws.merge_cells(cell_range)
@@ -707,7 +862,7 @@ def summary_excel_response(summary_rows, totals, start, end):
         cell.fill = fill
         cell.alignment = align_center
 
-    for col in range(1, 19):
+    for col in range(1, 20):
         c1 = ws.cell(row=1, column=col)
         c1.border = border_cell
         if col in (1, 2):
@@ -722,15 +877,15 @@ def summary_excel_response(summary_rows, totals, start, end):
             c1.fill = fill_off
         elif 14 <= col <= 16:
             c1.fill = fill_hours
-        elif 17 <= col <= 18:
+        elif 17 <= col <= 19:
             c1.fill = fill_absence
 
     sub_headers = [
         "Office Days", "Vessel Days", "Office+Vessel",
         "Annual Leave", "Sick Leave", "Personal Leave", "REST Days", "Training Days", "Total Leave Days",
-        "Sunday", "Holiday",
+        "Rest Days", "Holiday",
         "Total Hours", "Gross OT Hrs", "Gross OT Days",
-        "Absent Days", "Absent Hours"
+        "Missing Punch", "Absent Days", "Absent Hours"
     ]
     for idx, name in enumerate(sub_headers, start=3):
         cell = ws.cell(row=2, column=idx, value=name)
@@ -756,11 +911,12 @@ def summary_excel_response(summary_rows, totals, start, end):
             (r['rest_days'], align_center, font_data, None, None),
             (r['training_days'], align_center, font_data, None, None),
             (r['total_leave_days'], align_center, font_leave_tint if r['total_leave_days'] > 0 else font_data, fill_leave_tint if r['total_leave_days'] > 0 else None, None),
-            (r['sunday_days'], align_center, font_data, None, None),
+            (r['rest_days'], align_center, font_data, None, None),
             (r['holiday_days'], align_center, font_data, None, None),
             (float(r['total_hours']), align_right, font_data, None, "0.00"),
             (float(r['gross_ot_hours']), align_right, font_data, None, "0.00"),
             (float(r['gross_ot_days']), align_right, font_data, None, "0.00"),
+            (r.get('missing_punch_days', 0), align_center, font_data, None, None),
             (r['absent_days'], align_center, font_absent_tint if r['absent_days'] > 0 else font_data, fill_absent_tint if r['absent_days'] > 0 else None, None),
             (float(r['absent_hours']), align_right, font_absent_tint if r['absent_days'] > 0 else font_data, fill_absent_tint if r['absent_days'] > 0 else None, "0.00"),
         ]
@@ -794,11 +950,12 @@ def summary_excel_response(summary_rows, totals, start, end):
         (totals['rest_days'], align_center, font_total, fill_total, None),
         (totals['training_days'], align_center, font_total, fill_total, None),
         (totals['total_leave_days'], align_center, font_total, fill_leave_tint if totals['total_leave_days'] > 0 else fill_total, None),
-        (totals['sunday_days'], align_center, font_total, fill_total, None),
+        (totals['rest_days'], align_center, font_total, fill_total, None),
         (totals['holiday_days'], align_center, font_total, fill_total, None),
         (float(totals['total_hours']), align_right, font_total, fill_total, "0.00"),
         (float(totals['gross_ot_hours']), align_right, font_total, fill_total, "0.00"),
         (float(totals['gross_ot_days']), align_right, font_total, fill_total, "0.00"),
+        (totals.get('missing_punch_days', 0), align_center, font_total, fill_total, None),
         (totals['absent_days'], align_center, font_total, fill_absent_tint if totals['absent_days'] > 0 else fill_total, None),
         (float(totals['absent_hours']), align_right, font_total, fill_absent_tint if totals['absent_days'] > 0 else fill_total, "0.00"),
     ]
@@ -866,11 +1023,12 @@ def summary_csv_response(summary_rows, totals, start, end):
         "REST Days",
         "Training Days",
         "Total Leave Days",
-        "Sunday",
+        "Rest Days",
         "Holiday",
         "Total Hours",
         "Gross OT Hrs",
         "Gross OT Days",
+        "Missing Punch",
         "Absent Days",
         "Absent Hours",
     ])
@@ -888,11 +1046,12 @@ def summary_csv_response(summary_rows, totals, start, end):
             r['rest_days'],
             r['training_days'],
             r['total_leave_days'],
-            r['sunday_days'],
+            r['rest_days'],
             r['holiday_days'],
             str(r['total_hours']),
             str(r['gross_ot_hours']),
             str(r['gross_ot_days']),
+            r.get('missing_punch_days', 0),
             r['absent_days'],
             str(r['absent_hours']),
         ])
@@ -909,16 +1068,282 @@ def summary_csv_response(summary_rows, totals, start, end):
         totals['rest_days'],
         totals['training_days'],
         totals['total_leave_days'],
-        totals['sunday_days'],
+        totals['rest_days'],
         totals['holiday_days'],
         str(totals['total_hours']),
         str(totals['gross_ot_hours']),
         str(totals['gross_ot_days']),
+        totals.get('missing_punch_days', 0),
         totals['absent_days'],
         str(totals['absent_hours']),
     ])
 
     return response
+
+
+def get_status_short_code(status_code):
+    """
+    Returns short 1-3 letter badge code for monthly calendar grid cells.
+    """
+    mapping = {
+        'OFFICE': 'P',
+        'VESSEL': 'VD',
+        'OFFICE_VESSEL': 'OV',
+        'ABSENT': 'A',
+        'REST_DAY': 'RD',
+        'SUNDAY': 'RD',
+        'HOLIDAY': 'PH',
+        'ANNUAL_LEAVE': 'AL',
+        'SICK_LEAVE': 'SL',
+        'PERSONAL_LEAVE': 'PL',
+        'UNPAID_LEAVE': 'UL',
+        'MISSING_PUNCH': 'MP',
+        'TRAINING': 'TR',
+        'REST': 'RST',
+    }
+    return mapping.get(status_code, status_code[:2] if status_code else '')
+
+
+def build_monthly_calendar_matrix(month_str, search_query="", department=None, branch=None, work_type=None):
+    """
+    Builds the matrix grid of employees x days for the given month (YYYY-MM).
+    Returns (days_header, employee_rows, current_month_str).
+    """
+    today = timezone.localdate()
+    try:
+        y, m = map(int, month_str.split('-'))
+        month_start = date(y, m, 1)
+        _, num_days = monthrange(y, m)
+        month_end = date(y, m, num_days)
+    except Exception:
+        month_start = date(today.year, today.month, 1)
+        _, num_days = monthrange(today.year, today.month)
+        month_end = date(today.year, today.month, num_days)
+        month_str = today.strftime('%Y-%m')
+
+    days_header = []
+    for d in range(1, num_days + 1):
+        cur_d = date(month_start.year, month_start.month, d)
+        days_header.append({
+            'day_num': d,
+            'date': cur_d,
+            'weekday': cur_d.strftime('%a')[:2],
+            'is_future': cur_d > today,
+            'is_weekend': cur_d.weekday() in (5, 6),
+        })
+
+    all_month_rows = build_attendance_register(month_start, month_end, search=search_query, department=department, branch=branch, work_type=work_type)
+
+    emp_groups = defaultdict(dict)
+    emp_objects = {}
+    emp_names = {}
+    for r in all_month_rows:
+        emp = r['employee']
+        emp_id = emp.id
+        emp_groups[emp_id][r['date']] = r
+        if emp_id not in emp_objects:
+            emp_objects[emp_id] = emp
+            emp_names[emp_id] = r['name']
+
+    matrix_rows = []
+    for emp_id, emp in emp_objects.items():
+        name = emp_names[emp_id]
+        designation = emp.rank if (emp.rank and emp.rank != '-') else emp.get_role()
+        day_cells = []
+        p_count = 0
+        a_count = 0
+        mp_count = 0
+        leave_count = 0
+
+        for d_info in days_header:
+            cur_d = d_info['date']
+            r = emp_groups[emp_id].get(cur_d)
+            if r:
+                code = r['status_code']
+                short = get_status_short_code(code)
+                is_off_worked = r.get('is_off_day', False) and (code not in ('REST', 'REST_DAY', 'SUNDAY', 'HOLIDAY'))
+                if code in ('OFFICE', 'VESSEL', 'OFFICE_VESSEL', 'TRAINING') or is_off_worked:
+                    p_count += 1
+                elif code == 'ABSENT':
+                    a_count += 1
+                elif code == 'MISSING_PUNCH':
+                    mp_count += 1
+                elif 'LEAVE' in code:
+                    leave_count += 1
+
+                can_correct = (cur_d <= today) and (code in ('MISSING_PUNCH', 'ABSENT') or r.get('has_incomplete_punch') or r.get('auto_punched_out'))
+                cell = {
+                    'day_num': d_info['day_num'],
+                    'date': cur_d,
+                    'row': r,
+                    'status_code': code,
+                    'status_label': r['status_label'],
+                    'short_code': short,
+                    'is_off_day_worked': is_off_worked,
+                    'total_hours': r['total_hours'],
+                    'ot_hours': r['ot_hours'],
+                    'start': r['start'],
+                    'end': r['end'],
+                    'vessel_job': r['vessel_job'],
+                    'can_correct': can_correct,
+                    'is_future': d_info['is_future'],
+                }
+            else:
+                cell = {
+                    'day_num': d_info['day_num'],
+                    'date': cur_d,
+                    'row': None,
+                    'status_code': '',
+                    'status_label': '',
+                    'short_code': '',
+                    'is_off_day_worked': False,
+                    'total_hours': Decimal('0.00'),
+                    'ot_hours': Decimal('0.00'),
+                    'start': None,
+                    'end': None,
+                    'vessel_job': [],
+                    'can_correct': False,
+                    'is_future': d_info['is_future'],
+                }
+            day_cells.append(cell)
+
+        matrix_rows.append({
+            'employee': emp,
+            'name': name,
+            'designation': designation,
+            'cells': day_cells,
+            'p_count': p_count,
+            'a_count': a_count,
+            'mp_count': mp_count,
+            'leave_count': leave_count,
+        })
+
+    matrix_rows.sort(key=lambda x: x['name'].lower())
+    return days_header, matrix_rows, month_str
+
+
+def employee_attendance_month_view_helper(request, employee_id, month_str, role='admin'):
+    """
+    Renders per-employee month view, WeasyPrint PDF, or openpyxl Excel export.
+    """
+    from django.shortcuts import get_object_or_404, render
+    employee = get_object_or_404(Employee, id=employee_id)
+    today = timezone.localdate()
+    try:
+        y, m = map(int, month_str.split('-'))
+        month_start = date(y, m, 1)
+        _, num_days = monthrange(y, m)
+        month_end = date(y, m, num_days)
+    except Exception:
+        month_start = date(today.year, today.month, 1)
+        _, num_days = monthrange(today.year, today.month)
+        month_end = date(today.year, today.month, num_days)
+        month_str = today.strftime('%Y-%m')
+
+    all_rows = build_attendance_register(month_start, month_end)
+    emp_rows = [r for r in all_rows if r['employee'].id == employee.id]
+    emp_rows.sort(key=lambda r: r['date'])
+
+    summary_rows, _ = build_attendance_summary(emp_rows)
+    emp_summary = summary_rows[0] if summary_rows else {
+        'scheduled_working_days': 0, 'present_days': 0, 'attendance_pct': 0.0,
+        'office_days': 0, 'vessel_days': 0, 'office_vessel_days': 0,
+        'annual_leave_days': 0, 'sick_leave_days': 0, 'personal_leave_days': 0,
+        'rest_days': 0, 'missing_punch_days': 0, 'training_days': 0,
+        'total_leave_days': 0, 'holiday_days': 0, 'total_hours': Decimal('0.00'),
+        'gross_ot_hours': Decimal('0.00'), 'gross_ot_days': Decimal('0.00'),
+        'absent_days': 0, 'absent_hours': Decimal('0.00'), 'off_day_worked': 0
+    }
+
+    month_label = month_start.strftime('%B %Y')
+    generated_at = timezone.now()
+    base_template = 'Admin/adminbase.html' if role == 'admin' else 'hr/hrbase.html'
+
+    export_format = request.GET.get('format')
+    if export_format == 'pdf':
+        from weasyprint import HTML
+        from django.template.loader import render_to_string
+        html_str = render_to_string('attendance/employee_attendance_pdf.html', {
+            'employee': employee,
+            'month_str': month_str,
+            'month_label': month_label,
+            'start_date': month_start,
+            'end_date': month_end,
+            'rows': emp_rows,
+            'summary': emp_summary,
+            'generated_at': generated_at,
+        })
+        base_url = request.build_absolute_uri('/')
+        pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+        emp_code = employee.employee_code or f"AMMS-{employee.id:04d}"
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="attendance_{emp_code}_{month_str}.pdf"'
+        return response
+
+    elif export_format == 'excel':
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = f"Attendance {month_str}"
+        ws["A1"] = f"Attendance Report - {employee.user.get_full_name() or employee.user.username} ({employee.employee_code or ''})"
+        ws["A1"].font = Font(size=14, bold=True)
+        ws["A2"] = f"Period: {month_label} | Designation: {employee.rank or ''} | Dept: {employee.department.name if employee.department else ''}"
+        ws["A2"].font = Font(size=10, italic=True)
+
+        ws["A4"] = "Scheduled Days"
+        ws["B4"] = emp_summary['scheduled_working_days']
+        ws["C4"] = "Present Days"
+        ws["D4"] = emp_summary['present_days']
+        ws["E4"] = "Attendance %"
+        ws["F4"] = f"{emp_summary['attendance_pct']}%"
+        ws["G4"] = "Total Hours"
+        ws["H4"] = float(emp_summary['total_hours'])
+        ws["I4"] = "OT Hours"
+        ws["J4"] = float(emp_summary['gross_ot_hours'])
+
+        headers = ["Date", "Day", "Status", "Location", "Punch In", "Punch Out", "Total Hours", "OT Hours", "Vessel / Job", "Service Ref", "Remarks"]
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=6, column=col_idx, value=h)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill(start_color="1F3A52", end_color="1F3A52", fill_type="solid")
+            cell.alignment = Alignment(horizontal="center")
+
+        for row_idx, r in enumerate(emp_rows, 7):
+            ws.cell(row=row_idx, column=1, value=r['date'].strftime('%d/%m/%Y'))
+            ws.cell(row=row_idx, column=2, value=r['date'].strftime('%a'))
+            ws.cell(row=row_idx, column=3, value=r['status_label'])
+            ws.cell(row=row_idx, column=4, value=r['location_label'])
+            ws.cell(row=row_idx, column=5, value=r['start'].strftime('%H:%M') if r['start'] else '-')
+            ws.cell(row=row_idx, column=6, value=r['end'].strftime('%H:%M') if r['end'] else '-')
+            ws.cell(row=row_idx, column=7, value=float(r['total_hours']))
+            ws.cell(row=row_idx, column=8, value=float(r['ot_hours']))
+            ws.cell(row=row_idx, column=9, value=", ".join(r['vessel_job']) if r['vessel_job'] else '-')
+            ws.cell(row=row_idx, column=10, value=", ".join(r['service_ref']) if r['service_ref'] else '-')
+            ws.cell(row=row_idx, column=11, value=r.get('off_day_label', ''))
+
+        for col in ws.columns:
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(len(str(cell.value or '')) for cell in col) + 4
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        emp_code = employee.employee_code or f"AMMS-{employee.id:04d}"
+        response = HttpResponse(output.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = f'attachment; filename="attendance_{emp_code}_{month_str}.xlsx"'
+        return response
+
+    return render(request, 'attendance/employee_attendance_month.html', {
+        'employee': employee,
+        'month_str': month_str,
+        'month_label': month_label,
+        'start_date': month_start,
+        'end_date': month_end,
+        'rows': emp_rows,
+        'summary': emp_summary,
+        'generated_at': generated_at,
+        'role': role,
+        'base_template': base_template,
+    })
 
 
 def _register_context(request):
@@ -954,9 +1379,20 @@ def _register_context(request):
 
     search_query = request.GET.get('search', '').strip()
     status_filter = request.GET.get('status', '').strip()
+    department_filter = request.GET.get('department', '').strip()
+    branch_filter = request.GET.get('branch', '').strip()
+    work_type_filter = request.GET.get('work_type', '').strip()
 
     # Build all rows for this date and search range to compute accurate summary counts
-    all_rows = build_attendance_register(start_date, end_date, search=search_query, status_filter="")
+    all_rows = build_attendance_register(
+        start_date,
+        end_date,
+        search=search_query,
+        status_filter="",
+        department=department_filter,
+        branch=branch_filter,
+        work_type=work_type_filter
+    )
 
     summary_counts = {
         'office': sum(1 for r in all_rows if r['status_label'] == 'Office'),
@@ -965,7 +1401,8 @@ def _register_context(request):
         'absent': sum(1 for r in all_rows if r['status_label'] == 'Absent'),
         'leave': sum(1 for r in all_rows if r['status_label'] in ('Annual Leave', 'Sick Leave', 'Personal Leave')),
         'training': sum(1 for r in all_rows if r['status_label'] == 'Training'),
-        'rest': sum(1 for r in all_rows if r['status_label'] == 'REST'),
+        'rest': sum(1 for r in all_rows if r['status_label'] in ('REST', 'Rest Day', 'Sunday')),
+        'missing_punch': sum(1 for r in all_rows if r['status_label'] == 'Missing Punch'),
     }
 
     summary_rows_all, summary_totals = build_attendance_summary(all_rows)
@@ -980,8 +1417,11 @@ def _register_context(request):
         summary_page_obj = None
 
     if status_filter:
-        flt = status_filter.strip().lower()
-        display_rows = [r for r in all_rows if r['status_label'].lower() == flt or r['status_code'].lower() == flt]
+        flts = {f.strip().lower() for f in status_filter.split(',') if f.strip()}
+        display_rows = [
+            r for r in all_rows
+            if r['status_label'].lower() in flts or r['status_code'].lower() in flts
+        ]
     else:
         display_rows = all_rows
 
@@ -994,6 +1434,23 @@ def _register_context(request):
         del query_params['page']
     querystring_without_page = query_params.urlencode()
 
+    tab = request.GET.get('tab', 'daily')
+    calendar_month = request.GET.get('calendar_month', start_date.strftime('%Y-%m'))
+    if tab in ('monthly', 'calendar'):
+        cal_days_header, cal_matrix_rows, cal_month_str = build_monthly_calendar_matrix(
+            calendar_month,
+            search_query=search_query,
+            department=department_filter,
+            branch=branch_filter,
+            work_type=work_type_filter
+        )
+    else:
+        cal_days_header, cal_matrix_rows, cal_month_str = [], [], calendar_month
+
+    from Admin.models import Department, Branch, WORK_TYPE_CHOICES
+    departments = Department.objects.filter(is_active=True).order_by('sort_order', 'name')
+    branches = Branch.objects.filter(is_active=True).order_by('sort_order', 'name')
+
     return {
         'rows': page_obj,
         'page_obj': page_obj,
@@ -1001,6 +1458,12 @@ def _register_context(request):
         'end': end_date.strftime('%Y-%m-%d'),
         'search_query': search_query,
         'status_filter': status_filter,
+        'department_filter': department_filter,
+        'branch_filter': branch_filter,
+        'work_type_filter': work_type_filter,
+        'departments': departments,
+        'branches': branches,
+        'work_type_choices': WORK_TYPE_CHOICES,
         'status_options': STATUS_OPTIONS,
         'summary_counts': summary_counts,
         'summary_rows': summary_rows,
@@ -1009,6 +1472,10 @@ def _register_context(request):
         'summary_page_obj': summary_page_obj,
         'summary_range_label': f"{start_date.strftime('%d %b %Y')} – {end_date.strftime('%d %b %Y')}",
         'querystring_without_page': querystring_without_page,
+        'active_tab': tab,
+        'calendar_month': cal_month_str,
+        'calendar_days_header': cal_days_header,
+        'calendar_matrix_rows': cal_matrix_rows,
     }
 
 

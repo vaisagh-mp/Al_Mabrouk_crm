@@ -3,52 +3,16 @@
 {% block content %}
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
 
-<div class="pg-title">
-    <h1>Employee Analytics</h1>
+<div class="pg-title d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h1 class="mb-0">Employee Analytics</h1>
+    <a href="?date={{ start_date|date:'Y-m-d' }} to {{ end_date|date:'Y-m-d' }}&department={{ selected_department }}&branch={{ selected_branch }}&work_type={{ work_type }}&export=excel" class="btn btn-sm btn-success">
+        <i class="fas fa-file-excel me-1"></i> Export Excel
+    </a>
 </div>
 
-<!-- ================= DATE & WORK TYPE FILTER ================= -->
-<div class="analytics-filter-card">
-    <form method="get" class="analytics-filter-form">
-        <input type="hidden" name="tab" value="{{ tab }}">
-        {% if trend %}<input type="hidden" name="trend" value="{{ trend }}">{% endif %}
-        {% if vv_date %}<input type="hidden" name="vv_date" value="{{ vv_date }}">{% endif %}
-
-        <div class="analytics-filter-field">
-            <span class="filter-field-label"><i class="far fa-calendar-alt"></i> Date:</span>
-            <div class="date-input-wrap">
-                <input
-                    type="text"
-                    id="datePicker"
-                    name="date"
-                    class="analytics-date-input"
-                    placeholder="Select date / range"
-                    value="{{ start_date|date:'Y-m-d' }}{% if end_date and start_date != end_date %} to {{ end_date|date:'Y-m-d' }}{% endif %}"
-                >
-            </div>
-        </div>
-
-        <div class="analytics-filter-field">
-            <span class="filter-field-label"><i class="fas fa-briefcase"></i> Work Type:</span>
-            <div class="select-box">
-                <select name="work_type" id="workTypeFilter">
-                    <option value="All" {% if not work_type or work_type == "All" %}selected{% endif %}>All Work Types</option>
-                    <option value="Vessel" {% if work_type == "Vessel" %}selected{% endif %}>Vessel</option>
-                    <option value="Office" {% if work_type == "Office" %}selected{% endif %}>Office</option>
-                    <option value="Mixed" {% if work_type == "Mixed" %}selected{% endif %}>Mixed</option>
-                </select>
-                <span class="select-arrow">▾</span>
-            </div>
-        </div>
-
-        <div class="analytics-filter-buttons">
-            <button type="submit" class="prmry-btn filter-btn">Filter</button>
-            {% if request.GET.date or work_type %}
-            <a href="?{% if trend %}trend={{ trend }}&{% endif %}{% if vv_date %}vv_date={{ vv_date }}&{% endif %}tab={{ tab }}" class="pg-btn reset-btn" title="Reset filters">Reset</a>
-            {% endif %}
-        </div>
-    </form>
-</div>
+<!-- ================= DATE, DEPT, BRANCH & WORK TYPE FILTER ================= -->
+{% url 'analytics_employee' as emp_analytics_url %}
+{% include 'includes/filter_bar.html' with show_analytics_date=True show_department=True show_branch=True show_work_type=True reset_url=request.path %}
 
 <!-- ================= TABS ================= -->
 <div class="att-an-tabs-bar">
@@ -205,7 +169,7 @@
         <h4>Employee Performance Summary</h4>
     </div>
 
-    <div class="table-wdgt">
+    <div class="table-wdgt table-responsive">
         <table class="widget-box-table">
             <thead>
                 <tr>
@@ -216,7 +180,10 @@
                     <th>Vessel Hrs</th>
                     <th>Total Hours</th>
                     <th>OT Hours</th>
+                    <th>Approved OT</th>
                     <th>Days Worked</th>
+                    <th>Rest Days</th>
+                    <th>Missing Punch</th>
                     <th>Absent</th>
                     <th>Leave</th>
                     <th>Attendance %</th>
@@ -262,7 +229,10 @@
                     <td>{{ emp.vessel_hours|format_hours_minutes }}</td>
                     <td>{{ emp.total_hours|format_hours_minutes }}</td>
                     <td>{{ emp.ot_hours|format_hours_minutes }}</td>
+                    <td>{{ emp.approved_ot_hours|format_hours_minutes }}</td>
                     <td>{{ emp.days_worked }}</td>
+                    <td>{{ emp.days_rest }}</td>
+                    <td>{{ emp.days_missing_punch }}</td>
                     <td>{{ emp.days_absent }}</td>
                     <td>{{ emp.days_leave }}</td>
                     <td>{{ emp.attendance_rate|floatformat:1 }}%</td>
@@ -294,7 +264,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="17" align="center">No employee data available</td>
+                    <td colspan="20" align="center">No employee data available</td>
                 </tr>
                 {% endfor %}
 
@@ -1554,6 +1524,12 @@ if (costCtx) {
                         label: "REST",
                         data: mixData.rest,
                         backgroundColor: "#838282",
+                        stack: "mix"
+                    },
+                    {
+                        label: "Missing Punch",
+                        data: mixData.missing_punch || [],
+                        backgroundColor: "#f97316",
                         stack: "mix"
                     },
                     {
