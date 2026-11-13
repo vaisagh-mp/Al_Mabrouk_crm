@@ -707,6 +707,9 @@ class HRPhase4LeaveEngineTests(TestCase):
         out_stream.seek(0)
         uploaded = SimpleUploadedFile("opening.xlsx", out_stream.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+        # Only one opening balance per employee/leave type is allowed: clear the one seeded in setUp
+        LeaveLedger.objects.filter(employee=self.staff_emp, leave_type=self.annual_type, entry_type='OPENING').delete()
+
         # Preview (dry-run)
         preview_res = process_opening_balances_excel(uploaded, user=self.admin_user, dry_run=True)
         self.assertEqual(preview_res['total_count'], 2)
@@ -1210,3 +1213,87 @@ class HRPhase4LeaveEngineTests(TestCase):
             for url in role_info['forbidden']:
                 resp = self.client.get(url)
                 self.assertEqual(resp.status_code, 403, f"Role {role_info['name']} expected 403 for {url}: got {resp.status_code}")
+
+
+class OpeningBalanceImportViewTests(TestCase):
+    """Upload -> preview -> Confirm through the real page saves the ledger rows (the Confirm form has no file)."""
+
+    def _xlsx(self, rows):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Employee Code", "Employee Name", "Leave Type", "Effective Date (YYYY-MM-DD)", "Days", "Note"])
+        for r in rows:
+            ws.append(r)
+        buf = io.BytesIO()
+        wb.save(buf)
+        return SimpleUploadedFile("opening.xlsx", buf.getvalue(),
+                                  content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def setUp(self):
+        self.hr_user = User.objects.create_user('hr_ob', 'hr_ob@x.com', 'pw')
+        Employee.objects.create(user=self.hr_user, is_hr=True, salary=Decimal('1000'),
+                                date_of_join=datetime.date(2025, 1, 1), employee_code='AMMS-9001')
+        self.emp = Employee.objects.create(user=User.objects.create_user('eng_ob', 'e_ob@x.com', 'pw'),
+                                           is_employee=True, salary=Decimal('1000'),
+                                           date_of_join=datetime.date(2025, 1, 1), employee_code='AMMS-9002')
+        self.client.force_login(self.hr_user)
+        self.url = reverse('hr_import_opening_balances')
+
+    def test_preview_then_confirm_saves(self):
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, "Opening"]])})
+        self.assertEqual(res.status_code, 200)
+        token = res.context['upload_token']
+        self.assertTrue(token)
+        self.assertFalse(LeaveLedger.objects.filter(employee=self.emp, entry_type='OPENING').exists())
+        # Confirm button posts only confirm + token (no file)
+        res = self.client.post(self.url, {'confirm': '1', 'upload_token': token})
+        self.assertRedirects(res, self.url)
+        entry = LeaveLedger.objects.get(employee=self.emp, entry_type='OPENING')
+        self.assertEqual(entry.days, Decimal('12'))
+        # token is single use
+        res = self.client.post(self.url, {'confirm': '1', 'upload_token': token})
+        self.assertEqual(LeaveLedger.objects.filter(employee=self.emp, entry_type='OPENING').count(), 1)
+
+    def test_second_import_and_duplicate_rows_are_blocked(self):
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""],
+                                                              ["AMMS-9002", "x", "ANNUAL", "2026-11-13", 3, ""]])})
+        self.assertTrue(res.context['preview']['has_errors'])
+        self.assertEqual(res.context['upload_token'], '')
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""]])})
+        self.client.post(self.url, {'confirm': '1', 'upload_token': res.context['upload_token']})
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""]])})
+        self.assertTrue(res.context['preview']['has_errors'])
+        self.assertIn('already has an opening balance', str(res.context['preview']['rows'][0]['errors']))
+        self.assertEqual(LeaveLedger.objects.filter(employee=self.emp, entry_type='OPENING').count(), 1)
+
+
+@override_settings(HR_LEAVE_V2=True)
+class LeaveClarificationRoundTripTests(TestCase):
+    """HR asks a question, the employee answers: both pages show the Q&A and the queue marks it."""
+
+    def test_round_trip(self):
+        from Admin.leave_service import request_leave_clarification, respond_leave_clarification
+        hr_user = User.objects.create_user('hr_cl', 'hr_cl@x.com', 'pw')
+        Employee.objects.create(user=hr_user, is_hr=True, salary=Decimal('1000'), date_of_join=datetime.date(2025, 1, 1))
+        emp_user = User.objects.create_user('eng_cl', 'e_cl@x.com', 'pw', first_name='James', last_name='Joe')
+        emp = Employee.objects.create(user=emp_user, is_employee=True, salary=Decimal('1000'),
+                                      date_of_join=datetime.date(2025, 1, 1))
+        annual = LeaveType.objects.get(code='ANNUAL')
+        leave = Leave.objects.create(user=emp_user, employee=emp, leave_type='ANNUAL LEAVE', leave_type_ref=annual,
+                                     from_date=datetime.date(2026, 12, 2), to_date=datetime.date(2026, 12, 2),
+                                     days=Decimal('1.00'), reason='test', approval_status='PENDING')
+        request_leave_clarification(leave, hr_user, 'Why this day?')
+        respond_leave_clarification(Leave.objects.get(pk=leave.pk), emp_user, 'Bank Visit')
+
+        self.client.force_login(hr_user)
+        res = self.client.get(reverse('hr_employee_manage_leave') + '?status=PENDING')
+        self.assertContains(res, 'Why this day?')
+        self.assertContains(res, 'Bank Visit')
+        self.assertContains(res, 'Response received')
+        self.assertContains(res, 'data-bs-dismiss="modal"')
+        html = res.content.decode()
+        self.assertEqual(html.count(' data-dismiss="modal"'), html.count('data-bs-dismiss="modal" data-dismiss="modal"'))
+
+        self.client.force_login(emp_user)
+        res = self.client.get(reverse('my_leave'))
+        self.assertContains(res, 'Bank Visit')

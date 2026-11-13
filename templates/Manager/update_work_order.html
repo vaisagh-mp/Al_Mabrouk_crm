@@ -33,7 +33,7 @@
 
     <div class="alert alert-info py-2 mb-3" style="font-size: 14px;">
       <i class="fas fa-info-circle me-1"></i>
-      Header fields (Vessel, Client, IMO, Location, Assigned Date, Scope, Instructions, Description) are read-only here.
+      Vessel, Client, IMO, Location and Assigned Date are read-only here.
       {% if work_order.project %}
         <a href="{% url 'manager-edit-project' work_order.project.id %}" class="fw-bold text-decoration-underline" style="color: inherit;">Edit these on the project</a>.
       {% else %}
@@ -211,7 +211,7 @@
 
     <div>
       <label>Project Description</label>
-      <textarea class="form-control" rows="3" readonly style="background-color: #f8f9fa;">{{ work_order.project_description|default:'' }}</textarea>
+      <textarea class="form-control" name="project_description" rows="4">{{ work_order.project_description|default:'' }}</textarea>
     </div>
 
     <div>

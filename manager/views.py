@@ -1810,10 +1810,20 @@ def manager_update_work_order_view(request, pk):
                     work_order.imo_no = saved_imo_no
                     work_order.location = saved_location
                     work_order.assigned_date = saved_assigned_date
-                    work_order.project_description = saved_project_description
 
                     scope_changed = False
                     instruction_changed = False
+                    description_changed = False
+
+                    # Project Description is editable here; it is stored on the project
+                    # (single source), so save it there too or the next project save overwrites it.
+                    if 'project_description' in request.POST:
+                        new_description = request.POST.get('project_description', '').strip()
+                        if (saved_project_description or '').strip() != new_description:
+                            description_changed = True
+                        work_order.project_description = new_description
+                    else:
+                        work_order.project_description = saved_project_description
 
                     if 'job_scope' in request.POST:
                         new_job_scope = request.POST.get('job_scope', '').strip()
@@ -1833,9 +1843,23 @@ def manager_update_work_order_view(request, pk):
 
                     work_order.save()
 
+                    if work_order.project and description_changed:
+                        Project.objects.filter(pk=work_order.project_id).update(
+                            job_description=work_order.project_description
+                        )
+
                     if work_order.project:
                         changed_by = getattr(request.user, 'employee_profile', None)
                         changed_by_name = request.user.username
+                        if description_changed:
+                            ActivityLog.objects.create(
+                                project=work_order.project,
+                                previous_status="Work Order",
+                                new_status="Project Description Updated",
+                                notes=f"Project Description updated on work order by {request.user.username}",
+                                changed_by=changed_by,
+                                changed_by_name=changed_by_name,
+                            )
                         if scope_changed:
                             ActivityLog.objects.create(
                                 project=work_order.project,

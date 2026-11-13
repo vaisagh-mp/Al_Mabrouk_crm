@@ -506,6 +506,30 @@ class WorkOrderJobScopeAndInstructionsTestCase(TestCase):
         self.assertEqual(self.work_order.vessel, 'MV Scope Vessel')
         self.assertEqual(self.work_order.client, 'Scope Client LLC')
 
+    def test_admin_and_manager_edit_project_description_saved_on_work_order_and_project(self):
+        """Project Description edited on the work order is saved on both the work order and the project."""
+        self.project.job_description = 'Initial Project Description'
+        self.project.save()
+        for client, url_name, text in (
+            (self.admin_client, 'admin-update-work-order', 'Admin edited description'),
+            (self.mgr_client, 'manager-update-work-order', 'Manager edited description'),
+        ):
+            resp = client.post(reverse(url_name, args=[self.work_order.id]), {'project_description': text})
+            self.assertEqual(resp.status_code, 302)
+            self.work_order.refresh_from_db()
+            self.project.refresh_from_db()
+            self.assertEqual(self.work_order.project_description, text)
+            self.assertEqual(self.project.job_description, text)
+            self.assertTrue(ActivityLog.objects.filter(project=self.project, new_status='Project Description Updated').exists())
+        # The update page shows it in an editable box
+        resp = self.admin_client.get(reverse('admin-update-work-order', args=[self.work_order.id]))
+        self.assertContains(resp, 'name="project_description"')
+        self.assertContains(resp, 'Manager edited description')
+        # A post without the field leaves it alone
+        self.mgr_client.post(reverse('manager-update-work-order', args=[self.work_order.id]), {})
+        self.work_order.refresh_from_db()
+        self.assertEqual(self.work_order.project_description, 'Manager edited description')
+
     def test_post_without_fields_existing_values_unchanged(self):
         """POST without job_scope / job_instructions keys does not blank them out."""
         # Admin POST without job_scope / job_instructions

@@ -54,7 +54,7 @@
             <form method="POST" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="confirm" value="1">
-                <!-- Re-send file with confirmation -->
+                <input type="hidden" name="upload_token" value="{{ upload_token }}">
                 <button type="submit" class="btn btn-success" style="font-weight: 700; padding: 8px 24px;">
                     <i class="fa fa-check"></i> Confirm & Commit to Ledger
                 </button>

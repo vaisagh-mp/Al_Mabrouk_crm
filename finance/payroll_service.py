@@ -220,7 +220,7 @@ def create_or_update_payslip(payroll: Payroll, generated_by=None, bump_version=F
         payslip.generated_by = generated_by
 
     context = {
-        'company_name': 'Al Mabrouk Marine Services LLC',
+        'company_name': 'Blessed Marine Services',
         'payslip': payslip,
         'payroll': payroll,
         'employee': emp,

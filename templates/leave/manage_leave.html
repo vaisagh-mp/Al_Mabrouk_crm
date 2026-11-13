@@ -105,7 +105,9 @@
                             {% if l.days %}{{ l.days }}{% else %}{{ l.no_of_days|default:"1" }}{% endif %}
                         </td>
                         <td>
-                            {% if l.approval_status == 'PENDING' %}
+                            {% if l.approval_status == 'PENDING' and l.clarification_response %}
+                                <span class="badge" style="background: #D1FAE5; color: #047857; font-weight: 600; padding: 4px 8px; border-radius: 4px;">Response received</span>
+                            {% elif l.approval_status == 'PENDING' %}
                                 <span class="badge badge-warning" style="background: #FFF3CD; color: #856404; font-weight: 600; padding: 4px 8px; border-radius: 4px;">Pending Decision</span>
                             {% elif l.approval_status == 'CLARIFICATION' %}
                                 <span class="badge badge-info" style="background: #D1ECF1; color: #0C5460; font-weight: 600; padding: 4px 8px; border-radius: 4px;">Clarification Needed</span>
@@ -133,7 +135,7 @@
                             </button>
                         </td>
                     </tr>
-                    {% if l.approval_status == 'CLARIFICATION' %}
+                    {% if l.clarification_request %}
                     <tr style="background: #F0F9FF;">
                         <td colspan="9" style="padding: 8px 15px; font-size: 12px; color: #0369A1; border-top: none;">
                             <strong><i class="fa fa-question-circle"></i> Pending Question:</strong> {{ l.clarification_request }}
@@ -184,7 +186,7 @@
             <input type="hidden" name="leave_id" id="approveLeaveId">
             <div class="modal-header" style="background: #10B981; color: #ffffff;">
                 <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Approve Leave Request</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -196,7 +198,7 @@
                 </div>
             </div>
             <div class="modal-footer" style="padding: 12px 20px;">
-                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" data-dismiss="modal">Close</button>
                 <button type="submit" class="btn btn-success btn-sm">Confirm Approval</button>
             </div>
         </form>
@@ -212,7 +214,7 @@
             <input type="hidden" name="leave_id" id="rejectLeaveId">
             <div class="modal-header" style="background: #EF4444; color: #ffffff;">
                 <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Reject Leave Request</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -224,7 +226,7 @@
                 </div>
             </div>
             <div class="modal-footer" style="padding: 12px 20px;">
-                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" data-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
             </div>
         </form>
@@ -240,7 +242,7 @@
             <input type="hidden" name="leave_id" id="clarifyLeaveId">
             <div class="modal-header" style="background: #0284C7; color: #ffffff;">
                 <h5 class="modal-title" style="font-size: 15px; font-weight: 700; color: #ffffff;">Request Clarification</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
+                <button type="button" class="close" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="color: #ffffff;">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -252,7 +254,7 @@
                 </div>
             </div>
             <div class="modal-footer" style="padding: 12px 20px;">
-                <button type="button" class="btn btn-light btn-sm" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal" data-dismiss="modal">Cancel</button>
                 <button type="submit" class="btn btn-info btn-sm">Send Request</button>
             </div>
         </form>

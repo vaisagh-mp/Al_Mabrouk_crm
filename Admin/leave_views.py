@@ -524,20 +524,37 @@ def render_import_opening_balances(request, base_template):
         resp['Content-Disposition'] = 'attachment; filename="opening_leave_balances_template.xlsx"'
         return resp
 
+    import base64
+    import uuid
+
     preview = None
+    upload_token = ''
+    redirect_name = 'hr_import_opening_balances' if 'hr' in base_template else 'admin_import_opening_balances'
     if request.method == 'POST':
+        is_confirm = request.POST.get('confirm') == '1'
         excel_file = request.FILES.get('file')
+        if is_confirm and not excel_file:
+            # The preview step kept the uploaded file in the session; commit exactly that file.
+            token = request.POST.get('upload_token', '')
+            stored = request.session.pop(f'ob_upload_{token}', None) if token else None
+            if stored:
+                excel_file = io.BytesIO(base64.b64decode(stored))
+            else:
+                messages.error(request, "The preview has expired. Please upload the file again.")
+                return redirect(redirect_name)
         if not excel_file:
             messages.error(request, "Please select an Excel file (.xlsx) to upload.")
         else:
-            is_confirm = request.POST.get('confirm') == '1'
             try:
-                res = process_opening_balances_excel(excel_file, user=request.user, dry_run=(not is_confirm))
                 if is_confirm:
+                    res = process_opening_balances_excel(excel_file, user=request.user, dry_run=False)
                     messages.success(request, f"Successfully imported {res['valid_count']} opening balance record(s).")
-                    return redirect('hr_import_opening_balances' if 'hr' in base_template else 'admin_import_opening_balances')
-                else:
-                    preview = res
+                    return redirect(redirect_name)
+                raw = excel_file.read()
+                preview = process_opening_balances_excel(io.BytesIO(raw), user=request.user, dry_run=True)
+                if not preview['has_errors'] and preview['valid_count'] > 0:
+                    upload_token = uuid.uuid4().hex
+                    request.session[f'ob_upload_{upload_token}'] = base64.b64encode(raw).decode('ascii')
             except Exception as e:
                 messages.error(request, f"Error processing file: {str(e)}")
 
@@ -545,6 +562,7 @@ def render_import_opening_balances(request, base_template):
         'role': 'HR' if 'hr' in base_template else 'Admin',
         'base_template': base_template,
         'preview': preview,
+        'upload_token': upload_token,
     }
     return render(request, 'leave/import_opening_balances.html', context)
 

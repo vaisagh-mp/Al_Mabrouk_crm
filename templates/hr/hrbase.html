@@ -94,7 +94,7 @@
             <div class="sidebar-content">
               <div class="sidebar-brand">
                 <a href="{% url 'hr-dashboard' %}"><img src="{% static 'assets/images/almabrouk-logo.png' %}"
-                  alt="Almabrouk Marine Logo" /></a>
+                  alt="Blessed Marine Services logo" /></a>
                 <div id="close-sidebar">
                   <i class="fas fa-times"></i>
                 </div>
@@ -197,6 +197,15 @@
                         </li>
                         <li>
                           <a href="{% url 'hr_employee_manage_leave' %}">Manage Leave</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_leave_statement' %}">Leave Statement</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_import_opening_balances' %}">Import Opening Balances</a>
+                        </li>
+                        <li>
+                          <a href="{% url 'hr_leave_year_reviews' %}">Year-End Reviews</a>
                         </li>
                       </ul>
                     </div>

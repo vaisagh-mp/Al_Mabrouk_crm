@@ -1029,6 +1029,7 @@ def process_opening_balances_excel(file_obj, user=None, dry_run=True):
     error_count = 0
 
     annual_type = LeaveType.objects.filter(code='ANNUAL').first()
+    seen_in_file = {}
 
     for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if not row or not any(row):
@@ -1095,7 +1096,21 @@ def process_opening_balances_excel(file_obj, user=None, dry_run=True):
             except (ValueError, TypeError, ArithmeticError):
                 row_errors.append(f"Invalid days value '{days_val}'.")
 
-        # 5. Payroll lock check
+        # 5. Only one opening balance per employee and leave type (a re-upload would double it)
+        if emp and lt:
+            existing = LeaveLedger.objects.filter(employee=emp, leave_type=lt, entry_type='OPENING').first()
+            if existing:
+                row_errors.append(
+                    f"{emp.name} already has an opening balance for {lt.name} "
+                    f"({existing.days} days on {existing.date:%d/%m/%Y}). Use a leave adjustment to change it."
+                )
+            key = (emp.pk, lt.pk)
+            if key in seen_in_file:
+                row_errors.append(f"Duplicate row: {emp.name} / {lt.name} is already on row {seen_in_file[key]} of this file.")
+            else:
+                seen_in_file[key] = idx
+
+        # 6. Payroll lock check
         if emp and parsed_date:
             try:
                 check_payroll_lock_for_employee(emp, parsed_date, is_open_ended=False)

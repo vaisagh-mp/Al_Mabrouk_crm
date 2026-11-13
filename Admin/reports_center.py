@@ -802,7 +802,7 @@ def build_report_data(report_key, filters, user, role_key):
                     continue
                 rows.append([
                     'Company',
-                    'Al Mabrouk Marine Services',
+                    'Blessed Marine Services',
                     '-',
                     doc.doc_type.name if doc.doc_type else '-',
                     doc.title or doc.document_number or '-',
@@ -902,7 +902,7 @@ def export_report_excel(report_data, user):
     now_dt = timezone.localtime().strftime('%d/%m/%Y %H:%M')
     user_label = user.get_full_name() or user.username
 
-    ws[f'{text_col}1'] = f"Al Mabrouk Marine Services LLC — {report_data['title']}"
+    ws[f'{text_col}1'] = f"Blessed Marine Services — {report_data['title']}"
     ws[f'{text_col}1'].font = Font(size=13, bold=True, color='1F3A52')
     ws[f'{text_col}2'] = f"Period: {report_data['period_label']} | Filters: {report_data['filters_label']}"
     ws[f'{text_col}2'].font = Font(size=9, italic=True, color='334155')
