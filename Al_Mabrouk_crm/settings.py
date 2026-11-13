@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 import os
 from pathlib import Path
+from datetime import date
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -176,17 +177,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 FINANCE_MULTI_CURRENCY = True
 
 # HR Module Upgrade - Phase 2 Feature Switches
-HR_ATTENDANCE_ENGINE_V2 = False
-HR_BASIC_SALARY_FROM = None
+HR_ATTENDANCE_ENGINE_V2 = True
+HR_BASIC_SALARY_FROM = date(2026, 11, 13)
 
 # HR Module Upgrade - Phase 4 Feature Switch
-HR_LEAVE_V2 = False
+HR_LEAVE_V2 = True
 
 # HR Module Upgrade - Phase 5 Feature Switches
-HR_TIMESHEET_APPROVAL = False
-HR_TIMESHEET_APPROVAL_FROM = None
+HR_TIMESHEET_APPROVAL = True
+HR_TIMESHEET_APPROVAL_FROM = date(2026, 11, 13)
 HR_TRAVEL_COUNTS_AS_WORK = True
 
 # HR Module Upgrade - Phase 7 Feature Switch
-HR_PAYROLL_V2 = False
+HR_PAYROLL_V2 = True
 
