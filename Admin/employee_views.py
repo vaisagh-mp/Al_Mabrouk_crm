@@ -375,48 +375,67 @@ def render_employee_profile(request, employee_id, role, base_template):
                     'badge_class': 'badge-secondary',
                 })
 
+        def _user_label(u):
+            return (u.get_full_name() or u.username) if u else ''
+
         # 2. Attendance corrections
         if history_filter in ('all', 'attendance'):
             corrections = AttendanceCorrection.objects.filter(employee=employee).select_related('decided_by', 'submitted_by')
             for c in corrections:
+                desc = f"{c.date:%d/%m/%Y} - {c.get_correction_type_display()}: {c.reason}"
+                if c.remarks:
+                    desc += f" ({c.remarks})"
                 timeline_items.append({
                     'type': 'attendance',
                     'timestamp': c.decided_at or c.created_at,
                     'title': f"Attendance Correction: {c.get_status_display()}",
-                    'description': f"{c.correction_date}: {c.reason} ({c.notes or 'No notes'})",
-                    'by': c.decided_by.get_full_name() if c.decided_by else 'Pending decision',
+                    'description': desc,
+                    'by': _user_label(c.decided_by) or 'Pending decision',
                     'badge_class': 'badge-info' if c.status == 'PENDING' else ('badge-success' if c.status == 'APPROVED' else 'badge-danger'),
                 })
 
         # 3. Leave applications
         if history_filter in ('all', 'leave'):
-            leaves = Leave.objects.filter(user=employee.user).select_related('approver')
+            leaves = Leave.objects.filter(user=employee.user).select_related('approver__user', 'decided_by')
             for l in leaves:
+                days = l.days if l.days is not None else l.no_of_days
+                days_str = f"{float(days):g}" if days is not None else '-'
+                if l.decided_by:
+                    by = _user_label(l.decided_by)
+                elif l.approver:
+                    by = l.approver.name
+                else:
+                    by = 'Manager / HR'
                 timeline_items.append({
                     'type': 'leave',
-                    'timestamp': l.updated_at if hasattr(l, 'updated_at') and l.updated_at else (l.created_at if hasattr(l, 'created_at') and l.created_at else timezone.now()),
-                    'title': f"Leave Request: {l.leave_type}",
-                    'description': f"{l.from_date} to {l.to_date} ({l.number_of_days} days) - {l.approval_status}",
-                    'by': l.approver.name if l.approver else 'Manager / HR',
+                    'timestamp': l.decided_at or l.updated_at or l.created_at or timezone.now(),
+                    'title': f"Leave Request: {l.get_leave_type_display()}",
+                    'description': f"{l.from_date:%d/%m/%Y} to {l.to_date:%d/%m/%Y} ({days_str} days) - {l.get_approval_status_display()}",
+                    'by': by,
                     'badge_class': 'badge-success' if l.approval_status == 'APPROVED' else ('badge-danger' if l.approval_status == 'REJECTED' else 'badge-warning'),
                 })
 
-        # 4. Timesheet approvals (from service_logs if installed)
+        # 4. Timesheet approvals (latest 50 decided or submitted service logs)
         if history_filter in ('all', 'timesheet'):
-            try:
-                from service_logs.models import EmployeeServiceLog
-                logs = EmployeeServiceLog.objects.filter(employee=employee).select_related('approved_by').order_by('-updated_at')[:50]
-                for s in logs:
-                    timeline_items.append({
-                        'type': 'timesheet',
-                        'timestamp': s.updated_at if s.updated_at else s.created_at,
-                        'title': f"Timesheet: {s.log_date} ({s.hours_worked} hrs)",
-                        'description': f"Status: {s.approval_status} - {s.work_order_time.work_order.imo_no if s.work_order_time else ''}",
-                        'by': s.approved_by.get_full_name() if s.approved_by else 'Supervisor',
-                        'badge_class': 'badge-success' if s.approval_status == 'APPROVED' else 'badge-secondary',
-                    })
-            except Exception:
-                pass
+            from service_logs.models import EmployeeServiceLog
+            logs = (EmployeeServiceLog.objects
+                    .filter(employee=employee)
+                    .exclude(approval_status='DRAFT')
+                    .select_related('decided_by', 'time_log__work_order', 'project')
+                    .order_by('-date', '-id')[:50])
+            for s in logs:
+                if s.time_log and s.time_log.work_order:
+                    ref = s.time_log.work_order.work_order_number
+                else:
+                    ref = s.service_reference or (s.project.name if s.project else '')
+                timeline_items.append({
+                    'type': 'timesheet',
+                    'timestamp': s.decided_at or s.submitted_at or s.created_at,
+                    'title': f"Timesheet: {s.date:%d/%m/%Y} ({s.total_hours or 0} hrs)",
+                    'description': f"Status: {s.get_approval_status_display()}" + (f" - {ref}" if ref else ''),
+                    'by': _user_label(s.decided_by) or 'Supervisor',
+                    'badge_class': 'badge-success' if s.approval_status == 'APPROVED' else ('badge-danger' if s.approval_status == 'REJECTED' else 'badge-secondary'),
+                })
 
         # Sort all timeline items newest first
         timeline_items.sort(key=lambda x: x['timestamp'] or timezone.now(), reverse=True)

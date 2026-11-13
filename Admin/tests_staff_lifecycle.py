@@ -660,3 +660,48 @@ class RestDayHistoryPageTests(TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, 'Roster')
         self.assertContains(res, 'System')
+
+
+class EmployeeHistoryTabTests(TestCase):
+    """History tab renders with leave, attendance-correction and timesheet entries."""
+
+    def test_history_tab_all_filters(self):
+        from Admin.models import AttendanceCorrection, Leave
+        from service_logs.models import EmployeeServiceLog
+        tz = timezone.get_current_timezone()
+        su = User.objects.create_superuser('su_hist', 'su_hist@example.com', 'pw')
+        eng_user = User.objects.create_user('eng_hist', 'h@x.com', 'pw', first_name='Eng')
+        emp = Employee.objects.create(user=eng_user, is_employee=True, salary=Decimal('3000'),
+                                      date_of_join=datetime.date(2026, 1, 1))
+        Leave.objects.create(user=eng_user, employee=emp, leave_type='ANNUAL LEAVE',
+                             from_date=datetime.date(2026, 10, 5), to_date=datetime.date(2026, 10, 6),
+                             days=Decimal('2.00'), reason='Trip', approval_status='APPROVED', decided_by=su,
+                             decided_at=timezone.now())
+        Leave.objects.create(user=eng_user, employee=emp, leave_type='ANNUAL LEAVE',
+                             from_date=datetime.date(2026, 10, 20), to_date=datetime.date(2026, 10, 20),
+                             reason='Errand', approval_status='PENDING')
+        d = datetime.date(2026, 10, 8)
+        AttendanceCorrection.objects.create(
+            employee=emp, date=d, correction_type='MISSED_OUT',
+            requested_login=timezone.make_aware(datetime.datetime.combine(d, datetime.time(8, 0)), tz),
+            requested_logout=timezone.make_aware(datetime.datetime.combine(d, datetime.time(17, 0)), tz),
+            reason='Forgot punch out', status='PENDING')
+        EmployeeServiceLog.objects.create(employee=emp, date=d, start_time=datetime.time(8, 0),
+                                          end_time=datetime.time(16, 0), total_hours=Decimal('8.00'),
+                                          approval_status='APPROVED', decided_by=su, decided_at=timezone.now(),
+                                          service_reference='SR-HIST-1')
+        self.client.force_login(su)
+        for url in (f'/hr/employee/{emp.id}/', f'/admin-panel/employee/{emp.id}/'):
+            for f in ('all', 'leave', 'attendance', 'timesheet', 'profile'):
+                res = self.client.get(url, {'tab': 'history', 'history_type': f})
+                self.assertEqual(res.status_code, 200, f'{url} filter={f}')
+        for tab in ('overview', 'employment', 'attendance', 'leave', 'salary', 'documents'):
+            for url in (f'/hr/employee/{emp.id}/', f'/admin-panel/employee/{emp.id}/'):
+                res = self.client.get(url, {'tab': tab})
+                self.assertEqual(res.status_code, 200, f'{url} tab={tab}')
+        res = self.client.get(f'/hr/employee/{emp.id}/', {'tab': 'history'})
+        items = res.context['timeline_items']
+        types = {i['type'] for i in items}
+        self.assertTrue({'leave', 'attendance', 'timesheet'} <= types, types)
+        self.assertContains(res, '(2 days)')
+        self.assertContains(res, 'SR-HIST-1')
