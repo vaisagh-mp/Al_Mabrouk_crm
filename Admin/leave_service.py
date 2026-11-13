@@ -1049,9 +1049,23 @@ def process_opening_balances_excel(file_obj, user=None, dry_run=True):
         if not emp_code:
             row_errors.append("Employee code is required.")
         else:
-            emp = Employee.objects.filter(Q(employee_code__iexact=emp_code) | Q(id__iexact=emp_code.replace('AMMS-', '').lstrip('0'))).first()
-            if not emp:
+            # Match on Employee Code only. (An old fallback also matched the internal database id,
+            # which picked the wrong person whenever ids and codes differ.)
+            matches = list(Employee.objects.filter(employee_code__iexact=emp_code).select_related('user')[:2])
+            if not matches:
                 row_errors.append(f"Employee with code '{emp_code}' not found.")
+            elif len(matches) > 1:
+                row_errors.append(f"More than one employee has code '{emp_code}'. Fix the employee codes first.")
+            else:
+                emp = matches[0]
+                # Safety check: the name in the file must be the same person as in this system
+                def _norm(v):
+                    return ' '.join(str(v or '').split()).casefold()
+                if emp_name and _norm(emp_name) not in {_norm(emp.name), _norm(emp.user.username) if emp.user else ''}:
+                    row_errors.append(
+                        f"Code {emp_code} belongs to '{emp.name}' in this system, but the file says '{emp_name}'. "
+                        f"Check the code, or download a fresh template from this site."
+                    )
 
         # 2. Leave type lookup
         lt = None

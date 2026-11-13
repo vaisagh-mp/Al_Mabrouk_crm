@@ -1240,7 +1240,7 @@ class OpeningBalanceImportViewTests(TestCase):
         self.url = reverse('hr_import_opening_balances')
 
     def test_preview_then_confirm_saves(self):
-        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, "Opening"]])})
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "eng_ob", "ANNUAL", "2026-11-13", 12, "Opening"]])})
         self.assertEqual(res.status_code, 200)
         token = res.context['upload_token']
         self.assertTrue(token)
@@ -1255,13 +1255,13 @@ class OpeningBalanceImportViewTests(TestCase):
         self.assertEqual(LeaveLedger.objects.filter(employee=self.emp, entry_type='OPENING').count(), 1)
 
     def test_second_import_and_duplicate_rows_are_blocked(self):
-        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""],
-                                                              ["AMMS-9002", "x", "ANNUAL", "2026-11-13", 3, ""]])})
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "eng_ob", "ANNUAL", "2026-11-13", 12, ""],
+                                                              ["AMMS-9002", "eng_ob", "ANNUAL", "2026-11-13", 3, ""]])})
         self.assertTrue(res.context['preview']['has_errors'])
         self.assertEqual(res.context['upload_token'], '')
-        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""]])})
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "eng_ob", "ANNUAL", "2026-11-13", 12, ""]])})
         self.client.post(self.url, {'confirm': '1', 'upload_token': res.context['upload_token']})
-        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "x", "ANNUAL", "2026-11-13", 12, ""]])})
+        res = self.client.post(self.url, {'file': self._xlsx([["AMMS-9002", "eng_ob", "ANNUAL", "2026-11-13", 12, ""]])})
         self.assertTrue(res.context['preview']['has_errors'])
         self.assertIn('already has an opening balance', str(res.context['preview']['rows'][0]['errors']))
         self.assertEqual(LeaveLedger.objects.filter(employee=self.emp, entry_type='OPENING').count(), 1)
@@ -1297,3 +1297,44 @@ class LeaveClarificationRoundTripTests(TestCase):
         self.client.force_login(emp_user)
         res = self.client.get(reverse('my_leave'))
         self.assertContains(res, 'Bank Visit')
+
+
+class OpeningBalanceImportMatchingTests(TestCase):
+    """Rows match on Employee Code only (never the internal id), and the file name must be the same person."""
+
+    def _xlsx(self, rows):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Employee Code", "Employee Name", "Leave Type", "Effective Date (YYYY-MM-DD)", "Days", "Note"])
+        for r in rows:
+            ws.append(r)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    def test_codes_not_matched_by_internal_id(self):
+        # Make internal ids and codes disagree, like on live data
+        people = []
+        for code, first in (('AMMS-0003', 'Ananda'), ('AMMS-0001', 'Mahesh'), ('AMMS-0002', 'Shiva')):
+            u = User.objects.create_user(f'u_{code}', f'{code}@x.com', 'pw', first_name=first, last_name='K')
+            people.append(Employee.objects.create(user=u, is_employee=True, salary=Decimal('1000'),
+                                                  date_of_join=datetime.date(2025, 1, 1), employee_code=code))
+        rows = [[e.employee_code, e.name, "ANNUAL", "2026-01-01", 24, ""] for e in people]
+        res = process_opening_balances_excel(self._xlsx(rows[:3]), dry_run=True)
+        self.assertEqual(res['error_count'], 0, [r['errors'] for r in res['rows']])
+        for r, e in zip(res['rows'], people):
+            self.assertEqual(r['employee'], e)
+
+    def test_name_mismatch_is_an_error(self):
+        u = User.objects.create_user('u_mm', 'mm@x.com', 'pw', first_name='Mahadhir', last_name='Mohamed')
+        Employee.objects.create(user=u, is_employee=True, salary=Decimal('1000'),
+                                date_of_join=datetime.date(2025, 1, 1), employee_code='AMMS-0106')
+        res = process_opening_balances_excel(self._xlsx([["AMMS-0106", "Manager Manager", "ANNUAL", "2026-01-01", 24, ""]]), dry_run=True)
+        self.assertEqual(res['error_count'], 1)
+        self.assertIn("belongs to 'Mahadhir Mohamed'", res['rows'][0]['errors'][0])
+        # same name with different spacing/case is fine; blank name skips the check
+        res = process_opening_balances_excel(self._xlsx([["amms-0106", "  MAHADHIR   mohamed ", "ANNUAL", "2026-01-01", 24, ""]]), dry_run=True)
+        self.assertEqual(res['error_count'], 0)
+        res = process_opening_balances_excel(self._xlsx([["AMMS-0106", None, "ANNUAL", "2026-01-01", 24, ""]]), dry_run=True)
+        self.assertEqual(res['error_count'], 0)
