@@ -1338,3 +1338,29 @@ class OpeningBalanceImportMatchingTests(TestCase):
         self.assertEqual(res['error_count'], 0)
         res = process_opening_balances_excel(self._xlsx([["AMMS-0106", None, "ANNUAL", "2026-01-01", 24, ""]]), dry_run=True)
         self.assertEqual(res['error_count'], 0)
+
+
+@override_settings(HR_LEAVE_V2=True)
+class NoBalanceLeaveCardTests(TestCase):
+    """Personal / Unpaid leave cards show days taken this year and the right Paid / Unpaid badge (not N/A)."""
+
+    def test_cards(self):
+        from Admin.leave_service import get_employee_leave_summary
+        u = User.objects.create_user('eng_nb', 'nb@x.com', 'pw', first_name='No', last_name='Balance')
+        emp = Employee.objects.create(user=u, is_employee=True, salary=Decimal('1000'), date_of_join=datetime.date(2025, 1, 1))
+        personal = LeaveType.objects.get(code='PERSONAL')
+        year = timezone.localdate().year
+        Leave.objects.create(user=u, employee=emp, leave_type='PERSONAL LEAVE', leave_type_ref=personal,
+                             from_date=datetime.date(year, 2, 2), to_date=datetime.date(year, 2, 3),
+                             days=Decimal('2.00'), reason='x', approval_status='APPROVED')
+        summary = {s['code']: s for s in get_employee_leave_summary(emp)}
+        self.assertEqual(summary['PERSONAL']['taken_days'], Decimal('2.00'))
+        self.assertEqual(summary['UNPAID']['taken_days'], Decimal('0.00'))
+        self.client.force_login(u)
+        for url in (reverse('apply_leave'), reverse('my_leave')):
+            res = self.client.get(url)
+            self.assertEqual(res.status_code, 200)
+            self.assertNotContains(res, '>N/A<')
+            self.assertContains(res, 'days taken this year')
+            self.assertContains(res, '>Paid<')
+            self.assertContains(res, '>Unpaid<')

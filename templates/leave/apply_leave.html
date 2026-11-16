@@ -24,6 +24,8 @@
                 <span style="font-size: 13px; font-weight: 700; color: #1F3A52; text-transform: uppercase;">{{ s.name }}</span>
                 {% if s.uses_balance %}
                     <span style="font-size: 11px; background: #eef2f7; color: #334e68; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Balance</span>
+                {% elif s.is_paid %}
+                    <span style="font-size: 11px; background: #e5f4e4; color: #1e6b34; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Paid</span>
                 {% else %}
                     <span style="font-size: 11px; background: #fdf2e9; color: #b9770e; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Unpaid</span>
                 {% endif %}
@@ -33,10 +35,16 @@
                     <span style="font-size: 26px; font-weight: 800; color: #1F3A52;">{{ s.available_days }}</span>
                     <span style="font-size: 12px; color: #6c757d;">days available</span>
                 {% else %}
-                    <span style="font-size: 22px; font-weight: 700; color: #7F8C8D;">N/A</span>
-                    <span style="font-size: 12px; color: #6c757d;">approval required</span>
+                    <span style="font-size: 26px; font-weight: 800; color: #1F3A52;">{{ s.taken_days }}</span>
+                    <span style="font-size: 12px; color: #6c757d;">days taken this year</span>
                 {% endif %}
             </div>
+            {% if not s.uses_balance %}
+            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between;">
+                <span>No fixed balance &middot; needs approval</span>
+                <span>Pending: <strong>{{ s.pending_days }}</strong> d</span>
+            </div>
+            {% endif %}
             {% if s.uses_balance %}
             <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 11px; color: #64748b; display: flex; justify-content: space-between;">
                 <span>Net: <strong>{{ s.net_balance }}</strong> d</span>

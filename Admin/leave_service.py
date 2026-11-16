@@ -197,6 +197,23 @@ def get_employee_leave_summary(employee, year=None):
         pending_days = get_employee_pending_leave_days(employee, lt)
         available_days = max(Decimal('0.00'), net_balance - pending_days) if lt.uses_balance else Decimal('0.00')
 
+        # Types without a balance (Personal, Unpaid) write no ledger entries,
+        # so "taken" comes from the approved requests in this year.
+        if not lt.uses_balance:
+            approved = Leave.objects.filter(
+                Q(employee=employee) | Q(user=employee.user),
+                approval_status='APPROVED',
+                from_date__year=year,
+            ).filter(
+                Q(leave_type_ref=lt) | Q(leave_type__iexact=lt.name) | Q(leave_type__iexact=lt.code)
+            )
+            taken_days = Decimal('0.00')
+            for l in approved:
+                if l.days is not None:
+                    taken_days += l.days
+                elif l.no_of_days is not None:
+                    taken_days += Decimal(str(l.no_of_days))
+
         summary_by_type.append({
             'leave_type': lt,
             'code': lt.code,
