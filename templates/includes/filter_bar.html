@@ -89,10 +89,16 @@
         <div class="col-12 col-sm-6 col-md-2">
             <label class="form-label small fw-bold mb-1">Work Type</label>
             <select name="work_type" id="workTypeFilter" class="form-select form-select-sm">
-                <option value="All" {% if not work_type or work_type == "All" %}selected{% endif %}>All Work Types</option>
-                <option value="Vessel" {% if work_type == "Vessel" %}selected{% endif %}>Vessel</option>
-                <option value="Office" {% if work_type == "Office" %}selected{% endif %}>Office</option>
-                <option value="Mixed" {% if work_type == "Mixed" %}selected{% endif %}>Mixed</option>
+                <option value="" {% if not selected_work_type and not work_type or work_type == "All" %}selected{% endif %}>All Work Types</option>
+                {% if work_type_choices %}
+                    {% for wt_val, wt_label in work_type_choices %}
+                    <option value="{{ wt_val }}" {% if selected_work_type == wt_val or work_type == wt_val %}selected{% endif %}>{{ wt_label }}</option>
+                    {% endfor %}
+                {% else %}
+                    <option value="OFFICE" {% if selected_work_type == "OFFICE" or work_type == "OFFICE" or work_type == "Office" %}selected{% endif %}>Office</option>
+                    <option value="VESSEL" {% if selected_work_type == "VESSEL" or work_type == "VESSEL" or work_type == "Vessel" %}selected{% endif %}>Vessel</option>
+                    <option value="OFFICE_VESSEL" {% if selected_work_type == "OFFICE_VESSEL" or work_type == "OFFICE_VESSEL" or work_type == "Mixed" %}selected{% endif %}>Office &amp; Vessel</option>
+                {% endif %}
             </select>
         </div>
         {% endif %}

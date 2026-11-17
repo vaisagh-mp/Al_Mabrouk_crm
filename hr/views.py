@@ -28,7 +28,10 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 from service_logs.views import build_employee_analytics_context, export_employee_analytics_excel
 from manager.views import compute_presence_data
-from Admin.attendance_register import _register_context, handle_set_day_status, summary_csv_response, summary_excel_response
+from Admin.attendance_register import (
+    _register_context, handle_set_day_status, summary_csv_response, summary_excel_response,
+    handle_register_export
+)
 from Admin.attendance_autoclose import close_stale_sessions, capped_logout
 from Admin.office_staff_helpers import (
     get_staff_attendance_context,
@@ -159,14 +162,11 @@ def hr_attendance_list_view(request):
         emp = getattr(request.user, 'employee_profile', None)
         return handle_attendance_status_post(request, emp)
     export_format = request.GET.get('export')
-    if export_format in ('summary_excel', 'summary_csv', 'excel'):
+    if export_format:
         context = _register_context(request)
-        return summary_excel_response(
-            context['summary_rows_all'],
-            context['summary_totals'],
-            context['start'],
-            context['end']
-        )
+        export_resp = handle_register_export(request, context)
+        if export_resp:
+            return export_resp
     context = _register_context(request)
     context['role'] = 'hr'
     return render(request, 'hr/attendance_list.html', context)
