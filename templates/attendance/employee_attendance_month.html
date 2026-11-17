@@ -103,9 +103,7 @@
                         <td><strong>{{ r.date|date:"d/m/Y" }}</strong></td>
                         <td>{{ r.date|date:"D" }}</td>
                         <td>
-                            <span class="status {% if r.status_code == 'OFFICE' %}present{% elif r.status_code == 'VESSEL' %}att-reg-vessel{% elif r.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif r.status_code == 'ABSENT' %}cancelled{% elif r.status_code == 'MISSING_PUNCH' %}att-reg-missing-punch{% elif 'LEAVE' in r.status_code %}leave{% else %}completed{% endif %}">
-                                {{ r.status_label }}
-                            </span>
+                            {% include 'attendance/_status_badge.html' with code=r.status_code label=r.status_label %}
                             {% if r.override_id %}
                                 <span class="badge bg-secondary ms-1">manual</span>
                             {% endif %}

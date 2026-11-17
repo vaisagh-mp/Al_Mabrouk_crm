@@ -33,6 +33,7 @@ from Admin.models import (
     LeaveType,
     OTApproval,
     SalaryStructure,
+    WORK_TYPE_CHOICES,
 )
 from Admin.permissions import can_view_salary
 from finance.services import get_payroll_list_with_metrics, get_month_range
@@ -49,6 +50,7 @@ REPORT_DEFINITIONS = [
         'day_level': False,
         'uses_period': False,
         'uses_month': False,
+        'uses_work_type': True,
         'status_choices': [
             ('active', 'Active'),
             ('inactive', 'Inactive'),
@@ -60,6 +62,7 @@ REPORT_DEFINITIONS = [
         'day_level': True,
         'uses_period': True,
         'uses_month': False,
+        'uses_work_type': True,
         'status_choices': [
             ('OFFICE', 'Office'),
             ('VESSEL', 'Vessel'),
@@ -79,6 +82,7 @@ REPORT_DEFINITIONS = [
         'day_level': False,
         'uses_period': True,
         'uses_month': True,
+        'uses_work_type': True,
         'status_choices': [],
     }),
     ('missing_punch_corrections', {
@@ -86,6 +90,7 @@ REPORT_DEFINITIONS = [
         'day_level': True,
         'uses_period': True,
         'uses_month': False,
+        'uses_work_type': True,
         'status_choices': [
             ('PENDING', 'Pending'),
             ('APPROVED', 'Approved'),
@@ -119,6 +124,7 @@ REPORT_DEFINITIONS = [
         'day_level': True,
         'uses_period': True,
         'uses_month': False,
+        'uses_work_type': True,
         'status_choices': [
             ('PENDING', 'Pending'),
             ('APPROVED', 'Approved'),
@@ -130,6 +136,7 @@ REPORT_DEFINITIONS = [
         'day_level': True,
         'uses_period': True,
         'uses_month': False,
+        'uses_work_type': True,
         'status_choices': [
             ('DRAFT', 'Draft'),
             ('SUBMITTED', 'Submitted'),
@@ -220,7 +227,7 @@ def get_allowed_reports_for_role(role_key):
     return []
 
 
-def _get_scoped_employees_qs(user, role_key, dept_id=None, branch_id=None, emp_id=None, include_inactive=False):
+def _get_scoped_employees_qs(user, role_key, dept_id=None, branch_id=None, emp_id=None, work_type=None, include_inactive=False):
     viewer_emp = getattr(user, 'employee_profile', None)
     qs = Employee.objects.select_related('user', 'department', 'branch', 'reporting_manager__user')
     if not include_inactive:
@@ -237,6 +244,8 @@ def _get_scoped_employees_qs(user, role_key, dept_id=None, branch_id=None, emp_i
         qs = qs.filter(branch_id=branch_id)
     if emp_id:
         qs = qs.filter(id=emp_id)
+    if work_type:
+        qs = qs.filter(work_type=work_type)
 
     return qs.order_by('user__first_name', 'user__username')
 
@@ -284,6 +293,7 @@ def parse_report_filters(request):
     branch_raw = (request.GET.get('branch') or '').strip()
     emp_raw = (request.GET.get('employee') or '').strip()
     status_raw = (request.GET.get('status') or '').strip()
+    work_type_raw = (request.GET.get('work_type') or '').strip()
 
     return {
         'start_date': start_date,
@@ -299,6 +309,8 @@ def parse_report_filters(request):
         'branch_raw': branch_raw,
         'emp_raw': emp_raw,
         'status': status_raw,
+        'work_type': work_type_raw if work_type_raw and work_type_raw.upper() != 'ALL' else '',
+        'work_type_raw': work_type_raw,
     }
 
 
@@ -316,6 +328,10 @@ def _filters_description(filters, report_key):
         e = Employee.objects.filter(pk=filters['emp_id']).select_related('user').first()
         if e:
             parts.append(f"Employee: {e.name}")
+    if filters.get('work_type'):
+        wt_map = dict(WORK_TYPE_CHOICES)
+        wt_label = wt_map.get(filters['work_type'], filters['work_type'])
+        parts.append(f"Work Type: {wt_label}")
     if filters['status']:
         parts.append(f"Status: {filters['status']}")
     return ', '.join(parts) if parts else 'All'
@@ -340,6 +356,7 @@ def build_report_data(report_key, filters, user, role_key):
     branch_id = filters['branch_id']
     emp_id = filters['emp_id']
     status_filter = filters['status']
+    work_type = filters.get('work_type')
 
     period_label = (
         month_date.strftime('%B %Y') if meta.get('uses_month') and report_key == 'payroll_summary'
@@ -354,7 +371,7 @@ def build_report_data(report_key, filters, user, role_key):
     # 1. Employee Master
     if report_key == 'employee_master':
         include_inactive = status_filter in ('inactive', 'all')
-        qs = _get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, include_inactive=include_inactive)
+        qs = _get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type, include_inactive=include_inactive)
         if status_filter == 'inactive':
             qs = qs.filter(user__is_active=False)
         elif status_filter != 'all':
@@ -383,11 +400,12 @@ def build_report_data(report_key, filters, user, role_key):
 
     # 2. Daily Attendance
     elif report_key == 'daily_attendance':
-        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id))
+        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type))
         emp_ids = [e.id for e in scoped_emps]
         reg_rows = build_attendance_register(
             start_date, end_date,
             department=dept_id, branch=branch_id,
+            work_type=work_type,
             employee_ids=emp_ids if emp_ids else [-1],
             status_filter=status_filter,
         ) if emp_ids else []
@@ -412,11 +430,12 @@ def build_report_data(report_key, filters, user, role_key):
 
     # 3. Monthly Attendance Summary
     elif report_key == 'monthly_summary':
-        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id))
+        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type))
         emp_ids = [e.id for e in scoped_emps]
         reg_rows = build_attendance_register(
             start_date, end_date,
             department=dept_id, branch=branch_id,
+            work_type=work_type,
             employee_ids=emp_ids if emp_ids else [-1],
         ) if emp_ids else []
         sum_rows, totals = build_attendance_summary(reg_rows)
@@ -457,7 +476,7 @@ def build_report_data(report_key, filters, user, role_key):
 
     # 4. Missing Punch & Correction Requests
     elif report_key == 'missing_punch_corrections':
-        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id))
+        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type))
         emp_ids = [e.id for e in scoped_emps]
 
         corr_qs = AttendanceCorrection.objects.filter(
@@ -639,7 +658,7 @@ def build_report_data(report_key, filters, user, role_key):
 
     # 7. Overtime
     elif report_key == 'overtime':
-        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id))
+        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type))
         emp_ids = [e.id for e in scoped_emps]
         ts_approval_on = getattr(settings, 'HR_TIMESHEET_APPROVAL', False)
 
@@ -724,7 +743,7 @@ def build_report_data(report_key, filters, user, role_key):
 
     # 8. Vessel / Site Timesheets
     elif report_key == 'timesheets':
-        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, include_inactive=True))
+        scoped_emps = list(_get_scoped_employees_qs(user, role_key, dept_id=dept_id, branch_id=branch_id, emp_id=emp_id, work_type=work_type, include_inactive=True))
         emp_ids = [e.id for e in scoped_emps]
 
         ts_qs = EmployeeServiceLog.objects.filter(

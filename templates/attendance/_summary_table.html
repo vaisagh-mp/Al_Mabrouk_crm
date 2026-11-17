@@ -268,9 +268,12 @@
                 <div class="att-sum-status-note">Summary shows all statuses for the selected dates.</div>
             {% endif %}
         </div>
-        <div class="att-sum-header-right">
-            <a href="?start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}&export=summary_excel" class="att-sum-export-btn" title="Export Attendance Summary as Excel">
-                <i class="fa fa-download" aria-hidden="true"></i> Export Excel
+        <div class="att-sum-header-right d-flex gap-2">
+            <a href="?tab=summary&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=summary_pdf" class="att-sum-export-btn" title="Export Attendance Summary as PDF">
+                <i class="fa fa-file-pdf" aria-hidden="true"></i> Export PDF
+            </a>
+            <a href="?tab=summary&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=summary_excel" class="att-sum-export-btn" title="Export Attendance Summary as Excel">
+                <i class="fa fa-file-excel" aria-hidden="true"></i> Export Excel
             </a>
         </div>
     </div>

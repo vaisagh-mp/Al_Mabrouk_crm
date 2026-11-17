@@ -3,7 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import render
 
-from Admin.models import Branch, Department
+from Admin.models import Branch, Department, WORK_TYPE_CHOICES
 from Admin.notifications import get_base_template_for_user
 from Admin.reports_center import (
     REPORT_META_MAP,
@@ -52,12 +52,12 @@ def reports_center_view(request, role=None):
         if pdf_too_wide_days:
             messages.warning(
                 request,
-                f"PDF export is limited to 31 days for day-level reports (selected range is {days_span} days). Please use Excel export."
+                f"PDF export is limited to 31 days for day-level reports (selected range is {days_span} days). Please narrow the date range or use Excel export."
             )
         elif pdf_too_many_rows:
             messages.warning(
                 request,
-                f"PDF export is limited to 500 rows (this report has {report_data['total_count']} rows). Please use Excel export."
+                f"PDF export is limited to 500 rows (this report has {report_data['total_count']} rows). Please narrow filters (Department, Branch, Employee, Work Type, or Date Range) or use Excel export."
             )
         else:
             return export_report_pdf(report_data, request.user, print_mode=False)
@@ -114,6 +114,9 @@ def reports_center_view(request, role=None):
         'show_department': True,
         'show_branch': True,
         'show_employee': True,
+        'show_work_type': bool(meta.get('uses_work_type')),
+        'selected_work_type': filters.get('work_type', ''),
+        'work_type_choices': WORK_TYPE_CHOICES,
         'show_status': bool(meta.get('status_choices')),
         'base_qs_str': base_qs_str,
         'reset_url': f"{request.path}?report={selected_report}",
