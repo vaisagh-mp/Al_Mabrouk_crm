@@ -113,58 +113,6 @@
     color: var(--primary-font-color);
 }
 
-/* Summary chips */
-.att-reg-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.att-reg-chip {
-    background: #fff;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    border-radius: 8px;
-    padding: 10px 16px;
-    min-width: 110px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    border-left: 4px solid #ccc;
-}
-.att-reg-chip-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: #6c757d;
-    margin-bottom: 2px;
-}
-.att-reg-chip-count {
-    font-size: 20px;
-    font-weight: 700;
-    line-height: 1.1;
-    color: #212529;
-}
-.att-reg-chip-office { border-left-color: #28a745; }
-.att-reg-chip-vessel { border-left-color: #007bff; }
-.att-reg-chip-office-vessel { border-left-color: #17a2b8; }
-.att-reg-chip-absent { border-left-color: #dc3545; }
-.att-reg-chip-leave { border-left-color: #ffc107; }
-.att-reg-chip-training { border-left-color: #6f42c1; }
-.att-reg-chip-rest { border-left-color: #6c757d; }
-.att-reg-chip-missing { border-left-color: #d9534f; }
-
-/* Status Badges */
-.status.att-reg-vessel { background-color: #007bff; color: #fff; }
-.status.att-reg-office-vessel { background-color: #17a2b8; color: #fff; }
-.status.att-reg-training { background-color: #6f42c1; color: #fff; }
-.status.att-reg-rest { background-color: #6c757d; color: #fff; }
-.status.att-reg-sunday { background-color: #adb5bd; color: #212529; }
-.status.att-reg-rest-day { background-color: #adb5bd; color: #212529; }
-.status.att-reg-missing-punch { background-color: #d9534f; color: #fff; font-weight: 700; }
-.status.att-reg-manual { background-color: #fd7e14; color: #fff; font-size: 10px; padding: 2px 6px; margin-left: 4px; }
-.status.att-reg-sm { font-size: 10px; padding: 2px 6px; margin-top: 3px; display: inline-block; }
-
 .att-reg-weekday {
     font-size: 11px;
     color: #6c757d;
@@ -455,6 +403,25 @@
     {% endif %}
 </div>
 
+<!-- Daily Register Top Actions & Warning -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+        {% if show_range_warning %}
+        <div class="alert alert-warning py-1 px-3 mb-0" style="font-size: 13px;">
+            <i class="fas fa-exclamation-triangle me-1"></i> Daily attendance is best viewed for up to 31 days. Large date ranges may take longer to download.
+        </div>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2 ms-auto">
+        <a href="?tab=daily&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=daily_pdf" class="att-sum-export-btn" title="Export Daily Attendance as PDF">
+            <i class="fa fa-file-pdf" aria-hidden="true"></i> Export PDF
+        </a>
+        <a href="?tab=daily&start={{ start }}&end={{ end }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if status_filter %}&status={{ status_filter|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=daily_excel" class="att-sum-export-btn" title="Export Daily Attendance as Excel">
+            <i class="fa fa-file-excel" aria-hidden="true"></i> Export Excel
+        </a>
+    </div>
+</div>
+
 <!-- Daily Register Table -->
 <div class="widget-box table-wdgt att-reg-table-wrap">
     <table id="employeeTable" style="min-width: 1200px;">
@@ -498,9 +465,7 @@
                 <td>
                     <div class="att-reg-status-col">
                         <div>
-                            <span class="status {% if row.status_code == 'OFFICE' %}present{% elif row.status_code == 'ANNUAL_LEAVE' %}annual-leave{% elif row.status_code == 'SICK_LEAVE' %}sick-leave{% elif row.status_code == 'PERSONAL_LEAVE' %}leave{% elif row.status_code == 'HOLIDAY' %}completed{% elif row.status_code == 'ABSENT' %}cancelled{% elif row.status_code == 'VESSEL' %}att-reg-vessel{% elif row.status_code == 'OFFICE_VESSEL' %}att-reg-office-vessel{% elif row.status_code == 'TRAINING' %}att-reg-training{% elif row.status_code == 'REST' %}att-reg-rest{% elif row.status_code == 'SUNDAY' %}att-reg-sunday{% elif row.status_code == 'REST_DAY' %}att-reg-rest-day{% elif row.status_code == 'MISSING_PUNCH' %}att-reg-missing-punch{% endif %}">
-                                {{ row.status_label }}
-                            </span>
+                            {% include 'attendance/_status_badge.html' with code=row.status_code label=row.status_label %}
                             {% if row.override_id %}
                                 <span class="status att-reg-manual" title="Manual override">manual</span>
                             {% endif %}
@@ -693,22 +658,32 @@
     </form>
 </div>
 
-<!-- Legend -->
-<div class="matrix-legend">
-    <div class="matrix-legend-item"><span class="matrix-badge badge-P">P</span> Office</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-VD">VD</span> Vessel</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-OV">OV</span> Office+Vessel</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-A">A</span> Absent</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-RD">RD</span> Rest Day</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-PH">PH</span> Holiday</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-AL">AL</span> Annual</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-SL">SL</span> Sick</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-PL">PL</span> Personal</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-UL">UL</span> Unpaid</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-MP">MP</span> Missing Punch</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-TR">TR</span> Training</div>
-    <div class="matrix-legend-item"><span class="matrix-badge badge-RST">RST</span> Rest</div>
-    <div class="matrix-legend-item ms-2"><span class="matrix-offday-dot" style="position:static;display:inline-block;vertical-align:middle;"></span> Off-day worked</div>
+<!-- Legend and Actions -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div class="matrix-legend mb-0">
+        <div class="matrix-legend-item"><span class="matrix-badge badge-P">P</span> Office</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-VD">VD</span> Vessel</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-OV">OV</span> Office+Vessel</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-A">A</span> Absent</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-RD">RD</span> Rest Day</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-PH">PH</span> Holiday</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-AL">AL</span> Annual</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-SL">SL</span> Sick</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-PL">PL</span> Personal</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-UL">UL</span> Unpaid</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-MP">MP</span> Missing Punch</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-TR">TR</span> Training</div>
+        <div class="matrix-legend-item"><span class="matrix-badge badge-RST">RST</span> Rest</div>
+        <div class="matrix-legend-item ms-2"><span class="matrix-offday-dot" style="position:static;display:inline-block;vertical-align:middle;"></span> Off-day worked</div>
+    </div>
+    <div class="d-flex gap-2 ms-auto">
+        <a href="?tab=calendar&calendar_month={{ calendar_month }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=calendar_pdf" class="att-sum-export-btn" title="Export Monthly Calendar as PDF">
+            <i class="fa fa-file-pdf" aria-hidden="true"></i> Export PDF
+        </a>
+        <a href="?tab=calendar&calendar_month={{ calendar_month }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}{% if department_filter %}&department={{ department_filter }}{% endif %}{% if branch_filter %}&branch={{ branch_filter }}{% endif %}{% if work_type_filter %}&work_type={{ work_type_filter }}{% endif %}{% if employee_filter %}&employee={{ employee_filter }}{% endif %}&export=calendar_excel" class="att-sum-export-btn" title="Export Monthly Calendar as Excel">
+            <i class="fa fa-file-excel" aria-hidden="true"></i> Export Excel
+        </a>
+    </div>
 </div>
 
 <!-- Monthly Calendar Matrix -->

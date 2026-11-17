@@ -774,13 +774,20 @@ def build_attendance_summary(rows):
     return summary_rows, totals
 
 
-def summary_excel_response(summary_rows, totals, start, end):
+def summary_excel_response(summary_rows, totals, start, end, employee_name=None):
     """
     Returns an HttpResponse with attendance summary Excel workbook (.xlsx).
     Filename: attendance_summary_<start>_<end>.xlsx
     """
     start_str = start.strftime('%Y-%m-%d') if hasattr(start, 'strftime') else str(start)
     end_str = end.strftime('%Y-%m-%d') if hasattr(end, 'strftime') else str(end)
+
+    if employee_name:
+        from django.utils.text import slugify
+        emp_slug = slugify(employee_name).replace('-', '_')
+        filename = f"attendance_summary_{emp_slug}_{start_str}_{end_str}.xlsx"
+    else:
+        filename = f"attendance_summary_{start_str}_{end_str}.xlsx"
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -996,7 +1003,7 @@ def summary_excel_response(summary_rows, totals, start, end):
         output.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = f'attachment; filename="attendance_summary_{start_str}_{end_str}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
 
 
@@ -1104,7 +1111,7 @@ def get_status_short_code(status_code):
     return mapping.get(status_code, status_code[:2] if status_code else '')
 
 
-def build_monthly_calendar_matrix(month_str, search_query="", department=None, branch=None, work_type=None):
+def build_monthly_calendar_matrix(month_str, search_query="", department=None, branch=None, work_type=None, employee_id=None):
     """
     Builds the matrix grid of employees x days for the given month (YYYY-MM).
     Returns (days_header, employee_rows, current_month_str).
@@ -1132,7 +1139,11 @@ def build_monthly_calendar_matrix(month_str, search_query="", department=None, b
             'is_weekend': cur_d.weekday() in (5, 6),
         })
 
-    all_month_rows = build_attendance_register(month_start, month_end, search=search_query, department=department, branch=branch, work_type=work_type)
+    all_month_rows = build_attendance_register(
+        month_start, month_end,
+        search=search_query, department=department, branch=branch, work_type=work_type,
+        employee_id=employee_id
+    )
 
     emp_groups = defaultdict(dict)
     emp_objects = {}
@@ -1245,6 +1256,11 @@ def employee_attendance_month_view_helper(request, employee_id, month_str, role=
     emp_rows.sort(key=lambda r: r['date'])
 
     summary_rows, _ = build_attendance_summary(emp_rows)
+
+    # On a rest day or holiday with no work, show "-" instead of "Holiday" for display
+    for r in emp_rows:
+        if r.get('location_label') == 'Holiday':
+            r['location_label'] = ''
     emp_summary = summary_rows[0] if summary_rows else {
         'scheduled_working_days': 0, 'present_days': 0, 'attendance_pct': 0.0,
         'office_days': 0, 'vessel_days': 0, 'office_vessel_days': 0,
@@ -1311,7 +1327,7 @@ def employee_attendance_month_view_helper(request, employee_id, month_str, role=
             ws.cell(row=row_idx, column=1, value=r['date'].strftime('%d/%m/%Y'))
             ws.cell(row=row_idx, column=2, value=r['date'].strftime('%a'))
             ws.cell(row=row_idx, column=3, value=r['status_label'])
-            ws.cell(row=row_idx, column=4, value=r['location_label'])
+            ws.cell(row=row_idx, column=4, value=r['location_label'] or '-')
             ws.cell(row=row_idx, column=5, value=r['start'].strftime('%H:%M') if r['start'] else '-')
             ws.cell(row=row_idx, column=6, value=r['end'].strftime('%H:%M') if r['end'] else '-')
             ws.cell(row=row_idx, column=7, value=float(r['total_hours']))
@@ -1382,6 +1398,10 @@ def _register_context(request):
     department_filter = request.GET.get('department', '').strip()
     branch_filter = request.GET.get('branch', '').strip()
     work_type_filter = request.GET.get('work_type', '').strip()
+    employee_filter = request.GET.get('employee', '').strip()
+
+    days_span = (end_date - start_date).days + 1
+    show_range_warning = days_span > 31
 
     # Build all rows for this date and search range to compute accurate summary counts
     all_rows = build_attendance_register(
@@ -1391,7 +1411,8 @@ def _register_context(request):
         status_filter="",
         department=department_filter,
         branch=branch_filter,
-        work_type=work_type_filter
+        work_type=work_type_filter,
+        employee_id=employee_filter if employee_filter else None
     )
 
     summary_counts = {
@@ -1436,13 +1457,15 @@ def _register_context(request):
 
     tab = request.GET.get('tab', 'daily')
     calendar_month = request.GET.get('calendar_month', start_date.strftime('%Y-%m'))
-    if tab in ('monthly', 'calendar'):
+    export_param = request.GET.get('export', '').strip()
+    if tab in ('monthly', 'calendar') or export_param in ('calendar_excel', 'calendar_pdf'):
         cal_days_header, cal_matrix_rows, cal_month_str = build_monthly_calendar_matrix(
             calendar_month,
             search_query=search_query,
             department=department_filter,
             branch=branch_filter,
-            work_type=work_type_filter
+            work_type=work_type_filter,
+            employee_id=employee_filter if employee_filter else None
         )
     else:
         cal_days_header, cal_matrix_rows, cal_month_str = [], [], calendar_month
@@ -1454,6 +1477,9 @@ def _register_context(request):
     return {
         'rows': page_obj,
         'page_obj': page_obj,
+        'display_rows': display_rows,
+        'days_span': days_span,
+        'show_range_warning': show_range_warning,
         'start': start_date.strftime('%Y-%m-%d'),
         'end': end_date.strftime('%Y-%m-%d'),
         'search_query': search_query,
@@ -1461,6 +1487,7 @@ def _register_context(request):
         'department_filter': department_filter,
         'branch_filter': branch_filter,
         'work_type_filter': work_type_filter,
+        'employee_filter': employee_filter,
         'departments': departments,
         'branches': branches,
         'work_type_choices': WORK_TYPE_CHOICES,
@@ -1477,6 +1504,522 @@ def _register_context(request):
         'calendar_days_header': cal_days_header,
         'calendar_matrix_rows': cal_matrix_rows,
     }
+
+
+def _detect_single_employee_name(context, request):
+    """
+    Detects if the user filtered to a single employee via search or employee filter.
+    Returns the employee name or None.
+    """
+    search_query = (context.get('search_query') or request.GET.get('search') or '').strip()
+    employee_param = (context.get('employee_filter') or request.GET.get('employee') or '').strip()
+    summary_rows = context.get('summary_rows_all') or []
+    if (search_query or employee_param) and len(summary_rows) == 1:
+        return summary_rows[0]['name']
+    return None
+
+
+def _format_register_filters_label(context):
+    from Admin.models import Department, Branch, WORK_TYPE_CHOICES
+    parts = []
+    if context.get('search_query'):
+        parts.append(f"Search: {context['search_query']}")
+    if context.get('status_filter'):
+        parts.append(f"Status: {context['status_filter']}")
+    if context.get('department_filter'):
+        d_val = str(context['department_filter'])
+        dept = Department.objects.filter(id=int(d_val)).first() if d_val.isdigit() else None
+        parts.append(f"Department: {dept.name if dept else d_val}")
+    if context.get('branch_filter'):
+        b_val = str(context['branch_filter'])
+        br = Branch.objects.filter(id=int(b_val)).first() if b_val.isdigit() else None
+        parts.append(f"Branch: {br.name if br else b_val}")
+    if context.get('work_type_filter'):
+        wt_map = dict(WORK_TYPE_CHOICES)
+        parts.append(f"Work Type: {wt_map.get(context['work_type_filter'], context['work_type_filter'])}")
+    return " | ".join(parts) if parts else "All"
+
+
+def daily_register_excel_response(request, context):
+    """
+    Exports daily attendance records matching screen filters to Excel (.xlsx).
+    Filename: attendance_daily_<start>_<end>.xlsx
+    """
+    start_str = context['start']
+    end_str = context['end']
+    rows = context.get('display_rows') or []
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Daily Attendance"
+    ws.views.sheetView[0].showGridLines = True
+
+    COLOR_PRIMARY = "1F3A52"
+    COLOR_ZEBRA = "F8FAFC"
+    COLOR_TOTAL = "F1F5F9"
+
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    font_data = Font(name="Calibri", size=10, color="1A202C")
+    font_total = Font(name="Calibri", size=10, bold=True, color="1A202C")
+
+    fill_header = PatternFill(start_color=COLOR_PRIMARY, end_color=COLOR_PRIMARY, fill_type="solid")
+    fill_zebra = PatternFill(start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA, fill_type="solid")
+    fill_total = PatternFill(start_color=COLOR_TOTAL, end_color=COLOR_TOTAL, fill_type="solid")
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+    align_right = Alignment(horizontal="right", vertical="center")
+
+    thin_border_side = Side(border_style="thin", color="CBD5E1")
+    border_cell = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+    border_total = Border(
+        left=thin_border_side, right=thin_border_side,
+        top=Side(border_style="medium", color="3F6D95"),
+        bottom=Side(border_style="double", color="3F6D95")
+    )
+
+    headers = [
+        "Date", "Employee", "Department", "Work Type",
+        "Check-in", "Check-out", "Total Hours", "OT Hours",
+        "Status", "Location"
+    ]
+
+    ws.row_dimensions[1].height = 24
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = align_center if col_idx not in (2, 3, 4, 10) else align_left
+        cell.border = border_cell
+
+    total_hours_sum = Decimal('0.00')
+    total_ot_hours_sum = Decimal('0.00')
+
+    current_row = 2
+    for r_idx, r in enumerate(rows):
+        ws.row_dimensions[current_row].height = 20
+        row_fill = fill_zebra if r_idx % 2 == 1 else None
+
+        tot_h = float(r.get('total_hours') or 0)
+        ot_h = float(r.get('ot_hours') or 0)
+        total_hours_sum += Decimal(str(r.get('total_hours') or 0))
+        total_ot_hours_sum += Decimal(str(r.get('ot_hours') or 0))
+
+        emp = r.get('employee')
+        dept_name = emp.department.name if (emp and emp.department) else '-'
+        wt_display = emp.get_work_type_display() if (emp and hasattr(emp, 'get_work_type_display')) else (emp.work_type if emp else '-')
+
+        check_in = r['start'].strftime('%H:%M') if r.get('start') else '-'
+        check_out = r['end'].strftime('%H:%M') if r.get('end') else '-'
+
+        row_values = [
+            (r['date'].strftime('%d/%m/%Y'), align_center, None),
+            (r['name'], align_left, None),
+            (dept_name, align_left, None),
+            (wt_display or '-', align_left, None),
+            (check_in, align_center, None),
+            (check_out, align_center, None),
+            (tot_h, align_right, "0.00"),
+            (ot_h, align_right, "0.00"),
+            (r.get('status_label') or '-', align_center, None),
+            (r.get('location_label') or '-', align_left, None),
+        ]
+
+        for col_idx, (val, alignment, num_format) in enumerate(row_values, start=1):
+            cell = ws.cell(row=current_row, column=col_idx, value=val)
+            cell.alignment = alignment
+            cell.font = font_data
+            cell.border = border_cell
+            if row_fill:
+                cell.fill = row_fill
+            if num_format:
+                cell.number_format = num_format
+
+        current_row += 1
+
+    # TOTAL row
+    ws.row_dimensions[current_row].height = 22
+    total_row_values = [
+        ("TOTAL", align_left, None),
+        ("", align_left, None),
+        ("", align_left, None),
+        ("", align_left, None),
+        ("", align_center, None),
+        ("", align_center, None),
+        (float(total_hours_sum), align_right, "0.00"),
+        (float(total_ot_hours_sum), align_right, "0.00"),
+        ("", align_center, None),
+        ("", align_left, None),
+    ]
+    for col_idx, (val, alignment, num_format) in enumerate(total_row_values, start=1):
+        cell = ws.cell(row=current_row, column=col_idx, value=val)
+        cell.alignment = alignment
+        cell.font = font_total
+        cell.fill = fill_total
+        cell.border = border_total
+        if num_format:
+            cell.number_format = num_format
+
+    ws.freeze_panes = "C2"
+
+    for col in ws.columns:
+        col_letter = get_column_letter(col[0].column)
+        max_len = max(len(str(c.value or '')) for c in col)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="attendance_daily_{start_str}_{end_str}.xlsx"'
+    return response
+
+
+def daily_register_pdf_response(request, context):
+    """
+    Exports daily attendance records matching screen filters to WeasyPrint PDF.
+    Filename: attendance_daily_<start>_<end>.pdf
+    """
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+
+    start_str = context['start']
+    end_str = context['end']
+    rows = context.get('display_rows') or []
+
+    total_hours_sum = sum((Decimal(str(r.get('total_hours') or 0)) for r in rows), Decimal('0.00'))
+    total_ot_hours_sum = sum((Decimal(str(r.get('ot_hours') or 0)) for r in rows), Decimal('0.00'))
+
+    filters_label = _format_register_filters_label(context)
+    period_label = f"{datetime.strptime(start_str, '%Y-%m-%d').strftime('%d %b %Y')} – {datetime.strptime(end_str, '%Y-%m-%d').strftime('%d %b %Y')}"
+
+    html_str = render_to_string('attendance/attendance_daily_pdf.html', {
+        'report_title': 'Daily Attendance Register',
+        'rows': rows,
+        'period_label': period_label,
+        'filters_label': filters_label,
+        'total_count': len(rows),
+        'total_hours_sum': total_hours_sum,
+        'total_ot_hours_sum': total_ot_hours_sum,
+        'generated_at': timezone.localtime(),
+        'generated_by': request.user.get_full_name() or request.user.username,
+    })
+
+    base_url = request.build_absolute_uri('/')
+    pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="attendance_daily_{start_str}_{end_str}.pdf"'
+    return response
+
+
+def calendar_excel_response(request, context):
+    """
+    Exports monthly attendance matrix matching screen filters to Excel (.xlsx).
+    Filename: attendance_month_<YYYY-MM>.xlsx
+    """
+    cal_month_str = context.get('calendar_month') or context['start'][:7]
+    days_header = context.get('calendar_days_header') or []
+    matrix_rows = context.get('calendar_matrix_rows') or []
+
+    if not matrix_rows and not days_header:
+        days_header, matrix_rows, cal_month_str = build_monthly_calendar_matrix(
+            cal_month_str,
+            search_query=context.get('search_query', ''),
+            department=context.get('department_filter', ''),
+            branch=context.get('branch_filter', ''),
+            work_type=context.get('work_type_filter', ''),
+            employee_id=context.get('employee_filter', '')
+        )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Monthly Attendance"
+    ws.views.sheetView[0].showGridLines = True
+
+    try:
+        month_dt = datetime.strptime(cal_month_str, '%Y-%m')
+        month_label = month_dt.strftime('%B %Y')
+    except Exception:
+        month_label = cal_month_str
+
+    COLOR_PRIMARY = "1F3A52"
+    COLOR_WEEKEND = "334E68"
+    COLOR_ZEBRA = "F8FAFC"
+    COLOR_TOT_HDR = "2B5876"
+
+    FILLS = {
+        'P': PatternFill(start_color="C3E6CB", end_color="C3E6CB", fill_type="solid"),
+        'VD': PatternFill(start_color="CCE5FF", end_color="CCE5FF", fill_type="solid"),
+        'OV': PatternFill(start_color="D1ECF1", end_color="D1ECF1", fill_type="solid"),
+        'A': PatternFill(start_color="F8D7DA", end_color="F8D7DA", fill_type="solid"),
+        'MP': PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid"),
+        'RD': PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid"),
+        'PH': PatternFill(start_color="E9D8FD", end_color="E9D8FD", fill_type="solid"),
+        'AL': PatternFill(start_color="FFE899", end_color="FFE899", fill_type="solid"),
+        'SL': PatternFill(start_color="D4C4FC", end_color="D4C4FC", fill_type="solid"),
+        'PL': PatternFill(start_color="FFE899", end_color="FFE899", fill_type="solid"),
+        'UL': PatternFill(start_color="E2E3E5", end_color="E2E3E5", fill_type="solid"),
+        'TR': PatternFill(start_color="E2D9F3", end_color="E2D9F3", fill_type="solid"),
+        'RST': PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid"),
+    }
+    FONTS = {
+        'P': Font(name="Calibri", size=9, bold=True, color="155724"),
+        'VD': Font(name="Calibri", size=9, bold=True, color="004085"),
+        'OV': Font(name="Calibri", size=9, bold=True, color="0C5460"),
+        'A': Font(name="Calibri", size=9, bold=True, color="721C24"),
+        'MP': Font(name="Calibri", size=9, bold=True, color="991B1B"),
+        'RD': Font(name="Calibri", size=9, color="334155"),
+        'PH': Font(name="Calibri", size=9, bold=True, color="5521B5"),
+        'AL': Font(name="Calibri", size=9, bold=True, color="856404"),
+        'SL': Font(name="Calibri", size=9, bold=True, color="4B0082"),
+        'PL': Font(name="Calibri", size=9, bold=True, color="856404"),
+        'UL': Font(name="Calibri", size=9, color="383D41"),
+        'TR': Font(name="Calibri", size=9, bold=True, color="38197A"),
+        'RST': Font(name="Calibri", size=9, color="334155"),
+    }
+
+    font_header = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+    font_day = Font(name="Calibri", size=9, color="1A202C")
+    font_bold = Font(name="Calibri", size=9, bold=True, color="1A202C")
+
+    fill_primary = PatternFill(start_color=COLOR_PRIMARY, end_color=COLOR_PRIMARY, fill_type="solid")
+    fill_weekend = PatternFill(start_color=COLOR_WEEKEND, end_color=COLOR_WEEKEND, fill_type="solid")
+    fill_tot_hdr = PatternFill(start_color=COLOR_TOT_HDR, end_color=COLOR_TOT_HDR, fill_type="solid")
+    fill_zebra = PatternFill(start_color=COLOR_ZEBRA, end_color=COLOR_ZEBRA, fill_type="solid")
+
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+
+    thin_border_side = Side(border_style="thin", color="CBD5E1")
+    border_cell = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+
+    ws.row_dimensions[1].height = 24
+    ws.cell(row=1, column=1, value="Employee").alignment = align_left
+    ws.cell(row=1, column=2, value="Designation").alignment = align_left
+    ws.cell(row=1, column=3, value="Department").alignment = align_left
+
+    for c_i in (1, 2, 3):
+        cell = ws.cell(row=1, column=c_i)
+        cell.font = font_header
+        cell.fill = fill_primary
+        cell.border = border_cell
+
+    col_idx = 4
+    for d in days_header:
+        cell = ws.cell(row=1, column=col_idx, value=f"{d['day_num']} {d['weekday']}")
+        cell.font = font_header
+        cell.fill = fill_weekend if d['is_weekend'] else fill_primary
+        cell.alignment = align_center
+        cell.border = border_cell
+        col_idx += 1
+
+    totals_headers = [("P", "Present"), ("A", "Absent"), ("MP", "Missing Punch"), ("L", "Leave")]
+    for code, _ in totals_headers:
+        cell = ws.cell(row=1, column=col_idx, value=code)
+        cell.font = font_header
+        cell.fill = fill_tot_hdr
+        cell.alignment = align_center
+        cell.border = border_cell
+        col_idx += 1
+
+    current_row = 2
+    for r_idx, row in enumerate(matrix_rows):
+        ws.row_dimensions[current_row].height = 20
+        row_fill = fill_zebra if r_idx % 2 == 1 else None
+
+        emp = row['employee']
+        dept_name = emp.department.name if (emp and emp.department) else '-'
+
+        ws.cell(row=current_row, column=1, value=row['name']).alignment = align_left
+        ws.cell(row=current_row, column=2, value=row.get('designation', '-')).alignment = align_left
+        ws.cell(row=current_row, column=3, value=dept_name).alignment = align_left
+
+        for c_i in (1, 2, 3):
+            cell = ws.cell(row=current_row, column=c_i)
+            cell.font = font_bold if c_i == 1 else font_day
+            cell.border = border_cell
+            if row_fill:
+                cell.fill = row_fill
+
+        col_idx = 4
+        for cell_data in row['cells']:
+            sc = cell_data.get('short_code') or '-'
+            c = ws.cell(row=current_row, column=col_idx, value=sc)
+            c.alignment = align_center
+            c.border = border_cell
+            if sc in FILLS:
+                c.fill = FILLS[sc]
+                c.font = FONTS.get(sc, font_bold)
+            else:
+                c.font = font_day
+                if row_fill:
+                    c.fill = row_fill
+            col_idx += 1
+
+        tot_vals = [
+            (row.get('p_count', 0), Font(name="Calibri", size=9, bold=True, color="155724")),
+            (row.get('a_count', 0), Font(name="Calibri", size=9, bold=True, color="721C24")),
+            (row.get('mp_count', 0), Font(name="Calibri", size=9, bold=True, color="991B1B")),
+            (row.get('leave_count', 0), Font(name="Calibri", size=9, bold=True, color="856404")),
+        ]
+        for val, f in tot_vals:
+            c = ws.cell(row=current_row, column=col_idx, value=val)
+            c.alignment = align_center
+            c.font = f
+            c.border = border_cell
+            if row_fill:
+                c.fill = row_fill
+            col_idx += 1
+
+        current_row += 1
+
+    ws.freeze_panes = "D2"
+
+    ws.column_dimensions['A'].width = 20
+    ws.column_dimensions['B'].width = 16
+    ws.column_dimensions['C'].width = 15
+    for c_i in range(4, col_idx):
+        col_letter = get_column_letter(c_i)
+        ws.column_dimensions[col_letter].width = 6
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    response['Content-Disposition'] = f'attachment; filename="attendance_month_{cal_month_str}.xlsx"'
+    return response
+
+
+def calendar_pdf_response(request, context):
+    """
+    Exports monthly attendance matrix matching screen filters to WeasyPrint PDF.
+    Filename: attendance_month_<YYYY-MM>.pdf
+    """
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+
+    cal_month_str = context.get('calendar_month') or context['start'][:7]
+    days_header = context.get('calendar_days_header') or []
+    matrix_rows = context.get('calendar_matrix_rows') or []
+
+    if not matrix_rows and not days_header:
+        days_header, matrix_rows, cal_month_str = build_monthly_calendar_matrix(
+            cal_month_str,
+            search_query=context.get('search_query', ''),
+            department=context.get('department_filter', ''),
+            branch=context.get('branch_filter', ''),
+            work_type=context.get('work_type_filter', ''),
+            employee_id=context.get('employee_filter', '')
+        )
+
+    try:
+        month_dt = datetime.strptime(cal_month_str, '%Y-%m')
+        month_label = month_dt.strftime('%B %Y')
+    except Exception:
+        month_label = cal_month_str
+
+    filters_label = _format_register_filters_label(context)
+
+    html_str = render_to_string('attendance/attendance_calendar_pdf.html', {
+        'month_label': month_label,
+        'calendar_days_header': days_header,
+        'calendar_matrix_rows': matrix_rows,
+        'filters_label': filters_label,
+        'total_count': len(matrix_rows),
+        'generated_at': timezone.localtime(),
+        'generated_by': request.user.get_full_name() or request.user.username,
+    })
+
+    base_url = request.build_absolute_uri('/')
+    pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="attendance_month_{cal_month_str}.pdf"'
+    return response
+
+
+def summary_pdf_response(request, context):
+    """
+    Exports attendance summary matching screen filters to WeasyPrint PDF.
+    Filename: attendance_summary_<start>_<end>.pdf (or attendance_summary_<emp_slug>_<start>_<end>.pdf if single employee)
+    """
+    from weasyprint import HTML
+    from django.template.loader import render_to_string
+    from django.utils.text import slugify
+
+    start_str = context['start']
+    end_str = context['end']
+    summary_rows = context.get('summary_rows_all') or []
+    totals = context.get('summary_totals') or {}
+
+    single_emp_name = _detect_single_employee_name(context, request)
+    if single_emp_name:
+        emp_slug = slugify(single_emp_name).replace('-', '_')
+        filename = f"attendance_summary_{emp_slug}_{start_str}_{end_str}.pdf"
+        report_title = f"Attendance Summary – {single_emp_name}"
+    else:
+        filename = f"attendance_summary_{start_str}_{end_str}.pdf"
+        report_title = "Attendance Summary"
+
+    filters_label = _format_register_filters_label(context)
+    period_label = f"{datetime.strptime(start_str, '%Y-%m-%d').strftime('%d %b %Y')} – {datetime.strptime(end_str, '%Y-%m-%d').strftime('%d %b %Y')}"
+
+    html_str = render_to_string('attendance/attendance_summary_pdf.html', {
+        'report_title': report_title,
+        'summary_rows': summary_rows,
+        'totals': totals,
+        'period_label': period_label,
+        'filters_label': filters_label,
+        'total_count': len(summary_rows),
+        'generated_at': timezone.localtime(),
+        'generated_by': request.user.get_full_name() or request.user.username,
+    })
+
+    base_url = request.build_absolute_uri('/')
+    pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def handle_register_export(request, context):
+    """
+    Central dispatcher for all register exports (Daily, Calendar, Summary).
+    Returns an HttpResponse if an export was requested, or None.
+    """
+    export_format = request.GET.get('export', '').strip()
+    if not export_format:
+        return None
+    if export_format in ('summary_excel', 'excel', 'summary_csv'):
+        single_name = _detect_single_employee_name(context, request)
+        return summary_excel_response(
+            context['summary_rows_all'],
+            context['summary_totals'],
+            context['start'],
+            context['end'],
+            employee_name=single_name
+        )
+    elif export_format == 'summary_pdf':
+        return summary_pdf_response(request, context)
+    elif export_format == 'daily_excel':
+        return daily_register_excel_response(request, context)
+    elif export_format == 'daily_pdf':
+        return daily_register_pdf_response(request, context)
+    elif export_format == 'calendar_excel':
+        return calendar_excel_response(request, context)
+    elif export_format == 'calendar_pdf':
+        return calendar_pdf_response(request, context)
+    return None
 
 
 def handle_set_day_status(request, employee_id, date_str, role='admin'):

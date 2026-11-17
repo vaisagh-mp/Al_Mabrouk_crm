@@ -928,6 +928,113 @@ header .dropdown-menu {
   color: black;
 }
 
+.status.unpaid-leave {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
+.status.holiday {
+  background-color: #e9d8fd;
+  color: #5521b5;
+}
+
+/* Attendance Register Status Badges */
+.status.att-reg-vessel {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.status.att-reg-office-vessel {
+  background-color: #d1ecf1;
+  color: #0c5460;
+}
+
+.status.att-reg-training {
+  background-color: #e2d9f3;
+  color: #38197a;
+}
+
+.status.att-reg-rest {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.status.att-reg-sunday {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.status.att-reg-rest-day {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.status.att-reg-missing-punch {
+  background-color: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.status.att-reg-manual {
+  background-color: #d9480f;
+  color: #ffffff;
+  font-size: 10px;
+  padding: 2px 6px;
+  margin-left: 4px;
+}
+
+.status.att-reg-sm {
+  font-size: 10px;
+  padding: 2px 6px;
+  margin-top: 3px;
+  display: inline-block;
+}
+
+/* Attendance Summary Chips */
+.att-reg-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.att-reg-chip {
+  background: #ffffff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border-left: 4px solid #cccccc;
+}
+
+.att-reg-chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #6c757d;
+  margin-bottom: 2px;
+}
+
+.att-reg-chip-count {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #212529;
+}
+
+.att-reg-chip-office { border-left-color: #28a745; }
+.att-reg-chip-vessel { border-left-color: #007bff; }
+.att-reg-chip-office-vessel { border-left-color: #17a2b8; }
+.att-reg-chip-absent { border-left-color: #dc3545; }
+.att-reg-chip-leave { border-left-color: #ffc107; }
+.att-reg-chip-training { border-left-color: #6f42c1; }
+.att-reg-chip-rest { border-left-color: #6c757d; }
+.att-reg-chip-missing { border-left-color: #d9534f; }
+
 
 .prjtc-table button {
   border: none;

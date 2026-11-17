@@ -122,6 +122,29 @@
     .badge-leave { background-color: #FEF08A; color: #713F12; }
     .badge-rest { background-color: #F1F5F9; color: #475569; }
     .badge-missing { background-color: #FEE2E2; color: #991B1B; font-weight: bold; }
+
+    .status {
+        display: inline-block;
+        padding: 2px 5px;
+        border-radius: 3px;
+        font-size: 7pt;
+        font-weight: bold;
+    }
+    .status.present { background-color: #DEF7EC; color: #03543F; }
+    .status.annual-leave { background-color: #ffeb99; color: #856404; }
+    .status.sick-leave { background-color: #d4c4fc; color: #4b0082; }
+    .status.leave { background-color: #FEF08A; color: #713F12; }
+    .status.unpaid-leave { background-color: #e2e3e5; color: #383d41; }
+    .status.holiday { background-color: #E9D8FD; color: #5521B5; }
+    .status.completed { background-color: #DEF7EC; color: #03543F; }
+    .status.cancelled { background-color: #FDE8E8; color: #9B1C1C; }
+    .status.att-reg-vessel { background-color: #cce5ff; color: #004085; }
+    .status.att-reg-office-vessel { background-color: #d1ecf1; color: #0c5460; }
+    .status.att-reg-training { background-color: #e2d9f3; color: #38197a; }
+    .status.att-reg-rest { background-color: #F1F5F9; color: #475569; }
+    .status.att-reg-sunday { background-color: #F1F5F9; color: #475569; }
+    .status.att-reg-rest-day { background-color: #F1F5F9; color: #475569; }
+    .status.att-reg-missing-punch { background-color: #FEE2E2; color: #991B1B; font-weight: bold; }
     .footer-sign {
         margin-top: 30px;
         width: 100%;
@@ -220,17 +243,7 @@
             <td>{{ r.date|date:"d/m/Y" }}</td>
             <td>{{ r.date|date:"D" }}</td>
             <td>
-                {% if r.status_code == 'OFFICE' or r.status_code == 'VESSEL' or r.status_code == 'OFFICE_VESSEL' %}
-                    <span class="badge badge-present">{{ r.status_label }}</span>
-                {% elif r.status_code == 'ABSENT' %}
-                    <span class="badge badge-absent">Absent</span>
-                {% elif r.status_code == 'MISSING_PUNCH' %}
-                    <span class="badge badge-missing">Missing Punch</span>
-                {% elif 'LEAVE' in r.status_code %}
-                    <span class="badge badge-leave">{{ r.status_label }}</span>
-                {% else %}
-                    <span class="badge badge-rest">{{ r.status_label }}</span>
-                {% endif %}
+                {% include 'attendance/_status_badge.html' with code=r.status_code label=r.status_label %}
             </td>
             <td>{{ r.location_label|default:"-" }}</td>
             <td>{% if r.start %}{{ r.start|time:"H:i" }}{% else %}-{% endif %}</td>

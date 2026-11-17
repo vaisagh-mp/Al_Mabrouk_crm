@@ -1,0 +1,35 @@
+{% spaceless %}
+{% if code == 'OFFICE' %}
+    <span class="status present">{{ label|default:"Office" }}</span>
+{% elif code == 'ANNUAL_LEAVE' %}
+    <span class="status annual-leave">{{ label|default:"Annual Leave" }}</span>
+{% elif code == 'SICK_LEAVE' %}
+    <span class="status sick-leave">{{ label|default:"Sick Leave" }}</span>
+{% elif code == 'PERSONAL_LEAVE' %}
+    <span class="status leave">{{ label|default:"Personal Leave" }}</span>
+{% elif code == 'UNPAID_LEAVE' %}
+    <span class="status unpaid-leave">{{ label|default:"Unpaid Leave" }}</span>
+{% elif code == 'HOLIDAY' %}
+    <span class="status holiday">{{ label|default:"Holiday" }}</span>
+{% elif code == 'ABSENT' %}
+    <span class="status cancelled">{{ label|default:"Absent" }}</span>
+{% elif code == 'VESSEL' %}
+    <span class="status att-reg-vessel">{{ label|default:"Vessel" }}</span>
+{% elif code == 'OFFICE_VESSEL' %}
+    <span class="status att-reg-office-vessel">{{ label|default:"Office+Vessel" }}</span>
+{% elif code == 'TRAINING' %}
+    <span class="status att-reg-training">{{ label|default:"Training" }}</span>
+{% elif code == 'REST' %}
+    <span class="status att-reg-rest">{{ label|default:"REST" }}</span>
+{% elif code == 'SUNDAY' %}
+    <span class="status att-reg-sunday">{{ label|default:"Sunday" }}</span>
+{% elif code == 'REST_DAY' %}
+    <span class="status att-reg-rest-day">{{ label|default:"Rest Day" }}</span>
+{% elif code == 'MISSING_PUNCH' %}
+    <span class="status att-reg-missing-punch">{{ label|default:"Missing Punch" }}</span>
+{% elif 'LEAVE' in code %}
+    <span class="status leave">{{ label|default:"Leave" }}</span>
+{% else %}
+    <span class="status completed">{{ label|default:"Completed" }}</span>
+{% endif %}
+{% endspaceless %}
