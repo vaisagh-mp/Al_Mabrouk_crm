@@ -3,87 +3,89 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Leave Statement - {{ employee.name }} - {{ year }}</title>
+    <title>Leave Statement - {{ employee.name }} - {{ period_label }}</title>
     <style>
         @page {
             size: A4 portrait;
-            margin: 1.5cm;
+            margin: 1.2cm;
+            @bottom-left {
+                content: "Generated on {{ generated_at|date:'d/m/Y H:i' }} by {{ generated_by.username|default:'System' }}";
+                font-size: 8pt;
+                color: #64748B;
+            }
             @bottom-right {
                 content: "Page " counter(page) " of " counter(pages);
-                font-size: 9pt;
+                font-size: 8pt;
                 color: #64748B;
             }
         }
         body {
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            font-size: 10pt;
+            font-size: 8.5pt;
             color: #1E293B;
-            line-height: 1.4;
+            line-height: 1.35;
             margin: 0;
             padding: 0;
         }
         .header-table {
             width: 100%;
             border-bottom: 2px solid #1F497D;
-            padding-bottom: 12px;
-            margin-bottom: 20px;
-        }
-        .company-title {
-            font-size: 16pt;
-            font-weight: bold;
-            color: #1F497D;
-            text-transform: uppercase;
+            padding-bottom: 8px;
+            margin-bottom: 14px;
         }
         .doc-title {
-            font-size: 14pt;
+            font-size: 15pt;
             font-weight: bold;
-            color: #0F172A;
+            color: #1F497D;
             text-align: right;
+            letter-spacing: 0.5px;
         }
         .meta-box {
             background: #F8FAFC;
             border: 1px solid #E2E8F0;
-            border-radius: 6px;
-            padding: 10px 14px;
-            margin-bottom: 20px;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
         }
         .meta-table {
             width: 100%;
+            border-collapse: collapse;
         }
         .meta-table td {
-            font-size: 9.5pt;
-            padding: 3px 6px;
+            font-size: 8.5pt;
+            padding: 2px 4px;
         }
         .meta-label {
             font-weight: bold;
             color: #475569;
-            width: 120px;
+            width: 100px;
         }
         .section-title {
-            font-size: 11pt;
+            font-size: 10pt;
             font-weight: bold;
             color: #1F497D;
             text-transform: uppercase;
             border-bottom: 1px solid #CBD5E1;
-            padding-bottom: 4px;
-            margin-top: 15px;
-            margin-bottom: 10px;
+            padding-bottom: 3px;
+            margin-top: 14px;
+            margin-bottom: 8px;
         }
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 9pt;
+            margin-bottom: 14px;
+            font-size: 8pt;
         }
         .data-table th, .data-table td {
             border: 1px solid #CBD5E1;
-            padding: 6px 8px;
+            padding: 4px 6px;
         }
         .data-table th {
             background: #1F497D;
             color: #FFFFFF;
             font-weight: bold;
             text-align: center;
+            font-size: 7.5pt;
         }
         .data-table td.center {
             text-align: center;
@@ -94,31 +96,25 @@
         .data-table tr:nth-child(even) {
             background-color: #F8FAFC;
         }
-        .badge {
-            font-size: 8pt;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-weight: bold;
-        }
         .footer-note {
-            margin-top: 30px;
-            font-size: 8pt;
+            margin-top: 20px;
+            font-size: 7.5pt;
             color: #64748B;
             border-top: 1px solid #E2E8F0;
-            padding-top: 8px;
+            padding-top: 6px;
         }
     </style>
 </head>
 <body>
     <table class="header-table">
         <tr>
-            <td>
+            <td style="vertical-align: middle;">
                 {% pdf_logo %}
-                <div style="font-size: 9pt; color: #64748B;">HR & Attendance Management System</div>
+                <div style="font-size: 8.5pt; color: #64748B; margin-top: 4px;">HR & Attendance Management System</div>
             </td>
-            <td style="text-align: right;">
+            <td style="text-align: right; vertical-align: middle;">
                 <div class="doc-title">LEAVE STATEMENT</div>
-                <div style="font-size: 9pt; color: #64748B;">Calendar Year {{ year }}</div>
+                <div style="font-size: 9pt; color: #475569; font-weight: bold; margin-top: 3px;">{{ period_label }}</div>
             </td>
         </tr>
     </table>
@@ -138,26 +134,32 @@
                 <td>{{ employee.branch.name|default:"-" }}</td>
             </tr>
             <tr>
+                <td class="meta-label">Designation:</td>
+                <td>{{ employee.rank|default:"-" }}</td>
                 <td class="meta-label">Joining Date:</td>
                 <td>{{ employee.date_of_join|date:"d/m/Y"|default:"-" }}</td>
-                <td class="meta-label">Generated On:</td>
-                <td>{{ generated_at|date:"d/m/Y H:i" }}</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Period:</td>
+                <td colspan="3">{{ period_label }}</td>
             </tr>
         </table>
     </div>
 
-    <div class="section-title">1. Entitlement & Summary Breakdown</div>
+    <div class="section-title">1. Summary by Leave Type</div>
     <table class="data-table">
         <thead>
             <tr>
                 <th style="text-align: left;">Leave Type</th>
+                <th>Start Bal</th>
                 <th>Opening</th>
+                <th>Entitlement</th>
                 <th>Accrued</th>
                 <th>Carried</th>
                 <th>Taken</th>
                 <th>Adj</th>
-                <th>Excess</th>
-                <th style="background: #15385B;">Net Balance</th>
+                <th>Excess/Exp</th>
+                <th style="background: #15385B;">Closing Bal</th>
                 <th>Pending</th>
                 <th style="background: #0F2841;">Available</th>
             </tr>
@@ -166,15 +168,21 @@
             {% for s in summary %}
             <tr>
                 <td><strong>{{ s.name }}</strong></td>
-                <td class="center">{{ s.opening_days }}</td>
-                <td class="center">{{ s.accrued_days }}</td>
-                <td class="center">{{ s.carried_days }}</td>
-                <td class="center" style="color: #DC2626;">{{ s.taken_days }}</td>
-                <td class="center">{{ s.adj_days }}</td>
-                <td class="center">{{ s.excess_days }}</td>
-                <td class="center" style="font-weight: bold;">{% if s.uses_balance %}{{ s.net_balance }}{% else %}-{% endif %}</td>
-                <td class="center" style="color: #D97706;">{% if s.uses_balance %}{{ s.pending_days }}{% else %}-{% endif %}</td>
-                <td class="center" style="font-weight: bold; color: #059669;">{% if s.uses_balance %}{{ s.available_days }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.balance_at_start }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.opening_days }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.entitlement_days }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.accrued_days }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.carried_days }}{% else %}-{% endif %}</td>
+                <td class="center" style="color: #DC2626; font-weight: bold;">{{ s.taken_days }}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.adj_days }}{% else %}-{% endif %}</td>
+                <td class="center">{% if s.uses_balance %}{{ s.excess_days }}{% else %}-{% endif %}</td>
+                <td class="center" style="font-weight: bold; background: #EEF2FF;">{% if s.uses_balance %}{{ s.closing_balance }}{% else %}-{% endif %}</td>
+                <td class="center" style="color: #D97706;">{{ s.pending_days }}</td>
+                <td class="center" style="font-weight: bold; color: #059669;">{% if s.available_days is not None %}{{ s.available_days }}{% else %}-{% endif %}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="12" class="center" style="padding: 10px; color: #64748B;">No leave type balances available.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -184,12 +192,12 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th style="width: 75px;">Date</th>
+                <th style="width: 70px;">Date</th>
                 <th>Leave Type</th>
                 <th>Entry Type</th>
-                <th style="width: 60px;">Days</th>
-                <th style="width: 75px;">Running Bal</th>
-                <th>Ref</th>
+                <th style="width: 55px;">Days</th>
+                <th style="width: 65px;">Running Bal</th>
+                <th style="width: 55px;">Ref</th>
                 <th style="text-align: left;">Note</th>
             </tr>
         </thead>
@@ -203,14 +211,50 @@
                 <td class="center" style="font-weight: bold;">
                     {% if e.days > 0 %}+{{ e.days }}{% else %}{{ e.days }}{% endif %}
                 </td>
-                <td class="center" style="font-weight: bold;">{{ item.running_balance }}</td>
+                <td class="center" style="font-weight: bold;">{% if item.running_balance is not None %}{{ item.running_balance }}{% else %}-{% endif %}</td>
                 <td class="center">{% if e.leave %}#{{ e.leave.id }}{% else %}-{% endif %}</td>
                 <td>{{ e.note|default:"-" }}</td>
             </tr>
             {% endwith %}
             {% empty %}
             <tr>
-                <td colspan="7" class="center" style="padding: 15px; color: #64748B;">No transactions recorded for this year.</td>
+                <td colspan="7" class="center" style="padding: 10px; color: #64748B;">No transactions recorded in this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="section-title">3. Leave Requests in Period</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th style="width: 50px;">Req #</th>
+                <th>Leave Type</th>
+                <th style="width: 65px;">From</th>
+                <th style="width: 65px;">To</th>
+                <th style="width: 50px;">Days</th>
+                <th style="width: 75px;">Status</th>
+                <th style="width: 65px;">Applied</th>
+                <th>Decided By</th>
+                <th style="text-align: left;">Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in requests %}
+            <tr>
+                <td class="center">#{{ r.id }}</td>
+                <td>{{ r.leave_type_name }}</td>
+                <td class="center">{{ r.from_date|date:"d/m/Y" }}</td>
+                <td class="center">{{ r.to_date|date:"d/m/Y" }}</td>
+                <td class="center" style="font-weight: bold;">{{ r.days }}</td>
+                <td class="center">{{ r.request.get_approval_status_display }}</td>
+                <td class="center">{{ r.applied_at|date:"d/m/Y" }}</td>
+                <td class="center">{% if r.decided_by %}{{ r.decided_by.get_full_name|default:r.decided_by.username }}{% else %}-{% endif %}</td>
+                <td>{{ r.remarks|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="9" class="center" style="padding: 10px; color: #64748B;">No leave requests found in this period.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -221,4 +265,3 @@
     </div>
 </body>
 </html>
-

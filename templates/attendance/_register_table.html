@@ -113,6 +113,28 @@
     color: var(--primary-font-color);
 }
 
+.att-sum-export-btn {
+    background: var(--secondary-bg);
+    color: #ffffff !important;
+    border-radius: 6px;
+    padding: 8px 18px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: "Poppins", sans-serif;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 38px;
+    transition: background-color 0.2s ease;
+}
+
+.att-sum-export-btn:hover {
+    background-color: #154272;
+    color: #ffffff !important;
+}
+
 .att-reg-weekday {
     font-size: 11px;
     color: #6c757d;
@@ -802,11 +824,9 @@
                     <div class="mb-3">
                         <label class="form-label small fw-bold">Location</label>
                         <select name="location" id="reg_corr_location" class="form-select form-select-sm">
-                            <option value="OFFICE">Office</option>
-                            <option value="BDO">BDO</option>
-                            <option value="DMC">DMC</option>
-                            <option value="ABU">Abu Dhabi</option>
-                            <option value="PORT">Port / Vessel</option>
+                            {% for val, label in correction_location_choices %}
+                                <option value="{{ val }}" {% if val == 'BDO' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 

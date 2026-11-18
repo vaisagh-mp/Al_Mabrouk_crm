@@ -155,8 +155,8 @@ class AttendanceDownloadsAndBadgesTests(TestCase):
             )
 
         base_url = reverse('attendance_list_adminview')
-        # Filter for MISSING_PUNCH across 14 days
-        res = self.client.get(f"{base_url}?start=2026-10-01&end=2026-10-14&status=Missing+Punch&tab=daily&export=daily_excel")
+        # Filter for MISSING_PUNCH across 14 days for vessel_tech
+        res = self.client.get(f"{base_url}?start=2026-10-01&end=2026-10-14&status=Missing+Punch&search=vessel_tech&tab=daily&export=daily_excel")
         self.assertEqual(res.status_code, 200)
 
         wb = openpyxl.load_workbook(io.BytesIO(res.content))

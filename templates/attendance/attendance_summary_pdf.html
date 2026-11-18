@@ -116,7 +116,6 @@
         <div class="header-left">
             {% pdf_logo css_class="logo-img" %}
             <div>
-                <div class="company-name">Al Mabrouk Marine Services LLC</div>
                 <div class="report-title">{{ report_title }}</div>
             </div>
         </div>
@@ -171,7 +170,7 @@
             <tr>
                 <td class="text-left"><strong>{{ s.name }}</strong></td>
                 <td class="text-left">{{ s.designation|default:"-" }}</td>
-                <td>{{ s.scheduled_days }}</td>
+                <td>{{ s.scheduled_working_days }}</td>
                 <td>{{ s.present_days }}</td>
                 <td>{{ s.attendance_pct }}%</td>
                 <td>{{ s.office_days }}</td>
@@ -202,7 +201,7 @@
         <tfoot>
             <tr>
                 <td colspan="2" class="text-left">TOTAL</td>
-                <td>{{ totals.scheduled_days }}</td>
+                <td>{{ totals.scheduled_working_days }}</td>
                 <td>{{ totals.present_days }}</td>
                 <td>-</td>
                 <td>{{ totals.office_days }}</td>

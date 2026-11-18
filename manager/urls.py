@@ -65,6 +65,7 @@ urlpatterns = [
     path('attendance/log-in/', views.manager_log_in, name='manager_log_in'),
     path('attendance/log-off/<int:attendance_id>/', views.manager_log_off, name='manager_log_off'),
     path("leave-records/", views.manager_leave_records, name="manager_leave_records"),
+    path('leave-statement/', views.manager_leave_statement, name='manager_leave_statement'),
     path('upload_medical_certificate/<int:leave_id>/', views.manager_upload_medical_certificate, name='manager_upload_medical_certificate'),
 
     

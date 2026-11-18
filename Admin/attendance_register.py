@@ -1474,7 +1474,10 @@ def _register_context(request):
     departments = Department.objects.filter(is_active=True).order_by('sort_order', 'name')
     branches = Branch.objects.filter(is_active=True).order_by('sort_order', 'name')
 
+    from Admin.models import Attendance as _Att
     return {
+        # Correction modal must only offer locations valid for AttendanceCorrection.location
+        'correction_location_choices': _Att.LOCATION_CHOICES,
         'rows': page_obj,
         'page_obj': page_obj,
         'display_rows': display_rows,

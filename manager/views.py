@@ -1526,6 +1526,15 @@ def manager_leave_status(request):
     return render(request, "Manager/leavestatus.html", {"leaves": leaves,"role": "Manager",})
 
 @login_required
+def manager_leave_statement(request):
+    """
+    Manager Leave Statement view: calls render_role_leave_statement.
+    """
+    from Admin.leave_views import render_role_leave_statement
+    return render_role_leave_statement(request, 'Manager', 'Manager/managerbase.html')
+
+
+@login_required
 def manager_leave_records(request):
     """View to display the leave records for the logged-in user."""
     if is_leave_v2_active():

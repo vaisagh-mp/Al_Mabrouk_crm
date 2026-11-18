@@ -3,55 +3,179 @@
 
 {% block content %}
 <div class="content-body" style="padding: 20px;">
-    <!-- Page Header -->
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-        <div>
-            <h3 style="margin: 0; color: #1F3A52; font-weight: 700;">LEAVE STATEMENT</h3>
-            <p style="margin: 4px 0 0; color: #6c757d; font-size: 13px;">
-                Annual ledger statement for <strong>{{ employee.name }}</strong> ({% if employee.employee_code %}{{ employee.employee_code }}{% else %}AMMS-{{ employee.id|stringformat:"04d" }}{% endif %}) - Year {{ year }}
-            </p>
-        </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <!-- Year Selector -->
-            <form method="GET" style="display: inline-block; margin: 0;">
-                {% if request.GET.employee %}
-                    <input type="hidden" name="employee" value="{{ request.GET.employee }}">
-                {% endif %}
-                <select name="year" onchange="this.form.submit()" class="form-control form-control-sm" style="font-weight: 600; color: #1F3A52; height: 32px; padding: 2px 10px; border-radius: 6px;">
-                    {% for y in years_available %}
-                        <option value="{{ y }}" {% if y == year %}selected{% endif %}>Year {{ y }}</option>
-                    {% endfor %}
-                </select>
-            </form>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert" style="border-radius: 8px; font-size: 13px;">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
 
-            <a href="?year={{ year }}{% if request.GET.employee %}&employee={{ request.GET.employee }}{% endif %}&export=excel" class="btn btn-outline-success btn-sm" style="font-weight: 600;">
-                <i class="fa fa-download"></i> Export Excel
-            </a>
-            <a href="?year={{ year }}{% if request.GET.employee %}&employee={{ request.GET.employee }}{% endif %}&export=pdf" class="btn btn-outline-danger btn-sm" style="font-weight: 600;">
-                <i class="fa fa-file-pdf-o"></i> Export PDF
-            </a>
+    <!-- Top Filter Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+            <h4 style="margin: 0; color: #1F3A52; font-weight: 700; font-size: 18px;">
+                <i class="fa fa-book me-2"></i>LEAVE STATEMENT
+            </h4>
+        </div>
+
+        <form method="GET" id="statement_filter_form">
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end;">
+                {% if selectable_employees %}
+                <div style="min-width: 260px; flex: 1;">
+                    <label class="form-label" style="font-weight: 600; font-size: 12px; color: #1F3A52; margin-bottom: 4px;">Employee</label>
+                    <select name="employee" class="form-control form-control-sm" style="font-weight: 500; height: 36px; border-radius: 6px; color: #1E293B;">
+                        <option value="">-- Select Employee --</option>
+                        {% for emp in selectable_employees %}
+                            <option value="{{ emp.id }}" {% if employee and employee.id == emp.id %}selected{% endif %}>
+                                {% if emp.employee_code %}{{ emp.employee_code }}{% else %}AMMS-{{ emp.id|stringformat:"04d" }}{% endif %} – {{ emp.name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    {% if is_admin_or_hr %}
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="checkbox" name="include_inactive" value="1" id="include_inactive" {% if include_inactive %}checked{% endif %} onchange="document.getElementById('statement_filter_form').submit()">
+                        <label class="form-check-label" for="include_inactive" style="font-size: 11px; color: #64748B;">Include inactive staff</label>
+                    </div>
+                    {% endif %}
+                </div>
+                {% elif employee %}
+                <input type="hidden" name="employee" value="{{ employee.id }}">
+                {% endif %}
+
+                <!-- Period Radios -->
+                <div>
+                    <label class="form-label d-block" style="font-weight: 600; font-size: 12px; color: #1F3A52; margin-bottom: 4px;">Period Mode</label>
+                    <div style="display: flex; gap: 14px; align-items: center; height: 36px;">
+                        <div class="form-check form-check-inline m-0">
+                            <input class="form-check-input" type="radio" name="mode" id="mode_year" value="year" {% if mode == 'year' %}checked{% endif %} onchange="togglePeriodMode()">
+                            <label class="form-check-label" for="mode_year" style="font-size: 13px; font-weight: 600; color: #1E293B; cursor: pointer;">Year</label>
+                        </div>
+                        <div class="form-check form-check-inline m-0">
+                            <input class="form-check-input" type="radio" name="mode" id="mode_range" value="range" {% if mode == 'range' %}checked{% endif %} onchange="togglePeriodMode()">
+                            <label class="form-check-label" for="mode_range" style="font-size: 13px; font-weight: 600; color: #1E293B; cursor: pointer;">Custom Range</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Year Container -->
+                <div id="year_select_container" style="{% if mode != 'year' %}display: none;{% else %}display: block;{% endif %}">
+                    <label class="form-label" style="font-weight: 600; font-size: 12px; color: #1F3A52; margin-bottom: 4px;">Year</label>
+                    <select name="year" class="form-control form-control-sm" style="font-weight: 600; color: #1F3A52; height: 36px; min-width: 110px; border-radius: 6px;">
+                        {% for y in years_available %}
+                            <option value="{{ y }}" {% if y == year %}selected{% endif %}>Year {{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Custom Range Container -->
+                <div id="range_select_container" style="{% if mode != 'range' %}display: none;{% else %}display: flex;{% endif %} gap: 10px;">
+                    <div>
+                        <label class="form-label" style="font-weight: 600; font-size: 12px; color: #1F3A52; margin-bottom: 4px;">From Date</label>
+                        <input type="date" name="from" value="{{ date_from_str }}" class="form-control form-control-sm" style="height: 36px; border-radius: 6px;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-weight: 600; font-size: 12px; color: #1F3A52; margin-bottom: 4px;">To Date</label>
+                        <input type="date" name="to" value="{{ date_to_str }}" class="form-control form-control-sm" style="height: 36px; border-radius: 6px;">
+                    </div>
+                </div>
+
+                <!-- Buttons -->
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button type="submit" class="btn btn-sm" style="background: #1F497D; color: #ffffff; font-weight: 600; height: 36px; padding: 0 16px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; border: none;">
+                        <i class="fa fa-filter"></i> Generate
+                    </button>
+                    {% if employee %}
+                    <a href="?employee={{ employee.id }}&mode={{ mode }}{% if mode == 'year' %}&year={{ year }}{% else %}&from={{ date_from_str }}&to={{ date_to_str }}{% endif %}{% if include_inactive %}&include_inactive=1{% endif %}&export=excel" class="btn btn-outline-success btn-sm" style="font-weight: 600; height: 36px; padding: 0 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa fa-download"></i> Export Excel
+                    </a>
+                    <a href="?employee={{ employee.id }}&mode={{ mode }}{% if mode == 'year' %}&year={{ year }}{% else %}&from={{ date_from_str }}&to={{ date_to_str }}{% endif %}{% if include_inactive %}&include_inactive=1{% endif %}&export=pdf" class="btn btn-outline-danger btn-sm" style="font-weight: 600; height: 36px; padding: 0 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa fa-file-pdf-o"></i> Export PDF
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script>
+    function togglePeriodMode() {
+        var isYear = document.getElementById('mode_year').checked;
+        var yearCont = document.getElementById('year_select_container');
+        var rangeCont = document.getElementById('range_select_container');
+        if (isYear) {
+            yearCont.style.display = 'block';
+            rangeCont.style.display = 'none';
+        } else {
+            yearCont.style.display = 'none';
+            rangeCont.style.display = 'flex';
+        }
+    }
+    </script>
+
+    {% if not employee %}
+    <!-- Empty State for Landing without Employee -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 60px 20px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 25px;">
+        <i class="fa fa-user-circle-o" style="font-size: 56px; color: #CBD5E1; margin-bottom: 15px;"></i>
+        <h5 style="color: #1F3A52; font-weight: 700; margin-bottom: 8px;">Select an employee to view their leave statement</h5>
+        <p style="color: #64748B; font-size: 14px; max-width: 520px; margin: 0 auto;">
+            Choose an employee from the dropdown above and select a year or custom date range to generate their complete leave summary, transaction ledger, and requests history.
+        </p>
+    </div>
+    {% else %}
+
+    <!-- Employee Metadata Strip -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div style="display: flex; gap: 24px; flex-wrap: wrap; align-items: center;">
+            <div>
+                <div style="font-size: 11px; text-transform: uppercase; color: #64748B; font-weight: 600;">Employee</div>
+                <div style="font-size: 15px; font-weight: 700; color: #1F3A52;">
+                    {{ employee.name }}
+                    <span style="font-size: 12px; color: #475569; font-weight: 500;">({% if employee.employee_code %}{{ employee.employee_code }}{% else %}AMMS-{{ employee.id|stringformat:"04d" }}{% endif %})</span>
+                </div>
+            </div>
+            <div>
+                <div style="font-size: 11px; text-transform: uppercase; color: #64748B; font-weight: 600;">Department / Branch</div>
+                <div style="font-size: 13px; font-weight: 600; color: #334155;">{{ employee.department.name|default:"-" }} / {{ employee.branch.name|default:"-" }}</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; text-transform: uppercase; color: #64748B; font-weight: 600;">Rank / Designation</div>
+                <div style="font-size: 13px; font-weight: 600; color: #334155;">{{ employee.rank|default:"-" }}</div>
+            </div>
+            <div>
+                <div style="font-size: 11px; text-transform: uppercase; color: #64748B; font-weight: 600;">Joining Date</div>
+                <div style="font-size: 13px; font-weight: 600; color: #334155;">{{ employee.date_of_join|date:"d/m/Y"|default:"-" }}</div>
+            </div>
+        </div>
+        <div>
+            <span class="badge" style="background: #1F497D; color: #ffffff; font-size: 13px; padding: 8px 14px; border-radius: 6px; font-weight: 600;">
+                <i class="fa fa-calendar me-1"></i> {{ statement.period_label }}
+            </span>
         </div>
     </div>
 
-    <!-- Summary Table Card -->
+    <!-- Section 1: Summary Table Card -->
     <div style="background: #ffffff; border-radius: 10px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
         <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px; text-transform: uppercase;">
-            <i class="fa fa-calculator"></i> Annual Entitlement & Balance Breakdown ({{ year }})
+            <i class="fa fa-calculator me-1"></i> 1. Leave Entitlement & Balance Breakdown ({{ statement.period_label }})
         </h5>
         <div class="table-responsive">
             <table class="table table-bordered" style="font-size: 13px; margin: 0; text-align: center; vertical-align: middle;">
                 <thead style="background: #1F497D; color: #ffffff;">
                     <tr>
                         <th style="text-align: left; font-weight: 700;">Leave Type</th>
+                        <th style="font-weight: 700;">Balance at Start</th>
                         <th style="font-weight: 700;">Opening</th>
+                        <th style="font-weight: 700;">Entitlement</th>
                         <th style="font-weight: 700;">Accrued</th>
-                        <th style="font-weight: 700;">Carried Over</th>
+                        <th style="font-weight: 700;">Carried Fwd</th>
                         <th style="font-weight: 700;">Taken</th>
                         <th style="font-weight: 700;">Adjustments</th>
-                        <th style="font-weight: 700;">Excess</th>
-                        <th style="font-weight: 700; background: #15385B;">Net Balance</th>
+                        <th style="font-weight: 700;">Excess / Expired</th>
+                        <th style="font-weight: 700; background: #15385B;">Closing Balance</th>
                         <th style="font-weight: 700;">Pending</th>
-                        <th style="font-weight: 700; background: #0F2841;">Available</th>
+                        <th style="font-weight: 700; background: #0F2841;">Available Now</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -63,21 +187,27 @@
                                 <span style="font-size: 10px; color: #64748B; font-weight: normal;">(No Balance)</span>
                             {% endif %}
                         </td>
-                        <td>{{ s.opening_days }}</td>
-                        <td>{{ s.accrued_days }}</td>
-                        <td>{{ s.carried_days }}</td>
-                        <td style="color: #dc3545; font-weight: 600;">{{ s.taken_days }}</td>
-                        <td>{{ s.adj_days }}</td>
-                        <td style="color: #64748B;">{{ s.excess_days }}</td>
+                        <td>{% if s.uses_balance %}{{ s.balance_at_start }}{% else %}-{% endif %}</td>
+                        <td>{% if s.uses_balance %}{{ s.opening }}{% else %}-{% endif %}</td>
+                        <td>{% if s.uses_balance %}{{ s.entitlement }}{% else %}-{% endif %}</td>
+                        <td>{% if s.uses_balance %}{{ s.accrued }}{% else %}-{% endif %}</td>
+                        <td>{% if s.uses_balance %}{{ s.carried_forward }}{% else %}-{% endif %}</td>
+                        <td style="color: #dc3545; font-weight: 600;">{{ s.taken }}</td>
+                        <td>{% if s.uses_balance %}{{ s.adjustments }}{% else %}-{% endif %}</td>
+                        <td style="color: #64748B;">{% if s.uses_balance %}{{ s.excess_expired }}{% else %}-{% endif %}</td>
                         <td style="font-weight: 800; color: #1F3A52; background: #F8FAFC;">
-                            {% if s.uses_balance %}{{ s.net_balance }}{% else %}-{% endif %}
+                            {% if s.uses_balance %}{{ s.closing_balance }}{% else %}-{% endif %}
                         </td>
                         <td style="color: #E67E22; font-weight: 600;">
-                            {% if s.uses_balance %}{{ s.pending_days }}{% else %}-{% endif %}
+                            {{ s.pending_days }}
                         </td>
                         <td style="font-weight: 800; color: #10B981; font-size: 14px; background: #F0FDF4;">
-                            {% if s.uses_balance %}{{ s.available_days }}{% else %}-{% endif %}
+                            {% if s.uses_balance %}{% if s.available_now is not None %}{{ s.available_now }}{% else %}-{% endif %}{% else %}-{% endif %}
                         </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12" class="text-center" style="padding: 20px; color: #64748B;">No active leave types found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -85,10 +215,10 @@
         </div>
     </div>
 
-    <!-- Running Ledger Entries Card -->
-    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+    <!-- Section 2: Detailed Ledger Transactions Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; margin-bottom: 25px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
         <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px; text-transform: uppercase;">
-            <i class="fa fa-history"></i> Detailed Transaction Ledger ({{ year }})
+            <i class="fa fa-history me-1"></i> 2. Detailed Transaction Ledger ({{ statement.period_label }})
         </h5>
         {% if entries %}
         <div class="table-responsive">
@@ -146,7 +276,7 @@
                             {% endif %}
                         </td>
                         <td style="text-align: center; font-weight: 800; color: #1F3A52;">
-                            {{ item.running_balance }}
+                            {% if item.running_balance is not None %}{{ item.running_balance }}{% else %}-{% endif %}
                         </td>
                         <td>
                             {% if e.leave %}
@@ -170,10 +300,73 @@
         {% else %}
         <div style="text-align: center; padding: 40px; color: #64748B;">
             <i class="fa fa-book" style="font-size: 32px; color: #CBD5E1; margin-bottom: 10px;"></i>
-            <p style="margin: 0; font-size: 14px;">No ledger transactions recorded for {{ year }}.</p>
+            <p style="margin: 0; font-size: 14px;">No ledger transactions recorded in this period.</p>
         </div>
         {% endif %}
     </div>
+
+    <!-- Section 3: Leave Requests in Period Card -->
+    <div style="background: #ffffff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+        <h5 style="margin: 0 0 15px; color: #1F3A52; font-weight: 700; font-size: 14px; text-transform: uppercase;">
+            <i class="fa fa-calendar-check-o me-1"></i> 3. Leave Requests in Period ({{ statement.period_label }})
+        </h5>
+        {% if requests %}
+        <div class="table-responsive">
+            <table class="table table-hover" style="font-size: 13px; margin: 0; vertical-align: middle;">
+                <thead style="background: #f8fafc; color: #1F3A52;">
+                    <tr>
+                        <th style="font-weight: 700; width: 90px;">Request #</th>
+                        <th style="font-weight: 700;">Leave Type</th>
+                        <th style="font-weight: 700;">From</th>
+                        <th style="font-weight: 700;">To</th>
+                        <th style="font-weight: 700; text-align: center;">Days (Period)</th>
+                        <th style="font-weight: 700; text-align: center;">Total Days</th>
+                        <th style="font-weight: 700; text-align: center;">Status</th>
+                        <th style="font-weight: 700;">Applied On</th>
+                        <th style="font-weight: 700;">Decided By</th>
+                        <th style="font-weight: 700;">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in requests %}
+                    <tr>
+                        <td style="font-weight: 700; color: #0284C7;">#{{ r.id }}</td>
+                        <td><strong>{{ r.leave_type_name }}</strong></td>
+                        <td>{{ r.from_date|date:"d/m/Y" }}</td>
+                        <td>{{ r.to_date|date:"d/m/Y" }}</td>
+                        <td style="text-align: center; font-weight: 700;">{{ r.days }}</td>
+                        <td style="text-align: center; color: #64748B;">{{ r.total_days }}</td>
+                        <td style="text-align: center;">
+                            {% if r.status == 'APPROVED' %}
+                                <span class="badge" style="background: #DEF7EC; color: #03543F; font-size: 11px; padding: 4px 8px; border-radius: 4px;">Approved</span>
+                            {% elif r.status == 'PENDING' %}
+                                <span class="badge" style="background: #FEF08A; color: #713F12; font-size: 11px; padding: 4px 8px; border-radius: 4px;">Pending</span>
+                            {% elif r.status == 'CLARIFICATION' %}
+                                <span class="badge" style="background: #BAE6FD; color: #0369A1; font-size: 11px; padding: 4px 8px; border-radius: 4px;">Clarification</span>
+                            {% elif r.status == 'REJECTED' %}
+                                <span class="badge" style="background: #FDE8E8; color: #9B1C1C; font-size: 11px; padding: 4px 8px; border-radius: 4px;">Rejected</span>
+                            {% elif r.status == 'CANCELLED' %}
+                                <span class="badge" style="background: #F3F4F6; color: #374151; font-size: 11px; padding: 4px 8px; border-radius: 4px;">Cancelled</span>
+                            {% else %}
+                                <span class="badge" style="background: #E5E7EB; color: #1F2937; font-size: 11px; padding: 4px 8px; border-radius: 4px;">{{ r.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 12px; color: #64748B;">{{ r.applied_at|date:"d/m/Y H:i"|default:"-" }}</td>
+                        <td style="font-size: 12px; color: #334155;">{{ r.decided_by.username|default:"-" }}</td>
+                        <td style="max-width: 250px; font-size: 12px; color: #475569;">{{ r.remarks|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: #64748B;">
+            <i class="fa fa-calendar-times-o" style="font-size: 32px; color: #CBD5E1; margin-bottom: 10px;"></i>
+            <p style="margin: 0; font-size: 14px;">No leave requests found in this period.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
 </div>
 {% endblock %}
-

@@ -22,6 +22,9 @@ PDF_TEMPLATES = [
     'leave/leave_list_pdf.html',
     'leave/leave_statement_pdf.html',
     'reports/report_pdf.html',
+    'attendance/attendance_daily_pdf.html',
+    'attendance/attendance_calendar_pdf.html',
+    'attendance/attendance_summary_pdf.html',
 ]
 
 
@@ -41,6 +44,18 @@ class PdfHeaderLogoTests(TestCase):
             self.assertIsNone(
                 re.search(r'(<h1[^>]*>|class="(company-title|company-name|title)">)\s*Al Mabrouk', src, re.I),
                 f'{name} still has the company name heading')
+
+    def test_no_old_company_name_in_any_pdf(self):
+        import glob
+        from django.conf import settings
+        for path in glob.glob(str(settings.BASE_DIR / 'templates' / '**' / '*pdf*.html'), recursive=True):
+            src = open(path, encoding='utf-8').read()
+            self.assertNotIn('Mabrouk', src, path)
+
+    def test_summary_pdf_uses_existing_field_names(self):
+        src = open('templates/attendance/attendance_summary_pdf.html', encoding='utf-8').read()
+        self.assertIn('s.scheduled_working_days', src)
+        self.assertNotIn('s.scheduled_days', src)
 
     def test_payslip_number_has_no_version(self):
         src = open('templates/payroll/payslip_pdf.html', encoding='utf-8').read()

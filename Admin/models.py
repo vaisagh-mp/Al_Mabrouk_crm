@@ -1063,6 +1063,7 @@ class Notification(models.Model):
         ('ADVANCE', 'Salary Advance'),
         ('INCREMENT', 'Salary Increment'),
         ('PROJECT', 'Project'),
+        ('MISSING_PUNCH', 'Missing Punch'),
         ('SYSTEM', 'System'),
     ]
 
@@ -1623,6 +1624,30 @@ class AttendanceCorrection(models.Model):
     def __str__(self):
         emp_name = self.employee.user.username if self.employee and self.employee.user else f"Emp #{self.employee_id}"
         return f"Correction for {emp_name} on {self.date} ({self.correction_type} - {self.status})"
+
+
+class MissingPunchAlert(models.Model):
+    PUNCH_TYPE_CHOICES = [
+        ('NO_PUNCH', 'No Punch'),
+        ('INCOMPLETE', 'Incomplete'),
+    ]
+
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, related_name='missing_punch_alerts')
+    date = models.DateField()
+    punch_type = models.CharField(max_length=20, choices=PUNCH_TYPE_CHOICES)
+    first_alert_at = models.DateTimeField()
+    last_alert_at = models.DateTimeField()
+    reminder_count = models.PositiveIntegerField(default=0)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('employee', 'date')]
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        emp_name = self.employee.user.username if self.employee and self.employee.user else f"Emp #{self.employee_id}"
+        return f"MissingPunchAlert: {emp_name} on {self.date} ({self.punch_type})"
 
 
 class OTApproval(models.Model):

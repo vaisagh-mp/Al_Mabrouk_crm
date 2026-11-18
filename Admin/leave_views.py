@@ -26,6 +26,7 @@ from Admin.leave_service import (
     get_employee_pending_leave_days,
     get_employee_available_leave,
     get_employee_leave_summary,
+    get_employee_leave_statement,
     can_decide_leave,
     submit_leave_request,
     approve_leave_request,
@@ -418,92 +419,175 @@ def render_role_leave_list(request, role, base_template):
 
 def render_role_leave_statement(request, role, base_template, employee_id=None):
     """
-    Unified Leave Statement view: annual summary cards + running ledger entries.
+    Unified Leave Statement view:
+    - Employee picker with role-based access control.
+    - Year mode or Custom Date Range.
+    - Summary by type, per-type running balance transaction ledger, leave requests in period.
+    - PDF & Excel exports.
     """
+    if not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+        return redirect_to_login(request.get_full_path())
+
     user_emp = getattr(request.user, 'employee_profile', None)
     target_id = employee_id or request.GET.get('employee')
+    include_inactive = request.GET.get('include_inactive') == '1'
 
+    is_admin_or_hr = request.user.is_superuser or (user_emp and (user_emp.is_hr or user_emp.is_accountant))
+    is_manager = bool(user_emp and user_emp.is_manager)
+
+    # Determine selectable employees
+    if is_admin_or_hr:
+        emp_qs = Employee.objects.all() if include_inactive else Employee.objects.filter(user__is_active=True)
+        selectable_employees = emp_qs.select_related('user', 'department', 'branch').order_by('user__first_name', 'user__last_name', 'employee_code')
+    elif is_manager:
+        selectable_employees = Employee.objects.filter(
+            Q(id=user_emp.id) | Q(reporting_manager=user_emp),
+            user__is_active=True
+        ).select_related('user', 'department', 'branch').order_by('user__first_name', 'user__last_name', 'employee_code')
+    else:
+        selectable_employees = None
+
+    target_emp = None
     if target_id:
         target_emp = get_object_or_404(Employee, pk=target_id)
+        # Permission check: self, reporting manager, HR, accountant, superuser
+        can_view = False
+        if request.user.is_superuser:
+            can_view = True
+        elif user_emp:
+            if user_emp.id == target_emp.id:
+                can_view = True
+            elif user_emp.is_hr or user_emp.is_accountant:
+                can_view = True
+            elif target_emp.reporting_manager_id == user_emp.id:
+                can_view = True
+
+        if not can_view:
+            raise PermissionDenied("You do not have permission to view this leave statement.")
     else:
-        target_emp = user_emp
+        # No employee in GET
+        if is_admin_or_hr:
+            target_emp = None  # Landing page: show filters with empty state
+        elif user_emp:
+            target_emp = user_emp
+        else:
+            raise PermissionDenied("Employee profile not found.")
 
-    if not target_emp:
-        if request.user.is_superuser or (user_emp and (user_emp.is_hr or user_emp.is_accountant)):
-            target_emp = Employee.objects.filter(user__is_active=True).first()
-    if not target_emp:
-        raise PermissionDenied("Employee profile not found.")
+    # Determine mode & dates
+    mode = request.GET.get('mode')
+    if not mode:
+        if request.GET.get('from') or request.GET.get('to'):
+            mode = 'range'
+        else:
+            mode = 'year'
 
-    # Permission check: self, reporting manager, HR, accountant, superuser
-    can_view = False
-    if request.user.is_superuser:
-        can_view = True
-    elif user_emp:
-        if user_emp.id == target_emp.id:
-            can_view = True
-        elif user_emp.is_hr or user_emp.is_accountant:
-            can_view = True
-        elif target_emp.reporting_manager_id == user_emp.id:
-            can_view = True
+    today = timezone.localdate()
+    year = today.year
 
-    if not can_view:
-        raise PermissionDenied("You do not have permission to view this leave statement.")
+    if mode == 'range':
+        from_str = request.GET.get('from')
+        to_str = request.GET.get('to')
+        if from_str and to_str:
+            try:
+                date_from = datetime.datetime.strptime(from_str, '%Y-%m-%d').date()
+                date_to = datetime.datetime.strptime(to_str, '%Y-%m-%d').date()
+                if date_from > date_to:
+                    messages.error(request, "Start date must be before or equal to end date.")
+                    mode = 'year'
+                    year = today.year
+                    date_from = datetime.date(year, 1, 1)
+                    date_to = datetime.date(year, 12, 31)
+            except (ValueError, TypeError):
+                messages.error(request, "Invalid date format. Expected YYYY-MM-DD.")
+                mode = 'year'
+                year = today.year
+                date_from = datetime.date(year, 1, 1)
+                date_to = datetime.date(year, 12, 31)
+        else:
+            mode = 'year'
+            year = today.year
+            date_from = datetime.date(year, 1, 1)
+            date_to = datetime.date(year, 12, 31)
+    else:
+        mode = 'year'
+        year_param = request.GET.get('year')
+        try:
+            year = int(year_param) if year_param else today.year
+        except (ValueError, TypeError):
+            year = today.year
+        date_from = datetime.date(year, 1, 1)
+        date_to = datetime.date(year, 12, 31)
 
-    try:
-        year = int(request.GET.get('year', timezone.localdate().year))
-    except (ValueError, TypeError):
-        year = timezone.localdate().year
+    statement = None
+    if target_emp:
+        statement = get_employee_leave_statement(
+            target_emp, date_from, date_to,
+            include_inactive_types=False,
+            mode=mode,
+            year=year if mode == 'year' else None
+        )
 
-    summary = get_employee_leave_summary(target_emp, year=year)
-    entries = LeaveLedger.objects.filter(
-        employee=target_emp, date__year=year
-    ).select_related('leave_type', 'leave', 'created_by').order_by('date', 'id')
-
-    prior_bal = LeaveLedger.objects.filter(
-        employee=target_emp, date__lt=datetime.date(year, 1, 1)
-    ).aggregate(s=Sum('days'))['s'] or Decimal('0.00')
-
-    running_bal = prior_bal
-    entries_with_bal = []
-    for e in entries:
-        running_bal += e.days
-        entries_with_bal.append({'entry': e, 'running_balance': running_bal})
-
-    export_fmt = request.GET.get('export')
-    if export_fmt == 'excel':
-        stream = export_leave_statement_excel(target_emp, year, summary, entries_with_bal)
-        resp = HttpResponse(stream.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        export_fmt = request.GET.get('export')
         code = target_emp.employee_code or f"AMMS-{target_emp.id:04d}"
-        resp['Content-Disposition'] = f'attachment; filename="leave_statement_{code}_{year}.xlsx"'
-        return resp
-    elif export_fmt == 'pdf':
-        from weasyprint import HTML
-        html_str = render_to_string('leave/leave_statement_pdf.html', {
-            'employee': target_emp,
-            'year': year,
-            'summary': summary,
-            'entries': entries_with_bal,
-            'generated_at': timezone.now(),
-        })
-        base_url = request.build_absolute_uri('/')
-        pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
-        code = target_emp.employee_code or f"AMMS-{target_emp.id:04d}"
-        resp = HttpResponse(pdf_bytes, content_type='application/pdf')
-        resp['Content-Disposition'] = f'attachment; filename="leave_statement_{code}_{year}.pdf"'
-        return resp
+        if mode == 'year':
+            filename_base = f"leave_statement_{code}_{year}"
+        else:
+            filename_base = f"leave_statement_{code}_{date_from}_to_{date_to}"
+
+        if export_fmt == 'excel':
+            stream = export_leave_statement_excel(statement)
+            resp = HttpResponse(stream.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            resp['Content-Disposition'] = f'attachment; filename="{filename_base}.xlsx"'
+            return resp
+        elif export_fmt == 'pdf':
+            from weasyprint import HTML
+            html_str = render_to_string('leave/leave_statement_pdf.html', {
+                'employee': target_emp,
+                'statement': statement,
+                'summary': statement['summary_by_type'],
+                'entries': statement['ledger_lines'],
+                'requests': statement['requests'],
+                'date_from': date_from,
+                'date_to': date_to,
+                'period_label': statement['period_label'],
+                'mode': mode,
+                'year': year if mode == 'year' else None,
+                'generated_at': timezone.now(),
+                'generated_by': request.user,
+            })
+            base_url = request.build_absolute_uri('/')
+            pdf_bytes = HTML(string=html_str, base_url=base_url).write_pdf()
+            resp = HttpResponse(pdf_bytes, content_type='application/pdf')
+            resp['Content-Disposition'] = f'attachment; filename="{filename_base}.pdf"'
+            return resp
 
     # List available years
-    distinct_years = LeaveLedger.objects.filter(employee=target_emp).dates('date', 'year')
-    years_available = sorted(list({d.year for d in distinct_years} | {timezone.localdate().year}), reverse=True)
+    if target_emp:
+        distinct_years = LeaveLedger.objects.filter(employee=target_emp).dates('date', 'year')
+        years_available = sorted(list({d.year for d in distinct_years} | {today.year, today.year + 1}), reverse=True)
+    else:
+        years_available = [today.year + 1, today.year, today.year - 1]
 
     context = {
         'role': role,
         'base_template': base_template,
         'employee': target_emp,
+        'selectable_employees': selectable_employees,
+        'is_admin_or_hr': is_admin_or_hr,
+        'is_manager': is_manager,
+        'include_inactive': include_inactive,
+        'mode': mode,
         'year': year,
+        'date_from': date_from,
+        'date_to': date_to,
+        'date_from_str': date_from.strftime('%Y-%m-%d'),
+        'date_to_str': date_to.strftime('%Y-%m-%d'),
         'years_available': years_available,
-        'leave_summary': summary,
-        'entries': entries_with_bal,
+        'statement': statement,
+        'leave_summary': statement['summary_by_type'] if statement else [],
+        'entries': statement['ledger_lines'] if statement else [],
+        'requests': statement['requests'] if statement else [],
     }
     return render(request, 'leave/leave_statement.html', context)
 

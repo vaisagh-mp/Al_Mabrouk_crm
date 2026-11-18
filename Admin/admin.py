@@ -4,7 +4,8 @@ from .models import (
     Project, Employee, ProjectAssignment, Attendance, AttendanceCorrection, Team, TeamMemberStatus,
     Leave, LeaveBalance, LeaveType, LeavePolicy, LeaveLedger, LeaveYearReview,
     Notification, ActivityLog, ProjectAttachment, Holiday, WorkOrder, WorkOrderDetail,
-    Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed
+    Spare, Tool, Document, Vessel, WorkOrderImage, WorkOrderTime, SpareConsumed,
+    MissingPunchAlert
 )
 
 
@@ -273,3 +274,30 @@ class AttendanceCorrectionAdmin(admin.ModelAdmin):
     list_display = ('employee', 'date', 'correction_type', 'status', 'approver', 'created_at')
     list_filter = ('status', 'correction_type', 'date')
     search_fields = ('employee__user__username', 'employee__employee_code', 'reason')
+
+
+class MissingPunchAlertResolvedFilter(admin.SimpleListFilter):
+    title = 'Resolution Status'
+    parameter_name = 'resolved'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('yes', 'Resolved'),
+            ('no', 'Unresolved'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(resolved_at__isnull=False)
+        if self.value() == 'no':
+            return queryset.filter(resolved_at__isnull=True)
+        return queryset
+
+
+@admin.register(MissingPunchAlert)
+class MissingPunchAlertAdmin(admin.ModelAdmin):
+    list_display = ('employee', 'date', 'punch_type', 'first_alert_at', 'last_alert_at', 'reminder_count', 'resolved_at', 'created_at')
+    list_filter = (MissingPunchAlertResolvedFilter, 'punch_type', 'date')
+    search_fields = ('employee__user__username', 'employee__employee_code', 'employee__user__first_name', 'employee__user__last_name')
+    readonly_fields = ('created_at',)
+

@@ -8,7 +8,7 @@
 
 Run migrations in standard Django order (`python manage.py migrate`) after deploying code:
 
-### `Admin` (`0012` – `0025`)
+### `Admin` (`0012` – `0026`)
 1. `Admin/0012_branch_department_employee_company_email_and_more` (Phase 1: Department, Branch, Employee HR master fields, SalaryStructure, EmployeeChangeLog)
 2. `Admin/0013_assign_employee_codes_and_salary_structures` (Phase 1: Backfill employee codes `AMMS-XXXX` and initial SalaryStructure rows)
 3. `Admin/0014_dutyschedule_alter_holiday_options_holiday_branch_and_more` (Phase 2: DutySchedule, EmployeeSchedule, RestDayRule, RosterDay, Holiday branch scope)
@@ -23,6 +23,7 @@ Run migrations in standard Django order (`python manage.py migrate`) after deplo
 12. `Admin/0023_alter_documentreminderlog_unique_together_and_more` (Phase 6: Company/Employee reminder threshold tracking)
 13. `Admin/0024_repair_salary_structure_overlaps` (Phase 7: Close/align overlapping historical SalaryStructure date ranges)
 14. `Admin/0025_notification_link_notification_read_at_and_more` (Phase 8: Typed Notification fields `type`, `link`, `related_kind`, `related_id`, `read_at`)
+15. `Admin/0026_alter_notification_type_missingpunchalert` (Missing punch alerts, reminders, and MissingPunchAlert model)
 
 ### `finance` (`0010`)
 1. `finance/0010_payrollline_payslip_salaryadvance_advanceinstalment_and_more` (Phase 7: PayrollLine, Payslip, SalaryAdvance, AdvanceInstalment, SalaryIncrement)
@@ -79,6 +80,9 @@ DJANGO_MANAGE=/path/to/venv/bin/python /path/to/Al_Mabrouk_crm/manage.py
 # 3. Document expiry reminders daily at 08:00 (90, 60, 30, and 0/expired thresholds)
 0 8 * * * $DJANGO_MANAGE send_document_reminders >> /var/log/almabrouk/send_document_reminders.log 2>&1
 
+# 3b. Missing punch alerts & reminders daily at 09:00 (after 00:15 auto punch-out)
+0 9 * * * $DJANGO_MANAGE send_missing_punch_alerts >> /var/log/almabrouk/missing_punch_alerts.log 2>&1
+
 # 4a. Monthly leave accrual on the 1st at 01:00 — credits the month that has just ENDED
 #     (running it for the current month would credit days before they are earned)
 0 1 1 * * $DJANGO_MANAGE accrue_leave --month $(date -d "last month" +\%Y-\%m) >> /var/log/almabrouk/accrue_leave_monthly.log 2>&1
@@ -92,7 +96,7 @@ DJANGO_MANAGE=/path/to/venv/bin/python /path/to/Al_Mabrouk_crm/manage.py
 30 1 1 1 * $DJANGO_MANAGE close_leave_year --year $(date -d "last year" +\%Y) >> /var/log/almabrouk/close_leave_year.log 2>&1
 ```
 
-> Always test cron commands with `--dry-run` first where supported (`apply_salary_structures --dry-run`, `send_document_reminders --dry-run`, `accrue_leave --dry-run`, `close_leave_year --year YYYY --dry-run`).
+> Always test cron commands with `--dry-run` first where supported (`apply_salary_structures --dry-run`, `send_document_reminders --dry-run`, `send_missing_punch_alerts --dry-run`, `accrue_leave --dry-run`, `close_leave_year --year YYYY --dry-run`).
 
 ---
 

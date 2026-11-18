@@ -1258,84 +1258,526 @@ def export_leave_list_excel(leaves):
     return stream
 
 
-def export_leave_statement_excel(employee, year, summary_list, entries_with_bal):
-    """
-    Exports employee's annual leave statement to Excel with summary cards & running ledger.
-    """
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = f"Leave Statement {year}"
+LeaveRequest = Leave
 
-    # Title
-    ws.append([f"LEAVE STATEMENT - {year}"])
-    title_cell = ws.cell(row=1, column=1)
-    title_cell.font = openpyxl.styles.Font(bold=True, size=14, color="1F497D")
+
+def get_employee_leave_statement(employee, date_from, date_to, include_inactive_types=False, mode=None, year=None):
+    """
+    Unified leave statement calculation for both Year mode and custom From/To range.
+    Returns:
+    {
+        'employee': employee,
+        'date_from': date_from,
+        'date_to': date_to,
+        'period_label': period_label,
+        'mode': mode,
+        'year': year,
+        'summary_by_type': summary_by_type,
+        'ledger_lines': ledger_lines,
+        'requests': requests_in_period,
+    }
+    """
+    if isinstance(date_from, str):
+        date_from = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+    if isinstance(date_to, str):
+        date_to = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
+
+    if mode is None:
+        if date_from == datetime.date(date_from.year, 1, 1) and date_to == datetime.date(date_from.year, 12, 31):
+            mode = 'year'
+            year = date_from.year
+        else:
+            mode = 'range'
+            year = year or date_from.year
+
+    if mode == 'year' and year:
+        period_label = f"Calendar Year {year}"
+    else:
+        period_label = f"{date_from.strftime('%d/%m/%Y')} to {date_to.strftime('%d/%m/%Y')}"
+
+    today = timezone.localdate()
+
+    types_qs = LeaveType.objects.all() if include_inactive_types else LeaveType.objects.filter(is_active=True)
+    types = types_qs.order_by('sort_order', 'name')
+
+    summary_by_type = []
+    for lt in types:
+        in_range_ledger = LeaveLedger.objects.filter(
+            employee=employee, leave_type=lt, date__gte=date_from, date__lte=date_to
+        )
+
+        if lt.uses_balance:
+            # Balance at start = every entry of this type dated before the range, nothing else.
+            # (Do not zero it for ranges starting before the joining date: opening balances are
+            # often imported with an earlier date, e.g. 01/01, and must still be carried in.)
+            agg_start = LeaveLedger.objects.filter(
+                employee=employee, leave_type=lt, date__lt=date_from
+            ).aggregate(s=Sum('days'))['s']
+            balance_at_start = Decimal(str(agg_start or '0.00'))
+
+            opening = in_range_ledger.filter(entry_type='OPENING').aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            entitlement = in_range_ledger.filter(entry_type='ENTITLEMENT').aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            accrued = in_range_ledger.filter(entry_type='ACCRUAL').aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            carried_forward = in_range_ledger.filter(entry_type='CARRY_FORWARD').aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+
+            taken_val = in_range_ledger.filter(entry_type='TAKEN').aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            taken = abs(taken_val)
+
+            adjustments = in_range_ledger.filter(entry_type__in=['ADJUSTMENT', 'REVERSAL']).aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+
+            ee_val = in_range_ledger.filter(entry_type__in=['YEAR_END_EXCESS', 'EXPIRED', 'YEAR_END_CLOSE']).aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            excess_expired = abs(ee_val)
+
+            all_days_range = in_range_ledger.aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+            closing_balance = balance_at_start + all_days_range
+
+            # Pending days overlapping range
+            pending_leaves = Leave.objects.filter(
+                Q(employee=employee) | Q(user=employee.user),
+                approval_status__in=['PENDING', 'CLARIFICATION'],
+                from_date__lte=date_to,
+                to_date__gte=date_from
+            ).filter(
+                Q(leave_type_ref=lt) | Q(leave_type__iexact=lt.name) | Q(leave_type__iexact=lt.code)
+            )
+            pending_days = Decimal('0.00')
+            for l in pending_leaves:
+                if l.is_half_day:
+                    if date_from <= l.from_date <= date_to:
+                        wd, _ = calculate_leave_working_days(employee, l.from_date, l.to_date, is_half_day=True, leave_type=lt)
+                        pending_days += wd
+                else:
+                    sub_start = max(l.from_date, date_from)
+                    sub_end = min(l.to_date, date_to)
+                    if sub_start <= sub_end:
+                        wd, _ = calculate_leave_working_days(employee, sub_start, sub_end, is_half_day=False, leave_type=lt)
+                        pending_days += wd
+
+            if date_to >= today:
+                curr_bal = get_employee_leave_balance(employee, lt, as_of_date=today)
+                all_pend = get_employee_pending_leave_days(employee, lt)
+                available_now = max(Decimal('0.00'), curr_bal - all_pend)
+            else:
+                available_now = None
+
+            summary_by_type.append({
+                'leave_type': lt,
+                'id': lt.id,
+                'code': lt.code,
+                'name': lt.name,
+                'uses_balance': True,
+                'balance_at_start': balance_at_start,
+                'opening': opening,
+                'opening_days': opening,
+                'entitlement': entitlement,
+                'entitlement_days': entitlement,
+                'accrued': accrued,
+                'accrued_days': accrued,
+                'carried_forward': carried_forward,
+                'carried_days': carried_forward,
+                'taken': taken,
+                'taken_days': taken,
+                'adjustments': adjustments,
+                'adj_days': adjustments,
+                'excess_expired': excess_expired,
+                'excess_days': excess_expired,
+                'closing_balance': closing_balance,
+                'net_balance': closing_balance,
+                'pending_days': pending_days,
+                'available_now': available_now,
+                # None for a period that has already ended ("available now" does not apply) -> shown as "-"
+                'available_days': available_now,
+            })
+        else:
+            taken_ledger = in_range_ledger.filter(entry_type='TAKEN').aggregate(s=Sum('days'))['s']
+            if taken_ledger is not None and taken_ledger != 0:
+                taken_days = abs(taken_ledger)
+            else:
+                approved_leaves = Leave.objects.filter(
+                    Q(employee=employee) | Q(user=employee.user),
+                    approval_status='APPROVED',
+                    from_date__lte=date_to,
+                    to_date__gte=date_from
+                ).filter(
+                    Q(leave_type_ref=lt) | Q(leave_type__iexact=lt.name) | Q(leave_type__iexact=lt.code)
+                )
+                taken_days = Decimal('0.00')
+                for l in approved_leaves:
+                    if l.is_half_day:
+                        if date_from <= l.from_date <= date_to:
+                            wd, _ = calculate_leave_working_days(employee, l.from_date, l.to_date, is_half_day=True, leave_type=lt)
+                            taken_days += wd
+                    else:
+                        sub_start = max(l.from_date, date_from)
+                        sub_end = min(l.to_date, date_to)
+                        if sub_start <= sub_end:
+                            wd, _ = calculate_leave_working_days(employee, sub_start, sub_end, is_half_day=False, leave_type=lt)
+                            taken_days += wd
+
+            pending_leaves = Leave.objects.filter(
+                Q(employee=employee) | Q(user=employee.user),
+                approval_status__in=['PENDING', 'CLARIFICATION'],
+                from_date__lte=date_to,
+                to_date__gte=date_from
+            ).filter(
+                Q(leave_type_ref=lt) | Q(leave_type__iexact=lt.name) | Q(leave_type__iexact=lt.code)
+            )
+            pending_days = Decimal('0.00')
+            for l in pending_leaves:
+                if l.is_half_day:
+                    if date_from <= l.from_date <= date_to:
+                        wd, _ = calculate_leave_working_days(employee, l.from_date, l.to_date, is_half_day=True, leave_type=lt)
+                        pending_days += wd
+                else:
+                    sub_start = max(l.from_date, date_from)
+                    sub_end = min(l.to_date, date_to)
+                    if sub_start <= sub_end:
+                        wd, _ = calculate_leave_working_days(employee, sub_start, sub_end, is_half_day=False, leave_type=lt)
+                        pending_days += wd
+
+            summary_by_type.append({
+                'leave_type': lt,
+                'id': lt.id,
+                'code': lt.code,
+                'name': lt.name,
+                'uses_balance': False,
+                'balance_at_start': None,
+                'opening': None,
+                'opening_days': Decimal('0.00'),
+                'entitlement': None,
+                'accrued': None,
+                'accrued_days': Decimal('0.00'),
+                'carried_forward': None,
+                'carried_days': Decimal('0.00'),
+                'taken': taken_days,
+                'taken_days': taken_days,
+                'adjustments': None,
+                'adj_days': None,
+                'excess_expired': None,
+                'excess_days': None,
+                'closing_balance': None,
+                'net_balance': None,
+                'pending_days': pending_days,
+                'available_now': None,
+                'available_days': None,
+            })
+
+    # Running balance per leave type
+    current_balance = {}
+    for s in summary_by_type:
+        lt_id = s['id']
+        if s['uses_balance']:
+            current_balance[lt_id] = s['balance_at_start']
+        else:
+            current_balance[lt_id] = None
+
+    ledger_entries = LeaveLedger.objects.filter(
+        employee=employee,
+        date__gte=date_from,
+        date__lte=date_to
+    ).select_related('leave_type', 'leave', 'created_by').order_by('date', 'id')
+
+    ledger_lines = []
+    for entry in ledger_entries:
+        lt_id = entry.leave_type_id
+        if lt_id in current_balance and current_balance[lt_id] is not None:
+            run_bal = current_balance[lt_id] + entry.days
+            current_balance[lt_id] = run_bal
+        else:
+            if entry.leave_type and entry.leave_type.uses_balance:
+                if lt_id not in current_balance:
+                    prior = LeaveLedger.objects.filter(
+                        employee=employee, leave_type_id=lt_id, date__lt=date_from
+                    ).aggregate(s=Sum('days'))['s'] or Decimal('0.00')
+                    current_balance[lt_id] = prior + entry.days
+                    run_bal = current_balance[lt_id]
+                else:
+                    run_bal = None
+            else:
+                run_bal = None
+
+        ledger_lines.append({
+            'entry': entry,
+            'running_balance': run_bal,
+        })
+
+    # Leave requests in period
+    requests_qs = Leave.objects.filter(
+        Q(employee=employee) | Q(user=employee.user),
+        from_date__lte=date_to,
+        to_date__gte=date_from
+    ).select_related('leave_type_ref', 'decided_by', 'user').order_by('from_date', 'id')
+
+    requests_in_period = []
+    for r in requests_qs:
+        lt_obj = r.leave_type_ref
+        if r.is_half_day:
+            in_range = (date_from <= r.from_date <= date_to)
+            overlap_days = Decimal('0.50') if in_range else Decimal('0.00')
+        else:
+            sub_start = max(r.from_date, date_from)
+            sub_end = min(r.to_date, date_to)
+            if sub_start <= sub_end:
+                overlap_days, _ = calculate_leave_working_days(employee, sub_start, sub_end, is_half_day=False, leave_type=lt_obj)
+            else:
+                overlap_days = Decimal('0.00')
+
+        total_requested = r.days if r.days is not None else (Decimal(str(r.no_of_days)) if r.no_of_days else overlap_days)
+        type_name = r.leave_type_ref.name if r.leave_type_ref else (r.get_leave_type_display() if hasattr(r, 'get_leave_type_display') else r.leave_type)
+
+        requests_in_period.append({
+            'request': r,
+            'id': r.id,
+            'leave_type_name': type_name,
+            'from_date': r.from_date,
+            'to_date': r.to_date,
+            'is_half_day': r.is_half_day,
+            'half_day_part': r.half_day_part,
+            'days': overlap_days,
+            'total_days': total_requested,
+            'status': r.approval_status,
+            'applied_at': r.created_at,
+            'decided_by': r.decided_by,
+            'decided_at': r.decided_at,
+            'remarks': r.decision_remarks or r.reason or '',
+        })
+
+    return {
+        'employee': employee,
+        'date_from': date_from,
+        'date_to': date_to,
+        'period_label': period_label,
+        'mode': mode,
+        'year': year,
+        'summary_by_type': summary_by_type,
+        'ledger_lines': ledger_lines,
+        'requests': requests_in_period,
+    }
+
+
+def export_leave_statement_excel(statement_or_employee, year=None, summary_list=None, entries_with_bal=None):
+    """
+    Exports employee's leave statement to Excel with 3 sheets:
+    - Sheet 1: Summary (leave types breakdown)
+    - Sheet 2: Ledger (transactions with per-type running balance)
+    - Sheet 3: Requests (all leave requests in the range)
+    Supports both statement dict and legacy 4-argument signature.
+    """
+    if isinstance(statement_or_employee, dict):
+        stmt = statement_or_employee
+        employee = stmt['employee']
+        date_from = stmt['date_from']
+        date_to = stmt['date_to']
+        period_label = stmt.get('period_label') or f"{date_from} – {date_to}"
+        year = stmt.get('year') or date_from.year
+        summary = stmt['summary_by_type']
+        ledger_lines = stmt['ledger_lines']
+        requests_list = stmt.get('requests', [])
+    else:
+        employee = statement_or_employee
+        year = year or timezone.localdate().year
+        date_from = datetime.date(year, 1, 1)
+        date_to = datetime.date(year, 12, 31)
+        period_label = f"Year {year}"
+        summary = summary_list or []
+        ledger_lines = entries_with_bal or []
+        req_qs = Leave.objects.filter(
+            Q(employee=employee) | Q(user=employee.user),
+            from_date__lte=date_to,
+            to_date__gte=date_from
+        ).select_related('leave_type_ref', 'decided_by', 'user').order_by('from_date', 'id')
+        requests_list = []
+        for r in req_qs:
+            type_name = r.leave_type_ref.name if r.leave_type_ref else (r.get_leave_type_display() if hasattr(r, 'get_leave_type_display') else r.leave_type)
+            requests_list.append({
+                'request': r,
+                'id': r.id,
+                'leave_type_name': type_name,
+                'from_date': r.from_date,
+                'to_date': r.to_date,
+                'days': r.days if r.days is not None else Decimal(str(r.no_of_days or 0)),
+                'total_days': r.days if r.days is not None else Decimal(str(r.no_of_days or 0)),
+                'status': r.approval_status,
+                'applied_at': r.created_at,
+                'decided_by': r.decided_by,
+                'decided_at': r.decided_at,
+                'remarks': r.decision_remarks or r.reason or '',
+            })
+
+    wb = openpyxl.Workbook()
+
+    # SHEET 1: Summary
+    ws1 = wb.active
+    ws1.title = "Summary"
 
     emp_code = employee.employee_code or f"AMMS-{employee.id:04d}"
-    ws.append([f"Employee: {employee.name} ({emp_code}) | Dept: {employee.department.name if employee.department else '-'} | Branch: {employee.branch.name if employee.branch else '-'}"])
-    ws.append([])
+    dept_name = employee.department.name if employee.department else '-'
+    branch_name = employee.branch.name if employee.branch else '-'
 
-    # Section 1: Summary Table
-    ws.append(["Leave Type", "Opening", "Accrued", "Carried Over", "Taken", "Adjustments", "Excess", "Net Balance", "Pending", "Available"])
-    sum_header_row = ws.max_row
-    for col_num in range(1, 11):
-        cell = ws.cell(row=sum_header_row, column=col_num)
+    # Title & Metadata
+    ws1.append([f"LEAVE STATEMENT - {period_label.upper()}"])
+    ws1.cell(row=1, column=1).font = openpyxl.styles.Font(bold=True, size=14, color="1F497D")
+    ws1.append([f"Employee: {employee.name} ({emp_code}) | Dept: {dept_name} | Branch: {branch_name}"])
+    ws1.append([])
+
+    sum_headers = [
+        "Leave Type", "Balance at Start", "Opening", "Entitlement", "Accrued",
+        "Carried Fwd", "Taken", "Adjustments", "Excess / Expired", "Closing Balance",
+        "Pending", "Available Now"
+    ]
+    ws1.append(sum_headers)
+    h_row = ws1.max_row
+    for col_idx in range(1, len(sum_headers) + 1):
+        cell = ws1.cell(row=h_row, column=col_idx)
         cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
         cell.fill = openpyxl.styles.PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
-        cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
 
-    for s in summary_list:
-        ws.append([
-            s['name'],
-            float(s['opening_days']),
-            float(s['accrued_days']),
-            float(s['carried_days']),
-            float(s['taken_days']),
-            float(s['adj_days']),
-            float(s['excess_days']),
-            float(s['net_balance']),
-            float(s['pending_days']),
-            float(s['available_days']) if s['uses_balance'] else '-'
-        ])
+    thin_border = openpyxl.styles.Border(
+        left=openpyxl.styles.Side(style='thin', color="CBD5E1"),
+        right=openpyxl.styles.Side(style='thin', color="CBD5E1"),
+        top=openpyxl.styles.Side(style='thin', color="CBD5E1"),
+        bottom=openpyxl.styles.Side(style='thin', color="CBD5E1"),
+    )
 
-    ws.append([])
-    ws.append([])
+    zebra_fill = openpyxl.styles.PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
 
-    # Section 2: Ledger Entries
-    ws.append([f"LEDGER ENTRIES ({year})"])
-    sec2_title = ws.cell(row=ws.max_row, column=1)
-    sec2_title.font = openpyxl.styles.Font(bold=True, size=12, color="1F497D")
+    for idx, s in enumerate(summary, start=1):
+        uses_bal = s.get('uses_balance', True)
+
+        def fmt_val(key, legacy_key=None):
+            val = s.get(key)
+            if val is None and legacy_key:
+                val = s.get(legacy_key)
+            if val is None:
+                return '-'
+            return float(val)
+
+        row_vals = [
+            s.get('name') or (s.get('leave_type').name if s.get('leave_type') else '-'),
+            fmt_val('balance_at_start') if uses_bal else '-',
+            fmt_val('opening', 'opening_days') if uses_bal else '-',
+            fmt_val('entitlement') if uses_bal else '-',
+            fmt_val('accrued', 'accrued_days') if uses_bal else '-',
+            fmt_val('carried_forward', 'carried_days') if uses_bal else '-',
+            fmt_val('taken', 'taken_days'),
+            fmt_val('adjustments', 'adj_days') if uses_bal else '-',
+            fmt_val('excess_expired', 'excess_days') if uses_bal else '-',
+            fmt_val('closing_balance', 'net_balance') if uses_bal else '-',
+            fmt_val('pending_days'),
+            fmt_val('available_now', 'available_days') if uses_bal else '-'
+        ]
+        ws1.append(row_vals)
+        r_num = ws1.max_row
+        for c_idx in range(1, len(row_vals) + 1):
+            cell = ws1.cell(row=r_num, column=c_idx)
+            cell.border = thin_border
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+            if c_idx > 1:
+                cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+
+    for col in ws1.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws1.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+    # SHEET 2: Ledger
+    ws2 = wb.create_sheet(title="Ledger")
+    ws2.append([f"DETAILED TRANSACTION LEDGER - {period_label.upper()}"])
+    ws2.cell(row=1, column=1).font = openpyxl.styles.Font(bold=True, size=14, color="1F497D")
+    ws2.append([f"Employee: {employee.name} ({emp_code})"])
+    ws2.append([])
 
     ledger_headers = ["Date", "Leave Type", "Entry Type", "Days (+/-)", "Running Balance", "Leave Ref", "Note", "Recorded By"]
-    ws.append(ledger_headers)
-    led_header_row = ws.max_row
-    for col_num in range(1, len(ledger_headers) + 1):
-        cell = ws.cell(row=led_header_row, column=col_num)
+    ws2.append(ledger_headers)
+    h_row2 = ws2.max_row
+    for col_idx in range(1, len(ledger_headers) + 1):
+        cell = ws2.cell(row=h_row2, column=col_idx)
         cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
-        cell.fill = openpyxl.styles.PatternFill(start_color="595959", end_color="595959", fill_type="solid")
-        cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+        cell.fill = openpyxl.styles.PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
 
-    for item in entries_with_bal:
+    for idx, item in enumerate(ledger_lines, start=1):
         e = item['entry']
         run_bal = item['running_balance']
-        leave_ref = f"Leave #{e.leave.id}" if e.leave else '-'
+        leave_ref = f"#{e.leave.id}" if e.leave else '-'
         user_name = e.created_by.username if e.created_by else 'System'
+        bal_str = float(run_bal) if run_bal is not None else '-'
 
-        ws.append([
+        row_vals = [
             e.date.strftime('%d/%m/%Y'),
             e.leave_type.name,
             e.get_entry_type_display(),
             float(e.days),
-            float(run_bal),
+            bal_str,
             leave_ref,
             e.note or '',
             user_name
-        ])
+        ]
+        ws2.append(row_vals)
+        r_num = ws2.max_row
+        for c_idx in range(1, len(row_vals) + 1):
+            cell = ws2.cell(row=r_num, column=c_idx)
+            cell.border = thin_border
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+            if c_idx in (1, 3, 4, 5, 6):
+                cell.alignment = openpyxl.styles.Alignment(horizontal="center")
 
-    for col in ws.columns:
+    for col in ws2.columns:
         max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = openpyxl.utils.get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        ws2.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+    # SHEET 3: Requests
+    ws3 = wb.create_sheet(title="Requests")
+    ws3.append([f"LEAVE REQUESTS IN PERIOD - {period_label.upper()}"])
+    ws3.cell(row=1, column=1).font = openpyxl.styles.Font(bold=True, size=14, color="1F497D")
+    ws3.append([f"Employee: {employee.name} ({emp_code})"])
+    ws3.append([])
+
+    req_headers = ["Request #", "Leave Type", "From Date", "To Date", "Days (Period)", "Total Days", "Status", "Applied On", "Decided By", "Decided At", "Remarks"]
+    ws3.append(req_headers)
+    h_row3 = ws3.max_row
+    for col_idx in range(1, len(req_headers) + 1):
+        cell = ws3.cell(row=h_row3, column=col_idx)
+        cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+        cell.fill = openpyxl.styles.PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center", vertical="center")
+
+    for idx, r in enumerate(requests_list, start=1):
+        applied_str = r['applied_at'].strftime('%d/%m/%Y %H:%M') if r.get('applied_at') else '-'
+        decided_str = r['decided_at'].strftime('%d/%m/%Y %H:%M') if r.get('decided_at') else '-'
+        decider_name = (r['decided_by'].get_full_name() or r['decided_by'].username) if r.get('decided_by') else '-'
+
+        row_vals = [
+            f"#{r['id']}",
+            r['leave_type_name'],
+            r['from_date'].strftime('%d/%m/%Y'),
+            r['to_date'].strftime('%d/%m/%Y'),
+            float(r.get('days', 0)),
+            float(r.get('total_days', 0)),
+            r.get('status', '-'),
+            applied_str,
+            decider_name,
+            decided_str,
+            r.get('remarks', '')
+        ]
+        ws3.append(row_vals)
+        r_num = ws3.max_row
+        for c_idx in range(1, len(row_vals) + 1):
+            cell = ws3.cell(row=r_num, column=c_idx)
+            cell.border = thin_border
+            if idx % 2 == 0:
+                cell.fill = zebra_fill
+            if c_idx in (1, 3, 4, 5, 6, 7):
+                cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+
+    for col in ws3.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws3.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
     stream = io.BytesIO()
     wb.save(stream)

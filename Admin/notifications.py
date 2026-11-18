@@ -67,6 +67,12 @@ NOTIFICATION_TYPE_META = {
         'color': '#1f3a52',
         'bg': '#e2e8f0',
     },
+    'MISSING_PUNCH': {
+        'label': 'Missing Punch',
+        'icon': 'fas fa-fingerprint',
+        'color': '#ea580c',
+        'bg': '#ffedd5',
+    },
     'SYSTEM': {
         'label': 'System',
         'icon': 'fas fa-bell',
@@ -155,6 +161,28 @@ def get_user_role_link(user, area, obj_id=None, query=''):
             path = '/administration/attendance-status/?tab=my_requests'
         else:
             path = '/employee/attendance-list/?tab=my_requests'
+    elif area == 'correction_my_date':
+        if is_hr:
+            path = '/hr/attendance-status/'
+        elif is_mgr:
+            path = '/manager/attendance-status/'
+        elif is_acc:
+            path = '/finance/attendance-status/'
+        elif is_adm:
+            path = '/administration/attendance-status/'
+        elif is_su:
+            path = '/admin-panel/attendance-status/'
+        else:
+            path = '/employee/attendance-list/'
+    elif area == 'missing_punch_approver':
+        if is_su:
+            path = '/admin-panel/employee/attendance/'
+        elif is_hr:
+            path = '/hr/employee/attendance/'
+        elif is_mgr:
+            path = '/manager/attendance-status/'
+        else:
+            path = '/hr/employee/attendance/'
     elif area == 'timesheet_approvals':
         if is_su:
             path = '/admin-panel/timesheet-approvals/'

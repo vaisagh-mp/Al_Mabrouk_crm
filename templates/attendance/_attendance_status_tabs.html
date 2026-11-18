@@ -4,6 +4,13 @@
 <div class="attendance-status-container">
     {% include 'finance/_messages.html' %}
 
+    {% if auto_correct_info %}
+    <div class="alert alert-info alert-dismissible fade show" role="alert">
+        <i class="fas fa-info-circle me-1"></i> {{ auto_correct_info }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    {% endif %}
+
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div class="pg-title mb-0">
             <h1 class="h3 mb-0 text-gray-800">Attendance Status</h1>
@@ -632,7 +639,7 @@
                             <label class="form-label fw-bold">Location: <span class="text-danger">*</span></label>
                             <select name="location" id="modalLocation" class="form-select" required>
                                 {% for val, label in location_choices %}
-                                    <option value="{{ val }}" {% if val == 'OFFICE' %}selected{% endif %}>{{ label }}</option>
+                                    <option value="{{ val }}" {% if val == 'BDO' %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -762,6 +769,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const modal = new bootstrap.Modal(document.getElementById('newCorrectionModal'));
         modal.show();
     }
+    {% if auto_correct_data %}
+    openCorrectionModalForDate('{{ auto_correct_data.date }}', '{{ auto_correct_data.status_code }}', '{{ auto_correct_data.orig_in }}', '{{ auto_correct_data.orig_out }}');
+    {% endif %}
 });
 </script>
 

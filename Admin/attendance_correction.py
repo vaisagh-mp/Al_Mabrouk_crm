@@ -304,6 +304,14 @@ def get_shared_attendance_status_context(request, employee, role_name):
     Builds context for role attendance-status pages (employee, manager, hr, finance, admin).
     """
     today = timezone.localdate()
+    correct_param = (request.GET.get('correct') or '').strip()
+    correct_date = None
+    if correct_param:
+        try:
+            correct_date = datetime.datetime.strptime(correct_param, '%Y-%m-%d').date()
+        except ValueError:
+            correct_date = None
+
     month_param = request.GET.get('month')
     if month_param:
         try:
@@ -316,13 +324,21 @@ def get_shared_attendance_status_context(request, employee, role_name):
             _, num_days = monthrange(today.year, today.month)
             end_date = datetime.date(today.year, today.month, num_days)
             month_param = today.strftime('%Y-%m')
+    elif correct_date:
+        start_date = datetime.date(correct_date.year, correct_date.month, 1)
+        _, num_days = monthrange(correct_date.year, correct_date.month)
+        end_date = datetime.date(correct_date.year, correct_date.month, num_days)
+        month_param = correct_date.strftime('%Y-%m')
     else:
         start_date = datetime.date(today.year, today.month, 1)
         _, num_days = monthrange(today.year, today.month)
         end_date = datetime.date(today.year, today.month, num_days)
         month_param = today.strftime('%Y-%m')
 
-    active_tab = request.GET.get('tab', 'my_attendance' if employee else 'team_requests')
+    if correct_param and employee:
+        active_tab = 'my_attendance'
+    else:
+        active_tab = request.GET.get('tab', 'my_attendance' if employee else 'team_requests')
 
     if employee:
         # Pending correction request dates for employee
@@ -441,6 +457,32 @@ def get_shared_attendance_status_context(request, employee, role_name):
     departments = Department.objects.filter(is_active=True).order_by('name')
     branches = Branch.objects.filter(is_active=True).order_by('name')
 
+    auto_correct_info = None
+    auto_correct_data = None
+    if correct_param:
+        matching_day = next((d for d in calendar_days if d['date'] == correct_date), None) if correct_date else None
+        if matching_day and matching_day['can_request_correction']:
+            r = matching_day.get('row') or {}
+            orig_in = ''
+            if r.get('login_time'):
+                orig_in = timezone.localtime(r['login_time']).strftime('%H:%M')
+            elif r.get('start'):
+                orig_in = r['start'].strftime('%H:%M')
+            orig_out = ''
+            if r.get('logout_time'):
+                orig_out = timezone.localtime(r['logout_time']).strftime('%H:%M')
+            elif r.get('end'):
+                orig_out = r['end'].strftime('%H:%M')
+
+            auto_correct_data = {
+                'date': correct_param,
+                'status_code': matching_day['status_code'],
+                'orig_in': orig_in,
+                'orig_out': orig_out,
+            }
+        else:
+            auto_correct_info = f"Attendance for {correct_param} cannot be corrected (it is already pending, corrected, or a future date)."
+
     return {
         'employee': employee,
         'role': role_name,
@@ -459,6 +501,8 @@ def get_shared_attendance_status_context(request, employee, role_name):
         'branches': branches,
         'correction_types': AttendanceCorrection.CORRECTION_TYPE_CHOICES,
         'location_choices': Attendance.LOCATION_CHOICES,
+        'auto_correct_data': auto_correct_data,
+        'auto_correct_info': auto_correct_info,
     }
 
 
