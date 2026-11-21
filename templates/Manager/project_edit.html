@@ -37,6 +37,24 @@
           <input type="text" class="form-control" id="id_code" name="code" required value="{{ form.code.value }}" />
         </div>
 
+        <!-- Service Reference -->
+        <div class="mb-3">
+          <label for="id_service_reference" class="form-label">Service Reference</label>
+          <input
+            type="text"
+            class="form-control{% if form.service_reference.errors %} is-invalid{% endif %}"
+            id="id_service_reference"
+            name="service_reference"
+            placeholder="Enter service reference (optional)"
+            value="{{ form.service_reference.value|default_if_none:'' }}"
+          />
+          {% if form.service_reference.errors %}
+            <div class="text-danger small mt-1">
+              {{ form.service_reference.errors.0 }}
+            </div>
+          {% endif %}
+        </div>
+
         <!-- Priority Field (Radio Buttons) -->
         <div class="mb-3">
           <label class="form-label">Priority:</label>

@@ -111,10 +111,9 @@ def render_employee_list(request, role, base_template):
         qs = qs.filter(user__is_active=True)
 
     # Reporting manager (for HR/Admin only)
-    if role != 'manager':
-        mgr_id = request.GET.get('reporting_manager')
-        if mgr_id:
-            qs = qs.filter(reporting_manager_id=mgr_id)
+    mgr_id = request.GET.get('reporting_manager') if role != 'manager' else None
+    if mgr_id:
+        qs = qs.filter(reporting_manager_id=mgr_id)
 
     joined_from = request.GET.get('joined_from')
     if joined_from:
@@ -177,7 +176,10 @@ def render_employee_list(request, role, base_template):
         'can_view_salary': can_view_salary(user),
         'departments': Department.objects.filter(is_active=True),
         'branches': Branch.objects.filter(is_active=True),
-        'reporting_managers': Employee.objects.filter(user__is_active=True).select_related('user'),
+        'reporting_managers': Employee.objects.filter(
+            Q(is_manager=True, user__is_active=True)
+            | (Q(pk=int(mgr_id)) if mgr_id and mgr_id.isdigit() else Q())
+        ).select_related('user').order_by('user__first_name', 'user__last_name'),
         # Active filter states
         'q': q,
         'selected_dept': dept_id,

@@ -1,5 +1,6 @@
 from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.dispatch import receiver
+from django.contrib.auth.models import User
 from .models import Project, Notification, Team, TeamMemberStatus, Employee, Leave, ProjectAttachment, WorkOrder, WorkOrderTime
 from Admin.notifications import notify, notify_role, get_user_role_link
 
@@ -190,7 +191,13 @@ def track_all_members(sender, instance, action, pk_set, **kwargs):
     Persist ALL members ever assigned to a work order.
     """
     if action == "post_add":
-        project = instance.project
+        try:
+            project = instance.project
+        except (Project.DoesNotExist, AttributeError):
+            return
+
+        if project is None:
+            return
 
         try:
             work_order = project.workorder

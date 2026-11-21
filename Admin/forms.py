@@ -14,6 +14,32 @@ from .models import (
 )
 from finance.currency import CURRENCY_CHOICES
 
+
+def format_reporting_manager_label(obj):
+    name = ""
+    if obj.user:
+        full_name = f"{obj.user.first_name} {obj.user.last_name}".strip()
+        name = full_name if full_name else obj.user.username
+    if not name:
+        name = f"Employee #{obj.pk}"
+    if obj.employee_code:
+        return f"{name} ({obj.employee_code})"
+    return name
+
+
+class ReportingManagerModelChoiceField(forms.ModelChoiceField):
+    def label_from_instance(self, obj):
+        return format_reporting_manager_label(obj)
+
+    def to_python(self, value):
+        if value in self.empty_values:
+            return None
+        inst = getattr(self, 'form_instance', None)
+        if inst and inst.pk and str(value) == str(inst.pk):
+            raise forms.ValidationError("An employee cannot be their own reporting manager.")
+        return super().to_python(value)
+
+
 class EmployeeCreationForm(forms.ModelForm):
     ROLE_CHOICES = [
         ('employee', 'Employee'),
@@ -47,8 +73,8 @@ class EmployeeCreationForm(forms.ModelForm):
         label="Branch"
     )
     rank = forms.CharField(max_length=255, required=False, label="Designation / Rank")
-    reporting_manager = forms.ModelChoiceField(
-        queryset=Employee.objects.filter(user__is_active=True).select_related('user'),
+    reporting_manager = ReportingManagerModelChoiceField(
+        queryset=Employee.objects.filter(is_manager=True, user__is_active=True).select_related('user').order_by('user__first_name', 'user__last_name'),
         required=False,
         label="Reporting Manager"
     )
@@ -122,7 +148,16 @@ class EmployeeCreationForm(forms.ModelForm):
         if 'branch' in self.fields:
             self.fields['branch'].queryset = Branch.objects.filter(is_active=True)
         if 'reporting_manager' in self.fields:
-            self.fields['reporting_manager'].queryset = Employee.objects.filter(user__is_active=True).select_related('user')
+            self.fields['reporting_manager'].queryset = Employee.objects.filter(
+                is_manager=True, user__is_active=True
+            ).select_related('user').order_by('user__first_name', 'user__last_name')
+            self.fields['reporting_manager'].label_from_instance = format_reporting_manager_label
+
+    def clean_reporting_manager(self):
+        mgr = self.cleaned_data.get('reporting_manager')
+        if mgr and not mgr.is_manager:
+            raise forms.ValidationError("Selected reporting manager must be a manager.")
+        return mgr
 
     def clean(self):
         cleaned_data = super().clean()
@@ -486,7 +521,7 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
     department = forms.ModelChoiceField(queryset=Department.objects.none(), required=False, label="Department")
     branch = forms.ModelChoiceField(queryset=Branch.objects.none(), required=False, label="Branch")
     rank = forms.CharField(max_length=255, required=False, label="Designation / Rank")
-    reporting_manager = forms.ModelChoiceField(queryset=Employee.objects.none(), required=False, label="Reporting Manager")
+    reporting_manager = ReportingManagerModelChoiceField(queryset=Employee.objects.none(), required=False, label="Reporting Manager")
     date_of_join = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), required=False, label="Date of Joining")
     employment_status = forms.ChoiceField(choices=EMPLOYMENT_STATUS_CHOICES, initial='ACTIVE', required=False, label="Employment Status")
     work_type = forms.ChoiceField(choices=WORK_TYPE_CHOICES, initial='OFFICE', required=False, label="Work Type")
@@ -628,9 +663,20 @@ class ManagerEmployeeUpdateForm(forms.ModelForm):
         if 'branch' in self.fields:
             self.fields['branch'].queryset = branch_qs
 
-        mgr_qs = Employee.objects.filter(user__is_active=True).select_related('user')
+        mgr_filter = Q(is_manager=True, user__is_active=True)
+        if self.instance and self.instance.pk and self.instance.reporting_manager_id:
+            mgr_filter = mgr_filter | Q(pk=self.instance.reporting_manager_id)
+
+        mgr_qs = Employee.objects.filter(mgr_filter).select_related('user')
+        if self.instance and self.instance.pk:
+            mgr_qs = mgr_qs.exclude(pk=self.instance.pk)
+
+        mgr_qs = mgr_qs.order_by('user__first_name', 'user__last_name')
+
         if 'reporting_manager' in self.fields:
+            self.fields['reporting_manager'].form_instance = self.instance
             self.fields['reporting_manager'].queryset = mgr_qs
+            self.fields['reporting_manager'].label_from_instance = format_reporting_manager_label
 
         sched_qs = DutySchedule.objects.filter(is_active=True)
         curr_sched = self.instance.current_duty_schedule if self.instance and self.instance.pk else None
